@@ -6,14 +6,8 @@ namespace WDExtract.Resources
 {
   public class Mesh : Resource
   {
-    public byte[] Data
+    public Mesh(string filename, (uint, uint, uint) fileInfo, byte[] data) : base(filename, fileInfo, data)
     {
-      get;
-    }
-
-    public Mesh(string filename, (uint, uint, uint) fileInfo, byte[] data) : base(filename, fileInfo)
-    {
-      Data = data;
     }
   }
 }

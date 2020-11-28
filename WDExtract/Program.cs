@@ -48,6 +48,14 @@ namespace WDExtract
 
           data = desc.DecompressedLength == desc.Length ? data : Decompress(data);
           File.WriteAllBytes(Path.Combine(workDir, archiveName, desc.Filename), data);
+          if (desc.HasUnknownData)
+          {
+            File.WriteAllBytes(Path.Combine(workDir, archiveName, desc.Filename) + ".unknownData", desc.UnknownData);
+          }
+          if (desc is ResourceTranslatable descTranslatable)
+          {
+            File.WriteAllText(Path.Combine(workDir, archiveName, desc.Filename) + ".translationId", descTranslatable.TranslationId);
+          }
         }
       }
 

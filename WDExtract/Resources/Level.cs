@@ -11,15 +11,9 @@ namespace WDExtract.Resources
       get;
     }
 
-    public byte[] Data
-    {
-      get;
-    }
-
-    public Level(string filename, (uint, uint, uint) fileInfo, string id, byte[] data) : base(filename, fileInfo)
+    public Level(string filename, (uint, uint, uint) fileInfo, string id, byte[] data) : base(filename, fileInfo, data)
     {
       Id = id;
-      Data = data;
     }
   }
 }

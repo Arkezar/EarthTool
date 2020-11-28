@@ -4,21 +4,10 @@ using System.Text;
 
 namespace WDExtract.Resources
 {
-  public class Interface : Resource
+  public class Interface : ResourceTranslatable
   {
-    public string TranslationId
+    public Interface(string filename, (uint, uint, uint) fileInfo, string translationId) : base(filename, fileInfo, translationId)
     {
-      get;
-    }
-
-    public Interface(string filename, (uint, uint, uint) fileInfo, string translationId) : base(filename, fileInfo)
-    {
-      TranslationId = translationId;
-    }
-
-    public override string ToString()
-    {
-      return $"{base.ToString()} TransaltionID: {TranslationId}";
     }
   }
 }

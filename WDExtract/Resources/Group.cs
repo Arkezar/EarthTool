@@ -6,14 +6,8 @@ namespace WDExtract.Resources
 {
   public class Group : Resource
   {
-    public byte[] Data
+    public Group(string filename, (uint, uint, uint) fileInfo, byte[] data) : base(filename, fileInfo, data)
     {
-      get;
-    }
-
-    public Group(string filename, (uint, uint, uint) fileInfo, byte[] data) : base(filename, fileInfo)
-    {
-      Data = data;
     }
   }
 }
