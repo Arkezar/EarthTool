@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30717.126
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WDExtract", "WDExtract\WDExtract.csproj", "{FEFE6682-CDFF-4780-8AE3-38224A3E0000}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WDExtract", "WDExtract\WDExtract.csproj", "{FEFE6682-CDFF-4780-8AE3-38224A3E0000}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TEXExtract", "TEXExtract\TEXExtract.csproj", "{282666FB-F0C2-4A33-B155-8E3B4CA3E60C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{FEFE6682-CDFF-4780-8AE3-38224A3E0000}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FEFE6682-CDFF-4780-8AE3-38224A3E0000}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FEFE6682-CDFF-4780-8AE3-38224A3E0000}.Release|Any CPU.Build.0 = Release|Any CPU
+		{282666FB-F0C2-4A33-B155-8E3B4CA3E60C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{282666FB-F0C2-4A33-B155-8E3B4CA3E60C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{282666FB-F0C2-4A33-B155-8E3B4CA3E60C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{282666FB-F0C2-4A33-B155-8E3B4CA3E60C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
