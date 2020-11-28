@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -9,8 +10,7 @@ namespace TEXExtract
   {
     static void Main(string[] args)
     {
-      //var file = args[0];
-      var file = @"D:\Earth 2150 EftbP\WDFiles\Interface\Interface\compassUCS.tex";
+      var file = args[0];
       var data = File.ReadAllBytes(file);
 
       var workDir = Path.GetDirectoryName(file);
@@ -18,20 +18,26 @@ namespace TEXExtract
       Console.WriteLine("Extracting " + filename);
       using (var stream = new MemoryStream(data))
       {
-        var numberOfMaps = ReadHeader(stream);
-        if (numberOfMaps > 0)
+        var header = ReadHeader(stream);
+        if (header.NumberOfMaps > 0)
         {
-          for (var i = 0; i < numberOfMaps; i++)
+          for (var i = 0; i < header.NumberOfMaps; i++)
           {
             var t = ReadHeader(stream);
-            var image = ReadBitmap(stream);
-            SaveBitmap(workDir, filename, i, image);
+            var images = ReadBitmap(stream, t.Type, t.Subtype);
+            foreach (var image in images)
+            {
+              SaveBitmap(workDir, filename, i, image);
+            }
           }
         }
         else
         {
-          var image = ReadBitmap(stream);
-          SaveBitmap(workDir, filename, 0, image);
+          var images = ReadBitmap(stream, header.Type, header.Subtype);
+          foreach (var image in images)
+          {
+            SaveBitmap(workDir, filename, 0, image);
+          }
         }
       }
 
@@ -45,50 +51,82 @@ namespace TEXExtract
       {
         Directory.CreateDirectory(outputDir);
       }
-      image.Save(Path.Combine(outputDir, $"{filename}_{i}.png"));
+      image.Save(Path.Combine(outputDir, $"{filename}_{i}_{image.Width}x{image.Height}.png"));
     }
 
-    private static Image ReadBitmap(Stream stream)
+    private static IEnumerable<Image> ReadBitmap(Stream stream, int type, int subtype)
     {
-      var dimensions = new byte[8];
-      stream.Read(dimensions, 0, 8);
+      int infoLength;
+      switch (type)
+      {
+        case 6:
+        case 38:
+          infoLength = 12;
+          break;
+        case 34:
+          infoLength = subtype > 0 ? 24 : 8;
+          break;
+        default:
+          infoLength = 8;
+          break;
+      }
+
+      var images = new List<Image>();
+
+      var dimensions = new byte[infoLength];
+      stream.Read(dimensions, 0, infoLength);
 
       var width = BitConverter.ToInt32(dimensions, 0);
       var height = BitConverter.ToInt32(dimensions, 4);
 
-      var image = new Bitmap(width, height);
-      for (var h = 0; h < image.Height; h++)
+
+      var numberOfMipmaps = 1;
+      if (type == 38 || type == 6)
       {
-        for (var w = 0; w < image.Width; w++)
-        {
-          var red = stream.ReadByte();
-          var green = stream.ReadByte();
-          var blue = stream.ReadByte();
-          var alpha = stream.ReadByte();
-          var color = Color.FromArgb(alpha, red, green, blue);
-          image.SetPixel(w, h, color);
-        }
+        numberOfMipmaps = BitConverter.ToInt32(dimensions, 8);
       }
 
-      return image;
+      do
+      {
+        var image = new Bitmap(width, height);
+        for (var h = 0; h < image.Height; h++)
+        {
+          for (var w = 0; w < image.Width; w++)
+          {
+            var red = stream.ReadByte();
+            var green = stream.ReadByte();
+            var blue = stream.ReadByte();
+            var alpha = stream.ReadByte();
+            var color = Color.FromArgb(alpha, red, green, blue);
+            image.SetPixel(w, h, color);
+          }
+        }
+        images.Add(image);
+        width /= 2;
+        height /= 2;
+      } while (images.Count < numberOfMipmaps);
+
+      return images;
     }
 
-    private static int ReadHeader(Stream stream)
+    private static Header ReadHeader(Stream stream)
     {
       var buffer = new byte[16];
       stream.Read(buffer, 0, 16);
-      if(buffer[0] != 84 && buffer[1] != 69 && buffer[2] != 88)
+      if (buffer[0] != 84 && buffer[1] != 69 && buffer[2] != 88)
       {
-        throw new Exception("Inavlid header");
+        throw new Exception("Invalid header");
       }
-      if (BitConverter.ToInt32(buffer, 8) <= -2147483616)
+
+      var numberOfMaps = buffer[11] == 128 || buffer[11] == 67 || buffer[11] == 16 ? BitConverter.ToInt32(buffer, 12) : 0;
+      if (buffer[11] == 192)
       {
-        return BitConverter.ToInt32(buffer, 12);
+        var tmpBuffer = new byte[4];
+        stream.Read(tmpBuffer, 0, 4);
+        numberOfMaps = BitConverter.ToInt32(buffer, 12) * BitConverter.ToInt32(tmpBuffer);
       }
-      else
-      {
-        return 0;
-      }
+
+      return new Header(buffer[8], buffer[10], numberOfMaps);
     }
   }
 }

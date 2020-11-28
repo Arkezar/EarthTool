@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "TEXExtract": {
+      "commandName": "Project",
+      "commandLineArgs": "\"D:\\Earth 2150 EftbP\\WDFiles\\Textures\\Textures\\TreeShadows.tex\""
+    }
+  }
+}
