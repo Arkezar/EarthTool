@@ -89,16 +89,16 @@ namespace TEXExtract
       do
       {
         var image = new Bitmap(width, height);
-        for (var h = 0; h < image.Height; h++)
+        for (var w = 0; w < image.Width; w++)
         {
-          for (var w = 0; w < image.Width; w++)
+          for (var h = 0; h < image.Height; h++)
           {
             var red = stream.ReadByte();
             var green = stream.ReadByte();
             var blue = stream.ReadByte();
             var alpha = stream.ReadByte();
             var color = Color.FromArgb(alpha, red, green, blue);
-            image.SetPixel(w, h, color);
+            image.SetPixel(h, w, color);
           }
         }
         images.Add(image);
