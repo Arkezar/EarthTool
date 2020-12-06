@@ -19,9 +19,9 @@ namespace EarthTool.TEX
 
     public int Convert(string filePath, string outputPath = null)
     {
-      var data = File.ReadAllBytes(filePath);
+      outputPath ??= Path.GetDirectoryName(filePath);
 
-      var workDir = Path.GetDirectoryName(filePath);
+      var data = File.ReadAllBytes(filePath);
       var filename = Path.GetFileNameWithoutExtension(filePath);
       using (var stream = new MemoryStream(data))
       {
@@ -34,7 +34,7 @@ namespace EarthTool.TEX
             var images = ReadBitmap(stream, t.Type, t.Subtype);
             foreach (var image in images)
             {
-              SaveBitmap(workDir, filename, i, image);
+              SaveBitmap(outputPath, filename, i, image);
             }
           }
         }
@@ -43,7 +43,7 @@ namespace EarthTool.TEX
           var images = ReadBitmap(stream, header.Type, header.Subtype);
           foreach (var image in images)
           {
-            SaveBitmap(workDir, filename, 0, image);
+            SaveBitmap(outputPath, filename, 0, image);
           }
         }
       }

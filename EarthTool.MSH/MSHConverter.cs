@@ -9,18 +9,19 @@ namespace EarthTool.MSH
   {
     public int Convert(string filePath, string outputPath = null)
     {
-      WriteWavefrontModel(new Model(filePath));
+      outputPath ??= Path.GetDirectoryName(filePath);
+      WriteWavefrontModel(new Model(filePath), outputPath);
       return 1;
     }
 
-    private static void WriteWavefrontModel(Model model)
+    private static void WriteWavefrontModel(Model model, string outputPath)
     {
       for (var i = 0; i < model.Parts.Count; i++)
       {
         var workDir = Path.GetDirectoryName(model.FilePath);
         var modelName = Path.GetFileNameWithoutExtension(model.FilePath);
 
-        var resultDir = Path.Combine(workDir, modelName);
+        var resultDir = Path.Combine(outputPath, modelName);
         if (!Directory.Exists(resultDir))
         {
           Directory.CreateDirectory(resultDir);

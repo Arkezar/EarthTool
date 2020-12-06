@@ -1,8 +1,7 @@
 {
   "profiles": {
     "EarthTool": {
-      "commandName": "Project",
-      "commandLineArgs": "wd -o D:\\wdtest \"D:\\GOG\\Earth 2150\\WDFiles\\Interface.wd\""
+      "commandName": "Project"
     }
   }
 }
