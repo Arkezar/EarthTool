@@ -36,6 +36,7 @@ namespace EarthTool.MSH
             WriteFaces(writer, model.Parts[i].Faces);
           }
         }
+        File.WriteAllText(resultFile + ".info", model.Parts[i].Texture.FileName);
       }
     }
 
