@@ -1,0 +1,32 @@
+image: Visual Studio 2019
+version: 0.0.{build}
+branches:
+  only:
+  - master
+skip_tags: true
+skip_branch_with_pr: true
+configuration: Release
+dotnet_csproj:
+  patch: true
+  file: '**\*.csproj'
+  version: '{version}'
+  package_version: '{version}'
+  assembly_version: '{version}'
+  file_version: '{version}'
+  informational_version: '{version}'
+before_build:
+  - nuget restore
+build:
+  verbosity: minimal
+after_build:
+- cmd:  dotnet publish EarthTool -c Release -p:PublishSingleFile=true -r win-x86 --no-self-contained --output %appveyor_build_folder%\dist
+artifacts:
+- path: dist\EarthTool.exe
+  name: deploy
+deploy:
+- provider: GitHub
+  auth_token:
+    secure: BDrrFHgUvkpvVdKX++HlAGBO84VNVhbXN2ZmBrDt9/4r7wlkctJBav5FS5zDXjvy
+  artifact: deploy
+  on:
+    branch: master
