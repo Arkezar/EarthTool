@@ -4,3 +4,9 @@ Supports WD unpacking, convertion of TEX to PNG and limited support for MSH mode
 
 ## MSH converter
 Extraction of msh models is experimental and doesn't support animation data.
+
+## Usage
+Application requires .NET Runtime 5.0.
+Download current release and run `EarthTool.exe --help` for available options.
+
+Or build it yourself.
