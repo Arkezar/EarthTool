@@ -1,45 +1,45 @@
-﻿namespace MESHConverter
+﻿namespace EarthTool.MSH.Models
 {
   public class Vertex
   {
     public float X
     {
-      get; init;
+      get; set;
     }
 
     public float Y
     {
-      get; init;
+      get; set;
     }
 
     public float Z
     {
-      get; init;
+      get; set;
     }
 
     public float NormalX
     {
-      get; init;
+      get; set;
     }
 
     public float NormalY
     {
-      get; init;
+      get; set;
     }
 
     public float NormalZ
     {
-      get; init;
+      get; set;
     }
 
     public float U
     {
-      get; init;
+      get; set;
     }
 
     public float V
     {
-      get; init;
+      get; set;
     }
   }
 }

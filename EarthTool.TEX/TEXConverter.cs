@@ -1,21 +1,28 @@
-﻿using System;
+﻿using EarthTool.Common.Interfaces;
+using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
-using System.Linq;
+using System.Text;
 
-namespace TEXExtract
+namespace EarthTool.TEX
 {
-  class Program
+  public class TEXConverter : ITEXConverter
   {
-    static void Main(string[] args)
+    private readonly ILogger<TEXConverter> _logger;
+
+    public TEXConverter(ILogger<TEXConverter> logger)
     {
-      var file = args[0];
-      var data = File.ReadAllBytes(file);
-      
-      var workDir = Path.GetDirectoryName(file);
-      var filename = Path.GetFileNameWithoutExtension(file);
-      Console.WriteLine("Extracting " + filename);
+      _logger = logger;
+    }
+
+    public int Convert(string filePath, string outputPath = null)
+    {
+      var data = File.ReadAllBytes(filePath);
+
+      var workDir = Path.GetDirectoryName(filePath);
+      var filename = Path.GetFileNameWithoutExtension(filePath);
       using (var stream = new MemoryStream(data))
       {
         var header = ReadHeader(stream);
@@ -40,8 +47,7 @@ namespace TEXExtract
           }
         }
       }
-
-      Console.WriteLine("Finished!");
+      return 1;
     }
 
     private static void SaveBitmap(string workDir, string filename, int i, Image image)
@@ -51,6 +57,7 @@ namespace TEXExtract
       {
         Directory.CreateDirectory(outputDir);
       }
+
       image.Save(Path.Combine(outputDir, $"{filename}_{i}_{image.Width}x{image.Height}.png"));
     }
 
@@ -123,7 +130,7 @@ namespace TEXExtract
       {
         var tmpBuffer = new byte[4];
         stream.Read(tmpBuffer, 0, 4);
-        numberOfMaps = BitConverter.ToInt32(buffer, 12) * BitConverter.ToInt32(tmpBuffer);
+        numberOfMaps = BitConverter.ToInt32(buffer, 12) * BitConverter.ToInt32(tmpBuffer, 0);
       }
 
       return new Header(buffer[8], buffer[10], numberOfMaps);

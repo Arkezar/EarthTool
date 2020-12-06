@@ -1,14 +1,16 @@
-﻿using System.Collections.Generic;
+﻿using EarthTool.Common.Interfaces;
+using EarthTool.MSH.Models;
+using System.Collections.Generic;
 using System.IO;
 
-namespace MESHConverter
+namespace EarthTool.MSH
 {
-  class Program
+  public class MSHConverter : IMSHConverter
   {
-    static void Main(string[] args)
+    public int Convert(string filePath, string outputPath = null)
     {
-      var model = new Model(args[0]);
-      WriteWavefrontModel(model);
+      WriteWavefrontModel(new Model(filePath));
+      return 1;
     }
 
     private static void WriteWavefrontModel(Model model)
