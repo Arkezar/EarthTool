@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "TEXExtract": {
-      "commandName": "Project",
-      "commandLineArgs": "\"D:\\earthwork\\wd\\InterfaceEx\\Interface\\bkg00.tex\""
-    }
-  }
-}

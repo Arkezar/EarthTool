@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "WDExtract": {
-      "commandName": "Project",
-      "commandLineArgs": "\"D:\\Earth 2150 EftbP\\WDFiles\\Update003.wd\""
-    }
-  }
-}

@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "MESHConverter": {
-      "commandName": "Project",
-      "commandLineArgs": "\"D:\\earthwork\\mesh_test\\LCCBU.msh\""
-    }
-  }
-}
