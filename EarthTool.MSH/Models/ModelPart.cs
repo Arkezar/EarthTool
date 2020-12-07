@@ -29,6 +29,7 @@ namespace EarthTool.MSH.Models
       stream.ReadBytes(4); // empty
 
       new UnhandledData(stream, 3, 4);
+      new UnhandledData(stream, 3, 4);
       new UnhandledData(stream, 16, 4);
       stream.ReadBytes(21);
     }

@@ -1,12 +1,21 @@
 ﻿using EarthTool.Common.Interfaces;
 using EarthTool.MSH.Models;
+using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace EarthTool.MSH
 {
   public class MSHConverter : IMSHConverter
   {
+    private readonly ILogger<MSHConverter> _logger;
+
+    public MSHConverter(ILogger<MSHConverter> logger)
+    {
+      _logger = logger;
+    }
+
     public int Convert(string filePath, string outputPath = null)
     {
       outputPath ??= Path.GetDirectoryName(filePath);
@@ -14,8 +23,11 @@ namespace EarthTool.MSH
       return 1;
     }
 
-    private static void WriteWavefrontModel(Model model, string outputPath)
+    private void WriteWavefrontModel(Model model, string outputPath)
     {
+      _logger.LogDebug("Loaded {VerticesNumber} vertices, {FacesNumber} faces",
+                       model.Parts.Sum(p => p.Vertices.Count),
+                       model.Parts.Sum(p => p.Faces.Count));
       for (var i = 0; i < model.Parts.Count; i++)
       {
         var workDir = Path.GetDirectoryName(model.FilePath);
@@ -41,7 +53,7 @@ namespace EarthTool.MSH
     }
 
 
-    private static void WriteVertices(StreamWriter writer, IEnumerable<Vertex> vertices)
+    private void WriteVertices(StreamWriter writer, IEnumerable<Vertex> vertices)
     {
       const string VERTEX_TEMPLATE = "v {0} {1} {2}";
       const string NORMAL_TEMPLATE = "vn {0} {1} {2}";
@@ -66,7 +78,7 @@ namespace EarthTool.MSH
       }
     }
 
-    private static void WriteFaces(StreamWriter writer, IEnumerable<Face> faces)
+    private void WriteFaces(StreamWriter writer, IEnumerable<Face> faces)
     {
       const string FACE_TEMPLATE = "f {0}/{0}/{0} {1}/{1}/{1} {2}/{2}/{2}";
       foreach (var face in faces)

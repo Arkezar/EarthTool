@@ -1,7 +1,11 @@
 {
   "profiles": {
     "EarthTool": {
-      "commandName": "Project"
+      "commandName": "Project",
+      "commandLineArgs": "msh \"D:\\earthwork\\mesh\\EDUBU1.msh\"",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Debug"
+      }
     }
   }
 }

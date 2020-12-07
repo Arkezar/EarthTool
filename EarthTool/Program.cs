@@ -3,8 +3,10 @@ using EarthTool.Common.Interfaces;
 using EarthTool.MSH;
 using EarthTool.TEX;
 using EarthTool.WD;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Configuration;
 using System;
 using System.CommandLine;
 using System.CommandLine.Builder;
@@ -35,9 +37,12 @@ namespace EarthTool
 
     private static IServiceProvider Initialize()
     {
+      var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+
       return new ServiceCollection()
               .AddLogging(config =>
               {
+                config.AddConfiguration(configuration.GetSection("Logging"));
                 config.AddConsole();
                 config.AddDebug();
               })
