@@ -13,6 +13,36 @@ namespace EarthTool.MSH.Models
       get;
     }
 
+    public int Type
+    {
+      get; private set;
+    }
+
+    public short UnknownVal1
+    {
+      get; private set;
+    }
+
+    public short UnknownVal2
+    {
+      get; private set;
+    }
+
+    public short UnknownVal3
+    {
+      get; private set;
+    }
+
+    public short UnknownVal4
+    {
+      get; private set;
+    }
+
+    public int UnknownVal5
+    {
+      get; private set;
+    }
+
     public IList<ModelPart> Parts
     {
       get;
@@ -25,23 +55,36 @@ namespace EarthTool.MSH.Models
 
       using (var file = new FileStream(path, FileMode.Open))
       {
-        CheckAndSkipHeader(file);
+        CheckHeader(file);
+        LoadInfo(file);
+        if(Type != 0)
+        {
+          throw new NotSupportedException("Not supported mesh format");
+        }
         LoadParts(file);
       }
     }
 
-    private void CheckAndSkipHeader(Stream stream)
+    private void CheckHeader(Stream stream)
     {
-      var type = Encoding.ASCII.GetString(stream.ReadBytes(4));
-      if (type != "MESH")
+      var type = stream.ReadBytes(8).AsSpan();
+      if (!type.SequenceEqual(new byte[] { 0x4d, 0x45, 0x53, 0x48, 0x01, 0x00, 0x00, 0x00 }))
       {
         throw new NotSupportedException("Unhandled file format");
       }
-      else
-      {
-        //skipping
-        stream.ReadBytes(872);
-      }
+    }
+
+    private void LoadInfo(Stream stream)
+    {
+      Type = BitConverter.ToInt32(stream.ReadBytes(4));
+      stream.ReadBytes(108);
+      stream.ReadBytes(256);
+      stream.ReadBytes(488);
+      UnknownVal1 = BitConverter.ToInt16(stream.ReadBytes(2));
+      UnknownVal2 = BitConverter.ToInt16(stream.ReadBytes(2));
+      UnknownVal3 = BitConverter.ToInt16(stream.ReadBytes(2));
+      UnknownVal4 = BitConverter.ToInt16(stream.ReadBytes(2));
+      UnknownVal5 = BitConverter.ToInt16(stream.ReadBytes(4));
     }
 
     private void LoadParts(Stream stream)

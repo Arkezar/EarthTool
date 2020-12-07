@@ -1,5 +1,6 @@
 ﻿using EarthTool.Common.Interfaces;
 using Microsoft.Extensions.Logging;
+using System;
 using System.CommandLine;
 using System.CommandLine.Invocation;
 
@@ -24,8 +25,15 @@ namespace EarthTool.Commands
     private void HandleCommand(string input, string output)
     {
       _logger.LogInformation("Processing file {FilePath}", input);
-      _extractor.Extract(input, output);
-      _logger.LogInformation("Finished!");
+      try
+      {
+        _extractor.Extract(input, output);
+        _logger.LogInformation("Finished!");
+      }
+      catch (Exception e)
+      {
+        _logger.LogError(e, "Error occured");
+      }
     }
   }
 }

@@ -26,7 +26,6 @@ namespace EarthTool.MSH.Models
       stream.ReadBytes(4); // empty
       Texture = new TextureInfo(stream);
       Faces = new Faces(stream);
-      stream.ReadBytes(4); // empty
 
       new UnhandledData(stream, 3, 4);
       new UnhandledData(stream, 3, 4);

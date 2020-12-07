@@ -26,8 +26,15 @@ namespace EarthTool.Commands
     private void HandleCommand(string input, string output)
     {
       _logger.LogInformation("Processing file {FilePath}", input);
-      _converter.Convert(input, output);
-      _logger.LogInformation("Finished!");
+      try
+      {
+        _converter.Convert(input, output);
+        _logger.LogInformation("Finished!");
+      }
+      catch (Exception e)
+      {
+        _logger.LogError(e, "Error occured");
+      }
     }
   }
 }
