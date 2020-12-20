@@ -4,6 +4,8 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.MSH
 {
@@ -48,10 +50,29 @@ namespace EarthTool.MSH
             WriteFaces(writer, model.Parts[i].Faces);
           }
         }
-        File.WriteAllText(resultFile + ".info", model.Parts[i].Texture.FileName);
+        using (var fs = new FileStream(resultFile + ".info", FileMode.Create))
+        {
+          using (var writer = new StreamWriter(fs))
+          {
+            WriteInfo(writer, model.Parts[i]);
+          }
+        }
       }
     }
 
+    private void WriteInfo(StreamWriter writer, ModelPart part)
+    {
+      var text = JsonSerializer.Serialize(new
+      {
+        part.Texture,
+        part.Offset
+      }, new JsonSerializerOptions
+      {
+        WriteIndented = true
+      });
+
+      writer.Write(text);
+    }
 
     private void WriteVertices(StreamWriter writer, IEnumerable<Vertex> vertices)
     {

@@ -20,6 +20,11 @@ namespace EarthTool.MSH.Models
       get;
     }
 
+    public PartOffset Offset
+    {
+      get;
+    }
+
     public ModelPart(Stream stream)
     {
       Vertices = new Vertices(stream);
@@ -30,7 +35,10 @@ namespace EarthTool.MSH.Models
       new UnhandledData(stream, 3, 4);
       new UnhandledData(stream, 3, 4);
       new UnhandledData(stream, 16, 4);
-      stream.ReadBytes(21);
+
+      Offset = new PartOffset(stream);
+
+      stream.ReadBytes(5);
     }
   }
 }
