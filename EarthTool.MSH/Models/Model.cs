@@ -18,6 +18,11 @@ namespace EarthTool.MSH.Models
       get; private set;
     }
 
+    public ModelTemplate Template
+    {
+      get; private set;
+    }
+
     public short UnknownVal1
     {
       get; private set;
@@ -77,7 +82,8 @@ namespace EarthTool.MSH.Models
     private void LoadInfo(Stream stream)
     {
       Type = BitConverter.ToInt32(stream.ReadBytes(4));
-      stream.ReadBytes(108);
+      Template = new ModelTemplate(stream);
+      stream.ReadBytes(106);
       stream.ReadBytes(256);
       stream.ReadBytes(488);
       UnknownVal1 = BitConverter.ToInt16(stream.ReadBytes(2));

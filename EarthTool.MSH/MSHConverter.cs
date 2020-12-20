@@ -30,17 +30,18 @@ namespace EarthTool.MSH
       _logger.LogDebug("Loaded {VerticesNumber} vertices, {FacesNumber} faces",
                        model.Parts.Sum(p => p.Vertices.Count),
                        model.Parts.Sum(p => p.Faces.Count));
+
+      var workDir = Path.GetDirectoryName(model.FilePath);
+      var modelName = Path.GetFileNameWithoutExtension(model.FilePath);
+      var resultDir = Path.Combine(outputPath, modelName);
+
+      if (!Directory.Exists(resultDir))
+      {
+        Directory.CreateDirectory(resultDir);
+      }
+
       for (var i = 0; i < model.Parts.Count; i++)
       {
-        var workDir = Path.GetDirectoryName(model.FilePath);
-        var modelName = Path.GetFileNameWithoutExtension(model.FilePath);
-
-        var resultDir = Path.Combine(outputPath, modelName);
-        if (!Directory.Exists(resultDir))
-        {
-          Directory.CreateDirectory(resultDir);
-        }
-
         var resultFile = Path.Combine(resultDir, $"{modelName}_{i}.obj");
         using (var fs = new FileStream(resultFile, FileMode.Create))
         {
@@ -58,6 +59,8 @@ namespace EarthTool.MSH
           }
         }
       }
+
+      File.WriteAllText(Path.Combine(resultDir, $"{modelName}.template"), model.Template.ToString());
     }
 
     private void WriteInfo(StreamWriter writer, ModelPart part)
