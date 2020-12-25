@@ -1,4 +1,6 @@
-﻿using EarthTool.Commands;
+﻿using Autofac;
+using Autofac.Extensions.DependencyInjection;
+using EarthTool.Commands;
 using EarthTool.Common.Interfaces;
 using EarthTool.MSH;
 using EarthTool.TEX;
@@ -7,10 +9,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Configuration;
-using System;
+using System.Collections.Generic;
 using System.CommandLine;
 using System.CommandLine.Builder;
-using System.CommandLine.Invocation;
 using System.CommandLine.Parsing;
 using System.Threading.Tasks;
 
@@ -25,34 +26,40 @@ namespace EarthTool
       return await parser.InvokeAsync(args);
     }
 
-    private static Parser BuildParser(IServiceProvider serviceProvider)
+    private static Parser BuildParser(IContainer serviceProvider)
     {
       var commandLineBuilder = new CommandLineBuilder();
-      foreach (Command command in serviceProvider.GetServices<Command>())
+      foreach (Command command in serviceProvider.Resolve<IEnumerable<Command>>())
       {
         commandLineBuilder.AddCommand(command);
       }
       return commandLineBuilder.UseDefaults().Build();
     }
 
-    private static IServiceProvider Initialize()
+    private static IContainer Initialize()
     {
       var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
 
-      return new ServiceCollection()
-              .AddLogging(config =>
-              {
-                config.AddConfiguration(configuration.GetSection("Logging"));
-                config.AddConsole();
-                config.AddDebug();
-              })
-              .AddTransient<IWDExtractor, WDEXtractor>()
-              .AddTransient<ITEXConverter, TEXConverter>()
-              .AddTransient<IMSHConverter, MSHConverter>()
-              .AddSingleton<Command, WDCommand>()
-              .AddSingleton<Command, TEXCommand>()
-              .AddSingleton<Command, MSHCommand>()
-              .BuildServiceProvider();
+      var containerBuilder = new ContainerBuilder();
+
+      var standardServiceCollection = new ServiceCollection()
+               .AddLogging(config =>
+               {
+                 config.AddConfiguration(configuration.GetSection("Logging"));
+                 config.AddConsole();
+                 config.AddDebug();
+               });
+
+      containerBuilder.Populate(standardServiceCollection);
+      containerBuilder.RegisterType<WDEXtractor>().AsImplementedInterfaces();
+      containerBuilder.RegisterType<TEXConverter>().AsImplementedInterfaces();
+      containerBuilder.RegisterType<MSHWavefrontConverter>().AsImplementedInterfaces().Keyed<IMSHConverter>("obj");
+      containerBuilder.RegisterType<MSHColladaConverter>().AsImplementedInterfaces().Keyed<IMSHConverter>("dae");
+      containerBuilder.RegisterType<WDCommand>().As<Command>().SingleInstance();
+      containerBuilder.RegisterType<TEXCommand>().As<Command>().SingleInstance();
+      containerBuilder.RegisterType<MSHCommand>().As<Command>().SingleInstance();
+      return containerBuilder.Build();
+
     }
   }
 }
