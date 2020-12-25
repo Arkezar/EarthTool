@@ -32,8 +32,8 @@ namespace EarthTool.MSH.Models
     {
       UnknownValue = BitConverter.ToInt32(stream.ReadBytes(4));
       X = BitConverter.ToSingle(stream.ReadBytes(4));
-      Y = -BitConverter.ToSingle(stream.ReadBytes(4));
       Z = BitConverter.ToSingle(stream.ReadBytes(4));
+      Y = BitConverter.ToSingle(stream.ReadBytes(4));
     }
   }
 }
