@@ -1,0 +1,174 @@
+//------------------------------------------------
+//--- 010 Editor v11.0.1 Binary Template
+//
+//      File: Earth2150_MSH.bt
+//    Author: arkezar
+//   Version: 0.1
+//   Purpose: Template for Earth 2150 msh files
+//  Category: Game
+// File Mask: *.msh
+//  ID Bytes: 4D 45 53 48 //MESH
+//   History: 
+//   0.1 2021-06-16 arkezar: Initial version
+//------------------------------------------------
+typedef struct {
+    float X;
+    FSkip(12);
+    float Z;
+    FSkip(12);
+    float Y;
+    FSkip(12);
+    float NormalX;
+    FSkip(12);
+    float NormalZ;
+    FSkip(12);
+    float NormalY;
+    FSkip(12);
+    float V;
+    FSkip(12);
+    float U;
+} Vertex;
+
+typedef struct {
+    Vertex vertex;
+    FSkip(-(sizeof(vertex)-4));
+    Vertex vertex;
+    FSkip(-(sizeof(vertex)-4));
+    Vertex vertex;
+    FSkip(-(sizeof(vertex)-4));
+    Vertex vertex;
+    byte EMPTY[16];
+    byte UNKNOWN[16];
+} VertexBlock;
+
+typedef struct {
+    int VertexCount;
+    int VertexBlocks;        
+    VertexBlock vertexBlocks[VertexBlocks];
+} VertexList <bgcolor=0xAAAA00>;
+
+typedef struct {
+    int filenameLength;
+    char textureFilename[filenameLength];
+} Texture;
+
+typedef struct {
+    short V1;
+    short V2;
+    short V3;
+    short UNKNOWN;
+} Face;
+
+typedef struct {
+    int FacesCount;
+    Face faces[FacesCount];
+} FacesList;
+
+typedef struct {
+    VertexList vertexList;
+    byte unknown1[4];
+    Texture texture;
+    FacesList faces;
+} Element;
+
+typedef struct {
+    int length;
+    float data[3*length];
+} Unknown1;
+
+typedef struct {
+    float X;
+    float Y;
+    float Z;
+} Position;
+
+typedef struct {
+    int length;
+    Position data[length];
+} UnknownAnimationData;
+
+typedef struct {
+    int length;
+    Position offset[length];
+} MovementFrames;
+
+typedef struct {
+    float a11;
+    float a12;
+    float a13;
+    float a14;
+    float a21;
+    float a22;
+    float a23;
+    float a24;
+    float a31;
+    float a32;
+    float a33;
+    float a34;
+    float a41;
+    float a42;
+    float a43;
+    float a44;
+} RotationMatrix;
+
+typedef struct {
+    int length;
+    RotationMatrix data[length];
+} RotationFrames;
+
+typedef struct {
+    int val1;
+    float X;
+    float Y;
+    float Z;
+    byte unknownData[5];
+} Offset;
+
+typedef struct {
+    UnknownAnimationData unknownData;
+    MovementFrames movement;
+    RotationFrames rotation;
+} Animation;
+
+typedef struct {
+    Element element;
+    Animation animation;
+    Offset offset;
+} Part;
+
+typedef struct {
+    float X;
+    float Y;
+    float Z;
+    float R;
+    float G;
+    float B;
+    float Intensity;
+    float unknownData[5];
+} Light; 
+
+typedef struct {
+    float X;
+    float Y;
+    float Z;
+} MountPoint;
+
+
+struct HEADER {
+    char type[4];
+    byte unknown[4];
+} header <bgcolor=0x0000FF>;
+int type;
+byte unknown1[12];
+MountPoint mounts[4];
+Light lights[5];
+byte unknown2[64];
+byte unknown3[488];
+short v1;
+short v2;
+short v3;
+short v4;
+int v5;
+while(!FEof()) {
+    Part part;
+}
