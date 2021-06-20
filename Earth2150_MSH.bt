@@ -159,7 +159,8 @@ struct HEADER {
     byte unknown[4];
 } header <bgcolor=0x0000FF>;
 int type;
-byte unknown1[12];
+byte template[2];
+byte unknown1[10];
 MountPoint mounts[4];
 Light lights[5];
 byte unknown2[64];

@@ -23,6 +23,11 @@ namespace EarthTool.MSH.Models
       get; private set;
     }
 
+    public MountPoints MountPoints
+    {
+      get; private set;
+    }
+
     public short UnknownVal1
     {
       get; private set;
@@ -83,8 +88,10 @@ namespace EarthTool.MSH.Models
     {
       Type = BitConverter.ToInt32(stream.ReadBytes(4));
       Template = new ModelTemplate(stream);
-      stream.ReadBytes(106);
-      stream.ReadBytes(256);
+      stream.ReadBytes(10);
+      MountPoints = new MountPoints(stream);
+      stream.ReadBytes(240); //light
+      stream.ReadBytes(64);
       stream.ReadBytes(488);
       UnknownVal1 = BitConverter.ToInt16(stream.ReadBytes(2));
       UnknownVal2 = BitConverter.ToInt16(stream.ReadBytes(2));
