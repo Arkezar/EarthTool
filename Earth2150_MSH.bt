@@ -117,11 +117,9 @@ typedef struct {
 } RotationFrames;
 
 typedef struct {
-    int val1;
     float X;
     float Y;
     float Z;
-    byte unknownData[5];
 } Offset;
 
 typedef struct {
@@ -133,7 +131,9 @@ typedef struct {
 typedef struct {
     Element element;
     Animation animation;
+    int val1;
     Offset offset;
+    ubyte unknownData[5];
 } Part;
 
 typedef struct {
@@ -144,7 +144,8 @@ typedef struct {
     float G;
     float B;
     float Intensity;
-    float unknownData[5];
+    int Direction;
+    float unknownData[4];
 } Light; 
 
 typedef struct {

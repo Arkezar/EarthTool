@@ -1,10 +1,9 @@
-﻿using System;
+﻿using EarthTool.MSH.Models.Elements;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 
-namespace EarthTool.MSH.Models
+namespace EarthTool.MSH.Models.Collections
 {
   public class Lights : List<Light>
   {

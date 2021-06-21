@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 
 namespace EarthTool.MSH
 {
@@ -39,8 +38,8 @@ namespace EarthTool.MSH
           id = $"{modelName}-Part-{i}"
         };
 
-        var positions = GetSource("positions", part.Vertices, v => new double[] { v.X + part.Offset.X, v.Y + part.Offset.Y, v.Z + part.Offset.Z });
-        var normals = GetSource("normals", part.Vertices, v => new double[] { v.NormalX, v.NormalY, v.NormalZ });
+        var positions = GetSource("positions", part.Vertices, v => new double[] { v.Position.X, v.Position.Y, v.Position.Z });
+        var normals = GetSource("normals", part.Vertices, v => new double[] { v.Normal.X, v.Normal.Y, v.Normal.Z });
 
         var vertices = new vertices()
         {
@@ -116,7 +115,7 @@ namespace EarthTool.MSH
       {
         asset = new asset
         {
-          up_axis = UpAxisType.Y_UP
+          up_axis = UpAxisType.Z_UP
         }
       };
 

@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Numerics;
-using System.Text;
+﻿using System.IO;
 
-namespace EarthTool.MSH.Models
+namespace EarthTool.MSH.Models.Collections
 {
   public class Animations
   {

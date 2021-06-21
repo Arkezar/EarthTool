@@ -1,10 +1,11 @@
 ﻿using EarthTool.Common.Extensions;
+using EarthTool.MSH.Models.Elements;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace EarthTool.MSH.Models
+namespace EarthTool.MSH.Models.Collections
 {
   public class RotationFrames : List<RotationFrame>
   {

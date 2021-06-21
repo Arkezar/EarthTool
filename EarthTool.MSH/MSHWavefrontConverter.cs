@@ -1,9 +1,8 @@
 ﻿using EarthTool.MSH.Models;
+using EarthTool.MSH.Models.Elements;
 using Microsoft.Extensions.Logging;
-using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Text.Json;
 
 namespace EarthTool.MSH
@@ -30,24 +29,26 @@ namespace EarthTool.MSH
         Directory.CreateDirectory(resultDir);
       }
 
-      for (var i = 0; i < model.Parts.Count; i++)
+      var partIndex = 0;
+      foreach (var part in model.Parts)
       {
-        var resultFile = Path.Combine(resultDir, $"{modelName}_{i}.obj");
+        var resultFile = Path.Combine(resultDir, $"{modelName}_{partIndex}.obj");
         using (var fs = new FileStream(resultFile, FileMode.Create))
         {
           using (var writer = new StreamWriter(fs))
           {
-            WriteVertices(writer, model.Parts[i].Vertices);
-            WriteFaces(writer, model.Parts[i].Faces);
+            WriteVertices(writer, part.Vertices);
+            WriteFaces(writer, part.Faces);
           }
         }
         using (var fs = new FileStream(resultFile + ".info", FileMode.Create))
         {
           using (var writer = new StreamWriter(fs))
           {
-            WriteInfo(writer, model.Parts[i]);
+            WriteInfo(writer, part);
           }
         }
+        partIndex++;
       }
 
       File.WriteAllText(Path.Combine(resultDir, $"{modelName}.template"), model.Template.ToString());
@@ -76,13 +77,13 @@ namespace EarthTool.MSH
       //vertices
       foreach (var vertex in vertices)
       {
-        writer.WriteLine(string.Format(VERTEX_TEMPLATE, vertex.X, vertex.Y, vertex.Z));
+        writer.WriteLine(string.Format(VERTEX_TEMPLATE, vertex.Position.X, vertex.Position.Y, vertex.Position.Z));
       }
 
       //normal
       foreach (var vertex in vertices)
       {
-        writer.WriteLine(string.Format(NORMAL_TEMPLATE, vertex.NormalX, vertex.NormalY, vertex.NormalZ));
+        writer.WriteLine(string.Format(NORMAL_TEMPLATE, vertex.Normal.X, vertex.Normal.Y, vertex.Normal.Z));
       }
 
       //uv

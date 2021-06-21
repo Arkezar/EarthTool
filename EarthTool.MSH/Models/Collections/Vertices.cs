@@ -1,10 +1,11 @@
 ﻿using EarthTool.Common.Extensions;
+using EarthTool.MSH.Models.Elements;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace EarthTool.MSH.Models
+namespace EarthTool.MSH.Models.Collections
 {
   public class Vertices : List<Vertex>
   {
@@ -26,19 +27,18 @@ namespace EarthTool.MSH.Models
       {
         var idx = i * FIELD_SIZE;
 
-        yield return new Vertex()
-        {
-          X = BitConverter.ToSingle(vertexData, idx + 0x00),
-          Z = BitConverter.ToSingle(vertexData, idx + 0x10),
-          Y = BitConverter.ToSingle(vertexData, idx + 0x20),
+        var x = BitConverter.ToSingle(vertexData, idx + 0x00);
+        var y = -BitConverter.ToSingle(vertexData, idx + 0x10);
+        var z = BitConverter.ToSingle(vertexData, idx + 0x20);
 
-          NormalX = BitConverter.ToSingle(vertexData, idx + 0x30),
-          NormalZ = BitConverter.ToSingle(vertexData, idx + 0x40),
-          NormalY = BitConverter.ToSingle(vertexData, idx + 0x50),
+        var normalX = BitConverter.ToSingle(vertexData, idx + 0x30);
+        var normalY = -BitConverter.ToSingle(vertexData, idx + 0x40);
+        var normalZ = BitConverter.ToSingle(vertexData, idx + 0x50);
 
-          V = BitConverter.ToSingle(vertexData, idx + 0x60),
-          U = BitConverter.ToSingle(vertexData, idx + 0x70)
-        };
+        var v = BitConverter.ToSingle(vertexData, idx + 0x60);
+        var u = BitConverter.ToSingle(vertexData, idx + 0x70);
+
+        yield return new Vertex(new Vector(x, y, z), new Vector(normalX, normalY, normalZ), u, v);
       }
     }
   }

@@ -1,18 +1,18 @@
 ﻿using EarthTool.Common.Extensions;
+using EarthTool.MSH.Models.Elements;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 
-namespace EarthTool.MSH.Models
+namespace EarthTool.MSH.Models.Collections
 {
-  public class PositionOffsetFrames : List<Position>
+  public class PositionOffsetFrames : List<Vector>
   {
     public PositionOffsetFrames(Stream stream)
     {
       var length = BitConverter.ToInt32(stream.ReadBytes(4));
-      AddRange(Enumerable.Range(0, length).Select(_ => new Position(stream)));
+      AddRange(Enumerable.Range(0, length).Select(_ => new Vector(stream)));
     }
   }
 }

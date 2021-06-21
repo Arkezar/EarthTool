@@ -1,8 +1,10 @@
 ﻿using EarthTool.Common.Extensions;
+using EarthTool.MSH.Models.Collections;
+using EarthTool.MSH.Models.Elements;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
+using System.Linq;
 
 namespace EarthTool.MSH.Models
 {
@@ -15,50 +17,50 @@ namespace EarthTool.MSH.Models
 
     public int Type
     {
-      get; private set;
+      get;
     }
 
     public ModelTemplate Template
     {
-      get; private set;
+      get;
     }
 
     public MountPoints MountPoints
     {
-      get; private set;
+      get;
     }
 
     public Lights Lights
     {
-      get; private set;
+      get;
     }
 
     public short UnknownVal1
     {
-      get; private set;
+      get;
     }
 
     public short UnknownVal2
     {
-      get; private set;
+      get;
     }
 
     public short UnknownVal3
     {
-      get; private set;
+      get;
     }
 
     public short UnknownVal4
     {
-      get; private set;
+      get;
     }
 
     public int UnknownVal5
     {
-      get; private set;
+      get;
     }
 
-    public IList<ModelPart> Parts
+    public IEnumerable<ModelPart> Parts
     {
       get;
     }
@@ -68,15 +70,26 @@ namespace EarthTool.MSH.Models
       Parts = new List<ModelPart>();
       FilePath = path;
 
-      using (var file = new FileStream(path, FileMode.Open))
+      using (var stream = new FileStream(path, FileMode.Open))
       {
-        CheckHeader(file);
-        LoadInfo(file);
-        if(Type != 0)
+        CheckHeader(stream);
+        Type = BitConverter.ToInt32(stream.ReadBytes(4));
+        Template = new ModelTemplate(stream);
+        stream.ReadBytes(10);
+        MountPoints = new MountPoints(stream);
+        Lights = new Lights(stream);
+        stream.ReadBytes(64);
+        stream.ReadBytes(488);
+        UnknownVal1 = BitConverter.ToInt16(stream.ReadBytes(2));
+        UnknownVal2 = BitConverter.ToInt16(stream.ReadBytes(2));
+        UnknownVal3 = BitConverter.ToInt16(stream.ReadBytes(2));
+        UnknownVal4 = BitConverter.ToInt16(stream.ReadBytes(2));
+        UnknownVal5 = BitConverter.ToInt16(stream.ReadBytes(4));
+        if (Type != 0)
         {
           throw new NotSupportedException("Not supported mesh format");
         }
-        LoadParts(file);
+        Parts = GetParts(stream).ToList();
       }
     }
 
@@ -89,27 +102,11 @@ namespace EarthTool.MSH.Models
       }
     }
 
-    private void LoadInfo(Stream stream)
-    {
-      Type = BitConverter.ToInt32(stream.ReadBytes(4));
-      Template = new ModelTemplate(stream);
-      stream.ReadBytes(10);
-      MountPoints = new MountPoints(stream);
-      Lights = new Lights(stream);
-      stream.ReadBytes(64);
-      stream.ReadBytes(488);
-      UnknownVal1 = BitConverter.ToInt16(stream.ReadBytes(2));
-      UnknownVal2 = BitConverter.ToInt16(stream.ReadBytes(2));
-      UnknownVal3 = BitConverter.ToInt16(stream.ReadBytes(2));
-      UnknownVal4 = BitConverter.ToInt16(stream.ReadBytes(2));
-      UnknownVal5 = BitConverter.ToInt16(stream.ReadBytes(4));
-    }
-
-    private void LoadParts(Stream stream)
+    private IEnumerable<ModelPart> GetParts(Stream stream)
     {
       while (stream.Position < stream.Length)
       {
-        Parts.Add(new ModelPart(stream));
+        yield return new ModelPart(stream);
       }
     }
   }

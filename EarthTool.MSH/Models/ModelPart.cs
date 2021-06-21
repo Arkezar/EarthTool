@@ -1,4 +1,7 @@
 ﻿using EarthTool.Common.Extensions;
+using EarthTool.MSH.Models.Collections;
+using EarthTool.MSH.Models.Elements;
+using System;
 using System.IO;
 
 namespace EarthTool.MSH.Models
@@ -25,7 +28,17 @@ namespace EarthTool.MSH.Models
       get;
     }
 
-    public PartOffset Offset
+    public int UnknownValue
+    {
+      get;
+    }
+
+    public Vector Offset
+    {
+      get;
+    }
+
+    public byte[] UnknownBytes
     {
       get;
     }
@@ -37,9 +50,9 @@ namespace EarthTool.MSH.Models
       Texture = new TextureInfo(stream);
       Faces = new Faces(stream);
       Animations = new Animations(stream);
-      Offset = new PartOffset(stream);
-
-      stream.ReadBytes(5);
+      UnknownValue = BitConverter.ToInt32(stream.ReadBytes(4));
+      Offset = new Vector(stream);
+      UnknownBytes = stream.ReadBytes(5);
     }
   }
 }

@@ -3,7 +3,7 @@ using System;
 using System.IO;
 using System.Text;
 
-namespace EarthTool.MSH.Models
+namespace EarthTool.MSH.Models.Elements
 {
   public class TextureInfo
   {
