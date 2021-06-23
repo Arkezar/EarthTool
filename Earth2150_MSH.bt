@@ -131,7 +131,7 @@ typedef struct {
 typedef struct {
     Element element;
     Animation animation;
-    int val1;
+    int AnimationType;
     Offset offset;
     ubyte unknownData[5];
 } Part;
@@ -154,6 +154,17 @@ typedef struct {
     float Z;
 } MountPoint;
 
+typedef struct {
+    ubyte m11;
+    ubyte m12;
+    ubyte m13;
+    ubyte m21;
+    ubyte m22;
+    ubyte m23;
+    ubyte m31;
+    ubyte m32;
+    ubyte m33;
+} M3x3;
 
 struct HEADER {
     char type[4];
@@ -164,8 +175,10 @@ byte template[2];
 byte unknown1[10];
 MountPoint mounts[4];
 Light lights[5];
-byte unknown2[64];
-byte unknown3[488];
+ubyte unknown2[64];
+short v0;
+ubyte unknown3[99];
+M3x3 unknown4[43];
 short v1;
 short v2;
 short v3;
