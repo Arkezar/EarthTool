@@ -4,12 +4,15 @@
 Simple tool for extraction of Earth 2150 data files
 Supports WD unpacking, convertion of TEX to PNG and limited support for MSH models.
 
-## MSH converter
-Extraction of msh models is experimental and doesn't support animation data.
-
 ## Usage
 Application requires .NET Runtime 5.0.
 
 Download current release and run `EarthTool.exe --help` for available options.
 
 Or build it yourself.
+
+# Credits
+Special thanks to members of Inside Earth discord:
+
+* Guardian#2935 - information on mount points, part offsets, model build templates
+* Ninetailed#9436 -  information on lights data
