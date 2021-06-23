@@ -145,7 +145,10 @@ typedef struct {
     float B;
     float Intensity;
     int Direction;
-    float unknownData[4];
+    float Width;
+    float Unknown;
+    float Tilt;
+    float Ambience;
 } Light; 
 
 typedef struct {
