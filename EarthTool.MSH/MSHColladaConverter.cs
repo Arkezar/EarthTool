@@ -43,10 +43,13 @@ namespace EarthTool.MSH
       }
 
       File.WriteAllText(Path.Combine(resultDir, $"{modelName}.template"), model.Template.ToString());
+      File.WriteAllText(Path.Combine(resultDir, $"{modelName}.slots"), model.MountPoints.ToString());
     }
 
     private COLLADA GetColladaModel(Model model, string modelName)
     {
+      var images = GetImages(model.Parts, modelName);
+      var materials = GetMaterials(model.Parts, modelName);
       var geometries = GetGeometries(model.Parts, modelName);
       var lights = GetLights(model);
       var scenes = GetScenes(geometries.Select(g => g.GeometryNode), lights.Select(l => l.LightNode), modelName);
@@ -56,6 +59,7 @@ namespace EarthTool.MSH
       {
         Asset = new Asset
         {
+          Created = DateTime.Now,
           Up_Axis = UpAxisType.Z_UP
         }
       };
@@ -66,11 +70,129 @@ namespace EarthTool.MSH
 
       var geometriesLibrary = new Library_Geometries();
       geometries.Select(g => g.Geometry).ToList().ForEach(g => geometriesLibrary.Geometry.Add(g));
+
+      var effectsLibrary = new Library_Effects();
+      var materialsLibrary = new Library_Materials();
+      materials.ToList().ForEach(m =>
+      {
+        effectsLibrary.Effect.Add(m.Effect);
+        materialsLibrary.Material.Add(m.Material);
+      });
+
       collada.Library_Geometries.Add(geometriesLibrary);
       collada.Library_Visual_Scenes.Add(scenes);
+      collada.Library_Images.Add(images);
+      collada.Library_Effects.Add(effectsLibrary);
+      collada.Library_Materials.Add(materialsLibrary);
       collada.Scene = scene;
 
       return collada;
+    }
+
+    private IEnumerable<(Material Material, Effect Effect)> GetMaterials(IEnumerable<ModelPart> parts, string modelName)
+    {
+      //var id = $"{modelName}-Part-{i}";
+      return parts.Select((p, i) => (GetMaterial(p, i, modelName), GetEffect(p, i, modelName)));
+    }
+
+    private Effect GetEffect(ModelPart p, int i, string modelName)
+    {
+      var id = $"{modelName}-Part-{i}";
+      var effect = new Effect
+      {
+        Id = $"{id}-effect",
+        Name = $"{id}-effect"
+      };
+
+      var profile = new Profile_COMMON
+      {
+        Technique = new Profile_COMMONTechnique
+        {
+          Sid = "common",
+          Lambert = new Profile_COMMONTechniqueLambert
+          {
+            Emission = new Common_Color_Or_Texture_Type
+            {
+              Color = new Common_Color_Or_Texture_TypeColor
+              {
+                Value = "0 0 0 1"
+              }
+            },
+            Index_Of_Refraction = new Common_Float_Or_Param_Type
+            {
+              Float = new Common_Float_Or_Param_TypeFloat
+              {
+                Value = 1
+              }
+            },
+            Diffuse = new Common_Color_Or_Texture_Type
+            {
+              Texture = new Common_Color_Or_Texture_TypeTexture
+              {
+                Texcoord = "UVMap",
+                Texture = $"{id}-sampler"
+              }
+            }
+          }
+        }
+      };
+
+      var surface = new Fx_Surface_Common
+      {
+        Type = Fx_Surface_Type_Enum.Item2D,
+      };
+      surface.Init_From.Add(new Fx_Surface_Init_From_Common
+      {
+        Value = $"{id}-texture"
+      });
+
+      var sampler = new Fx_Sampler2D_Common
+      {
+        Source = $"{id}-surface"
+      };
+
+      profile.Newparam.Add(new Common_Newparam_Type
+      {
+        Sid = $"{id}-surface",
+        Surface = surface
+      });
+
+      profile.Newparam.Add(new Common_Newparam_Type
+      {
+        Sid = $"{id}-sampler",
+        Sampler2D = sampler
+      });
+
+      effect.Fx_Profile_Abstract.Add(profile);
+      return effect;
+    }
+
+    private Material GetMaterial(ModelPart part, int i, string modelName)
+    {
+      var id = $"{modelName}-Part-{i}";
+      return new Material
+      {
+        Id = $"{id}-material",
+        Name = $"{id}-material",
+        Instance_Effect = new Instance_Effect
+        {
+          Url = $"#{id}-effect"
+        }
+      };
+    }
+
+    private Library_Images GetImages(IEnumerable<ModelPart> parts, string modelName)
+    {
+      var libraryImages = new Library_Images();
+      var id = $"{modelName}-Part";
+      parts.Select((p, i) => new Image
+      {
+        Id = $"{id}-{i}-texture",
+        Name = $"{id}-{i}-texture",
+        Init_From = Path.ChangeExtension(p.Texture.FileName, "png")
+      }).ToList().ForEach(t => libraryImages.Image.Add(t));
+
+      return libraryImages;
     }
 
     private IEnumerable<(Light Light, Node LightNode)> GetLights(Model model)
@@ -272,8 +394,23 @@ namespace EarthTool.MSH
 
       var instanceGeometry = new Instance_Geometry()
       {
-        Url = $"#{id}"
+        Url = $"#{id}",
+        Bind_Material = new Bind_Material()
       };
+
+      var instanceMaterial = new Instance_Material
+      {
+        Symbol = $"{id}-material",
+        Target = $"#{id}-material",
+      };
+      instanceMaterial.Bind_Vertex_Input.Add(new Instance_MaterialBind_Vertex_Input
+      {
+        Input_Set = 0,
+        Input_Semantic = "TEXCOORD",
+        Semantic = "UVMap"
+      });
+
+      instanceGeometry.Bind_Material.Technique_Common.Add(instanceMaterial);
 
       node.Instance_Geometry.Add(instanceGeometry);
 
@@ -292,6 +429,7 @@ namespace EarthTool.MSH
 
       var positions = GetSource("positions", part.Vertices, v => new float[] { v.Position.X, v.Position.Y, v.Position.Z });
       var normals = GetSource("normals", part.Vertices, v => new float[] { v.Normal.X, v.Normal.Y, v.Normal.Z });
+      var uv = GetMapSource("map", part.Vertices, v => new float[] { v.U, v.V });
 
       var vertices = new Vertices()
       {
@@ -308,7 +446,8 @@ namespace EarthTool.MSH
       {
         Count = (ulong)part.Faces.Count,
         Vcount = string.Join(' ', Enumerable.Repeat(3, part.Faces.Count)),
-        P = string.Join(' ', part.Faces.SelectMany(f => new string[] { f.V1.ToString(), f.V1.ToString(), f.V2.ToString(), f.V2.ToString(), f.V3.ToString(), f.V3.ToString() }))
+        P = string.Join(' ', part.Faces.SelectMany(f => new string[] { f.V1.ToString(), f.V2.ToString(), f.V3.ToString() })),
+        Material = id + "-material"
       };
 
       poly.Input.Add(new InputLocalOffset()
@@ -322,7 +461,14 @@ namespace EarthTool.MSH
       {
         Semantic = "NORMAL",
         Source = "#normals",
-        Offset = 1
+        Offset = 0
+      });
+
+      poly.Input.Add(new InputLocalOffset()
+      {
+        Semantic = "TEXCOORD",
+        Source = "#map",
+        Offset = 0
       });
 
       var mesh = new Mesh
@@ -332,6 +478,7 @@ namespace EarthTool.MSH
 
       mesh.Source.Add(positions);
       mesh.Source.Add(normals);
+      mesh.Source.Add(uv);
       mesh.Polylist.Add(poly);
 
       geometry.Mesh = mesh;
@@ -375,6 +522,42 @@ namespace EarthTool.MSH
       source.Technique_Common.Accessor.Param.Add(new Param()
       {
         Name = "Z",
+        Type = "float"
+      });
+      return source;
+    }
+
+    private Source GetMapSource<T>(string name, IList<T> data, Func<T, IEnumerable<float>> func)
+    {
+      var source = new Source
+      {
+        Id = name,
+        Name = name
+      };
+      var sourceArray = new Float_Array
+      {
+        Id = $"{name}-array",
+        Count = (ulong)data.Count * 2,
+        Value = string.Join(" ", data.SelectMany(func).Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+      };
+      source.Float_Array = sourceArray;
+      source.Technique_Common = new SourceTechnique_Common
+      {
+        Accessor = new Accessor
+        {
+          Source = $"#{name}-array",
+          Count = (ulong)data.Count,
+          Stride = 2
+        }
+      };
+      source.Technique_Common.Accessor.Param.Add(new Param()
+      {
+        Name = "S",
+        Type = "float"
+      });
+      source.Technique_Common.Accessor.Param.Add(new Param()
+      {
+        Name = "T",
         Type = "float"
       });
       return source;
