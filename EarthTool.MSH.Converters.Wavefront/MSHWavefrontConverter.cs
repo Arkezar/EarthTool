@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
-namespace EarthTool.MSH
+namespace EarthTool.MSH.Converters.Wavefront
 {
   public class MSHWavefrontConverter : MSHConverter
   {

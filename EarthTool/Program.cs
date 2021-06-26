@@ -2,7 +2,8 @@
 using Autofac.Extensions.DependencyInjection;
 using EarthTool.Commands;
 using EarthTool.Common.Interfaces;
-using EarthTool.MSH;
+using EarthTool.MSH.Converters.Collada;
+using EarthTool.MSH.Converters.Wavefront;
 using EarthTool.TEX;
 using EarthTool.WD;
 using Microsoft.Extensions.Configuration;

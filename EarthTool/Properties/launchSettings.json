@@ -2,7 +2,7 @@
   "profiles": {
     "EarthTool": {
       "commandName": "Project",
-      "commandLineArgs": "msh -f dae \"D:\\earthwork\\mesh\\UCSUSL1.msh\"",
+      "commandLineArgs": "msh -f dae \"D:\\earthwork\\mesh\\LCBBF.msh\"",
       "environmentVariables": {
         "Logging:LogLevel:Default": "Debug"
       }

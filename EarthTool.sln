@@ -13,6 +13,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EarthTool.TEX", "EarthTool.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EarthTool.MSH", "EarthTool.MSH\EarthTool.MSH.csproj", "{4BEEF666-5D76-44B0-8991-37B4522EE3EA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EarthTool.MSH.Converters.Wavefront", "EarthTool.MSH.Converters.Wavefront\EarthTool.MSH.Converters.Wavefront.csproj", "{0AF4389F-48D2-4BD2-9904-892197C058E6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EarthTool.MSH.Converters.Collada", "EarthTool.MSH.Converters.Collada\EarthTool.MSH.Converters.Collada.csproj", "{A83F829D-F129-4C6A-863C-566A5A0E20BD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +43,14 @@ Global
 		{4BEEF666-5D76-44B0-8991-37B4522EE3EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4BEEF666-5D76-44B0-8991-37B4522EE3EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4BEEF666-5D76-44B0-8991-37B4522EE3EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0AF4389F-48D2-4BD2-9904-892197C058E6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0AF4389F-48D2-4BD2-9904-892197C058E6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0AF4389F-48D2-4BD2-9904-892197C058E6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0AF4389F-48D2-4BD2-9904-892197C058E6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A83F829D-F129-4C6A-863C-566A5A0E20BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A83F829D-F129-4C6A-863C-566A5A0E20BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A83F829D-F129-4C6A-863C-566A5A0E20BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A83F829D-F129-4C6A-863C-566A5A0E20BD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

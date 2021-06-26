@@ -23,7 +23,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EarthTool.Common\EarthTool.Common.csproj" />
-    <ProjectReference Include="..\EarthTool.MSH\EarthTool.MSH.csproj" />
+    <ProjectReference Include="..\EarthTool.MSH.Converters.Collada\EarthTool.MSH.Converters.Collada.csproj" />
+    <ProjectReference Include="..\EarthTool.MSH.Converters.Wavefront\EarthTool.MSH.Converters.Wavefront.csproj" />
     <ProjectReference Include="..\EarthTool.TEX\EarthTool.TEX.csproj" />
     <ProjectReference Include="..\EarthTool.WD\EarthTool.WD.csproj" />
   </ItemGroup>

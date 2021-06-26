@@ -9,7 +9,7 @@ using System.Linq;
 using System.Numerics;
 using System.Xml.Serialization;
 
-namespace EarthTool.MSH
+namespace EarthTool.MSH.Converters.Collada
 {
   public class MSHColladaConverter : MSHConverter
   {
@@ -497,7 +497,7 @@ namespace EarthTool.MSH
       {
         Id = $"{name}-array",
         Count = (ulong)data.Count * 3,
-        Value = string.Join(" ", data.SelectMany(func).Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+        Value = string.Join(" ", data.SelectMany(func).Select(v => v.ToString(CultureInfo.InvariantCulture)))
       };
       source.Float_Array = sourceArray;
       source.Technique_Common = new SourceTechnique_Common
@@ -538,7 +538,7 @@ namespace EarthTool.MSH
       {
         Id = $"{name}-array",
         Count = (ulong)data.Count * 2,
-        Value = string.Join(" ", data.SelectMany(func).Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+        Value = string.Join(" ", data.SelectMany(func).Select(v => v.ToString(CultureInfo.InvariantCulture)))
       };
       source.Float_Array = sourceArray;
       source.Technique_Common = new SourceTechnique_Common
