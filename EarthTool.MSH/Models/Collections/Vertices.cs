@@ -35,8 +35,8 @@ namespace EarthTool.MSH.Models.Collections
         var normalY = -BitConverter.ToSingle(vertexData, idx + 0x40);
         var normalZ = BitConverter.ToSingle(vertexData, idx + 0x50);
 
-        var v = BitConverter.ToSingle(vertexData, idx + 0x60);
-        var u = BitConverter.ToSingle(vertexData, idx + 0x70);
+        var u = BitConverter.ToSingle(vertexData, idx + 0x60);
+        var v = 1 - BitConverter.ToSingle(vertexData, idx + 0x70);
 
         yield return new Vertex(new Vector(x, y, z), new Vector(normalX, normalY, normalZ), u, v);
       }
