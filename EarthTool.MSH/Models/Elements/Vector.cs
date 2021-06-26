@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.Numerics;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.MSH.Models.Elements
 {
@@ -13,6 +14,7 @@ namespace EarthTool.MSH.Models.Elements
 
     public float Z => Value.Z;
 
+    [JsonIgnore]
     public Vector3 Value
     {
       get;
