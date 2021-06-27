@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace EarthTool.MSH.Converters.Wavefront
 {
@@ -13,10 +14,10 @@ namespace EarthTool.MSH.Converters.Wavefront
     {
     }
 
-    public override int InternalConvert(Model model, string outputPath = null)
+    public override Task InternalConvert(Model model, string outputPath = null)
     {
       WriteWavefrontModel(model, outputPath);
-      return 1;
+      return Task.CompletedTask;
     }
 
     private void WriteWavefrontModel(Model model, string outputPath)

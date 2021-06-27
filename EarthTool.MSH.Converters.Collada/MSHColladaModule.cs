@@ -1,5 +1,6 @@
 ﻿using Autofac;
 using EarthTool.Common.Interfaces;
+using EarthTool.MSH.Converters.Collada.Elements;
 
 namespace EarthTool.MSH.Converters.Collada
 {
@@ -7,6 +8,10 @@ namespace EarthTool.MSH.Converters.Collada
   {
     protected override void Load(ContainerBuilder builder)
     {
+      builder.RegisterType<ModelFactory>();
+      builder.RegisterType<MaterialFactory>();
+      builder.RegisterType<LightingFactory>();
+      builder.RegisterType<GeometriesFactory>();
       builder.RegisterType<MSHColladaConverter>().AsImplementedInterfaces().Keyed<IMSHConverter>("dae");
     }
   }

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace EarthTool.WD
 {
@@ -17,7 +18,7 @@ namespace EarthTool.WD
       _logger = logger;
     }
 
-    public int Extract(string filePath, string outputPath = null)
+    public Task Extract(string filePath, string outputPath = null)
     {
       outputPath ??= Path.GetDirectoryName(filePath);
 
@@ -63,7 +64,7 @@ namespace EarthTool.WD
         }
       }
 
-      return 1;
+      return Task.CompletedTask;
     }
 
     bool IsValidWDFile(byte[] data)

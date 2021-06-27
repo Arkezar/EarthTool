@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace EarthTool.TEX
 {
@@ -16,7 +17,7 @@ namespace EarthTool.TEX
       _logger = logger;
     }
 
-    public int Convert(string filePath, string outputPath = null)
+    public Task Convert(string filePath, string outputPath = null)
     {
       outputPath ??= Path.GetDirectoryName(filePath);
 
@@ -46,7 +47,7 @@ namespace EarthTool.TEX
           }
         }
       }
-      return 1;
+      return Task.CompletedTask;
     }
 
     private static void SaveBitmap(string workDir, string filename, int i, Image image)

@@ -1,7 +1,9 @@
-﻿namespace EarthTool.Common.Interfaces
+﻿using System.Threading.Tasks;
+
+namespace EarthTool.Common.Interfaces
 {
   public interface IConverter
   {
-    int Convert(string filePath, string outputPath = null);
+    Task Convert(string filePath, string outputPath = null);
   }
 }

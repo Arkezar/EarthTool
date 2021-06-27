@@ -3,6 +3,7 @@ using EarthTool.MSH.Models;
 using Microsoft.Extensions.Logging;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace EarthTool.MSH
 {
@@ -15,7 +16,7 @@ namespace EarthTool.MSH
       _logger = logger;
     }
 
-    public int Convert(string filePath, string outputPath = null)
+    public Task Convert(string filePath, string outputPath = null)
     {
       outputPath ??= Path.GetDirectoryName(filePath);
       var model = new Model(filePath);
@@ -27,6 +28,6 @@ namespace EarthTool.MSH
       return InternalConvert(model, outputPath);
     }
 
-    public abstract int InternalConvert(Model model, string outputPath = null);
+    public abstract Task InternalConvert(Model model, string outputPath = null);
   }
 }
