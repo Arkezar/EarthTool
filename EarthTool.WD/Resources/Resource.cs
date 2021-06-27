@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace EarthTool.WD.Resources
+﻿namespace EarthTool.WD.Resources
 {
   public class Resource
   {

@@ -8,11 +8,11 @@ using System.Linq;
 
 namespace EarthTool.WD
 {
-  public class WDEXtractor : IWDExtractor
+  public class WDExtractor : IWDExtractor
   {
-    private readonly ILogger<WDEXtractor> _logger;
+    private readonly ILogger<WDExtractor> _logger;
 
-    public WDEXtractor(ILogger<WDEXtractor> logger)
+    public WDExtractor(ILogger<WDExtractor> logger)
     {
       _logger = logger;
     }

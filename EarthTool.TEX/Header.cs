@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace EarthTool.TEX
+﻿namespace EarthTool.TEX
 {
   public class Header
   {

@@ -1,7 +1,6 @@
 ﻿using Autofac;
 using Autofac.Extensions.DependencyInjection;
-using EarthTool.Commands;
-using EarthTool.Common.Interfaces;
+using EarthTool.MSH;
 using EarthTool.MSH.Converters.Collada;
 using EarthTool.MSH.Converters.Wavefront;
 using EarthTool.TEX;
@@ -52,13 +51,11 @@ namespace EarthTool
                });
 
       containerBuilder.Populate(standardServiceCollection);
-      containerBuilder.RegisterType<WDEXtractor>().AsImplementedInterfaces();
-      containerBuilder.RegisterType<TEXConverter>().AsImplementedInterfaces();
-      containerBuilder.RegisterType<MSHWavefrontConverter>().AsImplementedInterfaces().Keyed<IMSHConverter>("obj");
-      containerBuilder.RegisterType<MSHColladaConverter>().AsImplementedInterfaces().Keyed<IMSHConverter>("dae");
-      containerBuilder.RegisterType<WDCommand>().As<Command>().SingleInstance();
-      containerBuilder.RegisterType<TEXCommand>().As<Command>().SingleInstance();
-      containerBuilder.RegisterType<MSHCommand>().As<Command>().SingleInstance();
+      containerBuilder.RegisterModule<WDModule>();
+      containerBuilder.RegisterModule<TEXModule>();
+      containerBuilder.RegisterModule<MSHModule>();
+      containerBuilder.RegisterModule<MSHColladaModule>();
+      containerBuilder.RegisterModule<MSHWavefrontModule>();
       return containerBuilder.Build();
 
     }
