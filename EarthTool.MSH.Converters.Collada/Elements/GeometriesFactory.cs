@@ -26,9 +26,10 @@ namespace EarthTool.MSH.Converters.Collada.Elements
         Name = id
       };
 
-      node.Translate.Add(new TargetableFloat3()
+      node.Matrix.Add(new Matrix
       {
-        Value = string.Format(CultureInfo.InvariantCulture, "{0} {1} {2}", part.Offset.X, part.Offset.Y, part.Offset.Z)
+        Sid = "transform",
+        Value = string.Format(CultureInfo.InvariantCulture, "1 0 0 {0} 0 1 0 {1} 0 0 1 {2} 0 0 0 1", part.Offset.X, part.Offset.Y, part.Offset.Z)
       });
 
       var instanceGeometry = new Instance_Geometry()

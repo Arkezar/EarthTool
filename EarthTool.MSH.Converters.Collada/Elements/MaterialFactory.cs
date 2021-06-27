@@ -8,18 +8,15 @@ namespace EarthTool.MSH.Converters.Collada.Elements
 {
   public class MaterialFactory
   {
-    public Library_Images GetImages(IEnumerable<ModelPart> parts, string modelName)
+    public IEnumerable<Image> GetImages(IEnumerable<ModelPart> parts, string modelName)
     {
-      var libraryImages = new Library_Images();
       var id = $"{modelName}-Part";
-      parts.Select((p, i) => new Image
+      return parts.Select((p, i) => new Image
       {
         Id = $"{id}-{i}-texture",
         Name = $"{id}-{i}-texture",
         Init_From = Path.ChangeExtension(p.Texture.FileName, "png")
-      }).ToList().ForEach(t => libraryImages.Image.Add(t));
-
-      return libraryImages;
+      });
     }
 
     public IEnumerable<(Material Material, Effect Effect)> GetMaterials(IEnumerable<ModelPart> parts, string modelName)

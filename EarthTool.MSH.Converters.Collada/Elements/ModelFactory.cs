@@ -9,13 +9,15 @@ namespace EarthTool.MSH.Converters.Collada.Elements
 {
   public class ModelFactory
   {
+    private readonly AnimationsFactory _animationsFactory;
     private readonly GeometriesFactory _geometriesFactory;
     private readonly MaterialFactory _materialFactory;
     private readonly LightingFactory _lightingFactory;
     private readonly ILogger<ModelFactory> _logger;
 
-    public ModelFactory(GeometriesFactory geometriesFactory, MaterialFactory materialFactory, LightingFactory lightingFactory, ILogger<ModelFactory> logger)
+    public ModelFactory(AnimationsFactory animationsFactory, GeometriesFactory geometriesFactory, MaterialFactory materialFactory, LightingFactory lightingFactory, ILogger<ModelFactory> logger)
     {
+      _animationsFactory = animationsFactory;
       _geometriesFactory = geometriesFactory;
       _materialFactory = materialFactory;
       _lightingFactory = lightingFactory;
@@ -24,6 +26,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
 
     public COLLADA GetColladaModel(Model model, string modelName)
     {
+      var animations = _animationsFactory.GetAnimations(model.Parts, modelName);
       var images = _materialFactory.GetImages(model.Parts, modelName);
       var materials = _materialFactory.GetMaterials(model.Parts, modelName);
       var geometries = _geometriesFactory.GetGeometries(model.Parts, modelName);
@@ -55,11 +58,18 @@ namespace EarthTool.MSH.Converters.Collada.Elements
         materialsLibrary.Material.Add(m.Material);
       });
 
+      var imagesLibrary = new Library_Images();
+      images.ToList().ForEach(i => imagesLibrary.Image.Add(i));
+
+      var animationsLibrary = new Library_Animations();
+      animations.ToList().ForEach(a => animationsLibrary.Animation.Add(a));
+
       collada.Library_Geometries.Add(geometriesLibrary);
       collada.Library_Visual_Scenes.Add(scenes);
-      collada.Library_Images.Add(images);
+      collada.Library_Images.Add(imagesLibrary);
       collada.Library_Effects.Add(effectsLibrary);
       collada.Library_Materials.Add(materialsLibrary);
+      collada.Library_Animations.Add(animationsLibrary);
       collada.Scene = scene;
 
       return collada;

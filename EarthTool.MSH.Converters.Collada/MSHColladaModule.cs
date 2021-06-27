@@ -12,6 +12,7 @@ namespace EarthTool.MSH.Converters.Collada
       builder.RegisterType<MaterialFactory>();
       builder.RegisterType<LightingFactory>();
       builder.RegisterType<GeometriesFactory>();
+      builder.RegisterType<AnimationsFactory>();
       builder.RegisterType<MSHColladaConverter>().AsImplementedInterfaces().Keyed<IMSHConverter>("dae");
     }
   }
