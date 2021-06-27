@@ -13,6 +13,16 @@ namespace EarthTool.MSH.Models
       get;
     }
 
+    public int SkipParent
+    {
+      get;
+    }
+
+    public int UnknownFlag
+    {
+      get;
+    }
+
     public TextureInfo Texture
     {
       get;
@@ -46,7 +56,9 @@ namespace EarthTool.MSH.Models
     public ModelPart(Stream stream)
     {
       Vertices = new Vertices(stream);
-      stream.ReadBytes(4); // empty
+      SkipParent = stream.ReadByte();
+      UnknownFlag = stream.ReadByte();
+      stream.ReadBytes(2); // empty
       Texture = new TextureInfo(stream);
       Faces = new Faces(stream);
       Animations = new Animations(stream);

@@ -65,6 +65,11 @@ namespace EarthTool.MSH.Models
       get;
     }
 
+    public PartNode PartsTree
+    {
+      get;
+    }
+
     public Model(string path)
     {
       Parts = new List<ModelPart>();
@@ -90,7 +95,26 @@ namespace EarthTool.MSH.Models
           throw new NotSupportedException("Not supported mesh format");
         }
         Parts = GetParts(stream).ToList();
+        PartsTree = GetPartsTree(Parts);
       }
+    }
+
+    private PartNode GetPartsTree(IEnumerable<ModelPart> parts)
+    {
+      var currentId = 0;
+      var root = new PartNode(currentId, parts.First());
+      var lastNode = root;
+      foreach(var part in parts.Skip(1))
+      {
+        var skip = part.SkipParent;
+        var parent = lastNode;
+        for(var i = 0; i < skip; i++)
+        {
+          parent = parent.Parent;
+        }
+        lastNode = new PartNode(++currentId, part, parent);
+      }
+      return root;
     }
 
     private void CheckHeader(Stream stream)

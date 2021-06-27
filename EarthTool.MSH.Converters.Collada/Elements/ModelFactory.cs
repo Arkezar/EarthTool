@@ -30,8 +30,9 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       var images = _materialFactory.GetImages(model.Parts, modelName);
       var materials = _materialFactory.GetMaterials(model.Parts, modelName);
       var geometries = _geometriesFactory.GetGeometries(model.Parts, modelName);
+      var geometryRootNode = _geometriesFactory.GetGeometryRootNode(geometries.Select(g => g.GeometryNode), model.PartsTree, modelName);
       var lights = _lightingFactory.GetLights(model);
-      var scenes = GetScenes(geometries.Select(g => g.GeometryNode), lights.Select(l => l.LightNode), modelName);
+      var scenes = GetScenes(geometryRootNode, lights.Select(l => l.LightNode), modelName);
       var scene = GetScene(scenes);
 
       var collada = new COLLADA
@@ -86,7 +87,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       return scene;
     }
 
-    private Library_Visual_Scenes GetScenes(IEnumerable<Node> geometryNodes, IEnumerable<Node> lightNodes, string modelName)
+    private Library_Visual_Scenes GetScenes(Node geometryNode, IEnumerable<Node> lightNodes, string modelName)
     {
       var visualScenes = new Library_Visual_Scenes();
       var visualScene = new Visual_Scene()
@@ -99,10 +100,11 @@ namespace EarthTool.MSH.Converters.Collada.Elements
         Id = modelName,
         Name = modelName
       };
-      visualScene.Node.Add(masterNode);
+      masterNode.NodeProperty.Add(geometryNode);
 
-      geometryNodes.ToList().ForEach(g => masterNode.NodeProperty.Add(g));
-      lightNodes.ToList().ForEach(l => masterNode.NodeProperty.Add(l));
+      lightNodes.ToList().ForEach(l => geometryNode.NodeProperty.Add(l));
+
+      visualScene.Node.Add(masterNode);
       visualScenes.Visual_Scene.Add(visualScene);
 
       return visualScenes;

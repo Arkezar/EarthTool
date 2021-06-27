@@ -17,6 +17,22 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       });
     }
 
+    public Node GetGeometryRootNode(IEnumerable<Node> geometryNodes, PartNode partsTree, string modelName)
+    {
+      var rootNode = new Node()
+      {
+        Id = modelName,
+        Name = modelName
+      };
+
+      var root = geometryNodes.Single(g => g.Id == $"{modelName}-Part-{partsTree.Id}");
+      foreach(var child in partsTree.Children)
+      {
+        root.NodeProperty.Add(GetGeometryRootNode(geometryNodes, child, modelName));
+      }
+      return root;
+    }
+
     private Node GetGeometryNode(ModelPart part, int i, string modelName)
     {
       var id = $"{modelName}-Part-{i}";
