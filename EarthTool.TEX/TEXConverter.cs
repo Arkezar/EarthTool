@@ -1,9 +1,11 @@
 ﻿using EarthTool.Common.Interfaces;
+using EarthTool.Common.Models;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace EarthTool.TEX
@@ -11,16 +13,21 @@ namespace EarthTool.TEX
   public class TEXConverter : ITEXConverter
   {
     private readonly ILogger<TEXConverter> _logger;
+    private readonly bool _highResolutionOnly;
 
     public TEXConverter(ILogger<TEXConverter> logger)
     {
       _logger = logger;
     }
 
+    public TEXConverter(ILogger<TEXConverter> logger, bool highResOnly) : this(logger)
+    {
+      _highResolutionOnly = highResOnly;
+    }
+
     public Task Convert(string filePath, string outputPath = null)
     {
       outputPath ??= Path.GetDirectoryName(filePath);
-
       var data = File.ReadAllBytes(filePath);
       var filename = Path.GetFileNameWithoutExtension(filePath);
       using (var stream = new MemoryStream(data))
@@ -32,6 +39,10 @@ namespace EarthTool.TEX
           {
             var t = ReadHeader(stream);
             var images = ReadBitmap(stream, t.Type, t.Subtype);
+            if (_highResolutionOnly)
+            {
+              images = images.Take(1);
+            }
             foreach (var image in images)
             {
               SaveBitmap(outputPath, filename, i, image);
@@ -41,6 +52,10 @@ namespace EarthTool.TEX
         else
         {
           var images = ReadBitmap(stream, header.Type, header.Subtype);
+          if (_highResolutionOnly)
+          {
+            images = images.Take(1);
+          }
           foreach (var image in images)
           {
             SaveBitmap(outputPath, filename, 0, image);
@@ -50,17 +65,19 @@ namespace EarthTool.TEX
       return Task.CompletedTask;
     }
 
-    private static void SaveBitmap(string workDir, string filename, int i, Image image)
+    private void SaveBitmap(string workDir, string filename, int i, Image image)
     {
       if (!Directory.Exists(workDir))
       {
         Directory.CreateDirectory(workDir);
       }
 
-      image.Save(Path.Combine(workDir, $"{filename}_{i}_{image.Width}x{image.Height}.png"));
+      var outputFileName = _highResolutionOnly ? $"{filename}_{i}.png" : $"{filename}_{i}_{image.Width}x{image.Height}.png";
+
+      image.Save(Path.Combine(workDir, outputFileName));
     }
 
-    private static IEnumerable<Image> ReadBitmap(Stream stream, int type, int subtype)
+    private IEnumerable<Image> ReadBitmap(Stream stream, int type, int subtype)
     {
       int infoLength;
       switch (type)
@@ -133,6 +150,11 @@ namespace EarthTool.TEX
       }
 
       return new Header(buffer[8], buffer[10], numberOfMaps);
+    }
+
+    public IConverter WithOptions(IReadOnlyCollection<Option> options)
+    {
+      return new TEXConverter(_logger, options.Any(o => o.Name == "HighResolutionOnly" && o.GetValue<bool>()));
     }
   }
 }
