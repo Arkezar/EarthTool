@@ -26,24 +26,23 @@ namespace EarthTool.MSH.Converters.Collada
     private void WriteColladaModel(Model model, string outputPath)
     {
       var modelName = GetModelName(model);
-      var resultDir = Path.Combine(outputPath, modelName);
 
-      if (!Directory.Exists(resultDir))
+      if (!Directory.Exists(outputPath))
       {
-        Directory.CreateDirectory(resultDir);
+        Directory.CreateDirectory(outputPath);
       }
 
       var colladaModel = _modelFactory.GetColladaModel(model, modelName);
 
       var serializer = new XmlSerializer(typeof(COLLADA));
-      using (var stream = new FileStream(Path.Combine(resultDir, $"{modelName}.dae"), FileMode.Create))
+      using (var stream = new FileStream(Path.Combine(outputPath, $"{modelName}.dae"), FileMode.Create))
       {
 
         serializer.Serialize(stream, colladaModel);
       }
 
-      File.WriteAllText(Path.Combine(resultDir, $"{modelName}.template"), model.Template.ToString());
-      File.WriteAllText(Path.Combine(resultDir, $"{modelName}.slots"), model.MountPoints.ToString());
+      File.WriteAllText(Path.Combine(outputPath, $"{modelName}.template"), model.Template.ToString());
+      File.WriteAllText(Path.Combine(outputPath, $"{modelName}.slots"), model.MountPoints.ToString());
     }
 
     private string GetModelName(Model model)

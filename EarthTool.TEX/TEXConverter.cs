@@ -52,13 +52,12 @@ namespace EarthTool.TEX
 
     private static void SaveBitmap(string workDir, string filename, int i, Image image)
     {
-      var outputDir = Path.Combine(workDir, filename);
-      if (!Directory.Exists(outputDir))
+      if (!Directory.Exists(workDir))
       {
-        Directory.CreateDirectory(outputDir);
+        Directory.CreateDirectory(workDir);
       }
 
-      image.Save(Path.Combine(outputDir, $"{filename}_{i}_{image.Width}x{image.Height}.png"));
+      image.Save(Path.Combine(workDir, $"{filename}_{i}_{image.Width}x{image.Height}.png"));
     }
 
     private static IEnumerable<Image> ReadBitmap(Stream stream, int type, int subtype)

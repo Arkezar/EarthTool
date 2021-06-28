@@ -3,6 +3,8 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.CommandLine;
 using System.CommandLine.Invocation;
+using System.IO;
+using System.Linq;
 
 namespace EarthTool.Commands
 {
@@ -25,16 +27,26 @@ namespace EarthTool.Commands
 
     private void HandleCommand(string input, string output)
     {
-      _logger.LogInformation("Processing file {FilePath}", input);
-      try
+      var path = Path.GetDirectoryName(input);
+      if (string.IsNullOrEmpty(path))
       {
-        _converter.Convert(input, output);
-        _logger.LogInformation("Finished!");
+        path = ".";
       }
-      catch (Exception e)
+      var filePattern = Path.GetFileName(input);
+      var files = Directory.GetFiles(path, filePattern, SearchOption.TopDirectoryOnly);
+
+      files.AsParallel().ForAll(filePath =>
       {
-        _logger.LogError(e, "Error occured");
-      }
+        try
+        {
+          _converter.Convert(filePath, output);
+          _logger.LogInformation("Processed file {FilePath}", filePath);
+        }
+        catch (Exception e)
+        {
+          _logger.LogError(e, "Error occured while processing file {FilePath}", filePath);
+        }
+      });
     }
   }
 }

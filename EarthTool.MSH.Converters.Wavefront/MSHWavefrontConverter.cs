@@ -23,17 +23,16 @@ namespace EarthTool.MSH.Converters.Wavefront
     private void WriteWavefrontModel(Model model, string outputPath)
     {
       var modelName = Path.GetFileNameWithoutExtension(model.FilePath);
-      var resultDir = Path.Combine(outputPath, modelName);
 
-      if (!Directory.Exists(resultDir))
+      if (!Directory.Exists(outputPath))
       {
-        Directory.CreateDirectory(resultDir);
+        Directory.CreateDirectory(outputPath);
       }
 
       var partIndex = 0;
       foreach (var part in model.Parts)
       {
-        var resultFile = Path.Combine(resultDir, $"{modelName}_{partIndex}.obj");
+        var resultFile = Path.Combine(outputPath, $"{modelName}_{partIndex}.obj");
         using (var fs = new FileStream(resultFile, FileMode.Create))
         {
           using (var writer = new StreamWriter(fs))
@@ -52,7 +51,7 @@ namespace EarthTool.MSH.Converters.Wavefront
         partIndex++;
       }
 
-      File.WriteAllText(Path.Combine(resultDir, $"{modelName}.template"), model.Template.ToString());
+      File.WriteAllText(Path.Combine(outputPath, $"{modelName}.template"), model.Template.ToString());
     }
 
     private void WriteInfo(StreamWriter writer, ModelPart part)
