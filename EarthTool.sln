@@ -13,9 +13,14 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EarthTool.TEX", "EarthTool.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EarthTool.MSH", "EarthTool.MSH\EarthTool.MSH.csproj", "{4BEEF666-5D76-44B0-8991-37B4522EE3EA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EarthTool.MSH.Converters.Wavefront", "EarthTool.MSH.Converters.Wavefront\EarthTool.MSH.Converters.Wavefront.csproj", "{0AF4389F-48D2-4BD2-9904-892197C058E6}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EarthTool.MSH.Converters.Wavefront", "EarthTool.MSH.Converters.Wavefront\EarthTool.MSH.Converters.Wavefront.csproj", "{0AF4389F-48D2-4BD2-9904-892197C058E6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EarthTool.MSH.Converters.Collada", "EarthTool.MSH.Converters.Collada\EarthTool.MSH.Converters.Collada.csproj", "{A83F829D-F129-4C6A-863C-566A5A0E20BD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EarthTool.MSH.Converters.Collada", "EarthTool.MSH.Converters.Collada\EarthTool.MSH.Converters.Collada.csproj", "{A83F829D-F129-4C6A-863C-566A5A0E20BD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8E6FFE2A-1B4D-4837-956D-358257981E2C}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
