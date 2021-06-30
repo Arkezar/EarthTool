@@ -1,0 +1,17 @@
+﻿<Window x:Class="EarthTool.GUI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:EarthTool.GUI"
+        mc:Ignorable="d"
+        Title="EarthTool" Height="130" Width="400" SizeToContent="Manual" ResizeMode="NoResize">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+        <Button x:Name="InputFileSelector" Content="Select input file..." Margin="10,10,10,0" VerticalAlignment="Top" Click="InputFileSelector_Click"/>
+        <Button x:Name="Execute" Content="Run" Margin="10,60,10,0" VerticalAlignment="Top" Click="Execute_Click"/>
+        <Button x:Name="OutputDirectorySelector" Content="Select output directory..." Margin="10,35,10,0" VerticalAlignment="Top" Click="OutputDirectorySelecter_Click"/>
+    </Grid>
+</Window>

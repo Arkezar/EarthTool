@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net5.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="7.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EarthTool.Common\EarthTool.Common.csproj" />
+    <ProjectReference Include="..\EarthTool.MSH.Converters.Collada\EarthTool.MSH.Converters.Collada.csproj" />
+    <ProjectReference Include="..\EarthTool.MSH.Converters.Wavefront\EarthTool.MSH.Converters.Wavefront.csproj" />
+    <ProjectReference Include="..\EarthTool.TEX\EarthTool.TEX.csproj" />
+    <ProjectReference Include="..\EarthTool.WD\EarthTool.WD.csproj" />
+  </ItemGroup>
+
+</Project>
