@@ -1,7 +1,6 @@
 ﻿using EarthTool.Common.Interfaces;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.IO;
@@ -33,7 +32,7 @@ namespace EarthTool.Commands
       var path = Path.GetDirectoryName(input);
       if (string.IsNullOrEmpty(path))
       {
-        path = ".";
+        path = Environment.CurrentDirectory;
       }
       var filePattern = Path.GetFileName(input);
       var files = Directory.GetFiles(path, filePattern, SearchOption.TopDirectoryOnly);

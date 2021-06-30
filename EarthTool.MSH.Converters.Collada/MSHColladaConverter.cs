@@ -2,7 +2,6 @@
 using EarthTool.MSH.Converters.Collada.Elements;
 using EarthTool.MSH.Models;
 using Microsoft.Extensions.Logging;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using System.Xml.Serialization;

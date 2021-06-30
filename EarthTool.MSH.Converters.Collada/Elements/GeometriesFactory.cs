@@ -26,7 +26,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       };
 
       var root = geometryNodes.Single(g => g.Id == $"{modelName}-Part-{partsTree.Id}");
-      foreach(var child in partsTree.Children)
+      foreach (var child in partsTree.Children)
       {
         root.NodeProperty.Add(GetGeometryRootNode(geometryNodes, child, modelName));
       }

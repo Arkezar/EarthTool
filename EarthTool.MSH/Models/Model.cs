@@ -104,11 +104,11 @@ namespace EarthTool.MSH.Models
       var currentId = 0;
       var root = new PartNode(currentId, parts.First());
       var lastNode = root;
-      foreach(var part in parts.Skip(1))
+      foreach (var part in parts.Skip(1))
       {
         var skip = part.SkipParent;
         var parent = lastNode;
-        for(var i = 0; i < skip; i++)
+        for (var i = 0; i < skip; i++)
         {
           parent = parent.Parent;
         }

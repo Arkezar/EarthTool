@@ -22,7 +22,6 @@ namespace EarthTool.WD
     {
       outputPath ??= Path.GetDirectoryName(filePath);
 
-      var archiveName = Path.GetFileNameWithoutExtension(filePath);
       var file = File.ReadAllBytes(filePath);
 
       if (!IsValidWDFile(file))
@@ -46,20 +45,20 @@ namespace EarthTool.WD
         {
           var fileDirectory = Path.GetDirectoryName(desc.Filename);
 
-          if (!System.IO.Directory.Exists(Path.Combine(outputPath, archiveName, fileDirectory)))
+          if (!System.IO.Directory.Exists(Path.Combine(outputPath, fileDirectory)))
           {
-            System.IO.Directory.CreateDirectory(Path.Combine(outputPath, archiveName, fileDirectory));
+            System.IO.Directory.CreateDirectory(Path.Combine(outputPath, fileDirectory));
           }
 
           data = desc.DecompressedLength == desc.Length ? data : Decompress(data);
-          File.WriteAllBytes(Path.Combine(outputPath, archiveName, desc.Filename), data);
+          File.WriteAllBytes(Path.Combine(outputPath, desc.Filename), data);
           if (desc.HasUnknownData)
           {
-            File.WriteAllBytes(Path.Combine(outputPath, archiveName, desc.Filename) + ".unknownData", desc.UnknownData);
+            File.WriteAllBytes(Path.Combine(outputPath, desc.Filename) + ".unknownData", desc.UnknownData);
           }
           if (desc is TranslatableResource descTranslatable)
           {
-            File.WriteAllText(Path.Combine(outputPath, archiveName, desc.Filename) + ".translationId", descTranslatable.TranslationId);
+            File.WriteAllText(Path.Combine(outputPath, desc.Filename) + ".translationId", descTranslatable.TranslationId);
           }
         }
       }

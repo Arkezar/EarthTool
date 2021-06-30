@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.Generic;
 
 namespace EarthTool.MSH.Models
 {
@@ -32,7 +30,7 @@ namespace EarthTool.MSH.Models
       Id = id;
       Part = part;
       Parent = parent;
-      if(parent != null)
+      if (parent != null)
       {
         parent.Children.Add(this);
       }
