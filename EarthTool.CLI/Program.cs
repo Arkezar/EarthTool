@@ -10,10 +10,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Configuration;
-using System.IO;
 using System.Threading.Tasks;
 
-namespace EarthTool
+namespace EarthTool.CLI
 {
   class Program
   {
@@ -44,7 +43,7 @@ namespace EarthTool
         })
         .ConfigureServices((ctx, services) =>
         {
-          services.AddHostedService<EarthToolCLIService>();
+          services.AddHostedService<EarthToolService>();
         });
     }
   }

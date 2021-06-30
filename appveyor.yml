@@ -19,9 +19,9 @@ before_build:
 build:
   verbosity: minimal
 after_build:
-- cmd:  dotnet publish EarthTool -c Release -p:PublishSingleFile=true -r win-x86 --no-self-contained --output %appveyor_build_folder%\dist
+- cmd:  dotnet publish EarthTool.CLI -c Release -p:PublishSingleFile=true -p:PublishTrimmed=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -r win-x64 --output %appveyor_build_folder%\dist
 artifacts:
-- path: dist\EarthTool.exe
+- path: dist\EarthTool.CLI.exe
   name: deploy
 deploy:
 - provider: GitHub

@@ -8,15 +8,15 @@ using System.CommandLine.Parsing;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace EarthTool
+namespace EarthTool.CLI
 {
-  public class EarthToolCLIService : IHostedService
+  class EarthToolService : IHostedService
   {
     private readonly Parser _cmdParser;
-    private readonly ILogger<EarthToolCLIService> _logger;
+    private readonly ILogger<EarthToolService> _logger;
     private readonly IHostApplicationLifetime _appLifetime;
 
-    public EarthToolCLIService(ILogger<EarthToolCLIService> logger, IHostApplicationLifetime appLifetime, IEnumerable<Command> commands)
+    public EarthToolService(ILogger<EarthToolService> logger, IHostApplicationLifetime appLifetime, IEnumerable<Command> commands)
     {
       _appLifetime = appLifetime;
       _logger = logger;
