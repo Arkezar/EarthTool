@@ -69,8 +69,7 @@ namespace EarthTool.GUI
     {
       var fileDialog = new SaveFileDialog();
       fileDialog.FileName = System.IO.Path.GetFileName(InputFileSelector.Content.ToString());
-      fileDialog.DefaultExt = "*.*";
-
+      fileDialog.Filter = "All files (*.*)|*.*";
       if (fileDialog.ShowDialog() ?? false)
       {
         OutputDirectorySelector.Content = System.IO.Path.GetDirectoryName(fileDialog.FileName);
