@@ -3,6 +3,7 @@ using Autofac.Extensions.DependencyInjection;
 using EarthTool.MSH;
 using EarthTool.MSH.Converters.Collada;
 using EarthTool.MSH.Converters.Wavefront;
+using EarthTool.PAR;
 using EarthTool.TEX;
 using EarthTool.WD;
 using Microsoft.Extensions.Configuration;
@@ -40,6 +41,7 @@ namespace EarthTool.CLI
           containerBuilder.RegisterModule<WDModule>();
           containerBuilder.RegisterModule<TEXModule>();
           containerBuilder.RegisterModule<MSHModule>();
+          containerBuilder.RegisterModule<PARModule>();
           containerBuilder.RegisterModule<MSHColladaModule>();
           containerBuilder.RegisterModule<MSHWavefrontModule>();
         })
