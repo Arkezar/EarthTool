@@ -2,9 +2,9 @@
   "profiles": {
     "EarthTool": {
       "commandName": "Project",
-      "commandLineArgs": "msh \"D:\\earthwork\\mesh\\EDUBU1.msh\"",
+      "commandLineArgs": "wd \"D:\\earthwork\\wdtest2\\*.wd\"",
       "environmentVariables": {
-        "Logging:LogLevel:Default": "Debug"
+        "Logging:LogLevel:Default": "Information"
       }
     }
   }

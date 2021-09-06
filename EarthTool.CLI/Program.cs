@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Configuration;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace EarthTool.CLI
@@ -18,6 +19,7 @@ namespace EarthTool.CLI
   {
     public static Task Main(string[] args)
     {
+      Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
       return Initialize(args).Build().RunAsync();
     }
 
