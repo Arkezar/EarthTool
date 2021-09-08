@@ -1,6 +1,7 @@
 ﻿using EarthTool.Common.Enums;
 using EarthTool.Common.Extensions;
 using EarthTool.Common.Interfaces;
+using Ionic.Zlib;
 using System;
 using System.IO;
 using System.Text;
@@ -21,11 +22,9 @@ namespace EarthTool.WD.Resources
 
     public string TranslationId { get; }
 
-    public ResourceType? Group { get; }
+    public ResourceType? ResourceType { get; }
 
     public Guid? Guid { get; }
-
-    public byte[] Data { get; private set; }
 
     public ArchiveResource(Stream stream)
     {
@@ -38,7 +37,7 @@ namespace EarthTool.WD.Resources
 
       if (Flags.HasFlag(FileFlags.Resource))
       {
-        Group = (ResourceType)BitConverter.ToInt32(stream.ReadBytes(4));
+        ResourceType = (ResourceType)BitConverter.ToInt32(stream.ReadBytes(4));
       }
 
       if (Flags.HasFlag(FileFlags.Guid))
@@ -47,15 +46,14 @@ namespace EarthTool.WD.Resources
       }
     }
 
-    public IArchiveResource SetData(byte[] data)
-    {
-      Data = data;
-      return this;
-    }
-
     public override string ToString()
     {
-      return $"{Guid} {Filename} Flags: [{Flags}] R: {Group} TranslationId: {TranslationId} Offset: {Offset} Compressed: {Length} Uncompressed: {DecompressedLength}";
+      return $"{Guid} {Filename} Flags: [{Flags}] R: {ResourceType} TranslationId: {TranslationId} Offset: {Offset} Compressed: {Length} Uncompressed: {DecompressedLength}";
+    }
+
+    public byte[] GetData(Stream stream)
+    {
+      return stream.ReadBytes(Length, Offset);
     }
 
     private string GetName(Stream stream)

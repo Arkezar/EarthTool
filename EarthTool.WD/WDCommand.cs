@@ -5,6 +5,7 @@ using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace EarthTool.Commands
 {
@@ -34,11 +35,11 @@ namespace EarthTool.Commands
       var filePattern = Path.GetFileName(input);
       var files = Directory.GetFiles(path, filePattern, SearchOption.TopDirectoryOnly);
 
-      files.AsParallel().ForAll(filePath =>
+      files.AsParallel().ForAll(async filePath =>
       {
         try
         {
-          _extractor.Extract(filePath, output);
+          await _extractor.Extract(filePath, output);
           _logger.LogInformation("Processed file {FilePath}", filePath);
         }
         catch (Exception e)

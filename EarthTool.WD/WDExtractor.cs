@@ -19,26 +19,8 @@ namespace EarthTool.WD
     public Task Extract(string filePath, string outputPath = null)
     {
       outputPath ??= Path.GetDirectoryName(filePath);
-
-      var valid = _archivizerService.VerifyFile(filePath);
-      if (valid)
-      {
-        var descriptor = _archivizerService.GetArchiveDescriptor(filePath);
-        var files = _archivizerService.GetResourceWithData(filePath, descriptor.Resources);
-
-        foreach (var file in files)
-        {
-          var outputFilePath = Path.Combine(outputPath, file.Filename);
-          if (!Directory.Exists(Path.GetDirectoryName(outputFilePath)))
-          {
-            Directory.CreateDirectory(Path.GetDirectoryName(outputFilePath));
-          }
-
-          _logger.LogInformation("Extracted {File}", file.Filename);
-          File.WriteAllBytes(outputFilePath, file.Data);
-        }
-      }
-
+      _archivizerService.SetArchiveFilePath(filePath);
+      _archivizerService.ExtractAll(outputPath);
       return Task.CompletedTask;
     }
   }

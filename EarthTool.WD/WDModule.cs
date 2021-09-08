@@ -1,6 +1,6 @@
 ﻿using Autofac;
 using EarthTool.Commands;
-using EarthTool.Services;
+using EarthTool.WD.Services;
 using System.CommandLine;
 
 namespace EarthTool.WD
@@ -12,6 +12,7 @@ namespace EarthTool.WD
       builder.RegisterType<WDCommand>().As<Command>().SingleInstance();
       builder.RegisterType<WDExtractor>().AsImplementedInterfaces();
       builder.RegisterType<ArchivizerService>().AsImplementedInterfaces();
+      builder.RegisterType<EncryptionService>().AsImplementedInterfaces();
     }
   }
 }
