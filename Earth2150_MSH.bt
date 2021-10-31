@@ -3,30 +3,31 @@
 //
 //      File: Earth2150_MSH.bt
 //    Author: arkezar
-//   Version: 0.1
+//   Version: 0.2
 //   Purpose: Template for Earth 2150 msh files
 //  Category: Game
 // File Mask: *.msh
-//  ID Bytes: 4D 45 53 48 //MESH
+//  ID Bytes: 4D 45 53 48 01 00 00 00 //MESH1
 //   History: 
 //   0.1 2021-06-16 arkezar: Initial version
+//   0.2 2021-11-03 arkezar: Add model descriptors section
 //------------------------------------------------
 typedef struct {
     float X;
     FSkip(12);
-    float Z;
-    FSkip(12);
     float Y;
+    FSkip(12);
+    float Z;
     FSkip(12);
     float NormalX;
     FSkip(12);
-    float NormalZ;
-    FSkip(12);
     float NormalY;
     FSkip(12);
-    float V;
+    float NormalZ;
     FSkip(12);
     float U;
+    FSkip(12);
+    float V;
 } Vertex;
 
 typedef struct {
@@ -38,7 +39,7 @@ typedef struct {
     FSkip(-(sizeof(vertex)-4));
     Vertex vertex;
     byte EMPTY[16];
-    byte UNKNOWN[16];
+    short UNKNOWN[8];
 } VertexBlock;
 
 typedef struct {
@@ -66,15 +67,12 @@ typedef struct {
 
 typedef struct {
     VertexList vertexList;
-    byte unknown1[4];
+    byte newBranch;
+    byte type;
+    byte unknown1[2];
     Texture texture;
     FacesList faces;
 } Element;
-
-typedef struct {
-    int length;
-    float data[3*length];
-} Unknown1;
 
 typedef struct {
     float X;
@@ -133,7 +131,8 @@ typedef struct {
     Animation animation;
     int AnimationType;
     Offset offset;
-    ubyte unknownData[5];
+    byte RiseAngleRad;
+    ubyte unknownData[4];
 } Part;
 
 typedef struct {
@@ -143,13 +142,23 @@ typedef struct {
     float R;
     float G;
     float B;
-    float Intensity;
+    float Length;
     int Direction;
     float Width;
     float Unknown;
     float Tilt;
     float Ambience;
 } Light; 
+
+typedef struct {
+    float X;
+    float Y;
+    float Z;
+    float R;
+    float G;
+    float B;
+    float Intensity;
+} OmniLight; 
 
 typedef struct {
     float X;
@@ -169,24 +178,77 @@ typedef struct {
     ubyte m33;
 } M3x3;
 
+typedef struct {
+    short X;
+    short Y;
+    short Z;
+    byte Direction;
+    byte Flag;
+} Slot;
+
+typedef struct {
+    byte Pattern[2];
+    short Flag;
+} TemplateRotation;
+
+typedef struct {
+    short Column[4];
+} TemplateFlagsRotation;
+
+typedef struct {
+    Slot slot_sc[4];
+    Slot slot_mi[4];
+    Slot slot_ss[4];
+    Slot slot_hl[4];
+    Slot slot_om[4];
+    Slot slot_tr[4];
+    Slot slot_ht[4];
+    Slot slot_sm[4];
+    Slot slot_unk[4];
+    Slot slot_ch[2];
+    Slot slot_st[2];
+    Slot slot_se[2];
+    Slot slot_sk[2];
+    Slot slot_in;
+    Slot slot_ce;
+    Slot slot_pr;
+    Slot slot_mv;
+    Slot slot_ln;
+} Slots;
+
+typedef struct {
+    int MeshType;
+    TemplateRotation Template;
+    ubyte BuildingFrames;
+    ubyte ActionFrames;
+    ubyte MoveFrames;
+    ubyte LoopedFrames;
+    int EMPTY;
+    MountPoint mounts[4];
+    Light lights[4];
+    OmniLight omnis[4];
+    short UnitSectionHeights[16];
+    byte UnitSectionFlags[16];
+    TemplateRotation UnitTemplateRotations[4];
+    TemplateFlagsRotation UnitTemplateFlagsRotations[4];
+    Slots Slots1;
+    short MaxY;
+    short MinY;
+    short MaxX;
+    short MinX;
+} Descriptor;
+
+typedef struct {
+    int unknown5;
+    while(!FEof()) {
+        Part part;
+    }
+} Geometry;
+
+FSeek(FindFirst("MESH"));
 struct HEADER {
     char type[4];
     byte unknown[4];
 } header <bgcolor=0x0000FF>;
-int type;
-byte template[2];
-byte unknown1[10];
-MountPoint mounts[4];
-Light lights[5];
-ubyte unknown2[64];
-short v0;
-ubyte unknown3[99];
-M3x3 unknown4[43];
-short v1;
-short v2;
-short v3;
-short v4;
-int v5;
-while(!FEof()) {
-    Part part;
-}
+Descriptor ModelDescriptor;
+Geometry ModelGeometry;
