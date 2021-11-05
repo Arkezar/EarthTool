@@ -25,32 +25,62 @@ namespace EarthTool.MSH.Models
       get;
     }
 
+    public ushort BuildingFrames
+    {
+      get;
+    }
+
+    public ushort ActionFrames
+    {
+      get;
+    }
+
+    public ushort MovementFrames
+    {
+      get;
+    }
+
+    public ushort LoopedFrames
+    {
+      get;
+    }
+
     public MountPoints MountPoints
     {
       get;
     }
 
-    public Lights Lights
+    public SpotLights SpotLights
     {
       get;
     }
 
-    public short UnknownVal1
+    public OmniLights OmniLights
     {
       get;
     }
 
-    public short UnknownVal2
+    public Slots Slots
     {
       get;
     }
 
-    public short UnknownVal3
+    public short MaxY
     {
       get;
     }
 
-    public short UnknownVal4
+    public short MinY
+    {
+      get;
+    }
+
+    public short MaxX
+    {
+      get;
+    }
+
+    public short MinX
     {
       get;
     }
@@ -80,16 +110,21 @@ namespace EarthTool.MSH.Models
         CheckHeader(stream);
         Type = BitConverter.ToInt32(stream.ReadBytes(4));
         Template = new ModelTemplate(stream);
-        stream.ReadBytes(10);
+        BuildingFrames = BitConverter.ToUInt16(stream.ReadBytes(2));
+        ActionFrames = BitConverter.ToUInt16(stream.ReadBytes(2));
+        MovementFrames = BitConverter.ToUInt16(stream.ReadBytes(2));
+        LoopedFrames = BitConverter.ToUInt16(stream.ReadBytes(2));
+        stream.ReadBytes(4); //EMPTY
         MountPoints = new MountPoints(stream);
-        Lights = new Lights(stream);
-        stream.ReadBytes(64);
-        stream.ReadBytes(488);
-        UnknownVal1 = BitConverter.ToInt16(stream.ReadBytes(2));
-        UnknownVal2 = BitConverter.ToInt16(stream.ReadBytes(2));
-        UnknownVal3 = BitConverter.ToInt16(stream.ReadBytes(2));
-        UnknownVal4 = BitConverter.ToInt16(stream.ReadBytes(2));
-        UnknownVal5 = BitConverter.ToInt16(stream.ReadBytes(4));
+        SpotLights = new SpotLights(stream);
+        OmniLights = new OmniLights(stream);
+        stream.ReadBytes(96);
+        Slots = new Slots(stream);
+        MaxY = BitConverter.ToInt16(stream.ReadBytes(2));
+        MinY = BitConverter.ToInt16(stream.ReadBytes(2));
+        MaxX = BitConverter.ToInt16(stream.ReadBytes(2));
+        MinX = BitConverter.ToInt16(stream.ReadBytes(2));
+        UnknownVal5 = BitConverter.ToInt32(stream.ReadBytes(4));
         if (Type != 0)
         {
           throw new NotSupportedException("Not supported mesh format");

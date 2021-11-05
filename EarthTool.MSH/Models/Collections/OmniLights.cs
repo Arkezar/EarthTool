@@ -5,16 +5,16 @@ using System.Linq;
 
 namespace EarthTool.MSH.Models.Collections
 {
-  public class Lights : List<Light>
+  public class OmniLights : List<OmniLight>
   {
-    const int NUMBER_OF_LIGHTS = 5;
+    const int NUMBER_OF_LIGHTS = 4;
 
     public int NumberOfAvailableLights =>
       this.Count(l => l.IsAvailable);
 
-    public Lights(Stream stream)
+    public OmniLights(Stream stream)
     {
-      AddRange(Enumerable.Range(0, NUMBER_OF_LIGHTS).Select(_ => new Light(stream)));
+      AddRange(Enumerable.Range(0, NUMBER_OF_LIGHTS).Select(_ => new OmniLight(stream)));
     }
   }
 }

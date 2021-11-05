@@ -12,7 +12,8 @@ namespace EarthTool.MSH.Converters.Collada.Elements
   {
     public IEnumerable<(Light Light, Node LightNode)> GetLights(Model model)
     {
-      return model.Lights.Where(l => l.IsAvailable).Select((l, i) => (GetLight(l, i), GetLightNode(l, i)));
+      return model.SpotLights.Where(l => l.IsAvailable).Select((l, i) => (GetLight(l, i), GetLightNode(l, i)))
+        .Concat(model.OmniLights.Where(l => l.IsAvailable).Select((l, i) => (GetLight(l, i), GetLightNode(l, i))));
     }
 
     private Node GetLightNode(Models.Elements.Light light, int i)
@@ -24,8 +25,17 @@ namespace EarthTool.MSH.Converters.Collada.Elements
         Name = id
       };
 
-      var rotationZdeg = Math.PI / 180.0 * (light.Direction * 360.0 / 255.0);
-      var rotationYdeg = Math.PI / 180.0 * (-90 - 180 / Math.PI * light.Tilt);
+      var rotationZdeg = light switch
+      {
+        Models.Elements.SpotLight sl => Math.PI / 180.0 * (sl.Direction * 360.0 / 255.0),
+        _ => 0
+      };
+
+      var rotationYdeg = light switch
+      {
+        Models.Elements.SpotLight sl => Math.PI / 180.0 * (-90 - 180 / Math.PI * sl.Tilt),
+        _ => 0
+      };
 
       var rotationZcos = (float)Math.Cos(rotationZdeg);
       var rotationZsin = (float)Math.Sin(rotationZdeg);
@@ -86,11 +96,16 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       {
         Id = $"Light-{i}",
         Name = $"Light-{i}",
-        Technique_Common = i != 4 ? GetSpotLight(light) : GetPointLight(light)
+        Technique_Common = light switch
+        {
+          Models.Elements.SpotLight sl => GetSpotLight(sl),
+          Models.Elements.OmniLight ol => GetPointLight(ol),
+          _ => null
+        }
       };
     }
 
-    private LightTechnique_Common GetSpotLight(Models.Elements.Light light)
+    private LightTechnique_Common GetSpotLight(Models.Elements.SpotLight light)
     {
       return new LightTechnique_Common()
       {
@@ -120,7 +135,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       };
     }
 
-    private LightTechnique_Common GetPointLight(Models.Elements.Light light)
+    private LightTechnique_Common GetPointLight(Models.Elements.OmniLight light)
     {
       return new LightTechnique_Common()
       {
@@ -132,7 +147,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
           },
           Constant_Attenuation = new TargetableFloat()
           {
-            Value = light.Length
+            Value = light.Radius
           },
           Linear_Attenuation = new TargetableFloat()
           {

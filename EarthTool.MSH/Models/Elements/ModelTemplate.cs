@@ -1,4 +1,5 @@
 ﻿using EarthTool.Common.Extensions;
+using System;
 using System.Collections;
 using System.IO;
 using System.Text;
@@ -15,13 +16,19 @@ namespace EarthTool.MSH.Models.Elements
       get;
     }
 
+    public short Flag
+    {
+      get;
+    }
+
     public ModelTemplate(Stream stream)
     {
       Matrix = new bool[ROWS, COLUMNS];
 
       var data = new BitArray(stream.ReadBytes(2));
-
       FillTemplateMatrix(data);
+
+      Flag = BitConverter.ToInt16(stream.ReadBytes(2));
     }
 
     private void FillTemplateMatrix(BitArray data)
