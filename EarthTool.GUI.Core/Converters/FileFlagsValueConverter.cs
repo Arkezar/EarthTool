@@ -10,7 +10,6 @@ namespace EarthTool.GUI.Core.Converters
   {
     protected override string Convert(FileFlags value, Type targetType, object parameter, CultureInfo culture)
     {
-      var vals = Enum.GetValues<FileFlags>();
       return new StringBuilder("xx").Append(GetValueForFlag(value, FileFlags.Guid, "G"))
                                     .Append(GetValueForFlag(value, FileFlags.Resource, "R"))
                                     .Append(GetValueForFlag(value, FileFlags.Named, "N"))
