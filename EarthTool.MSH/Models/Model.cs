@@ -25,22 +25,22 @@ namespace EarthTool.MSH.Models
       get;
     }
 
-    public ushort BuildingFrames
+    public int BuildingFrames
     {
       get;
     }
 
-    public ushort ActionFrames
+    public int ActionFrames
     {
       get;
     }
 
-    public ushort MovementFrames
+    public int MovementFrames
     {
       get;
     }
 
-    public ushort LoopedFrames
+    public int LoopedFrames
     {
       get;
     }
@@ -110,10 +110,10 @@ namespace EarthTool.MSH.Models
         CheckHeader(stream);
         Type = BitConverter.ToInt32(stream.ReadBytes(4));
         Template = new ModelTemplate(stream);
-        BuildingFrames = BitConverter.ToUInt16(stream.ReadBytes(2));
-        ActionFrames = BitConverter.ToUInt16(stream.ReadBytes(2));
-        MovementFrames = BitConverter.ToUInt16(stream.ReadBytes(2));
-        LoopedFrames = BitConverter.ToUInt16(stream.ReadBytes(2));
+        BuildingFrames = stream.ReadByte();
+        ActionFrames = stream.ReadByte();
+        MovementFrames = stream.ReadByte();
+        LoopedFrames = stream.ReadByte();
         stream.ReadBytes(4); //EMPTY
         MountPoints = new MountPoints(stream);
         SpotLights = new SpotLights(stream);
