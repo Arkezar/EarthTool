@@ -1,7 +1,6 @@
 ﻿using EarthTool.Common.Enums;
 using EarthTool.Common.Extensions;
 using EarthTool.Common.Interfaces;
-using Ionic.Zlib;
 using System;
 using System.IO;
 using System.Text;

@@ -1,7 +1,7 @@
 ﻿using EarthTool.Common.Interfaces;
-using Ionic.Zlib;
 using Microsoft.Extensions.Logging;
 using System.IO;
+using System.IO.Compression;
 
 namespace EarthTool.WD.Services
 {
@@ -26,7 +26,7 @@ namespace EarthTool.WD.Services
     {
       using (var output = new MemoryStream())
       {
-        using (var decompressedData = new ZlibStream(stream, CompressionMode.Compress, true))
+        using (var decompressedData = new ZLibStream(stream, CompressionMode.Compress, true))
         {
           decompressedData.CopyTo(output);
           return output.ToArray();
@@ -46,7 +46,7 @@ namespace EarthTool.WD.Services
     {
       using (var output = new MemoryStream())
       {
-        using (var decompressedData = new ZlibStream(stream, CompressionMode.Decompress, true))
+        using (var decompressedData = new ZLibStream(stream, CompressionMode.Decompress, true))
         {
           decompressedData.CopyTo(output);
           return output.ToArray();
