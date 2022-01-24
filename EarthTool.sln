@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.30717.126
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.32112.339
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EarthTool.Common", "EarthTool.Common\EarthTool.Common.csproj", "{F353FC63-CA5A-4919-B562-FF2CC406AE86}"
 EndProject
@@ -26,7 +26,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EarthTool.GUI.Core", "Earth
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EarthTool.GUI.WPF", "EarthTool.GUI.WPF\EarthTool.GUI.WPF.csproj", "{C68A3D04-A423-40AA-B8B5-CC1DE24034E3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EarthTool.PAR", "EarthTool.PAR\EarthTool.PAR.csproj", "{B4202CB1-518F-484D-8D58-44953C5DB5F7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EarthTool.PAR", "EarthTool.PAR\EarthTool.PAR.csproj", "{B4202CB1-518F-484D-8D58-44953C5DB5F7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EarthTool.WD.Tests", "EarthTool.WD.Tests\EarthTool.WD.Tests.csproj", "{78C05155-224F-4F17-B08F-EF90503BB1FC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -74,6 +76,10 @@ Global
 		{B4202CB1-518F-484D-8D58-44953C5DB5F7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B4202CB1-518F-484D-8D58-44953C5DB5F7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B4202CB1-518F-484D-8D58-44953C5DB5F7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{78C05155-224F-4F17-B08F-EF90503BB1FC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{78C05155-224F-4F17-B08F-EF90503BB1FC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{78C05155-224F-4F17-B08F-EF90503BB1FC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{78C05155-224F-4F17-B08F-EF90503BB1FC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
