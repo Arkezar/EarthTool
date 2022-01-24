@@ -10,11 +10,5 @@ namespace EarthTool.Common.Extensions
       stream.Read(buffer, 0, count);
       return buffer;
     }
-
-    public static byte[] ReadBytes(this Stream stream, int count, int offset)
-    {
-      stream.Seek(offset, SeekOrigin.Begin);
-      return stream.ReadBytes(count);
-    }
   }
 }

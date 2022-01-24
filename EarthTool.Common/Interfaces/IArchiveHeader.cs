@@ -4,8 +4,10 @@ namespace EarthTool.Common.Interfaces
 {
   public interface IArchiveHeader
   {
-    Guid ArchiveIdentifier { get; }
+    Guid Identifier { get; }
 
     bool IsValid();
+
+    byte[] ToByteArray();
   }
 }

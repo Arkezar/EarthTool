@@ -5,7 +5,14 @@ namespace EarthTool.Common.Interfaces
 {
   public interface IArchive
   {
-    DateTime LastModified { get; }
-    IEnumerable<IArchiveResource> Resources { get; }
+    string FilePath { get; }
+
+    IArchiveHeader Header { get; }
+
+    IArchiveCentralDirectory CentralDirectory { get; }
+
+    byte[] ExtractResource(IArchiveFileHeader resourceHeader);
+
+    byte[] ToByteArray();
   }
 }

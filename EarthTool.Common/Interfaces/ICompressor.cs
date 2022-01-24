@@ -5,10 +5,8 @@ using System.Text;
 
 namespace EarthTool.Common.Interfaces
 {
-  public interface IEncryption
+  public interface ICompressor
   {
-    byte[] Decompress(byte[] data);
-    byte[] Decompress(Stream stream);
     byte[] Compress(byte[] data);
     byte[] Compress(Stream stream);
   }

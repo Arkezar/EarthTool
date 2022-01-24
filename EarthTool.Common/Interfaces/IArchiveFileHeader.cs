@@ -4,10 +4,10 @@ using System.IO;
 
 namespace EarthTool.Common.Interfaces
 {
-  public interface IArchiveResource
+  public interface IArchiveFileHeader
   {
     int DecompressedLength { get; }
-    string Filename { get; }
+    string FileName { get; }
     FileFlags Flags { get; }
     Guid? Guid { get; }
     int Length { get; }
@@ -15,6 +15,8 @@ namespace EarthTool.Common.Interfaces
     ResourceType? ResourceType { get; }
     string TranslationId { get; }
 
-    byte[] GetData(Stream stream);
+    void SetOffset(int offset);
+    ReadOnlySpan<byte> GetData(Stream stream);
+    byte[] ToByteArray();
   }
 }
