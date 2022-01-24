@@ -9,9 +9,9 @@ namespace EarthTool.GUI.Core.ViewModels
 {
   public class WdViewModel : MvxViewModel
   {
-    private readonly IArchivizer _archivizer;
+    private readonly IArchiver _archivizer;
 
-    public WdViewModel(IArchivizer archivizer)
+    public WdViewModel(IArchiver archivizer)
     {
       _archivizer = archivizer;
 
@@ -35,23 +35,20 @@ namespace EarthTool.GUI.Core.ViewModels
       get => _filePath;
       set
       {
-        SetProperty(ref _filePath, value);
+        SetProperty(ref _filePath, value, () => Refresh());
         RaisePropertyChanged(() => FilePath);
-
-        _archivizer.SetArchiveFilePath(FilePath);
-        Refresh();
       }
     }
 
-    private ObservableCollection<IArchiveResource> _resources = new ObservableCollection<IArchiveResource>();
-    public ObservableCollection<IArchiveResource> Resources
+    private ObservableCollection<IArchiveFileHeader> _resources = new ObservableCollection<IArchiveFileHeader>();
+    public ObservableCollection<IArchiveFileHeader> Resources
     {
       get => _resources;
       set => SetProperty(ref _resources, value);
     }
 
-    private IArchiveResource _selectedResource;
-    public IArchiveResource SelectedResource
+    private IArchiveFileHeader _selectedResource;
+    public IArchiveFileHeader SelectedResource
     {
       get => _selectedResource;
       set
@@ -61,33 +58,20 @@ namespace EarthTool.GUI.Core.ViewModels
       }
     }
 
-    private IArchiveHeader _archiveHeader;
-    public IArchiveHeader ArchiveHeader
-    {
-      get => _archiveHeader;
-      set
-      {
-        SetProperty(ref _archiveHeader, value);
-        RaisePropertyChanged(() => ArchiveHeader);
-      }
-    }
-
     private IArchive _archive;
     public IArchive Archive
     {
       get => _archive;
       set
       {
-        SetProperty(ref _archive, value);
+        SetProperty(ref _archive, value, () => RefreshResources());
         RaisePropertyChanged(() => Archive);
-
-        RefreshResources();
       }
     }
 
     public void Extract(string outputPath)
     {
-      _archivizer.Extract(outputPath, SelectedResource);
+      _archivizer.Extract(SelectedResource, outputPath);
     }
 
     public void ExtractAll(string outputPath)
@@ -97,15 +81,14 @@ namespace EarthTool.GUI.Core.ViewModels
 
     private void RefreshResources()
     {
-      Resources = new ObservableCollection<IArchiveResource>(_archive.Resources);
+      Resources = new ObservableCollection<IArchiveFileHeader>(_archive.CentralDirectory.FileHeaders);
     }
 
     private void Refresh()
     {
-      if (!string.IsNullOrWhiteSpace(FilePath) && File.Exists(FilePath) && _archivizer.VerifyFile())
+      if (!string.IsNullOrWhiteSpace(FilePath) && File.Exists(FilePath))
       {
-        ArchiveHeader = _archivizer.GetArchiveHeader();
-        Archive = _archivizer.GetArchiveDescriptor();
+        Archive = _archivizer.OpenArchive(FilePath);
       }
     }
   }

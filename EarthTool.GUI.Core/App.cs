@@ -1,5 +1,6 @@
 ﻿using EarthTool.Common.Interfaces;
 using EarthTool.GUI.Core.ViewModels;
+using EarthTool.WD.Factories;
 using EarthTool.WD.Services;
 using MvvmCross;
 using MvvmCross.IoC;
@@ -18,8 +19,10 @@ namespace EarthTool.GUI.Core
     {
       Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
-      Mvx.IoCProvider.RegisterType<IArchivizer, ArchivizerService>();
-      Mvx.IoCProvider.RegisterType<IEncryption, EncryptionService>();
+      Mvx.IoCProvider.RegisterType<IArchiver, ArchiverService>();
+      Mvx.IoCProvider.RegisterType<IArchiveFactory, ArchiveFactory>();
+      Mvx.IoCProvider.RegisterType<ICompressor, CompressorService>();
+      Mvx.IoCProvider.RegisterType<IDecompressor, DecompressorService>();
 
       RegisterAppStart<MainViewModel>();
     }

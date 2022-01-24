@@ -20,7 +20,7 @@
         <ListView ItemsSource="{Binding Resources}" SelectedItem="{Binding SelectedResource}"  Margin="10,33,315,35">
             <ListView.View>
                 <GridView>
-                    <GridViewColumn Width="460" Header="File" DisplayMemberBinding="{Binding Filename}"/>
+                    <GridViewColumn Width="460" Header="File" DisplayMemberBinding="{Binding FileName}"/>
                     <GridViewColumn Width="120" Header="Compressed" DisplayMemberBinding="{Binding Length}"/>
                     <GridViewColumn Width="120" Header="Uncompressed" DisplayMemberBinding="{Binding DecompressedLength}"/>
                     <GridViewColumn Width="70" Header="Flags" DisplayMemberBinding="{Binding Flags, Converter={StaticResource FileFlags}}" />
@@ -42,11 +42,11 @@
         <Separator HorizontalAlignment="Stretch" Margin="10,0,10,30" VerticalAlignment="Bottom"/>
         <StackPanel Orientation="Horizontal" Margin="10,0,10,0" Height="30" VerticalAlignment="Bottom">
             <Label Content="Archive GUID:" />
-            <Label Content="{Binding ArchiveHeader.ArchiveIdentifier}" Width="250" />
+            <Label Content="{Binding Archive.Header.Identifier}" Width="250" />
             <Label Content="Last modified:" />
             <Label mvx:Bi.nd="Content Format('{0}', Archive.LastModified)" Width="127" />
             <Label Content="Archive file:" />
-            <Label Content="{Binding FilePath}" />
+            <Label Content="{Binding Archive.FilePath}" />
         </StackPanel>
     </Grid>
 </views:MvxWindow>

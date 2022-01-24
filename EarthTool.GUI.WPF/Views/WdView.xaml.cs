@@ -42,10 +42,10 @@ namespace EarthTool.GUI.WPF.Views
 
     private void ExtractButton_Click(object sender, RoutedEventArgs e)
     {
-      var filter = GetFileFilter(Path.GetExtension(ViewModel.SelectedResource.Filename));
+      var filter = GetFileFilter(Path.GetExtension(ViewModel.SelectedResource.FileName));
       var folderDialog = new Ookii.Dialogs.Wpf.VistaSaveFileDialog
       {
-        FileName = Path.GetFileName(ViewModel.SelectedResource.Filename),
+        FileName = Path.GetFileName(ViewModel.SelectedResource.FileName),
         Filter = filter.Filter,
         FilterIndex = ++filter.Index
       };
