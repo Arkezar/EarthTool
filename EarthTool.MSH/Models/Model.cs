@@ -5,109 +5,111 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 
 namespace EarthTool.MSH.Models
 {
   public class Model
   {
+    private static readonly byte[] MeshIdentifier = new byte[] { 0x4d, 0x45, 0x53, 0x48, 0x01, 0x00, 0x00, 0x00 };
+
     public string FilePath
     {
-      get;
+      get; set;
     }
 
     public int Type
     {
-      get;
+      get; set;
     }
 
     public ModelTemplate Template
     {
-      get;
+      get; set;
     }
 
     public int BuildingFrames
     {
-      get;
+      get; set;
     }
 
     public int ActionFrames
     {
-      get;
+      get; set;
     }
 
     public int MovementFrames
     {
-      get;
+      get; set;
     }
 
     public int LoopedFrames
     {
-      get;
+      get; set;
     }
 
     public MountPoints MountPoints
     {
-      get;
+      get; set;
     }
 
     public SpotLights SpotLights
     {
-      get;
+      get; set;
     }
 
     public OmniLights OmniLights
     {
-      get;
+      get; set;
     }
 
     public Slots Slots
     {
-      get;
+      get; set;
     }
 
     public short MaxY
     {
-      get;
+      get; set;
     }
 
     public short MinY
     {
-      get;
+      get; set;
     }
 
     public short MaxX
     {
-      get;
+      get; set;
     }
 
     public short MinX
     {
-      get;
+      get; set;
     }
 
     public int UnknownVal5
     {
-      get;
+      get; set;
     }
 
     public IEnumerable<ModelPart> Parts
     {
-      get;
+      get; set;
     }
 
     public PartNode PartsTree
     {
-      get;
+      get; set;
     }
 
     public Model(string path)
     {
-      Parts = new List<ModelPart>();
       FilePath = path;
 
       using (var stream = new FileStream(path, FileMode.Open))
       {
-        CheckHeader(stream);
+        FindHeader(stream);
         Type = BitConverter.ToInt32(stream.ReadBytes(4));
         Template = new ModelTemplate(stream);
         BuildingFrames = stream.ReadByte();
@@ -134,6 +136,36 @@ namespace EarthTool.MSH.Models
       }
     }
 
+    public byte[] ToByteArray()
+    {
+      using (var output = new MemoryStream())
+      {
+        using (var bw = new BinaryWriter(output, Encoding.GetEncoding("ISO-8859-2")))
+        {
+          bw.Write(MeshIdentifier);
+          bw.Write(Type);
+          bw.Write(Template.ToByteArray());
+          bw.Write((byte)BuildingFrames);
+          bw.Write((byte)ActionFrames);
+          bw.Write((byte)MovementFrames);
+          bw.Write((byte)LoopedFrames);
+          bw.Write(new byte[4]);
+          bw.Write(MountPoints.ToByteArray());
+          bw.Write(SpotLights.ToByteArray());
+          bw.Write(OmniLights.ToByteArray());
+          bw.Write(new byte[96]);
+          bw.Write(Slots.ToByteArray());
+          bw.Write(MaxY);
+          bw.Write(MinY);
+          bw.Write(MaxX);
+          bw.Write(MinX);
+          bw.Write(UnknownVal5);
+          bw.Write(Parts.SelectMany(p => p.ToByteArray()).ToArray());
+        }
+        return output.ToArray();
+      }
+    }
+
     private PartNode GetPartsTree(IEnumerable<ModelPart> parts)
     {
       var currentId = 0;
@@ -152,13 +184,15 @@ namespace EarthTool.MSH.Models
       return root;
     }
 
-    private void CheckHeader(Stream stream)
+    private void FindHeader(Stream stream)
     {
-      var type = stream.ReadBytes(8).AsSpan();
-      if (!type.SequenceEqual(new byte[] { 0x4d, 0x45, 0x53, 0x48, 0x01, 0x00, 0x00, 0x00 }))
+      var type = stream.ReadBytes(32).AsSpan();
+      var pos = type.IndexOf(MeshIdentifier);
+      if (pos == -1)
       {
         throw new NotSupportedException("Unhandled file format");
       }
+      stream.Seek(pos + MeshIdentifier.Length, SeekOrigin.Begin);
     }
 
     private IEnumerable<ModelPart> GetParts(Stream stream)

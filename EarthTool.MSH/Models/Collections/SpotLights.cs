@@ -16,5 +16,8 @@ namespace EarthTool.MSH.Models.Collections
     {
       AddRange(Enumerable.Range(0, NUMBER_OF_LIGHTS).Select(_ => new SpotLight(stream)));
     }
+
+    public byte[] ToByteArray()
+      => this.SelectMany(x => x.ToByteArray()).ToArray();
   }
 }

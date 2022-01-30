@@ -11,7 +11,7 @@ namespace EarthTool.MSH.Models.Collections
   {
     const int VERTICES_BLOCK_LENGTH = 160;
     const int VERTICES_IN_BLOCK = 4;
-    const int FIELD_SIZE = 4;
+    const int FIELD_SIZE = sizeof(float);
 
     public Vertices(Stream stream)
     {
@@ -19,6 +19,42 @@ namespace EarthTool.MSH.Models.Collections
       var blocks = BitConverter.ToInt32(stream.ReadBytes(4));
 
       AddRange(Enumerable.Range(0, blocks).SelectMany(_ => GetVertices(stream.ReadBytes(VERTICES_BLOCK_LENGTH))).Take(vertices));
+    }
+
+    public byte[] ToByteArray()
+    {
+      using (var stream = new MemoryStream())
+      {
+        using (var writer = new BinaryWriter(stream))
+        {
+          writer.Write(this.Count);
+          var blocks = this.Count / VERTICES_IN_BLOCK;
+          writer.Write(blocks);
+
+          for (var i = 0; i < blocks; i++)
+          {
+            using (var blockStream = new MemoryStream(VERTICES_BLOCK_LENGTH))
+            {
+              using (var blockWriter = new BinaryWriter(blockStream))
+              {
+                var blockVertices = this.Skip(i * VERTICES_IN_BLOCK).Take(VERTICES_IN_BLOCK).ToList();
+                blockVertices.ForEach(v => blockWriter.Write(v.Position.X));
+                blockVertices.ForEach(v => blockWriter.Write(-v.Position.Y));
+                blockVertices.ForEach(v => blockWriter.Write(v.Position.Z));
+                blockVertices.ForEach(v => blockWriter.Write(v.Normal.X));
+                blockVertices.ForEach(v => blockWriter.Write(-v.Normal.Y));
+                blockVertices.ForEach(v => blockWriter.Write(v.Normal.Z));
+                blockVertices.ForEach(v => blockWriter.Write(v.U));
+                blockVertices.ForEach(v => blockWriter.Write(1 - v.V));
+                blockVertices.ForEach(_ => blockWriter.Write(0));
+                blockVertices.ForEach(_ => blockWriter.Write(uint.MaxValue));
+              }
+              writer.Write(blockStream.ToArray());
+            }
+          }
+        }
+        return stream.ToArray();
+      }
     }
 
     private IEnumerable<Vertex> GetVertices(byte[] vertexData)

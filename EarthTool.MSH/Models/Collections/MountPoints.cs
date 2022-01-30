@@ -1,4 +1,5 @@
 ﻿using EarthTool.MSH.Models.Elements;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -27,5 +28,8 @@ namespace EarthTool.MSH.Models.Collections
         WriteIndented = true
       });
     }
+
+    public byte[] ToByteArray()
+      => this.SelectMany(x => x.ToByteArray()).ToArray();
   }
 }

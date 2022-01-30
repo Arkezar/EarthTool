@@ -6,22 +6,22 @@ namespace EarthTool.MSH.Models.Elements
 {
   public class Face
   {
-    public int V1
+    public short V1
     {
       get;
     }
 
-    public int V2
+    public short V2
     {
       get;
     }
 
-    public int V3
+    public short V3
     {
       get;
     }
 
-    public int UNKNOWN
+    public short UNKNOWN
     {
       get;
     }
@@ -32,6 +32,21 @@ namespace EarthTool.MSH.Models.Elements
       V2 = BitConverter.ToInt16(stream.ReadBytes(2));
       V3 = BitConverter.ToInt16(stream.ReadBytes(2));
       UNKNOWN = BitConverter.ToInt16(stream.ReadBytes(2));
+    }
+
+    public byte[] ToByteArray()
+    {
+      using (var stream = new MemoryStream())
+      {
+        using (var writer = new BinaryWriter(stream))
+        {
+          writer.Write(V1);
+          writer.Write(V2);
+          writer.Write(V3);
+          writer.Write(UNKNOWN);
+        }
+        return stream.ToArray();
+      }
     }
   }
 }

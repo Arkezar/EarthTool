@@ -74,27 +74,27 @@ namespace EarthTool.MSH.Models.Collections
       get;
     }
 
-    public Slot InterfacePivot
+    public IEnumerable<Slot> InterfacePivot
     {
       get;
     }
 
-    public Slot CenterPivot
+    public IEnumerable<Slot> CenterPivot
     {
       get;
     }
 
-    public Slot ProductionSpotStart
+    public IEnumerable<Slot> ProductionSpotStart
     {
       get;
     }
 
-    public Slot ProductionSpotEnd
+    public IEnumerable<Slot> ProductionSpotEnd
     {
       get;
     }
 
-    public Slot LandingSpot
+    public IEnumerable<Slot> LandingSpot
     {
       get;
     }
@@ -115,11 +115,33 @@ namespace EarthTool.MSH.Models.Collections
       SmokeTraces = GetSlots(stream, 2);
       Exhausts = GetSlots(stream, 2);
       KeelTraces = GetSlots(stream, 2);
-      InterfacePivot = new Slot(stream, 0);
-      CenterPivot = new Slot(stream, 0);
-      ProductionSpotStart = new Slot(stream, 0);
-      ProductionSpotEnd = new Slot(stream, 0);
-      LandingSpot = new Slot(stream, 0);
+      InterfacePivot = GetSlots(stream, 1);
+      CenterPivot = GetSlots(stream, 1);
+      ProductionSpotStart = GetSlots(stream, 1);
+      ProductionSpotEnd = GetSlots(stream, 1);
+      LandingSpot = GetSlots(stream, 1);
+    }
+
+    public byte[] ToByteArray()
+    {
+      var data = Turrets.Concat(BarrelMuzzels)
+                        .Concat(TurretMuzzels)
+                        .Concat(Headlights)
+                        .Concat(Omnilights)
+                        .Concat(UnloadPoints)
+                        .Concat(HitSpots)
+                        .Concat(SmokeSpots)
+                        .Concat(Unknown)
+                        .Concat(Chimneys)
+                        .Concat(SmokeTraces)
+                        .Concat(Exhausts)
+                        .Concat(KeelTraces)
+                        .Concat(InterfacePivot)
+                        .Concat(CenterPivot)
+                        .Concat(ProductionSpotStart)
+                        .Concat(ProductionSpotEnd)
+                        .Concat(LandingSpot);
+      return data.SelectMany(s => s.ToByteArray()).ToArray();
     }
 
     private IEnumerable<Slot> GetSlots(Stream stream, int count)

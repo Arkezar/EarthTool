@@ -5,45 +5,53 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
+using System.Text;
 
 namespace EarthTool.MSH.Converters.Collada.Elements
 {
-  public class LightingFactory
+  public class SlotFactory
   {
-    public IEnumerable<(Light Light, Node LightNode)> GetLights(Model model)
+    public IEnumerable<(Light Slot, Node SlotNode)> GetSlots(Model model)
     {
-      return model.SpotLights.Where(l => l.IsAvailable).Select((l, i) => (GetLight(l, i), GetLightNode(l, i)))
-        .Concat(model.OmniLights.Where(l => l.IsAvailable).Select((l, i) => (GetLight(l, i), GetLightNode(l, i))));
+      return model.Slots.BarrelMuzzels.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "BarrelMuzzle"), GetLightNode(s, i, "BarrelMuzzle")))
+        .Concat(model.Slots.CenterPivot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "CenterPivot"), GetLightNode(s, i, "CenterPivot"))))
+        .Concat(model.Slots.Chimneys.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Chimney"), GetLightNode(s, i, "Chimney"))))
+        .Concat(model.Slots.Exhausts.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Exhaust"), GetLightNode(s, i, "Exhaust"))))
+        .Concat(model.Slots.HitSpots.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "HitSpot"), GetLightNode(s, i, "HitSpot"))))
+        .Concat(model.Slots.InterfacePivot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "InterfacePivot"), GetLightNode(s, i, "InterfacePivot"))))
+        .Concat(model.Slots.KeelTraces.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "KeelTrace"), GetLightNode(s, i, "KeelTrace"))))
+        .Concat(model.Slots.LandingSpot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "LandingSpot"), GetLightNode(s, i, "LandingSpot"))))
+        .Concat(model.Slots.ProductionSpotStart.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "ProductionSpotStart"), GetLightNode(s, i, "ProductionSpotStart"))))
+        .Concat(model.Slots.ProductionSpotEnd.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "ProductionSpotEnd"), GetLightNode(s, i, "ProductionSpotEnd"))))
+        .Concat(model.Slots.SmokeSpots.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "SmokeSpot"), GetLightNode(s, i, "SmokeSpot"))))
+        .Concat(model.Slots.SmokeTraces.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "SmokeTrace"), GetLightNode(s, i, "SmokeTrace"))))
+        .Concat(model.Slots.TurretMuzzels.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "TurretMuzzel"), GetLightNode(s, i, "TurretMuzzel"))))
+        .Concat(model.Slots.Turrets.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Turret"), GetLightNode(s, i, "Turret"))))
+        .Concat(model.Slots.UnloadPoints.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "UnloadPoint"), GetLightNode(s, i, "UnloadPoint"))));
     }
 
-    private Node GetLightNode(Models.Elements.Light light, int i)
+    private Node GetLightNode(Models.Elements.Slot slot, int i, string name)
     {
-      var id = $"Light-{i}";
+      var id = $"{name}-{i}";
       var node = new Node()
       {
         Id = id,
         Name = id
       };
 
-      var rotationZdeg = light switch
-      {
-        Models.Elements.SpotLight sl => Math.PI / 180.0 * (sl.Direction * 360.0 / 255.0),
-        _ => 0
-      };
+      var translate = Matrix4x4.Identity;
+      translate.Translation = slot.Position.Value;
 
-      var rotationYdeg = light switch
-      {
-        Models.Elements.SpotLight sl => Math.PI / 180.0 * (-90 - 180 / Math.PI * sl.Tilt),
-        _ => 0
-      };
+      var rotationXdeg = slot.Direction;
+      var rotationXcos = (float)Math.Cos(rotationXdeg);
+      var rotationXsin = (float)Math.Sin(rotationXdeg);
 
-      var rotationZcos = (float)Math.Cos(rotationZdeg);
-      var rotationZsin = (float)Math.Sin(rotationZdeg);
-
-      var rotationZ = new Matrix4x4(rotationZcos, rotationZsin, 0, 0,
-                                    -rotationZsin, rotationZcos, 0, 0,
-                                    0, 0, 1, 0,
+      var rotationX = new Matrix4x4(1, 0, 0, 0,
+                                    0, rotationXcos, rotationXsin, 0,
+                                    0, -rotationXsin, rotationXcos, 0,
                                     0, 0, 0, 1);
+
+      var rotationYdeg = -Math.PI / 2f;
 
       var rotationYcos = (float)Math.Cos(rotationYdeg);
       var rotationYsin = (float)Math.Sin(rotationYdeg);
@@ -53,10 +61,9 @@ namespace EarthTool.MSH.Converters.Collada.Elements
                                     rotationYsin, 0, rotationYcos, 0,
                                     0, 0, 0, 1);
 
-      var rotation = rotationZ * rotationY;
 
-      var transformMatrix = rotation;
-      transformMatrix.Translation = light.Value;
+      var transformMatrix = rotationX * rotationY;
+      transformMatrix.Translation = slot.Position.Value;
 
       node.Matrix.Add(new Matrix()
       {
@@ -88,76 +95,23 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       return node;
     }
 
-    private Light GetLight(Models.Elements.Light light, int i)
+    private Light GetLight(int i, string name)
     {
       return new Light()
       {
-        Id = $"Light-{i}",
-        Name = $"Light-{i}",
-        Technique_Common = light switch
+        Id = $"{name}-{i}",
+        Name = $"{name}-{i}",
+        Technique_Common = new LightTechnique_Common()
         {
-          Models.Elements.SpotLight sl => GetSpotLight(sl),
-          Models.Elements.OmniLight ol => GetPointLight(ol),
-          _ => null
-        }
-      };
-    }
-
-    private LightTechnique_Common GetSpotLight(Models.Elements.SpotLight light)
-    {
-      return new LightTechnique_Common()
-      {
-        Spot = new LightTechnique_CommonSpot()
-        {
-          Color = new TargetableFloat3()
+          Directional = new LightTechnique_CommonDirectional()
           {
-            Value = string.Format(CultureInfo.InvariantCulture, "{0} {1} {2}", light.Color.R / 255f, light.Color.G / 255f, light.Color.B / 255f)
-          },
-          Constant_Attenuation = new TargetableFloat()
-          {
-            Value = light.Length
-          },
-          Linear_Attenuation = new TargetableFloat()
-          {
-            Value = light.Ambience
-          },
-          Quadratic_Attenuation = new TargetableFloat()
-          {
-            Value = 0
-          },
-          Falloff_Angle = new TargetableFloat()
-          {
-            Value = light.Width * 180.0 / Math.PI
-          }
-        }
-      };
-    }
-
-    private LightTechnique_Common GetPointLight(Models.Elements.OmniLight light)
-    {
-      return new LightTechnique_Common()
-      {
-        Point = new LightTechnique_CommonPoint()
-        {
-          Color = new TargetableFloat3()
-          {
-            Value = string.Format(CultureInfo.InvariantCulture, "{0} {1} {2}", light.Color.R / 255f, light.Color.G / 255f, light.Color.B / 255f)
-          },
-          Constant_Attenuation = new TargetableFloat()
-          {
-            Value = light.Radius
-          },
-          Linear_Attenuation = new TargetableFloat()
-          {
-            Value = 0
-          },
-          Quadratic_Attenuation = new TargetableFloat()
-          {
-            Value = 0
+            Color = new TargetableFloat3()
+            {
+              Value = string.Format(CultureInfo.InvariantCulture, "{0} {1} {2}", 0f, 0f, 0f)
+            }
           }
         }
       };
     }
   }
-
 }

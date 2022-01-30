@@ -15,5 +15,18 @@ namespace EarthTool.MSH.Models.Collections
 
       AddRange(Enumerable.Range(0, faces).Select(_ => new Face(stream)));
     }
+
+    public byte[] ToByteArray()
+    {
+      using(var stream = new MemoryStream())
+      {
+        using(var writer = new BinaryWriter(stream))
+        {
+          writer.Write(this.Count);
+          this.ForEach(f => writer.Write(f.ToByteArray()));
+        }
+        return stream.ToArray();
+      }
+    }
   }
 }

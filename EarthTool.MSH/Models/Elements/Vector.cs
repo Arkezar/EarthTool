@@ -29,5 +29,19 @@ namespace EarthTool.MSH.Models.Elements
                                         -BitConverter.ToSingle(stream.ReadBytes(4)),
                                         BitConverter.ToSingle(stream.ReadBytes(4)))
     { }
+
+    public virtual byte[] ToByteArray()
+    {
+      using(var stream = new MemoryStream())
+      {
+        using(var writer = new BinaryWriter(stream))
+        {
+          writer.Write(X);
+          writer.Write(-Y);
+          writer.Write(Z);
+        }
+        return stream.ToArray();
+      }
+    }
   }
 }

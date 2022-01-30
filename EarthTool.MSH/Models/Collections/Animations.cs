@@ -14,5 +14,19 @@ namespace EarthTool.MSH.Models.Collections
       MovementFrames = new PositionOffsetFrames(stream);
       RotationFrames = new RotationFrames(stream);
     }
+
+    public byte[] ToByteArray()
+    {
+      using(var stream = new MemoryStream())
+      {
+        using(var writer = new BinaryWriter(stream))
+        {
+          writer.Write(UnknownAnimationData.ToByteArray());
+          writer.Write(MovementFrames.ToByteArray());
+          writer.Write(RotationFrames.ToByteArray());
+        }
+        return stream.ToArray();
+      }
+    }
   }
 }

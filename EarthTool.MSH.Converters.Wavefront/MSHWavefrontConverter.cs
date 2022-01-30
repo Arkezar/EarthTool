@@ -1,6 +1,8 @@
-﻿using EarthTool.MSH.Models;
+﻿using EarthTool.Common.Enums;
+using EarthTool.MSH.Models;
 using EarthTool.MSH.Models.Elements;
 using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -14,7 +16,7 @@ namespace EarthTool.MSH.Converters.Wavefront
     {
     }
 
-    public override Task InternalConvert(Model model, string outputPath = null)
+    public override Task InternalConvert(ModelType modelType, Model model, string outputPath = null)
     {
       WriteWavefrontModel(model, outputPath);
       return Task.CompletedTask;
@@ -100,6 +102,16 @@ namespace EarthTool.MSH.Converters.Wavefront
       {
         writer.WriteLine(string.Format(FACE_TEMPLATE, face.V1 + 1, face.V2 + 1, face.V3 + 1));
       }
+    }
+
+    protected override ModelType GetOutputType(string filePath)
+    {
+      throw new NotImplementedException();
+    }
+
+    protected override Model LoadModel(string filePath)
+    {
+      throw new NotImplementedException();
     }
   }
 }

@@ -9,10 +9,13 @@ namespace EarthTool.MSH.Converters.Collada
     protected override void Load(ContainerBuilder builder)
     {
       builder.RegisterType<ModelFactory>();
+      builder.RegisterType<MeshModelFactory>();
+      builder.RegisterType<ColladaModelFactory>();
       builder.RegisterType<MaterialFactory>();
       builder.RegisterType<LightingFactory>();
       builder.RegisterType<GeometriesFactory>();
       builder.RegisterType<AnimationsFactory>();
+      builder.RegisterType<SlotFactory>();
       builder.RegisterType<MSHColladaConverter>().AsImplementedInterfaces().Keyed<IMSHConverter>("dae");
     }
   }

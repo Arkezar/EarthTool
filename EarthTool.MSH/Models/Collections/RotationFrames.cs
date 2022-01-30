@@ -14,5 +14,18 @@ namespace EarthTool.MSH.Models.Collections
       var length = BitConverter.ToInt32(stream.ReadBytes(4));
       AddRange(Enumerable.Range(0, length).Select(_ => new RotationFrame(stream)));
     }
+
+    public byte[] ToByteArray()
+    {
+      using (var stream = new MemoryStream())
+      {
+        using (var writer = new BinaryWriter(stream))
+        {
+          writer.Write(this.Count);
+          ForEach(f => writer.Write(f.ToByteArray()));
+        }
+        return stream.ToArray();
+      }
+    }
   }
 }
