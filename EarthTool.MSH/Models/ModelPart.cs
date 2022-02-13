@@ -72,7 +72,7 @@ namespace EarthTool.MSH.Models
     {
       using (var stream = new MemoryStream())
       {
-        using (var writer = new BinaryWriter(stream, Encoding.GetEncoding("ISO-8859-2")))
+        using (var writer = new BinaryWriter(stream))
         {
           writer.Write(Vertices.ToByteArray());
           writer.Write((byte)SkipParent);

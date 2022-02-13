@@ -47,7 +47,8 @@ namespace EarthTool.MSH.Models.Collections
                 blockVertices.ForEach(v => blockWriter.Write(v.U));
                 blockVertices.ForEach(v => blockWriter.Write(1 - v.V));
                 blockVertices.ForEach(_ => blockWriter.Write(0));
-                blockVertices.ForEach(_ => blockWriter.Write(uint.MaxValue));
+                blockVertices.ForEach(v => blockWriter.Write(v.U1));
+                blockVertices.ForEach(v => blockWriter.Write(v.U2));
               }
               writer.Write(blockStream.ToArray());
             }
@@ -74,7 +75,9 @@ namespace EarthTool.MSH.Models.Collections
         var u = BitConverter.ToSingle(vertexData, idx + 0x60);
         var v = 1 - BitConverter.ToSingle(vertexData, idx + 0x70);
 
-        yield return new Vertex(new Vector(x, y, z), new Vector(normalX, normalY, normalZ), u, v);
+        var u1 = BitConverter.ToInt16(vertexData, i * sizeof(short) + 0x90);
+        var u2 = BitConverter.ToInt16(vertexData, i * sizeof(short) + 0x98);
+        yield return new Vertex(new Vector(x, y, z), new Vector(normalX, normalY, normalZ), u, v, u1, u2);
       }
     }
   }

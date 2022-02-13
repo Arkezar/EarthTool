@@ -1,4 +1,5 @@
 ﻿using EarthTool.Common.Extensions;
+using EarthTool.Common.Models;
 using EarthTool.MSH.Models.Collections;
 using EarthTool.MSH.Models.Elements;
 using System;
@@ -9,14 +10,9 @@ using System.Text;
 
 namespace EarthTool.MSH.Models
 {
-  public class Model
+  public class Model : EarthFile
   {
     private static readonly byte[] MeshIdentifier = new byte[] { 0x4d, 0x45, 0x53, 0x48, 0x01, 0x00, 0x00, 0x00 };
-
-    public string FilePath
-    {
-      get; set;
-    }
 
     public int Type
     {
@@ -63,6 +59,11 @@ namespace EarthTool.MSH.Models
       get; set;
     }
 
+    public TemplateDetails TemplateDetails
+    {
+      get; set;
+    }
+
     public Slots Slots
     {
       get; set;
@@ -103,37 +104,35 @@ namespace EarthTool.MSH.Models
       get; set;
     }
 
-    public Model(string path)
+    public Model(string path, Stream stream) : base(path, stream)
     {
-      FilePath = path;
+      IsValidModel(stream);
+      Type = BitConverter.ToInt32(stream.ReadBytes(4));
+      Template = new ModelTemplate(stream);
+      BuildingFrames = stream.ReadByte();
+      ActionFrames = stream.ReadByte();
+      MovementFrames = stream.ReadByte();
+      LoopedFrames = stream.ReadByte();
+      stream.ReadBytes(4); //EMPTY
+      MountPoints = new MountPoints(stream);
+      SpotLights = new SpotLights(stream);
+      OmniLights = new OmniLights(stream);
+      TemplateDetails = new TemplateDetails(stream);
+      Slots = new Slots(stream);
+      MaxY = BitConverter.ToInt16(stream.ReadBytes(2));
+      MinY = BitConverter.ToInt16(stream.ReadBytes(2));
+      MaxX = BitConverter.ToInt16(stream.ReadBytes(2));
+      MinX = BitConverter.ToInt16(stream.ReadBytes(2));
+      UnknownVal5 = BitConverter.ToInt32(stream.ReadBytes(4));
 
-      using (var stream = new FileStream(path, FileMode.Open))
+      Console.WriteLine($"{FilePath}:{UnknownVal5}");
+
+      if (Type != 0)
       {
-        FindHeader(stream);
-        Type = BitConverter.ToInt32(stream.ReadBytes(4));
-        Template = new ModelTemplate(stream);
-        BuildingFrames = stream.ReadByte();
-        ActionFrames = stream.ReadByte();
-        MovementFrames = stream.ReadByte();
-        LoopedFrames = stream.ReadByte();
-        stream.ReadBytes(4); //EMPTY
-        MountPoints = new MountPoints(stream);
-        SpotLights = new SpotLights(stream);
-        OmniLights = new OmniLights(stream);
-        stream.ReadBytes(96);
-        Slots = new Slots(stream);
-        MaxY = BitConverter.ToInt16(stream.ReadBytes(2));
-        MinY = BitConverter.ToInt16(stream.ReadBytes(2));
-        MaxX = BitConverter.ToInt16(stream.ReadBytes(2));
-        MinX = BitConverter.ToInt16(stream.ReadBytes(2));
-        UnknownVal5 = BitConverter.ToInt32(stream.ReadBytes(4));
-        if (Type != 0)
-        {
-          throw new NotSupportedException("Not supported mesh format");
-        }
-        Parts = GetParts(stream).ToList();
-        PartsTree = GetPartsTree(Parts);
+        throw new NotSupportedException("Not supported mesh format");
       }
+      Parts = GetParts(stream).ToList();
+      PartsTree = GetPartsTree(Parts);
     }
 
     public byte[] ToByteArray()
@@ -153,7 +152,7 @@ namespace EarthTool.MSH.Models
           bw.Write(MountPoints.ToByteArray());
           bw.Write(SpotLights.ToByteArray());
           bw.Write(OmniLights.ToByteArray());
-          bw.Write(new byte[96]);
+          bw.Write(TemplateDetails.ToByteArray());
           bw.Write(Slots.ToByteArray());
           bw.Write(MaxY);
           bw.Write(MinY);
@@ -162,7 +161,7 @@ namespace EarthTool.MSH.Models
           bw.Write(UnknownVal5);
           bw.Write(Parts.SelectMany(p => p.ToByteArray()).ToArray());
         }
-        return output.ToArray();
+        return base.ToByteArray().Concat(output.ToArray()).ToArray();
       }
     }
 
@@ -184,15 +183,13 @@ namespace EarthTool.MSH.Models
       return root;
     }
 
-    private void FindHeader(Stream stream)
+    private void IsValidModel(Stream stream)
     {
-      var type = stream.ReadBytes(32).AsSpan();
-      var pos = type.IndexOf(MeshIdentifier);
-      if (pos == -1)
+      var valid = stream.ReadBytes(MeshIdentifier.Length).AsSpan().SequenceEqual(MeshIdentifier);
+      if (!valid)
       {
         throw new NotSupportedException("Unhandled file format");
       }
-      stream.Seek(pos + MeshIdentifier.Length, SeekOrigin.Begin);
     }
 
     private IEnumerable<ModelPart> GetParts(Stream stream)
