@@ -192,8 +192,8 @@ typedef struct {
 } TemplateRotation;
 
 typedef struct {
-    short Column[4];
-} TemplateFlagsRotation;
+    short Row[4];
+} TemplateFreeSpaceRotation;
 
 typedef struct {
     Slot slot_sc[4];
@@ -230,7 +230,7 @@ typedef struct {
     short UnitSectionHeights[16];
     byte UnitSectionFlags[16];
     TemplateRotation UnitTemplateRotations[4];
-    TemplateFlagsRotation UnitTemplateFlagsRotations[4];
+    TemplateFreeSpaceRotation UnitTemplateFreeSpaceRotations[4];
     Slots Slots1;
     short MaxY;
     short MinY;
