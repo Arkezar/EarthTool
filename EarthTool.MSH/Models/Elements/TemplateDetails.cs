@@ -1,4 +1,5 @@
 ﻿using EarthTool.Common.Extensions;
+using EarthTool.MSH.Interfaces;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -8,29 +9,20 @@ using System.Text;
 
 namespace EarthTool.MSH.Models.Elements
 {
-  public class TemplateDetails
+  public class TemplateDetails : ITemplateDetails
   {
     const int Rows = 4;
     const int Columns = 4;
 
-    public short[,] SectionHeights { get; }
+    public short[,] SectionHeights { get; set; }
 
-    public byte[,] SectionFlags { get; }
+    public byte[,] SectionFlags { get; set; }
 
-    public IEnumerable<ModelTemplate> SectionRotations { get; }
+    public IEnumerable<ModelTemplate> SectionRotations { get; set; }
 
-    public IEnumerable<BitArray> SectionFlagRotations { get; }
+    public IEnumerable<byte[,]> SectionFlagRotations { get; set; }
 
-    public TemplateDetails(Stream stream)
-    {
-      SectionHeights = GetSectionHeights(stream);
-      SectionFlags = GetSectionFlags(stream);
-      SectionRotations = GetSectionRotations(stream);
-
-      stream.ReadBytes(32);
-    }
-
-    public byte[] ToByteArray()
+    public byte[] ToByteArray(Encoding encoding)
     {
       using (var stream = new MemoryStream())
       {
@@ -38,46 +30,29 @@ namespace EarthTool.MSH.Models.Elements
         {
           writer.Write(SectionHeights.Cast<short>().SelectMany(s => BitConverter.GetBytes(s)).ToArray());
           writer.Write(SectionFlags.Cast<byte>().ToArray());
-          writer.Write(SectionRotations.SelectMany(s => s.ToByteArray()).ToArray());
-          writer.Write(new byte[32]);
+          writer.Write(SectionRotations.SelectMany(s => s.ToByteArray(encoding)).ToArray());
+          writer.Write(SectionFlagRotations.SelectMany(s => GetFlagRotationByte(s)).ToArray());
         }
         return stream.ToArray();
       }
     }
 
-    private short[,] GetSectionHeights(Stream stream)
-    {
-      var sectionHeights = new short[Rows, Columns];
 
-      for (var row = 0; row < Rows; row++)
+
+    private byte[] GetFlagRotationByte(byte[,] rotation)
+    {
+      var result = new byte[2 * Columns];
+      for (var i = 0; i < Columns; i++)
       {
-        for (var col = 0; col < Columns; col++)
+        for (var j = 0; j < 2; j++)
         {
-          sectionHeights[row, col] = BitConverter.ToInt16(stream.ReadBytes(2));
+          var upper = (byte)(rotation[i, j * 2] << 4);
+          var lower = rotation[i, j * 2 + 1];
+          result[1 + (2 * i) - j] = (byte)(upper + lower);
         }
       }
 
-      return sectionHeights;
-    }
-
-    private byte[,] GetSectionFlags(Stream stream)
-    {
-      var sectionFlags = new byte[Rows, Columns];
-
-      for (var row = 0; row < Rows; row++)
-      {
-        for (var col = 0; col < Columns; col++)
-        {
-          sectionFlags[row, col] = (byte)stream.ReadByte();
-        }
-      }
-
-      return sectionFlags;
-    }
-
-    private IEnumerable<ModelTemplate> GetSectionRotations(Stream stream)
-    {
-      return Enumerable.Range(0, 4).Select(_ => new ModelTemplate(stream)).ToList();
+      return result;
     }
   }
 }

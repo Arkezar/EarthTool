@@ -1,4 +1,5 @@
 ﻿using Collada141;
+using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using System;
 using System.Collections.Generic;
@@ -12,14 +13,14 @@ namespace EarthTool.MSH.Converters.Collada.Elements
   {
     const float FRAMERATE = 24f;
 
-    public IEnumerable<Animation> GetAnimations(IEnumerable<ModelPart> parts, string modelName)
+    public IEnumerable<Animation> GetAnimations(IEnumerable<IModelPart> parts, string modelName)
     {
       return parts.Select((p, i) => GetAnimation(p, i, modelName)).Where(a => a != null);
     }
 
-    private Animation GetAnimation(ModelPart part, int i, string modelName)
+    private Animation GetAnimation(IModelPart part, int i, string modelName)
     {
-      var frames = Math.Max(part.Animations.MovementFrames.Count, part.Animations.RotationFrames.Count);
+      var frames = Math.Max(part.Animations.MovementFrames.Count(), part.Animations.RotationFrames.Count());
 
       if (frames == 0)
       {
@@ -78,7 +79,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       return animationContainer;
     }
 
-    private Source GetOutputSource(string id, ModelPart part, int count)
+    private Source GetOutputSource(string id, IModelPart part, int count)
     {
       var source = new Source
       {
@@ -112,23 +113,23 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       return source;
     }
 
-    private string GetOutputValue(ModelPart part)
+    private string GetOutputValue(IModelPart part)
     {
       var transforms = part.Animations.RotationFrames.Select(f => f.TransformationMatrix).ToArray();
       if (!transforms.Any())
       {
-        transforms = Enumerable.Repeat(Matrix4x4.Identity, part.Animations.MovementFrames.Count).ToArray();
+        transforms = Enumerable.Repeat(Matrix4x4.Identity, part.Animations.MovementFrames.Count()).ToArray();
       }
 
       for (var i = 0; i < transforms.Count(); i++)
       {
-        if (part.Animations.MovementFrames.Count == transforms.Length)
+        if (part.Animations.MovementFrames.Count() == transforms.Length)
         {
-          transforms[i].M14 = part.Animations.MovementFrames[i].X;
-          transforms[i].M24 = part.Animations.MovementFrames[i].Y;
-          transforms[i].M34 = part.Animations.MovementFrames[i].Z;
+          transforms[i].M14 = part.Animations.MovementFrames.ElementAt(i).X;
+          transforms[i].M24 = part.Animations.MovementFrames.ElementAt(i).Y;
+          transforms[i].M34 = part.Animations.MovementFrames.ElementAt(i).Z;
         }
-        else if (part.Animations.MovementFrames.Count == 0)
+        else if (part.Animations.MovementFrames.Count() == 0)
         {
           transforms[i].M14 = part.Offset.X;
           transforms[i].M24 = part.Offset.Y;
@@ -145,6 +146,11 @@ namespace EarthTool.MSH.Converters.Collada.Elements
                                                                                                                                   transformMatrix.M21, transformMatrix.M22, transformMatrix.M23, transformMatrix.M24,
                                                                                                                                   transformMatrix.M31, transformMatrix.M32, transformMatrix.M33, transformMatrix.M34,
                                                                                                                                   transformMatrix.M41, transformMatrix.M42, transformMatrix.M43, transformMatrix.M44);
+
+      return string.Format(CultureInfo.InvariantCulture, "{0} {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11} {12} {13} {14} {15}", transformMatrix.M11, transformMatrix.M21, transformMatrix.M31, transformMatrix.M41,
+                                                                                                                            transformMatrix.M12, transformMatrix.M22, transformMatrix.M32, transformMatrix.M42,
+                                                                                                                            transformMatrix.M13, transformMatrix.M23, transformMatrix.M33, transformMatrix.M43,
+                                                                                                                            transformMatrix.M14, transformMatrix.M24, transformMatrix.M34, transformMatrix.M44);
     }
 
     private Source GetInterpolationSource(string id, int count)

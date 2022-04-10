@@ -1,40 +1,20 @@
-﻿using EarthTool.Common.Extensions;
-using System;
+﻿using EarthTool.MSH.Interfaces;
 using System.IO;
+using System.Text;
 
 namespace EarthTool.MSH.Models.Elements
 {
-  public class Face
+  public class Face : IFace
   {
-    public short V1
-    {
-      get;
-    }
+    public short V1 { get; set; }
 
-    public short V2
-    {
-      get;
-    }
+    public short V2 { get; set; }
 
-    public short V3
-    {
-      get;
-    }
+    public short V3 { get; set; }
 
-    public short UNKNOWN
-    {
-      get;
-    }
+    public short UNKNOWN { get; set; }
 
-    public Face(Stream stream)
-    {
-      V1 = BitConverter.ToInt16(stream.ReadBytes(2));
-      V2 = BitConverter.ToInt16(stream.ReadBytes(2));
-      V3 = BitConverter.ToInt16(stream.ReadBytes(2));
-      UNKNOWN = BitConverter.ToInt16(stream.ReadBytes(2));
-    }
-
-    public byte[] ToByteArray()
+    public byte[] ToByteArray(Encoding encoding)
     {
       using (var stream = new MemoryStream())
       {

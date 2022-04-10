@@ -1,40 +1,30 @@
-﻿using EarthTool.Common.Extensions;
+﻿using EarthTool.MSH.Interfaces;
 using System;
 using System.Drawing;
 using System.IO;
-using System.Linq;
+using System.Text;
 
 namespace EarthTool.MSH.Models.Elements
 {
-  public abstract class Light : Vector
+  public abstract class Light : Vector, ILight
   {
-    public Color Color
-    {
-      get;
-    }
+    public Color Color { get; set; }
 
     public bool IsAvailable =>
       Value.Length() > 0;
 
-    public Light(Stream stream) : base(stream)
-    {
-      var r = BitConverter.ToSingle(stream.ReadBytes(4)) * 0xff;
-      var g = BitConverter.ToSingle(stream.ReadBytes(4)) * 0xff;
-      var b = BitConverter.ToSingle(stream.ReadBytes(4)) * 0xff;
-      Color = Color.FromArgb((int)r, (int)g, (int)b);
-    }
-
-    public override byte[] ToByteArray()
+    public override byte[] ToByteArray(Encoding encoding)
     {
       using (var stream = new MemoryStream())
       {
-        using(var writer = new BinaryWriter(stream))
+        using (var writer = new BinaryWriter(stream))
         {
-          writer.Write(Color.R / 255f);
-          writer.Write(Color.G / 255f);
-          writer.Write(Color.B / 255f);
+          writer.Write(base.ToByteArray(encoding));
+          writer.Write((float)Math.Round(Color.R / 255f, 3));
+          writer.Write((float)Math.Round(Color.G / 255f, 3));
+          writer.Write((float)Math.Round(Color.B / 255f, 3));
         }
-        return base.ToByteArray().Concat(stream.ToArray()).ToArray();
+        return stream.ToArray();
       }
     }
   }

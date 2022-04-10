@@ -1,37 +1,25 @@
-﻿using EarthTool.Common.Extensions;
-using System;
+﻿using EarthTool.MSH.Interfaces;
 using System.Collections;
 using System.IO;
 using System.Text;
 
 namespace EarthTool.MSH.Models.Elements
 {
-  public class ModelTemplate
+  public class ModelTemplate : IModelTemplate
   {
-    const int ROWS = 4;
-    const int COLUMNS = 4;
+    public const int ROWS = 4;
+    public const int COLUMNS = 4;
 
-    public bool[,] Matrix
-    {
-      get;
-    }
+    public bool[,] Matrix { get; }
 
-    public short Flag
-    {
-      get;
-    }
+    public short Flag { get; set; }
 
-    public ModelTemplate(Stream stream)
+    public ModelTemplate()
     {
       Matrix = new bool[ROWS, COLUMNS];
-
-      var data = new BitArray(stream.ReadBytes(2));
-      FillTemplateMatrix(data);
-
-      Flag = BitConverter.ToInt16(stream.ReadBytes(2));
     }
 
-    public byte[] ToByteArray()
+    public byte[] ToByteArray(Encoding encoding)
     {
       var bits = new BitArray(ROWS * COLUMNS);
       for (var col = COLUMNS - 1; col > -1; col--)
@@ -53,32 +41,6 @@ namespace EarthTool.MSH.Models.Elements
         }
         return stream.ToArray();
       }
-    }
-
-    private void FillTemplateMatrix(BitArray data)
-    {
-      for (var col = COLUMNS - 1; col > -1; col--)
-      {
-        for (var row = ROWS - 1; row > -1; row--)
-        {
-          Matrix[row, COLUMNS - 1 - col] = data[col * 4 + row];
-        }
-      }
-    }
-
-    public override string ToString()
-    {
-      var builder = new StringBuilder();
-      for (var r = 0; r < ROWS; r++)
-      {
-        for (var c = 0; c < COLUMNS; c++)
-        {
-          builder.Append(Matrix[r, c] ? '#' : ' ');
-        }
-        builder.AppendLine();
-      }
-
-      return builder.ToString();
     }
   }
 }

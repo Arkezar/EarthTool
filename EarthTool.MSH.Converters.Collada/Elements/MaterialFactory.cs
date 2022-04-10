@@ -1,4 +1,5 @@
 ﻿using Collada141;
+using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using System.Collections.Generic;
 using System.IO;
@@ -8,7 +9,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
 {
   public class MaterialFactory
   {
-    public IEnumerable<Image> GetImages(IEnumerable<ModelPart> parts, string modelName)
+    public IEnumerable<Image> GetImages(IEnumerable<IModelPart> parts, string modelName)
     {
       var id = $"{modelName}-Part";
       return parts.Select((p, i) => new Image
@@ -19,12 +20,12 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       });
     }
 
-    public IEnumerable<(Material Material, Effect Effect)> GetMaterials(IEnumerable<ModelPart> parts, string modelName)
+    public IEnumerable<(Material Material, Effect Effect)> GetMaterials(IEnumerable<IModelPart> parts, string modelName)
     {
       return parts.Select((p, i) => (GetMaterial(p, i, modelName), GetEffect(p, i, modelName)));
     }
 
-    private Effect GetEffect(ModelPart p, int i, string modelName)
+    private Effect GetEffect(IModelPart p, int i, string modelName)
     {
       var id = $"{modelName}-Part-{i}";
       var effect = new Effect
@@ -96,7 +97,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       return effect;
     }
 
-    private Material GetMaterial(ModelPart part, int i, string modelName)
+    private Material GetMaterial(IModelPart part, int i, string modelName)
     {
       var id = $"{modelName}-Part-{i}";
       return new Material

@@ -1,4 +1,5 @@
 ﻿using Collada141;
+using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using System;
 using System.Collections.Generic;
@@ -10,13 +11,13 @@ namespace EarthTool.MSH.Converters.Collada.Elements
 {
   public class LightingFactory
   {
-    public IEnumerable<(Light Light, Node LightNode)> GetLights(Model model)
+    public IEnumerable<(Light Light, Node LightNode)> GetLights(IMesh model)
     {
-      return model.SpotLights.Where(l => l.IsAvailable).Select((l, i) => (GetLight(l, i), GetLightNode(l, i)))
-        .Concat(model.OmniLights.Where(l => l.IsAvailable).Select((l, i) => (GetLight(l, i), GetLightNode(l, i))));
+      return model.Descriptor.SpotLights.Where(l => l.IsAvailable).Select((l, i) => (GetLight(l, i), GetLightNode(l, i)))
+        .Concat(model.Descriptor.OmniLights.Where(l => l.IsAvailable).Select((l, i) => (GetLight(l, i), GetLightNode(l, i))));
     }
 
-    private Node GetLightNode(Models.Elements.Light light, int i)
+    private Node GetLightNode(ILight light, int i)
     {
       var id = $"Light-{i}";
       var node = new Node()
@@ -88,7 +89,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       return node;
     }
 
-    private Light GetLight(Models.Elements.Light light, int i)
+    private Light GetLight(ILight light, int i)
     {
       return new Light()
       {

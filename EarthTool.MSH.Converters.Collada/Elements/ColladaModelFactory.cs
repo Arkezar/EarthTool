@@ -1,4 +1,5 @@
 ﻿using Collada141;
+using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using System;
 using System.Collections.Generic;
@@ -24,12 +25,12 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       _slotFactory = slotFactory;
     }
 
-    public COLLADA GetColladaModel(Model model, string modelName)
+    public COLLADA GetColladaModel(IMesh model, string modelName)
     {
-      var animations = _animationsFactory.GetAnimations(model.Parts, modelName);
-      var images = _materialFactory.GetImages(model.Parts, modelName);
-      var materials = _materialFactory.GetMaterials(model.Parts, modelName);
-      var geometries = _geometriesFactory.GetGeometries(model.Parts, modelName);
+      var animations = _animationsFactory.GetAnimations(model.Geometries, modelName);
+      var images = _materialFactory.GetImages(model.Geometries, modelName);
+      var materials = _materialFactory.GetMaterials(model.Geometries, modelName);
+      var geometries = _geometriesFactory.GetGeometries(model.Geometries, modelName);
       var geometryRootNode = _geometriesFactory.GetGeometryRootNode(geometries.Select(g => g.GeometryNode), model.PartsTree, modelName);
       var lights = _lightingFactory.GetLights(model);
       var slots = _slotFactory.GetSlots(model);

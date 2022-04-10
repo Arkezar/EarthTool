@@ -1,4 +1,5 @@
 ﻿using Collada141;
+using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using System;
 using System.Collections.Generic;
@@ -9,7 +10,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
 {
   public class GeometriesFactory
   {
-    public IEnumerable<(Geometry Geometry, Node GeometryNode)> GetGeometries(IEnumerable<ModelPart> parts, string modelName)
+    public IEnumerable<(Geometry Geometry, Node GeometryNode)> GetGeometries(IEnumerable<IModelPart> parts, string modelName)
     {
       return parts.Select((part, i) =>
       {
@@ -33,7 +34,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       return root;
     }
 
-    private Node GetGeometryNode(ModelPart part, int i, string modelName)
+    private Node GetGeometryNode(IModelPart part, int i, string modelName)
     {
       var id = $"{modelName}-Part-{i}";
       var node = new Node()
@@ -73,7 +74,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       return node;
     }
 
-    private Geometry GetGeometry(ModelPart part, int i, string modelName)
+    private Geometry GetGeometry(IModelPart part, int i, string modelName)
     {
       var id = $"{modelName}-Part-{i}";
 
@@ -100,8 +101,8 @@ namespace EarthTool.MSH.Converters.Collada.Elements
 
       var poly = new Polylist
       {
-        Count = (ulong)part.Faces.Count,
-        Vcount = string.Join(' ', Enumerable.Repeat(3, part.Faces.Count)),
+        Count = (ulong)part.Faces.Count(),
+        Vcount = string.Join(' ', Enumerable.Repeat(3, part.Faces.Count())),
         P = string.Join(' ', part.Faces.SelectMany(f => new string[] { f.V1.ToString(), f.V2.ToString(), f.V3.ToString() })),
         Material = id + "-material"
       };
@@ -142,7 +143,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       return geometry;
     }
 
-    private Source GetSource<T>(string name, IList<T> data, Func<T, IEnumerable<float>> func)
+    private Source GetSource<T>(string name, IEnumerable<T> data, Func<T, IEnumerable<float>> func)
     {
       var source = new Source
       {
@@ -152,7 +153,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       var sourceArray = new Float_Array
       {
         Id = $"{name}-array",
-        Count = (ulong)data.Count * 3,
+        Count = (ulong)data.Count() * 3,
         Value = string.Join(" ", data.SelectMany(func).Select(v => v.ToString(CultureInfo.InvariantCulture)))
       };
       source.Float_Array = sourceArray;
@@ -161,7 +162,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
         Accessor = new Accessor
         {
           Source = $"#{name}-array",
-          Count = (ulong)data.Count,
+          Count = (ulong)data.Count(),
           Stride = 3
         }
       };
@@ -183,7 +184,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       return source;
     }
 
-    private Source GetMapSource<T>(string name, IList<T> data, Func<T, IEnumerable<float>> func)
+    private Source GetMapSource<T>(string name, IEnumerable<T> data, Func<T, IEnumerable<float>> func)
     {
       var source = new Source
       {
@@ -193,7 +194,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       var sourceArray = new Float_Array
       {
         Id = $"{name}-array",
-        Count = (ulong)data.Count * 2,
+        Count = (ulong)data.Count() * 2,
         Value = string.Join(" ", data.SelectMany(func).Select(v => v.ToString(CultureInfo.InvariantCulture)))
       };
       source.Float_Array = sourceArray;
@@ -202,7 +203,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
         Accessor = new Accessor
         {
           Source = $"#{name}-array",
-          Count = (ulong)data.Count,
+          Count = (ulong)data.Count(),
           Stride = 2
         }
       };

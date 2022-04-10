@@ -1,30 +1,23 @@
-﻿using EarthTool.Common.Extensions;
-using System;
-using System.Collections.Generic;
+﻿using EarthTool.MSH.Interfaces;
 using System.IO;
-using System.Linq;
 using System.Text;
 
 namespace EarthTool.MSH.Models.Elements
 {
-  public class OmniLight : Light
+  public class OmniLight : Light, IOmniLight
   {
-    public float Radius { get; }
+    public float Radius { get; set; }
 
-    public OmniLight(Stream stream) : base(stream)
-    {
-      Radius = BitConverter.ToSingle(stream.ReadBytes(4));
-    }
-
-    public override byte[] ToByteArray()
+    public override byte[] ToByteArray(Encoding encoding)
     {
       using (var stream = new MemoryStream())
       {
         using (var writer = new BinaryWriter(stream))
         {
+          writer.Write(base.ToByteArray(encoding));
           writer.Write(Radius);
         }
-        return base.ToByteArray().Concat(stream.ToArray()).ToArray();
+        return stream.ToArray();
       }
     }
   }

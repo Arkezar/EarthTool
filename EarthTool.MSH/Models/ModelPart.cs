@@ -1,90 +1,90 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.MSH.Models.Collections;
+﻿using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models.Elements;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace EarthTool.MSH.Models
 {
-  public class ModelPart
+  public class ModelPart : IModelPart
   {
-    public Vertices Vertices
-    {
-      get;
-    }
+    public IEnumerable<IVertex> Vertices { get; set; }
 
-    public int SkipParent
-    {
-      get;
-    }
+    public byte Depth { get; set; }
 
-    public int UnknownFlag
-    {
-      get;
-    }
+    public byte UnknownFlag { get; set; }
 
-    public TextureInfo Texture
-    {
-      get;
-    }
+    public short UnknownFlag2 { get; set; }
 
-    public Faces Faces
-    {
-      get;
-    }
+    public ITextureInfo Texture { get; set; }
 
-    public Animations Animations
-    {
-      get;
-    }
+    public IEnumerable<IFace> Faces { get; set; }
 
-    public int UnknownValue
-    {
-      get;
-    }
+    public IAnimations Animations { get; set; }
 
-    public Vector Offset
-    {
-      get;
-    }
+    public int UnknownValue { get; set; }
 
-    public byte[] UnknownBytes
-    {
-      get;
-    }
+    public IVector Offset { get; set; }
 
-    public ModelPart(Stream stream)
-    {
-      Vertices = new Vertices(stream);
-      SkipParent = stream.ReadByte();
-      UnknownFlag = stream.ReadByte();
-      stream.ReadBytes(2); // empty
-      Texture = new TextureInfo(stream);
-      Faces = new Faces(stream);
-      Animations = new Animations(stream);
-      UnknownValue = BitConverter.ToInt32(stream.ReadBytes(4));
-      Offset = new Vector(stream);
-      UnknownBytes = stream.ReadBytes(5);
-    }
+    public byte[] UnknownBytes { get; set; }
 
-    public byte[] ToByteArray()
+    public byte[] ToByteArray(Encoding encoding)
     {
       using (var stream = new MemoryStream())
       {
         using (var writer = new BinaryWriter(stream))
         {
-          writer.Write(Vertices.ToByteArray());
-          writer.Write((byte)SkipParent);
-          writer.Write((byte)UnknownFlag);
+          writer.Write(GetVertexBytes());
+          writer.Write(Depth);
+          writer.Write(UnknownFlag);
           writer.Write(new byte[2]);
-          writer.Write(Texture.FileName.Length);
-          writer.Write(Encoding.GetEncoding("ISO-8859-2").GetBytes(Texture.FileName));
-          writer.Write(Faces.ToByteArray());
-          writer.Write(Animations.ToByteArray());
+          writer.Write(Texture.ToByteArray(encoding));
+          writer.Write(Faces.Count());
+          writer.Write(Faces.SelectMany(x => x.ToByteArray(encoding)).ToArray());
+          writer.Write(Animations.ToByteArray(encoding));
           writer.Write(UnknownValue);
-          writer.Write(Offset.ToByteArray());
+          writer.Write(Offset.ToByteArray(encoding));
           writer.Write(UnknownBytes);
+        }
+        return stream.ToArray();
+      }
+    }
+
+    private byte[] GetVertexBytes()
+    {
+      using (var stream = new MemoryStream())
+      {
+        using (var writer = new BinaryWriter(stream))
+        {
+          writer.Write(Vertices.Count());
+          var blocks = (int)Math.Ceiling(Vertices.Count() / 4d);
+          writer.Write(blocks);
+
+          for (var i = 0; i < blocks; i++)
+          {
+            using (var blockStream = new MemoryStream(160))
+            {
+              using (var blockWriter = new BinaryWriter(blockStream))
+              {
+                var blockVertices = Vertices.Skip(i * 4).Take(4).ToList();
+                blockVertices.AddRange(Enumerable.Repeat(new Vertex(), 4 - blockVertices.Count()));
+                blockVertices.ForEach(v => blockWriter.Write(v.Position.X));
+                blockVertices.ForEach(v => blockWriter.Write(-v.Position.Y));
+                blockVertices.ForEach(v => blockWriter.Write(v.Position.Z));
+                blockVertices.ForEach(v => blockWriter.Write(v.Normal.X));
+                blockVertices.ForEach(v => blockWriter.Write(-v.Normal.Y));
+                blockVertices.ForEach(v => blockWriter.Write(v.Normal.Z));
+                blockVertices.ForEach(v => blockWriter.Write(v.U));
+                blockVertices.ForEach(v => blockWriter.Write(1 - v.V));
+                blockVertices.ForEach(_ => blockWriter.Write(0));
+                blockVertices.ForEach(v => blockWriter.Write(v.UnknownValue1));
+                blockVertices.ForEach(v => blockWriter.Write(v.UnknownValue2));
+              }
+              writer.Write(blockStream.ToArray());
+            }
+          }
         }
         return stream.ToArray();
       }

@@ -1,29 +1,29 @@
-﻿using System.IO;
+﻿using EarthTool.MSH.Interfaces;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
 
 namespace EarthTool.MSH.Models.Collections
 {
-  public class Animations
+  public class Animations : IAnimations
   {
-    public PositionOffsetFrames UnknownAnimationData;
-    public PositionOffsetFrames MovementFrames;
-    public RotationFrames RotationFrames;
+    public IEnumerable<IVector> UnknownAnimationData { get; set; }
+    public IEnumerable<IVector> MovementFrames { get; set; }
+    public IEnumerable<IRotationFrame> RotationFrames { get; set; }
 
-    public Animations(Stream stream)
+    public byte[] ToByteArray(Encoding encoding)
     {
-      UnknownAnimationData = new PositionOffsetFrames(stream);
-      MovementFrames = new PositionOffsetFrames(stream);
-      RotationFrames = new RotationFrames(stream);
-    }
-
-    public byte[] ToByteArray()
-    {
-      using(var stream = new MemoryStream())
+      using (var stream = new MemoryStream())
       {
-        using(var writer = new BinaryWriter(stream))
+        using (var writer = new BinaryWriter(stream))
         {
-          writer.Write(UnknownAnimationData.ToByteArray());
-          writer.Write(MovementFrames.ToByteArray());
-          writer.Write(RotationFrames.ToByteArray());
+          writer.Write(UnknownAnimationData.Count());
+          writer.Write(UnknownAnimationData.SelectMany(x => x.ToByteArray(encoding)).ToArray());
+          writer.Write(MovementFrames.Count());
+          writer.Write(MovementFrames.SelectMany(x => x.ToByteArray(encoding)).ToArray());
+          writer.Write(RotationFrames.Count());
+          writer.Write(RotationFrames.SelectMany(x => x.ToByteArray(encoding)).ToArray());
         }
         return stream.ToArray();
       }

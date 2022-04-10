@@ -9,7 +9,6 @@ namespace EarthTool.MSH.Converters.Collada
     protected override void Load(ContainerBuilder builder)
     {
       builder.RegisterType<ModelFactory>();
-      builder.RegisterType<MeshModelFactory>();
       builder.RegisterType<ColladaModelFactory>();
       builder.RegisterType<MaterialFactory>();
       builder.RegisterType<LightingFactory>();

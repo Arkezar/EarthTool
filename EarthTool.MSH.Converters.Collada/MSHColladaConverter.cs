@@ -1,7 +1,9 @@
 ﻿using Collada141;
 using EarthTool.Common.Enums;
 using EarthTool.MSH.Converters.Collada.Elements;
+using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
+using EarthTool.MSH.Services;
 using Microsoft.Extensions.Logging;
 using System.IO;
 using System.Threading.Tasks;
@@ -12,19 +14,21 @@ namespace EarthTool.MSH.Converters.Collada
   public class MSHColladaConverter : MSHConverter
   {
     private readonly ModelFactory _modelFactory;
+    private readonly EarthMeshWriter _earthMeshWriter;
 
-    public MSHColladaConverter(ModelFactory modelFactory, ILogger<MSHColladaConverter> logger) : base(logger)
+    public MSHColladaConverter(ModelFactory modelFactory, EarthMeshWriter earthMeshWriter, ILogger<MSHColladaConverter> logger) : base(logger)
     {
       _modelFactory = modelFactory;
+      _earthMeshWriter = earthMeshWriter;
     }
 
-    public override Task InternalConvert(ModelType outputModelType, Model model, string outputPath = null)
+    public override Task InternalConvert(ModelType outputModelType, IMesh model, string outputPath = null)
     {
       WriteModel(model, outputModelType, outputPath);
       return Task.CompletedTask;
     }
 
-    private void WriteModel(Model model, ModelType outputModelType, string outputPath)
+    private void WriteModel(IMesh model, ModelType outputModelType, string outputPath)
     {
       var modelName = GetModelName(model);
 
@@ -46,7 +50,7 @@ namespace EarthTool.MSH.Converters.Collada
       }
     }
 
-    private void WriteColladaModel(Model model, string modelName, string outputFile)
+    private void WriteColladaModel(IMesh model, string modelName, string outputFile)
     {
       var colladaModel = _modelFactory.GetColladaModel(model, modelName);
       var serializer = new XmlSerializer(typeof(COLLADA));
@@ -56,17 +60,17 @@ namespace EarthTool.MSH.Converters.Collada
       }
     }
 
-    private void WriteMeshModel(Model model, string outputFile)
+    private void WriteMeshModel(IMesh model, string outputFile)
     {
-      File.WriteAllBytes(outputFile, model.ToByteArray());
+      _earthMeshWriter.Write(outputFile, model);
     }
 
     private string GetOutputFileName(string outputPath, string modelName, ModelType outputModelType)
       => Path.Combine(outputPath, $"{modelName}.{outputModelType.ToString().ToLower()}");
 
-    private string GetModelName(Model model)
+    private string GetModelName(IMesh model)
     {
-      return Path.GetFileNameWithoutExtension(model.FilePath);
+      return Path.GetFileNameWithoutExtension(model.FileHeader.FilePath);
     }
 
     protected override ModelType GetOutputType(string filePath)
@@ -82,7 +86,7 @@ namespace EarthTool.MSH.Converters.Collada
       }
     }
 
-    protected override Model LoadModel(string filePath)
+    protected override IMesh LoadModel(string filePath)
     {
       var outputType = GetOutputType(filePath);
       return outputType switch

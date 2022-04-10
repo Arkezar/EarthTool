@@ -1,13 +1,15 @@
-﻿namespace EarthTool.MSH.Models.Elements
+﻿using EarthTool.MSH.Interfaces;
+
+namespace EarthTool.MSH.Models.Elements
 {
-  public class Vertex
+  public class Vertex : IVertex
   {
-    public Vector Position
+    public IVector Position
     {
       get;
     }
 
-    public Vector Normal
+    public IVector Normal
     {
       get;
     }
@@ -22,24 +24,28 @@
       get;
     }
 
-    public short U1
+    public short UnknownValue1
     {
       get;
     }
 
-    public short U2
+    public short UnknownValue2
     {
       get;
     }
 
-    public Vertex(Vector position, Vector normal, float u, float v, short u1, short u2)
+    public Vertex() : this(new Vector(), new Vector(), 0, 1, 0, 0)
+    {
+    }
+
+    public Vertex(IVector position, IVector normal, float u, float v, short u1, short u2)
     {
       Position = position;
       Normal = normal;
       U = u;
       V = v;
-      U1 = u1;
-      U2 = u2;
+      UnknownValue1 = u1;
+      UnknownValue2 = u2;
     }
   }
 }

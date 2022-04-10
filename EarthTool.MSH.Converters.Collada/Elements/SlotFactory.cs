@@ -1,4 +1,5 @@
 ﻿using Collada141;
+using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using System;
 using System.Collections.Generic;
@@ -11,26 +12,26 @@ namespace EarthTool.MSH.Converters.Collada.Elements
 {
   public class SlotFactory
   {
-    public IEnumerable<(Light Slot, Node SlotNode)> GetSlots(Model model)
+    public IEnumerable<(Light Slot, Node SlotNode)> GetSlots(IMesh model)
     {
-      return model.Slots.BarrelMuzzels.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "BarrelMuzzle"), GetLightNode(s, i, "BarrelMuzzle")))
-        .Concat(model.Slots.CenterPivot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "CenterPivot"), GetLightNode(s, i, "CenterPivot"))))
-        .Concat(model.Slots.Chimneys.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Chimney"), GetLightNode(s, i, "Chimney"))))
-        .Concat(model.Slots.Exhausts.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Exhaust"), GetLightNode(s, i, "Exhaust"))))
-        .Concat(model.Slots.HitSpots.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "HitSpot"), GetLightNode(s, i, "HitSpot"))))
-        .Concat(model.Slots.InterfacePivot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "InterfacePivot"), GetLightNode(s, i, "InterfacePivot"))))
-        .Concat(model.Slots.KeelTraces.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "KeelTrace"), GetLightNode(s, i, "KeelTrace"))))
-        .Concat(model.Slots.LandingSpot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "LandingSpot"), GetLightNode(s, i, "LandingSpot"))))
-        .Concat(model.Slots.ProductionSpotStart.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "ProductionSpotStart"), GetLightNode(s, i, "ProductionSpotStart"))))
-        .Concat(model.Slots.ProductionSpotEnd.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "ProductionSpotEnd"), GetLightNode(s, i, "ProductionSpotEnd"))))
-        .Concat(model.Slots.SmokeSpots.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "SmokeSpot"), GetLightNode(s, i, "SmokeSpot"))))
-        .Concat(model.Slots.SmokeTraces.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "SmokeTrace"), GetLightNode(s, i, "SmokeTrace"))))
-        .Concat(model.Slots.TurretMuzzels.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "TurretMuzzel"), GetLightNode(s, i, "TurretMuzzel"))))
-        .Concat(model.Slots.Turrets.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Turret"), GetLightNode(s, i, "Turret"))))
-        .Concat(model.Slots.UnloadPoints.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "UnloadPoint"), GetLightNode(s, i, "UnloadPoint"))));
+      return model.Descriptor.Slots.BarrelMuzzels.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "BarrelMuzzle"), GetLightNode(s, i, "BarrelMuzzle")))
+        .Concat(model.Descriptor.Slots.CenterPivot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "CenterPivot"), GetLightNode(s, i, "CenterPivot"))))
+        .Concat(model.Descriptor.Slots.Chimneys.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Chimney"), GetLightNode(s, i, "Chimney"))))
+        .Concat(model.Descriptor.Slots.Exhausts.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Exhaust"), GetLightNode(s, i, "Exhaust"))))
+        .Concat(model.Descriptor.Slots.HitSpots.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "HitSpot"), GetLightNode(s, i, "HitSpot"))))
+        .Concat(model.Descriptor.Slots.InterfacePivot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "InterfacePivot"), GetLightNode(s, i, "InterfacePivot"))))
+        .Concat(model.Descriptor.Slots.KeelTraces.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "KeelTrace"), GetLightNode(s, i, "KeelTrace"))))
+        .Concat(model.Descriptor.Slots.LandingSpot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "LandingSpot"), GetLightNode(s, i, "LandingSpot"))))
+        .Concat(model.Descriptor.Slots.ProductionSpotStart.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "ProductionSpotStart"), GetLightNode(s, i, "ProductionSpotStart"))))
+        .Concat(model.Descriptor.Slots.ProductionSpotEnd.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "ProductionSpotEnd"), GetLightNode(s, i, "ProductionSpotEnd"))))
+        .Concat(model.Descriptor.Slots.SmokeSpots.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "SmokeSpot"), GetLightNode(s, i, "SmokeSpot"))))
+        .Concat(model.Descriptor.Slots.SmokeTraces.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "SmokeTrace"), GetLightNode(s, i, "SmokeTrace"))))
+        .Concat(model.Descriptor.Slots.TurretMuzzels.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "TurretMuzzel"), GetLightNode(s, i, "TurretMuzzel"))))
+        .Concat(model.Descriptor.Slots.Turrets.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Turret"), GetLightNode(s, i, "Turret"))))
+        .Concat(model.Descriptor.Slots.UnloadPoints.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "UnloadPoint"), GetLightNode(s, i, "UnloadPoint"))));
     }
 
-    private Node GetLightNode(Models.Elements.Slot slot, int i, string name)
+    private Node GetLightNode(ISlot slot, int i, string name)
     {
       var id = $"{name}-{i}";
       var node = new Node()

@@ -1,21 +1,24 @@
-﻿using EarthTool.Common.Extensions;
-using System;
+﻿using EarthTool.MSH.Interfaces;
 using System.IO;
 using System.Text;
 
 namespace EarthTool.MSH.Models.Elements
 {
-  public class TextureInfo
+  public class TextureInfo : ITextureInfo
   {
-    public string FileName
-    {
-      get;
-    }
+    public string FileName { get; set; }
 
-    public TextureInfo(Stream stream)
+    public byte[] ToByteArray(Encoding encoding)
     {
-      var filnameLength = BitConverter.ToInt32(stream.ReadBytes(4));
-      FileName = Encoding.ASCII.GetString(stream.ReadBytes(filnameLength));
+      using (var stream = new MemoryStream())
+      {
+        using (var writer = new BinaryWriter(stream))
+        {
+          writer.Write(FileName.Length);
+          writer.Write(encoding.GetBytes(FileName));
+        }
+        return stream.ToArray();
+      }
     }
   }
 }

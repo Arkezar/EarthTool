@@ -1,7 +1,7 @@
 ﻿using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
 using EarthTool.Common.Models;
-using EarthTool.MSH.Models;
+using EarthTool.MSH.Interfaces;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -26,13 +26,13 @@ namespace EarthTool.MSH
       var model = LoadModel(filePath);
 
       _logger.LogDebug("Loaded {VerticesNumber} vertices, {FacesNumber} faces",
-                       model.Parts.Sum(p => p.Vertices.Count),
-                       model.Parts.Sum(p => p.Faces.Count));
+                       model.Geometries.Sum(p => p.Vertices.Count()),
+                       model.Geometries.Sum(p => p.Faces.Count()));
 
       return InternalConvert(GetOutputType(filePath), model, outputPath);
     }
 
-    public abstract Task InternalConvert(ModelType modelType, Model model, string outputPath = null);
+    public abstract Task InternalConvert(ModelType modelType, IMesh model, string outputPath = null);
 
     public virtual IConverter WithOptions(IReadOnlyCollection<Option> options)
     {
@@ -44,6 +44,6 @@ namespace EarthTool.MSH
     protected ModelType GetInputType(string filePath)
       => Enum.Parse<ModelType>(Path.GetExtension(filePath).Trim('.'), true);
 
-    protected abstract Model LoadModel(string filePath);
+    protected abstract IMesh LoadModel(string filePath);
   }
 }

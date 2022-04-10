@@ -15,15 +15,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
 
     }
 
-    public Model GetMeshModel(string filePath)
-    {
-      using (var stream = new FileStream(filePath, FileMode.Open))
-      {
-        return new Model(filePath, stream);
-      }
-    }
-
-    public Model GetColladaModel(string filePath)
+    public EarthMesh GetColladaModel(string filePath)
     {
       var model = LoadColladaModel(filePath);
       return null;

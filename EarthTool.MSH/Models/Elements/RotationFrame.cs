@@ -1,38 +1,16 @@
-﻿using EarthTool.Common.Extensions;
+﻿using EarthTool.MSH.Interfaces;
 using System;
 using System.IO;
 using System.Numerics;
+using System.Text;
 
 namespace EarthTool.MSH.Models.Elements
 {
-  public class RotationFrame
+  public class RotationFrame : IRotationFrame
   {
     public Matrix4x4 TransformationMatrix
     {
-      get;
-    }
-
-    public RotationFrame(Stream stream)
-    {
-      TransformationMatrix = new Matrix4x4()
-      {
-        M11 = BitConverter.ToSingle(stream.ReadBytes(4)),
-        M12 = -BitConverter.ToSingle(stream.ReadBytes(4)),
-        M13 = -BitConverter.ToSingle(stream.ReadBytes(4)),
-        M14 = BitConverter.ToSingle(stream.ReadBytes(4)),
-        M21 = -BitConverter.ToSingle(stream.ReadBytes(4)),
-        M22 = BitConverter.ToSingle(stream.ReadBytes(4)),
-        M23 = -BitConverter.ToSingle(stream.ReadBytes(4)),
-        M24 = BitConverter.ToSingle(stream.ReadBytes(4)),
-        M31 = -BitConverter.ToSingle(stream.ReadBytes(4)),
-        M32 = -BitConverter.ToSingle(stream.ReadBytes(4)),
-        M33 = BitConverter.ToSingle(stream.ReadBytes(4)),
-        M34 = BitConverter.ToSingle(stream.ReadBytes(4)),
-        M41 = BitConverter.ToSingle(stream.ReadBytes(4)),
-        M42 = BitConverter.ToSingle(stream.ReadBytes(4)),
-        M43 = BitConverter.ToSingle(stream.ReadBytes(4)),
-        M44 = BitConverter.ToSingle(stream.ReadBytes(4))
-      };
+      get; set;
     }
 
     public Quaternion Quaternion
@@ -52,7 +30,33 @@ namespace EarthTool.MSH.Models.Elements
       }
     }
 
-    public byte[] ToByteArray()
+    public void FromStream(Stream stream)
+    {
+      using (var reader = new BinaryReader(stream, Encoding.GetEncoding("ISO-8859-2"), true))
+      {
+        TransformationMatrix = new Matrix4x4()
+        {
+          M11 = reader.ReadSingle(),
+          M12 = -reader.ReadSingle(),
+          M13 = -reader.ReadSingle(),
+          M14 = reader.ReadSingle(),
+          M21 = -reader.ReadSingle(),
+          M22 = reader.ReadSingle(),
+          M23 = -reader.ReadSingle(),
+          M24 = reader.ReadSingle(),
+          M31 = -reader.ReadSingle(),
+          M32 = -reader.ReadSingle(),
+          M33 = reader.ReadSingle(),
+          M34 = reader.ReadSingle(),
+          M41 = reader.ReadSingle(),
+          M42 = reader.ReadSingle(),
+          M43 = reader.ReadSingle(),
+          M44 = reader.ReadSingle()
+        };
+      }
+    }
+
+    public byte[] ToByteArray(Encoding encoding)
     {
       using (var stream = new MemoryStream())
       {
