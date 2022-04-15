@@ -32,7 +32,7 @@ namespace EarthTool.Common.Factories
       }
       return new EarthInfo
       {
-        FilePath = Path.GetFullPath(filePath),
+        FilePath = filePath,
         Flags = flags,
         TranslationId = translationId,
         ResourceType = resourceType,
