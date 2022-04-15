@@ -14,6 +14,14 @@ namespace EarthTool.MSH.Models.Elements
     const int Rows = 4;
     const int Columns = 4;
 
+    public TemplateDetails()
+    {
+      SectionHeights = new short[Rows, Columns];
+      SectionFlags = new byte[Rows, Columns];
+      SectionRotations = Enumerable.Repeat(new ModelTemplate(), 4);
+      SectionFlagRotations = Enumerable.Repeat(new byte[Rows, Columns], 4);
+    }
+
     public short[,] SectionHeights { get; set; }
 
     public byte[,] SectionFlags { get; set; }
@@ -36,8 +44,6 @@ namespace EarthTool.MSH.Models.Elements
         return stream.ToArray();
       }
     }
-
-
 
     private byte[] GetFlagRotationByte(byte[,] rotation)
     {

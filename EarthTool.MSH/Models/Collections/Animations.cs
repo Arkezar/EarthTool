@@ -12,6 +12,13 @@ namespace EarthTool.MSH.Models.Collections
     public IEnumerable<IVector> MovementFrames { get; set; }
     public IEnumerable<IRotationFrame> RotationFrames { get; set; }
 
+    public Animations()
+    {
+      UnknownAnimationData = Enumerable.Empty<IVector>();
+      MovementFrames = Enumerable.Empty<IVector>();
+      RotationFrames = Enumerable.Empty<IRotationFrame>();
+    }
+
     public byte[] ToByteArray(Encoding encoding)
     {
       using (var stream = new MemoryStream())

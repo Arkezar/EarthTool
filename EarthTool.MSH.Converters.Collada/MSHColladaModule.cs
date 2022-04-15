@@ -1,6 +1,7 @@
 ﻿using Autofac;
 using EarthTool.Common.Interfaces;
 using EarthTool.MSH.Converters.Collada.Elements;
+using EarthTool.MSH.Converters.Collada.Services;
 
 namespace EarthTool.MSH.Converters.Collada
 {
@@ -10,6 +11,7 @@ namespace EarthTool.MSH.Converters.Collada
     {
       builder.RegisterType<ModelFactory>();
       builder.RegisterType<ColladaModelFactory>();
+      builder.RegisterType<ColladaMeshReader>();
       builder.RegisterType<MaterialFactory>();
       builder.RegisterType<LightingFactory>();
       builder.RegisterType<GeometriesFactory>();
