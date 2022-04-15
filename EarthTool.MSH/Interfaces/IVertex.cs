@@ -4,9 +4,8 @@
   {
     IVector Normal { get; }
     IVector Position { get; }
-    float U { get; }
+    IUVMap UVMap { get; }
     short UnknownValue1 { get; }
     short UnknownValue2 { get; }
-    float V { get; }
   }
 }

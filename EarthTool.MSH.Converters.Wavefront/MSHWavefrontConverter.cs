@@ -90,7 +90,7 @@ namespace EarthTool.MSH.Converters.Wavefront
       //uv
       foreach (var vertex in vertices)
       {
-        writer.WriteLine(string.Format(UV_TEMPLATE, vertex.U, vertex.V));
+        writer.WriteLine(string.Format(UV_TEMPLATE, vertex.UVMap.U, vertex.UVMap.V));
       }
     }
 

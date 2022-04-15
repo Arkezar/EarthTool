@@ -14,12 +14,7 @@ namespace EarthTool.MSH.Models.Elements
       get;
     }
 
-    public float U
-    {
-      get;
-    }
-
-    public float V
+    public IUVMap UVMap
     {
       get;
     }
@@ -34,16 +29,11 @@ namespace EarthTool.MSH.Models.Elements
       get;
     }
 
-    public Vertex() : this(new Vector(), new Vector(), 0, 1, 0, 0)
-    {
-    }
-
-    public Vertex(IVector position, IVector normal, float u, float v, short u1, short u2)
+    public Vertex(IVector position, IVector normal, IUVMap uvMap, short u1, short u2)
     {
       Position = position;
       Normal = normal;
-      U = u;
-      V = v;
+      UVMap = uvMap;
       UnknownValue1 = u1;
       UnknownValue2 = u2;
     }

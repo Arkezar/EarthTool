@@ -11,7 +11,7 @@ namespace EarthTool.MSH.Interfaces
     IVector Offset { get; }
     ITextureInfo Texture { get; }
     byte[] UnknownBytes { get; }
-    byte UnknownFlag { get; }
+    byte PartType { get; }
     short UnknownFlag2 { get; }
     int UnknownValue { get; }
     IEnumerable<IVertex> Vertices { get; }

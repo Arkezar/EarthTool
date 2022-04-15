@@ -14,7 +14,7 @@ namespace EarthTool.MSH.Models
 
     public byte Depth { get; set; }
 
-    public byte UnknownFlag { get; set; }
+    public byte PartType { get; set; }
 
     public short UnknownFlag2 { get; set; }
 
@@ -38,8 +38,8 @@ namespace EarthTool.MSH.Models
         {
           writer.Write(GetVertexBytes());
           writer.Write(Depth);
-          writer.Write(UnknownFlag);
-          writer.Write(new byte[2]);
+          writer.Write(PartType);
+          writer.Write(UnknownFlag2);
           writer.Write(Texture.ToByteArray(encoding));
           writer.Write(Faces.Count());
           writer.Write(Faces.SelectMany(x => x.ToByteArray(encoding)).ToArray());
@@ -69,15 +69,15 @@ namespace EarthTool.MSH.Models
               using (var blockWriter = new BinaryWriter(blockStream))
               {
                 var blockVertices = Vertices.Skip(i * 4).Take(4).ToList();
-                blockVertices.AddRange(Enumerable.Repeat(new Vertex(), 4 - blockVertices.Count()));
+                blockVertices.AddRange(Enumerable.Repeat(new Vertex(new Vector(), new Vector(), new UVMap(), 0, 0), 4 - blockVertices.Count()));
                 blockVertices.ForEach(v => blockWriter.Write(v.Position.X));
                 blockVertices.ForEach(v => blockWriter.Write(-v.Position.Y));
                 blockVertices.ForEach(v => blockWriter.Write(v.Position.Z));
                 blockVertices.ForEach(v => blockWriter.Write(v.Normal.X));
                 blockVertices.ForEach(v => blockWriter.Write(-v.Normal.Y));
                 blockVertices.ForEach(v => blockWriter.Write(v.Normal.Z));
-                blockVertices.ForEach(v => blockWriter.Write(v.U));
-                blockVertices.ForEach(v => blockWriter.Write(1 - v.V));
+                blockVertices.ForEach(v => blockWriter.Write(v.UVMap.U));
+                blockVertices.ForEach(v => blockWriter.Write(1 - v.UVMap.V));
                 blockVertices.ForEach(_ => blockWriter.Write(0));
                 blockVertices.ForEach(v => blockWriter.Write(v.UnknownValue1));
                 blockVertices.ForEach(v => blockWriter.Write(v.UnknownValue2));

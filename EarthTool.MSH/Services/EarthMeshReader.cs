@@ -261,7 +261,7 @@ namespace EarthTool.MSH.Services
       var result = new ModelPart();
       result.Vertices = LoadVertices(reader);
       result.Depth = reader.ReadByte();
-      result.UnknownFlag = reader.ReadByte();
+      result.PartType = reader.ReadByte();
       result.UnknownFlag2 = reader.ReadInt16();
       result.Texture = LoadTextureInfo(reader);
       result.Faces = LoadFaces(reader);
@@ -356,7 +356,7 @@ namespace EarthTool.MSH.Services
 
         var u1 = BitConverter.ToInt16(vertexData, i * sizeof(short) + 0x90);
         var u2 = BitConverter.ToInt16(vertexData, i * sizeof(short) + 0x98);
-        yield return new Vertex(new Vector(x, y, z), new Vector(normalX, normalY, normalZ), u, v, u1, u2);
+        yield return new Vertex(new Vector(x, y, z), new Vector(normalX, normalY, normalZ), new UVMap(u, v), u1, u2);
       }
     }
 
@@ -374,7 +374,7 @@ namespace EarthTool.MSH.Services
           parent = parent.Parent;
         }
         lastNode = new PartNode(++currentId, part, parent);
-        if (part.UnknownFlag == 0)
+        if (part.PartType == 0)
         {
           lastNode = parent;
         }
