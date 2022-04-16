@@ -1,5 +1,6 @@
 ﻿using Collada141;
 using EarthTool.Common.Interfaces;
+using EarthTool.MSH.Converters.Collada.Collections;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using System;
@@ -47,15 +48,10 @@ namespace EarthTool.MSH.Converters.Collada.Services
 
     private IEnumerable<IModelPart> LoadGeometries(COLLADA model)
     {
-      var modelName = model.Library_Visual_Scenes.First().Visual_Scene.First().Node.First().Name;
+      var modelTree = new ModelTree(model);
       var geometries = model.Library_Geometries.First().Geometry;
-      var orderedGeometries = geometries.OrderByDescending(g => int.Parse(g.Name.Substring(modelName.Length+5)));
-      var result = orderedGeometries.Select(g => LoadGeometry(g, model)).ToArray();
-      foreach(var part in result)
-      {
-        part.Depth = 0;
-        part.PartType = 8;
-      }
+      var result = modelTree.Select(g => LoadGeometry(geometries.Single(n => n.Name == g.Node.Name), model, modelTree)).ToArray();
+      
       result.Last().UnknownBytes = new byte[5];
       result.Last().PartType = 0;
       result.First().PartType = 0;
@@ -63,10 +59,10 @@ namespace EarthTool.MSH.Converters.Collada.Services
       return result;
     }
 
-    private ModelPart LoadGeometry(Geometry g, COLLADA model)
+    private ModelPart LoadGeometry(Geometry g, COLLADA model, ModelTree modelTree)
     {
       var facesAndVertices = LoadFacesWithVertices(g);
-      var offsetAndDepth = LoadOffsetAndDepth(g, model);
+      var offsetAndDepth = LoadOffsetAndDepth(modelTree, g.Name);
 
       return new ModelPart()
       {
@@ -76,43 +72,15 @@ namespace EarthTool.MSH.Converters.Collada.Services
         Texture = LoadTexture(g, model),
         UnknownBytes = new byte[] { 0, 0, 0, 120, 0 },
         Offset = offsetAndDepth.Vector,
-        Depth = (byte)(offsetAndDepth.Depth > 0 ? offsetAndDepth.Depth - 1 : 0)
+        Depth = (byte)offsetAndDepth.BacktrackLevel,
+        PartType = 8
       };
     }
 
-    private (IVector Vector, int Depth) LoadOffsetAndDepth(Geometry g, COLLADA model)
+    private (IVector Vector, int BacktrackLevel) LoadOffsetAndDepth(ModelTree model, string id)
     {
-      var node = GetNode(g, model);
-      return (GetVector(node.Node), node.Depth - 1);
-    }
-
-    private (Node Node, int Depth) GetNode(Geometry g, COLLADA model)
-    {
-      var id = g.Name;
-      var rootNode = model.Library_Visual_Scenes.First().Visual_Scene.First().Node.First();
-      var nodes = GetAllNodes(rootNode);
-      var node = nodes.Single(n => n.Node.Id == id);
-      return node;
-    }
-
-    private IEnumerable<(Node Node, int Depth)> GetAllNodes(Node root, int depth = 0)
-    {
-      if (root == null)
-      {
-        yield break;
-      }
-
-      yield return (root, depth);
-
-      if (!root.NodeProperty.Any())
-      {
-        yield break;
-      }
-
-      foreach ((Node N, int D) descendant in root.NodeProperty.SelectMany(n => GetAllNodes(n, depth + 1)).ToArray())
-      {
-        yield return descendant;
-      }
+      var node = model.Single(n => n.Node.Id == id);
+      return (GetVector(node.Node), node.BacktrackLevel);
     }
 
     private ITextureInfo LoadTexture(Geometry g, COLLADA model)
