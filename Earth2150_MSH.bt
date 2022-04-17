@@ -11,6 +11,7 @@
 //   History: 
 //   0.1 2021-06-16 arkezar: Initial version
 //   0.2 2021-11-03 arkezar: Add model descriptors section
+//   0.3 2022-04-18 arkezar: Complete vertex list deserialization
 //------------------------------------------------
 typedef struct {
     float X;
@@ -39,19 +40,19 @@ typedef struct {
     FSkip(-(sizeof(vertex)-4));
     Vertex vertex;
     byte EMPTY[16];
-    short NormalId[4] <bgcolor=0xFFAA00>;
-    short PositionId[4] <bgcolor=0xAAAA00>;
+    short NormalIdx[4] <bgcolor=0xFFAA00>;
+    short PositionIdx[4] <bgcolor=0xAAAA00>;
 } VertexBlock;
 
 typedef struct {
-    int VertexCount <bgcolor=0xFFAA00>;
-    int VertexBlocks;        
-    VertexBlock vertexBlocks[VertexBlocks];
+    int Length <bgcolor=0xFFAA00>;
+    int Blocks;        
+    VertexBlock vertexBlocks[Blocks];
 } VertexList;
 
 typedef struct {
-    int filenameLength;
-    char textureFilename[filenameLength];
+    int Length;
+    char Filename[Length];
 } Texture;
 
 typedef struct {
@@ -62,18 +63,9 @@ typedef struct {
 } Face;
 
 typedef struct {
-    int FacesCount;
-    Face faces[FacesCount];
+    int Length;
+    Face faces[Length];
 } FacesList;
-
-typedef struct {
-    VertexList vertexList;
-    byte newBranch;
-    byte type;
-    byte unknown1[2];
-    Texture texture;
-    FacesList faces;
-} Element;
 
 typedef struct {
     float X;
@@ -83,13 +75,8 @@ typedef struct {
 
 typedef struct {
     int length;
-    Position data[length];
-} UnknownAnimationData;
-
-typedef struct {
-    int length;
     Position offset[length];
-} MovementFrames;
+} TranslationFrames;
 
 typedef struct {
     float a11;
@@ -122,18 +109,23 @@ typedef struct {
 } Offset;
 
 typedef struct {
-    UnknownAnimationData unknownData;
-    MovementFrames movement;
+    TranslationFrames unknown;
+    TranslationFrames movement;
     RotationFrames rotation;
 } Animation;
 
 typedef struct {
-    Element element;
+    VertexList vertexList;
+    byte newBranch;
+    byte type;
+    byte unknown1[2];
+    Texture texture;
+    FacesList faces;
     Animation animation;
     int AnimationType;
     Offset offset;
     byte RiseAngleRad;
-    ubyte unknownData[4];
+    byte unknownData[4];
 } Part;
 
 typedef struct {
@@ -166,18 +158,6 @@ typedef struct {
     float Y;
     float Z;
 } MountPoint;
-
-typedef struct {
-    ubyte m11;
-    ubyte m12;
-    ubyte m13;
-    ubyte m21;
-    ubyte m22;
-    ubyte m23;
-    ubyte m31;
-    ubyte m32;
-    ubyte m33;
-} M3x3;
 
 typedef struct {
     short X;
@@ -237,19 +217,16 @@ typedef struct {
     short MinY;
     short MaxX;
     short MinX;
+    int ModelType;
 } Descriptor;
 
 typedef struct {
-    int unknown5;
     while(!FEof()) {
         Part part;
     }
 } Geometry;
 
 FSeek(FindFirst("MESH"));
-struct HEADER {
-    char type[4];
-    byte unknown[4];
-} header <bgcolor=0x0000FF>;
+char FileIdentifier[8];
 Descriptor ModelDescriptor;
 Geometry ModelGeometry;
