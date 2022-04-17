@@ -19,23 +19,28 @@ namespace EarthTool.MSH.Models.Elements
       get;
     }
 
-    public short UnknownValue1
+    public short NormalVectorIdx
     {
       get;
     }
 
-    public short UnknownValue2
+    public short PositionVectorIdx
     {
       get;
     }
 
-    public Vertex(IVector position, IVector normal, IUVMap uvMap, short u1, short u2)
+    public Vertex(IVector position, IVector normal, IUVMap uvMap, short normalVectorIdx, short positionVectorIdx)
     {
       Position = position;
       Normal = normal;
       UVMap = uvMap;
-      UnknownValue1 = u1;
-      UnknownValue2 = u2;
+      NormalVectorIdx = normalVectorIdx;
+      PositionVectorIdx = positionVectorIdx;
+    }
+
+    public bool Equals(IVertex other)
+    {
+      return Position.Equals(other.Position) && Normal.Equals(other.Normal) && UVMap.Equals(other.UVMap);
     }
   }
 }

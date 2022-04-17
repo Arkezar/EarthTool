@@ -79,8 +79,8 @@ namespace EarthTool.MSH.Models
                 blockVertices.ForEach(v => blockWriter.Write(v.UVMap.U));
                 blockVertices.ForEach(v => blockWriter.Write(1 - v.UVMap.V));
                 blockVertices.ForEach(_ => blockWriter.Write(0));
-                blockVertices.ForEach(v => blockWriter.Write(v.UnknownValue1));
-                blockVertices.ForEach(v => blockWriter.Write(v.UnknownValue2));
+                blockVertices.ForEach(v => blockWriter.Write(v.NormalVectorIdx));
+                blockVertices.ForEach(v => blockWriter.Write(v.PositionVectorIdx));
               }
               writer.Write(blockStream.ToArray());
             }

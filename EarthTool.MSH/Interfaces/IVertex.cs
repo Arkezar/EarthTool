@@ -1,11 +1,13 @@
-﻿namespace EarthTool.MSH.Interfaces
+﻿using System;
+
+namespace EarthTool.MSH.Interfaces
 {
-  public interface IVertex
+  public interface IVertex : IEquatable<IVertex>
   {
     IVector Normal { get; }
     IVector Position { get; }
     IUVMap UVMap { get; }
-    short UnknownValue1 { get; }
-    short UnknownValue2 { get; }
+    short NormalVectorIdx { get; }
+    short PositionVectorIdx { get; }
   }
 }

@@ -1,6 +1,8 @@
-﻿namespace EarthTool.MSH.Interfaces
+﻿using System;
+
+namespace EarthTool.MSH.Interfaces
 {
-  public interface IUVMap
+  public interface IUVMap : IEquatable<IUVMap>
   {
     float U { get; }
     float V { get; }

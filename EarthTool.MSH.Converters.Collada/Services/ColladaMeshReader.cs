@@ -5,13 +5,11 @@ using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using System.Text;
 using System.Xml.Serialization;
 
 namespace EarthTool.MSH.Converters.Collada.Services
@@ -51,7 +49,7 @@ namespace EarthTool.MSH.Converters.Collada.Services
       var modelTree = new ModelTree(model);
       var geometries = model.Library_Geometries.First().Geometry;
       var result = modelTree.Select(g => LoadGeometry(geometries.Single(n => n.Name == g.Node.Name), model, modelTree)).ToArray();
-      
+
       result.Last().UnknownBytes = new byte[5];
       result.Last().PartType = 0;
       result.First().PartType = 0;
@@ -99,9 +97,9 @@ namespace EarthTool.MSH.Converters.Collada.Services
       var normalSource = g.Mesh.Triangles.First().Input.Single(i => i.Semantic == "NORMAL").Source.Trim('#');
       var uvMapSource = g.Mesh.Triangles.First().Input.Single(i => i.Semantic == "TEXCOORD").Source.Trim('#');
 
-      var vertices = LoadVectors(g.Mesh.Source.Single(s => s.Id == vertexSource));
-      var normals = LoadVectors(g.Mesh.Source.Single(s => s.Id == normalSource));
-      var uvs = LoadUVs(g.Mesh.Source.Single(s => s.Id == uvMapSource));
+      var vertexVectors = LoadVectors(g.Mesh.Source.Single(s => s.Id == vertexSource)).ToArray();
+      var normalVector = LoadVectors(g.Mesh.Source.Single(s => s.Id == normalSource)).ToArray();
+      var uvs = LoadUVs(g.Mesh.Source.Single(s => s.Id == uvMapSource)).ToArray();
 
       var triangles = g.Mesh.Triangles.First();
       var faceValues = triangles.P.Split(' ').Select(v => int.Parse(v));
@@ -111,21 +109,52 @@ namespace EarthTool.MSH.Converters.Collada.Services
         .GroupBy(v => v.Group)
         .Select(x => x.Select(v => v.Face.ToArray()).ToArray()).ToArray();
 
-      var faceVertices = faces.Select((f, fi) => f.Select((x, i) => new { Id = 3 * fi + i, Vertex = new Models.Elements.Vertex(vertices[x[0]], normals[x[1]], uvs[x[2]], -1, -1) }));
-      var resultFaces = faceVertices.Select(f => new Models.Elements.Face()
+      var vertices = new List<Models.Elements.Vertex>();
+      foreach (var group in faces)
       {
-        V1 = (short)f.ElementAt(0).Id,
-        V2 = (short)f.ElementAt(1).Id,
-        V3 = (short)f.ElementAt(2).Id,
-        UNKNOWN = 3
-      });
-      var resultVertices = faceVertices.SelectMany(f => f).Select(v => v.Vertex);
-      return (resultFaces, resultVertices);
+        foreach (var face in group)
+        {
+          var position = vertexVectors[face[0]];
+          var normal = normalVector[face[1]];
+          var uv = uvs[face[2]];
+
+          var positionId = vertices.IndexOf(vertices.FirstOrDefault(v => v.Position.Equals(position)));
+          var normalId = vertices.IndexOf(vertices.FirstOrDefault(v => v.Normal.Equals(normal)));
+
+          if (!vertices.Any(v => v.Position.Equals(position) && v.Normal.Equals(normal) && v.UVMap.Equals(uv)))
+          {
+            vertices.Add(new Models.Elements.Vertex(position, normal, uv, (short)normalId, (short)positionId));
+          }
+        }
+      }
+
+      var resultFaces = faces.Select(f => GetFace(f, vertices, vertexVectors, normalVector, uvs)).ToArray();
+      return (resultFaces, vertices);
+    }
+
+    private Models.Elements.Face GetFace(int[][] f, IList<Models.Elements.Vertex> vertices, IVector[] vertexVectors, IVector[] normalVector, IUVMap[] uvs)
+    {
+      var v1 = vertices.Single(v => v.Position.Equals(vertexVectors[f[0][0]]) && v.Normal.Equals(normalVector[f[0][1]]) && v.UVMap.Equals(uvs[f[0][2]]));
+      var v2 = vertices.Single(v => v.Position.Equals(vertexVectors[f[1][0]]) && v.Normal.Equals(normalVector[f[1][1]]) && v.UVMap.Equals(uvs[f[1][2]]));
+      var v3 = vertices.Single(v => v.Position.Equals(vertexVectors[f[2][0]]) && v.Normal.Equals(normalVector[f[2][1]]) && v.UVMap.Equals(uvs[f[2][2]]));
+
+      return new Models.Elements.Face()
+      {
+        V1 = (short)vertices.IndexOf(v1),
+        V2 = (short)vertices.IndexOf(v2),
+        V3 = (short)vertices.IndexOf(v3),
+        UNKNOWN = 1 // must be greater than 0?
+      };
+    }
+
+    private bool CompareVertex(Models.Elements.Vertex v, IVector position, IVector normal, IUVMap uv)
+    {
+      return v.Position.Equals(position) && v.Normal.Equals(normal) && v.UVMap.Equals(uv);
     }
 
     private IUVMap[] LoadUVs(Source source)
     {
-      var values = source.Float_Array.Value.Split(' ').Select(v => float.Parse(v, CultureInfo.InvariantCulture));
+      var values = source.Float_Array.Value.Split(' ').Select(v => MathF.Round(float.Parse(v, CultureInfo.InvariantCulture), 3));
       var groupSizes = source.Technique_Common.Accessor.Param.Count;
       return values.Select((v, i) => new { Value = v, Group = i / groupSizes }).GroupBy(v => v.Group)
                    .Select(g => g.Select(v => v.Value))
@@ -134,7 +163,7 @@ namespace EarthTool.MSH.Converters.Collada.Services
 
     private IVector[] LoadVectors(Source source)
     {
-      var values = source.Float_Array.Value.Split(' ').Select(v => float.Parse(v, CultureInfo.InvariantCulture));
+      var values = source.Float_Array.Value.Split(' ').Select(v => MathF.Round(float.Parse(v, CultureInfo.InvariantCulture), 3));
       var groupSizes = source.Technique_Common.Accessor.Param.Count;
       return values.Select((v, i) => new { Value = v, Group = i / groupSizes }).GroupBy(v => v.Group)
                    .Select(g => g.Select(v => v.Value))

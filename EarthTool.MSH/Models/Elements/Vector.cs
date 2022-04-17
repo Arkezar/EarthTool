@@ -25,6 +25,11 @@ namespace EarthTool.MSH.Models.Elements
 
     public Vector3 Value { get; set; }
 
+    public bool Equals(IVector other)
+    {
+      return X == other.X && Y == other.Y && Z == other.Z;
+    }
+
     public virtual byte[] ToByteArray(Encoding encoding)
     {
       using (var stream = new MemoryStream())

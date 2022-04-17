@@ -24,5 +24,10 @@ namespace EarthTool.MSH.Models.Elements
       U = u;
       V = v;
     }
+
+    public bool Equals(IUVMap other)
+    {
+      return U == other.U && V == other.V;
+    }
   }
 }
