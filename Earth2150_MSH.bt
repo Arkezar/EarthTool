@@ -39,14 +39,15 @@ typedef struct {
     FSkip(-(sizeof(vertex)-4));
     Vertex vertex;
     byte EMPTY[16];
-    short UNKNOWN[8];
+    short NormalId[4] <bgcolor=0xFFAA00>;
+    short PositionId[4] <bgcolor=0xAAAA00>;
 } VertexBlock;
 
 typedef struct {
-    int VertexCount;
+    int VertexCount <bgcolor=0xFFAA00>;
     int VertexBlocks;        
     VertexBlock vertexBlocks[VertexBlocks];
-} VertexList <bgcolor=0xAAAA00>;
+} VertexList;
 
 typedef struct {
     int filenameLength;
