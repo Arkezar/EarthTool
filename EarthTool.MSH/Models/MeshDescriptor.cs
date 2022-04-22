@@ -8,7 +8,7 @@ namespace EarthTool.MSH.Models
 {
   public class MeshDescriptor : IMeshDescriptor
   {
-    public int Type { get; set; }
+    public int MeshType { get; set; }
 
     public IModelTemplate Template { get; set; }
 
@@ -28,7 +28,7 @@ namespace EarthTool.MSH.Models
 
     public IMeshBoundries Boundries { get; set; }
 
-    public int UnknownValue2 { get; set; }
+    public PartType MeshSubType { get; set; }
 
     public byte[] ToByteArray(Encoding encoding)
     {
@@ -36,7 +36,7 @@ namespace EarthTool.MSH.Models
       {
         using (var bw = new BinaryWriter(output, encoding))
         {
-          bw.Write(Type);
+          bw.Write(MeshType);
           bw.Write(Template.ToByteArray(encoding));
           bw.Write(Frames.ToByteArray(encoding));
           bw.Write(UnknownValue1);
@@ -46,7 +46,7 @@ namespace EarthTool.MSH.Models
           bw.Write(TemplateDetails.ToByteArray(encoding));
           bw.Write(Slots.ToByteArray(encoding));
           bw.Write(Boundries.ToByteArray(encoding));
-          bw.Write(UnknownValue2);
+          bw.Write((int)MeshSubType);
         }
         return output.ToArray();
       }

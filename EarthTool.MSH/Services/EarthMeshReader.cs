@@ -41,7 +41,7 @@ namespace EarthTool.MSH.Services
             IsValidModel(reader);
             mesh.Descriptor = LoadMeshDescriptor(reader);
 
-            if (mesh.Descriptor.Type != 0)
+            if (mesh.Descriptor.MeshType != 0)
             {
               throw new NotSupportedException("Not supported mesh format");
             }
@@ -60,7 +60,7 @@ namespace EarthTool.MSH.Services
     private IMeshDescriptor LoadMeshDescriptor(BinaryReader reader)
       => new MeshDescriptor
       {
-        Type = reader.ReadInt32(),
+        MeshType = reader.ReadInt32(),
         Template = LoadModelTemplate(reader),
         Frames = LoadMeshFrames(reader),
         UnknownValue1 = reader.ReadInt32(),
@@ -70,7 +70,7 @@ namespace EarthTool.MSH.Services
         TemplateDetails = LoadTemplateDetails(reader),
         Slots = LoadModelSlots(reader),
         Boundries = LoadMeshBoundries(reader),
-        UnknownValue2 = BitConverter.ToInt32(reader.ReadBytes(4))
+        MeshSubType = (PartType)BitConverter.ToInt32(reader.ReadBytes(4))
       };
 
     private IModelSlots LoadModelSlots(BinaryReader reader)
@@ -101,8 +101,9 @@ namespace EarthTool.MSH.Services
       var x = reader.ReadInt16() / 255f;
       var y = -reader.ReadInt16() / 255f;
       var z = reader.ReadInt16() / 255f;
-      var result = new Slot(id)
+      var result = new Slot()
       {
+        Id = id,
         Position = new Vector(x, y, z),
         Direction = reader.ReadByte() / 255.0 * Math.PI * 2.0,
         Flag = reader.ReadByte()
@@ -260,7 +261,7 @@ namespace EarthTool.MSH.Services
     {
       var result = new ModelPart();
       result.Vertices = LoadVertices(reader);
-      result.Depth = reader.ReadByte();
+      result.BackTrackDepth = reader.ReadByte();
       result.PartType = reader.ReadByte();
       result.UnknownFlag2 = reader.ReadInt16();
       result.Texture = LoadTextureInfo(reader);
@@ -268,7 +269,8 @@ namespace EarthTool.MSH.Services
       result.Animations = LoadAnimations(reader);
       result.UnknownValue = reader.ReadInt32();
       result.Offset = LoadVector(reader);
-      result.UnknownBytes = reader.ReadBytes(5);
+      result.RiseAngle = reader.ReadByte() / byte.MaxValue * 360;
+      result.UnknownBytes = reader.ReadBytes(4);
       return result;
     }
 
@@ -367,7 +369,7 @@ namespace EarthTool.MSH.Services
       var lastNode = root;
       foreach (var part in parts.Skip(1))
       {
-        var skip = part.Depth;
+        var skip = part.BackTrackDepth;
         var parent = lastNode;
         for (var i = 0; i < skip; i++)
         {

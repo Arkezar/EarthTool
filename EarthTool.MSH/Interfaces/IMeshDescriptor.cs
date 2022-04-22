@@ -14,8 +14,8 @@ namespace EarthTool.MSH.Interfaces
     IModelSlots Slots { get; }
     ITemplateDetails TemplateDetails { get; }
     IMeshBoundries Boundries { get; }
-    int Type { get; }
+    int MeshType { get; }
     int UnknownValue1 { get; }
-    int UnknownValue2 { get; }
+    PartType MeshSubType { get; }
   }
 }

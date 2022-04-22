@@ -12,7 +12,7 @@ namespace EarthTool.MSH.Models
   {
     public IEnumerable<IVertex> Vertices { get; set; }
 
-    public byte Depth { get; set; }
+    public byte BackTrackDepth { get; set; }
 
     public byte PartType { get; set; }
 
@@ -30,6 +30,8 @@ namespace EarthTool.MSH.Models
 
     public byte[] UnknownBytes { get; set; }
 
+    public double RiseAngle { get; set; }
+
     public byte[] ToByteArray(Encoding encoding)
     {
       using (var stream = new MemoryStream())
@@ -37,7 +39,7 @@ namespace EarthTool.MSH.Models
         using (var writer = new BinaryWriter(stream))
         {
           writer.Write(GetVertexBytes());
-          writer.Write(Depth);
+          writer.Write(BackTrackDepth);
           writer.Write(PartType);
           writer.Write(UnknownFlag2);
           writer.Write(Texture.ToByteArray(encoding));
@@ -46,10 +48,16 @@ namespace EarthTool.MSH.Models
           writer.Write(Animations.ToByteArray(encoding));
           writer.Write(UnknownValue);
           writer.Write(Offset.ToByteArray(encoding));
+          writer.Write(GetRiseAngle());
           writer.Write(UnknownBytes);
         }
         return stream.ToArray();
       }
+    }
+
+    private byte GetRiseAngle()
+    {
+      return (byte)(RiseAngle * (byte.MaxValue / 360));
     }
 
     private byte[] GetVertexBytes()
