@@ -11,7 +11,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
 {
   public class AnimationsFactory
   {
-    const float FRAMERATE = 24f;
+    const float FRAMERATE = 23.976f;
 
     public IEnumerable<Animation> GetAnimations(IEnumerable<IModelPart> parts, string modelName)
     {
@@ -123,18 +123,11 @@ namespace EarthTool.MSH.Converters.Collada.Elements
 
       for (var i = 0; i < transforms.Count(); i++)
       {
-        if (part.Animations.MovementFrames.Count() == transforms.Length)
-        {
-          transforms[i].M14 = part.Animations.MovementFrames.ElementAt(i).X;
-          transforms[i].M24 = part.Animations.MovementFrames.ElementAt(i).Y;
-          transforms[i].M34 = part.Animations.MovementFrames.ElementAt(i).Z;
-        }
-        else if (part.Animations.MovementFrames.Count() == 0)
-        {
-          transforms[i].M14 = part.Offset.X;
-          transforms[i].M24 = part.Offset.Y;
-          transforms[i].M34 = part.Offset.Z;
-        }
+        Matrix4x4.Decompose(transforms[i], out _, out var rotation, out _);
+        rotation.Y = -rotation.Y;
+        var matrix = Matrix4x4.CreateFromQuaternion(rotation);
+        var translationMatrix = Matrix4x4.CreateTranslation(part.Animations.MovementFrames.ElementAtOrDefault(i)?.Value ?? part.Offset.Value);
+        transforms[i] = matrix * translationMatrix;
       }
 
       return string.Join(" ", transforms.Select(t => MatrixToString(t)));
@@ -142,15 +135,10 @@ namespace EarthTool.MSH.Converters.Collada.Elements
 
     private string MatrixToString(Matrix4x4 transformMatrix)
     {
-      return string.Format(CultureInfo.InvariantCulture, "{0} {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11} {12} {13} {14} {15}", transformMatrix.M11, transformMatrix.M12, transformMatrix.M13, transformMatrix.M14,
-                                                                                                                                  transformMatrix.M21, transformMatrix.M22, transformMatrix.M23, transformMatrix.M24,
-                                                                                                                                  transformMatrix.M31, transformMatrix.M32, transformMatrix.M33, transformMatrix.M34,
-                                                                                                                                  transformMatrix.M41, transformMatrix.M42, transformMatrix.M43, transformMatrix.M44);
-
       return string.Format(CultureInfo.InvariantCulture, "{0} {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11} {12} {13} {14} {15}", transformMatrix.M11, transformMatrix.M21, transformMatrix.M31, transformMatrix.M41,
-                                                                                                                            transformMatrix.M12, transformMatrix.M22, transformMatrix.M32, transformMatrix.M42,
-                                                                                                                            transformMatrix.M13, transformMatrix.M23, transformMatrix.M33, transformMatrix.M43,
-                                                                                                                            transformMatrix.M14, transformMatrix.M24, transformMatrix.M34, transformMatrix.M44);
+                                                                                                                                  transformMatrix.M12, transformMatrix.M22, transformMatrix.M32, transformMatrix.M42,
+                                                                                                                                  transformMatrix.M13, transformMatrix.M23, transformMatrix.M33, transformMatrix.M43,
+                                                                                                                                  transformMatrix.M14, transformMatrix.M24, transformMatrix.M34, transformMatrix.M44);
     }
 
     private Source GetInterpolationSource(string id, int count)
@@ -198,7 +186,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       {
         Id = $"{source.Id}-array",
         Count = (ulong)count,
-        Value = string.Join(" ", Enumerable.Range(0, count).Select(i => (i / FRAMERATE).ToString(CultureInfo.InvariantCulture)))
+        Value = string.Join(" ", Enumerable.Range(1, count).Select(i => (i / FRAMERATE).ToString(CultureInfo.InvariantCulture)))
       };
 
       var accessor = new Accessor
