@@ -60,17 +60,17 @@ namespace EarthTool.MSH.Services
     private IMeshDescriptor LoadMeshDescriptor(BinaryReader reader)
       => new MeshDescriptor
       {
-        MeshType = reader.ReadInt32(),
+        MeshType = (MeshType)reader.ReadInt32(),
         Template = LoadModelTemplate(reader),
         Frames = LoadMeshFrames(reader),
-        UnknownValue1 = reader.ReadInt32(),
+        Empty = reader.ReadInt32(),
         MountPoints = LoadSlotList(reader, 4, (reader, _) => LoadVector(reader)),
         SpotLights = LoadSlotList(reader, 4, (reader, _) => LoadSpotLight(reader)),
         OmniLights = LoadSlotList(reader, 4, (reader, _) => LoadOmniLight(reader)),
         TemplateDetails = LoadTemplateDetails(reader),
         Slots = LoadModelSlots(reader),
         Boundries = LoadMeshBoundries(reader),
-        MeshSubType = (PartType)BitConverter.ToInt32(reader.ReadBytes(4))
+        MeshSubType = reader.ReadInt32()
       };
 
     private IModelSlots LoadModelSlots(BinaryReader reader)
@@ -288,20 +288,20 @@ namespace EarthTool.MSH.Services
         TransformationMatrix = new System.Numerics.Matrix4x4()
         {
           M11 = reader.ReadSingle(),
-          M12 = -reader.ReadSingle(),
-          M13 = -reader.ReadSingle(),
-          M14 = reader.ReadSingle(),
-          M21 = -reader.ReadSingle(),
-          M22 = reader.ReadSingle(),
-          M23 = -reader.ReadSingle(),
-          M24 = reader.ReadSingle(),
-          M31 = -reader.ReadSingle(),
-          M32 = -reader.ReadSingle(),
-          M33 = reader.ReadSingle(),
-          M34 = reader.ReadSingle(),
+          M21 = reader.ReadSingle(),
+          M31 = reader.ReadSingle(),
           M41 = reader.ReadSingle(),
+          M12 = reader.ReadSingle(),
+          M22 = reader.ReadSingle(),
+          M32 = reader.ReadSingle(),
           M42 = reader.ReadSingle(),
+          M13 = reader.ReadSingle(),
+          M23 = reader.ReadSingle(),
+          M33 = reader.ReadSingle(),
           M43 = reader.ReadSingle(),
+          M14 = reader.ReadSingle(),
+          M24 = reader.ReadSingle(),
+          M34 = reader.ReadSingle(),
           M44 = reader.ReadSingle()
         }
       };

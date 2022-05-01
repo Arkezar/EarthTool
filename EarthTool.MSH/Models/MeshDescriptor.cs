@@ -8,13 +8,13 @@ namespace EarthTool.MSH.Models
 {
   public class MeshDescriptor : IMeshDescriptor
   {
-    public int MeshType { get; set; }
+    public MeshType MeshType { get; set; }
 
     public IModelTemplate Template { get; set; }
 
     public IMeshFrames Frames { get; set; }
 
-    public int UnknownValue1 { get; set; }
+    public int Empty { get; set; }
 
     public IEnumerable<IVector> MountPoints { get; set; }
 
@@ -28,7 +28,31 @@ namespace EarthTool.MSH.Models
 
     public IMeshBoundries Boundries { get; set; }
 
-    public PartType MeshSubType { get; set; }
+    public int MeshSubType { get; set; }
+
+    public MeshSubType? RegularMeshSubType
+    {
+      get => MeshType == MeshType.Regular ? (MeshSubType?)MeshSubType : null;
+      set
+      {
+        if (MeshType == MeshType.Regular)
+        {
+          MeshSubType = value.HasValue ? (int)value.Value : 0;
+        }
+      }
+    }
+
+    public DynamicMeshSubType? DynamicMeshSubType
+    {
+      get => MeshType == MeshType.Dynamic ? (DynamicMeshSubType?)MeshSubType : null;
+      set
+      {
+        if (MeshType == MeshType.Dynamic)
+        {
+          MeshSubType = value.HasValue ? (int)value.Value : 0;
+        }
+      }
+    }
 
     public byte[] ToByteArray(Encoding encoding)
     {
@@ -36,17 +60,17 @@ namespace EarthTool.MSH.Models
       {
         using (var bw = new BinaryWriter(output, encoding))
         {
-          bw.Write(MeshType);
+          bw.Write((int)MeshType);
           bw.Write(Template.ToByteArray(encoding));
           bw.Write(Frames.ToByteArray(encoding));
-          bw.Write(UnknownValue1);
+          bw.Write(Empty);
           bw.Write(MountPoints.SelectMany(x => x.ToByteArray(encoding)).ToArray());
           bw.Write(SpotLights.SelectMany(x => x.ToByteArray(encoding)).ToArray());
           bw.Write(OmniLights.SelectMany(x => x.ToByteArray(encoding)).ToArray());
           bw.Write(TemplateDetails.ToByteArray(encoding));
           bw.Write(Slots.ToByteArray(encoding));
           bw.Write(Boundries.ToByteArray(encoding));
-          bw.Write((int)MeshSubType);
+          bw.Write((int)DynamicMeshSubType);
         }
         return output.ToArray();
       }

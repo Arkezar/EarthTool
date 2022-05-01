@@ -34,7 +34,7 @@ namespace EarthTool.MSH.Converters.Collada.Services
       var modelName = model.Library_Visual_Scenes.First().Visual_Scene.First().Node.First().Id;
       var earthInfo = _earthInfoFactory.Get(modelName, Common.Enums.FileFlags.None, Guid.NewGuid());
       var geometries = LoadGeometries(model);
-      var descriptor = LoadDescriptor(model);
+      var descriptor = LoadDescriptor(model, geometries);
 
       return new EarthMesh()
       {
@@ -50,7 +50,7 @@ namespace EarthTool.MSH.Converters.Collada.Services
       var geometries = model.Library_Geometries.First().Geometry;
       var result = modelTree.Select(g => LoadGeometry(geometries.Single(n => n.Name == g.Node.Name), model, modelTree)).ToArray();
 
-      result.Last().UnknownBytes = new byte[5];
+      result.Last().UnknownBytes = new byte[4];
       result.Last().PartType = 0;
       result.First().PartType = 0;
 
@@ -67,23 +67,33 @@ namespace EarthTool.MSH.Converters.Collada.Services
         Faces = facesAndVertices.Faces,
         Vertices = facesAndVertices.Vertices,
         Animations = LoadAnimations(g, model),
-        Texture = LoadTexture(g, model),
-        UnknownBytes = new byte[] { 0, 0, 0, 120, 0 },
+        Texture = LoadTexture(model, modelTree, g.Name),
+        UnknownBytes = new byte[] { 0, 0, 120, 0 },
         Offset = offsetAndDepth.Vector,
-        Depth = (byte)offsetAndDepth.BacktrackLevel,
+        BackTrackDepth = (byte)offsetAndDepth.BacktrackLevel,
         PartType = 8
       };
     }
 
     private (IVector Vector, int BacktrackLevel) LoadOffsetAndDepth(ModelTree model, string id)
     {
-      var node = model.Single(n => n.Node.Id == id);
+      var node = model.Single(n => n.Node.Id == id.Replace(".", "_"));
       return (GetVector(node.Node), node.BacktrackLevel);
     }
 
-    private ITextureInfo LoadTexture(Geometry g, COLLADA model)
+    private ITextureInfo LoadTexture(COLLADA model, ModelTree modelTree, string id)
     {
-      return new Models.Elements.TextureInfo() { FileName = "Textures\\UCSUML.tex" };
+      var node = modelTree.Single(n => n.Node.Id == id.Replace(".", "_"));
+      var materialId = node.Node.Instance_Geometry.First().Bind_Material.Technique_Common.First().Symbol;
+      var material = model.Library_Materials.First().Material.Single(m => m.Id == materialId);
+      var effectId = material.Instance_Effect.Url.Substring(1);
+      var effect = model.Library_Effects.First().Effect.Single(e => e.Id == effectId);
+      var eefectProfile = effect.Fx_Profile_Abstract.OfType<Profile_COMMON>().First();
+      var diffuseTextureId = eefectProfile.Technique.Lambert.Diffuse.Texture.Texture;
+      var samplerSourceId = eefectProfile.Newparam.Single(p => p.Sid == diffuseTextureId).Sampler2D.Source;
+      var sourceId = eefectProfile.Newparam.Single(p => p.Sid == samplerSourceId).Surface.Init_From.First().Value;
+      var texture = model.Library_Images.First().Image.Single(i => i.Id == sourceId).Init_From;
+      return new Models.Elements.TextureInfo() { FileName = Path.Combine("Textures", Path.ChangeExtension(texture, "tex")) };
     }
 
     private IAnimations LoadAnimations(Geometry g, COLLADA model)
@@ -147,14 +157,9 @@ namespace EarthTool.MSH.Converters.Collada.Services
       };
     }
 
-    private bool CompareVertex(Models.Elements.Vertex v, IVector position, IVector normal, IUVMap uv)
-    {
-      return v.Position.Equals(position) && v.Normal.Equals(normal) && v.UVMap.Equals(uv);
-    }
-
     private IUVMap[] LoadUVs(Source source)
     {
-      var values = source.Float_Array.Value.Split(' ').Select(v => MathF.Round(float.Parse(v, CultureInfo.InvariantCulture), 3));
+      var values = source.Float_Array.Value.Split(' ').Select(v => float.Parse(v, CultureInfo.InvariantCulture));
       var groupSizes = source.Technique_Common.Accessor.Param.Count;
       return values.Select((v, i) => new { Value = v, Group = i / groupSizes }).GroupBy(v => v.Group)
                    .Select(g => g.Select(v => v.Value))
@@ -163,26 +168,25 @@ namespace EarthTool.MSH.Converters.Collada.Services
 
     private IVector[] LoadVectors(Source source)
     {
-      var values = source.Float_Array.Value.Split(' ').Select(v => MathF.Round(float.Parse(v, CultureInfo.InvariantCulture), 3));
+      var values = source.Float_Array.Value.Split(' ').Select(v => float.Parse(v, CultureInfo.InvariantCulture));
       var groupSizes = source.Technique_Common.Accessor.Param.Count;
       return values.Select((v, i) => new { Value = v, Group = i / groupSizes }).GroupBy(v => v.Group)
                    .Select(g => g.Select(v => v.Value))
                    .Select(v => new Models.Elements.Vector(v.ElementAt(0), v.ElementAt(1), v.ElementAt(2))).ToArray();
     }
 
-    private IMeshDescriptor LoadDescriptor(COLLADA model)
+    private IMeshDescriptor LoadDescriptor(COLLADA model, IEnumerable<IModelPart> geometries)
     {
       return new MeshDescriptor()
       {
-        Type = 0,
-        UnknownValue1 = 0,
-        UnknownValue2 = 1, // required for unit models!!!
+        MeshType = MeshType.Regular, // dynamic not supported yet
+        RegularMeshSubType = MeshSubType.Unit,
         Frames = LoadFrames(model),
         SpotLights = LoadSpotLights(model),
         OmniLights = LoadOmniLights(model),
         MountPoints = LoadMountPoints(model),
         Slots = LoadSlots(model),
-        Boundries = LoadBoundries(model),
+        Boundries = LoadBoundries(model, geometries),
         Template = LoadTemplate(model),
         TemplateDetails = LoadTemplateDetails(model)
       };
@@ -198,9 +202,21 @@ namespace EarthTool.MSH.Converters.Collada.Services
       return new Models.Elements.ModelTemplate();
     }
 
-    private IMeshBoundries LoadBoundries(COLLADA model)
+    private IMeshBoundries LoadBoundries(COLLADA model, IEnumerable<IModelPart> geometries)
     {
-      return new MeshBoundries();
+      var Xs = geometries.SelectMany(g => g.Vertices.Select(v => v.Position.X));
+      var maxX = MathF.Abs(Xs.Max() * byte.MaxValue);
+      var minX = MathF.Abs(Xs.Min() * byte.MaxValue);
+      var Ys = geometries.SelectMany(g => g.Vertices.Select(v => v.Position.Y));
+      var maxY = MathF.Abs(Ys.Max() * byte.MaxValue);
+      var minY = MathF.Abs(Ys.Min() * byte.MaxValue);
+      return new MeshBoundries()
+      {
+        MaxX = (short)maxX,
+        MinX = (short)minX,
+        MaxY = (short)maxY,
+        MinY = (short)minY
+      };
     }
 
     private IModelSlots LoadSlots(COLLADA model)
@@ -247,7 +263,7 @@ namespace EarthTool.MSH.Converters.Collada.Services
       var slots = model.Library_Lights.SelectMany(ll => ll.Light.Where(l => l.Technique_Common.Directional != null && l.Name.StartsWith($"{slotName}-"))).ToLookup(l => l.Name);
       var slotsPosition = model.Library_Visual_Scenes.SelectMany(lvs => lvs.Visual_Scene.SelectMany(vs => vs.Node.SelectMany(n => n.NodeProperty.First().NodeProperty.Where(np => slots.Contains(np.Name)))));
       var meshSlots = slotsPosition.Select((n, i) => GetSlot(n, i));
-      return Fill(meshSlots, count, () => new Models.Elements.Slot() { Position = new Models.Elements.Vector(), Id = 0 });
+      return Fill(meshSlots, count, () => new Models.Elements.Slot());
     }
 
     private Models.Elements.Slot GetSlot(Node n, int i)
@@ -260,7 +276,7 @@ namespace EarthTool.MSH.Converters.Collada.Services
       {
         Position = GetVector(n),
         Direction = direction,
-        Flag = 0,
+        Flag = 128,
         Id = i
       };
     }
@@ -290,17 +306,17 @@ namespace EarthTool.MSH.Converters.Collada.Services
 
     private IEnumerable<ISpotLight> LoadSpotLights(COLLADA model)
     {
-      var spotlights = model.Library_Lights.SelectMany(ll => ll.Light.Where(l => l.Technique_Common.Spot != null)).ToLookup(l => l.Name);
-      var spotlightsPosition = model.Library_Visual_Scenes.SelectMany(lvs => lvs.Visual_Scene.SelectMany(vs => vs.Node.SelectMany(n => n.NodeProperty.First().NodeProperty.Where(np => spotlights.Contains(np.Name)))));
-      var meshSpotlights = spotlights.GroupJoin(spotlightsPosition, l => l.Key, p => p.Name, (l, p) => GetSpotLight(l.First(), p.First())).ToArray();
+      var spotlights = model.Library_Lights.SelectMany(ll => ll.Light.Where(l => l.Technique_Common.Spot != null)).ToLookup(l => $"#{l.Id}");
+      var spotlightsPosition = model.Library_Visual_Scenes.SelectMany(lvs => lvs.Visual_Scene.SelectMany(vs => vs.Node.SelectMany(n => n.NodeProperty.First().NodeProperty.Where(np => spotlights.Contains(np.Instance_Light.FirstOrDefault()?.Url)))));
+      var meshSpotlights = spotlights.GroupJoin(spotlightsPosition, l => l.Key, p => p.Instance_Light.First()?.Url, (l, p) => GetSpotLight(l.First(), p.First())).ToArray();
       return Fill(meshSpotlights, 4);
     }
 
     private IEnumerable<IOmniLight> LoadOmniLights(COLLADA model)
     {
-      var omnilights = model.Library_Lights.SelectMany(ll => ll.Light.Where(l => l.Technique_Common.Point != null)).ToLookup(l => l.Name);
-      var omnilightsPosition = model.Library_Visual_Scenes.SelectMany(lvs => lvs.Visual_Scene.SelectMany(vs => vs.Node.SelectMany(n => n.NodeProperty.First().NodeProperty.Where(np => omnilights.Contains(np.Name)))));
-      var meshOmnilights = omnilights.GroupJoin(omnilightsPosition, l => l.Key, p => p.Name, (l, p) => GetOmniLight(l.First(), p.First())).ToArray();
+      var omnilights = model.Library_Lights.SelectMany(ll => ll.Light.Where(l => l.Technique_Common.Point != null)).ToLookup(l => $"#{l.Id}");
+      var omnilightsPosition = model.Library_Visual_Scenes.SelectMany(lvs => lvs.Visual_Scene.SelectMany(vs => vs.Node.SelectMany(n => n.NodeProperty.First().NodeProperty.Where(np => omnilights.Contains(np.Instance_Light.FirstOrDefault()?.Url)))));
+      var meshOmnilights = omnilights.GroupJoin(omnilightsPosition, l => l.Key, p => p.Instance_Light.First()?.Url, (l, p) => GetOmniLight(l.First(), p.First())).ToArray();
       return Fill(meshOmnilights, 4);
     }
 
