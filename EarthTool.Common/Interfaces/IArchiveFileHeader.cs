@@ -18,5 +18,7 @@ namespace EarthTool.Common.Interfaces
     void SetOffset(int offset);
     ReadOnlySpan<byte> GetData(Stream stream);
     byte[] ToByteArray();
+
+    IEarthInfo ToEarthInfo();
   }
 }

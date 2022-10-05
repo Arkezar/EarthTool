@@ -1,9 +1,8 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.Common.Interfaces;
-using EarthTool.WD.Resources;
+﻿using EarthTool.Common.Interfaces;
 using Microsoft.Extensions.Logging;
-using System;
 using System.IO;
+using System.Linq;
+using System.Text;
 
 namespace EarthTool.WD.Services
 {
@@ -11,13 +10,14 @@ namespace EarthTool.WD.Services
   {
     private readonly ILogger<ArchiverService> _logger;
     private readonly IArchiveFactory _archiveFactory;
-
+    private readonly Encoding _encoding;
     private IArchive _archive;
 
-    public ArchiverService(ILogger<ArchiverService> logger, IArchiveFactory archiveFactory)
+    public ArchiverService(ILogger<ArchiverService> logger, IArchiveFactory archiveFactory, Encoding encoding)
     {
       _logger = logger;
       _archiveFactory = archiveFactory;
+      _encoding = encoding;
     }
 
     public IArchive OpenArchive(string filePath)
@@ -32,7 +32,13 @@ namespace EarthTool.WD.Services
         Directory.CreateDirectory(Path.GetDirectoryName(outputFilePath));
       }
 
-      File.WriteAllBytes(outputFilePath, _archive.ExtractResource(resource));
+      var fileHeader = resource.ToEarthInfo();
+      var data = _archive.ExtractResource(resource);
+
+      var outputData = fileHeader?.ToByteArray(_encoding) ?? new byte[0];
+      outputData = outputData.Concat(data).ToArray();
+
+      File.WriteAllBytes(outputFilePath, outputData);
     }
 
     public void ExtractAll(string outputPath)
@@ -41,14 +47,8 @@ namespace EarthTool.WD.Services
       {
         var outputFilePath = Path.Combine(outputPath, resource.FileName).Replace('\\', Path.DirectorySeparatorChar);
 
-        var outputFolderPath = Path.GetDirectoryName(outputFilePath);
+        Extract(resource, outputFilePath);
 
-        if (!Directory.Exists(outputFolderPath))
-        {
-          Directory.CreateDirectory(outputFolderPath);
-        }
-
-        File.WriteAllBytes(outputFilePath, _archive.ExtractResource(resource));
         _logger.LogInformation("Extracted file {FileName}", resource.FileName);
       }
     }

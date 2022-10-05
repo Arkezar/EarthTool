@@ -1,6 +1,7 @@
 ﻿using EarthTool.Common.Enums;
 using EarthTool.Common.Extensions;
 using EarthTool.Common.Interfaces;
+using EarthTool.Common.Models;
 using System;
 using System.IO;
 using System.Linq;
@@ -92,6 +93,24 @@ namespace EarthTool.WD.Resources
       var data = new byte[Length];
       stream.Read(data);
       return data;
+    }
+
+    public IEarthInfo ToEarthInfo()
+    {
+      if (!string.IsNullOrEmpty(TranslationId) || Guid.HasValue || ResourceType.HasValue)
+      {
+        return new EarthInfo
+        {
+          TranslationId = TranslationId,
+          Flags = Flags,
+          Guid = Guid,
+          ResourceType = ResourceType,
+          FilePath = FileName
+        };
+      } else
+      {
+        return default;
+      }
     }
 
     public override string ToString()
