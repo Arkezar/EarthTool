@@ -15,7 +15,7 @@ namespace EarthTool.PAR
     private readonly IPARConverter _converter;
     private readonly ILogger<PARCommand> _logger;
 
-    public PARCommand(IPARConverter converter, ILogger<PARCommand> logger) : base("par", "Convert PAR files to ?")
+    public PARCommand(IPARConverter converter, ILogger<PARCommand> logger) : base("par", "Convert PAR files to ? (placeholder)")
     {
       _converter = converter;
       _logger = logger;
