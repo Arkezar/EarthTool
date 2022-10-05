@@ -42,7 +42,9 @@ namespace EarthTool.MSH.Converters.Collada
       {
         case ModelType.DAE:
           WriteColladaModel(model, modelName, outputFileName);
+#if DEBUG
           WriteMeshModel(model, Path.ChangeExtension(outputFileName, "msh1"));
+#endif
           break;
         case ModelType.MSH:
           WriteMeshModel(model, outputFileName);
