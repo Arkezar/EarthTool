@@ -26,7 +26,7 @@ artifacts:
 deploy:
 - provider: GitHub
   auth_token:
-    secure: BDrrFHgUvkpvVdKX++HlAGBO84VNVhbXN2ZmBrDt9/4r7wlkctJBav5FS5zDXjvy
+    secure: 2QwSqffNXBhHbJee5CMv7wRikClYOQK6CLUlWM/s5Ck5tFTLBdoV9kZuHZjYD+9G
   artifact: deploy
   on:
     branch: master
