@@ -5,9 +5,9 @@ Simple tool for extraction of Earth 2150 data files
 Supports WD unpacking, convertion of TEX to PNG and limited support for MSH models.
 
 ## Usage
-Application requires .NET Runtime 5.0.
+Application requires [.NET Runtime 6.0 x64](https://dotnet.microsoft.com/en-us/download/dotnet/6.0/runtime).
 
-Download current release and run `EarthTool.exe --help` for available options.
+Download current release and run `EarthTool.CLI.exe --help` for available options.
 
 Or build it yourself.
 

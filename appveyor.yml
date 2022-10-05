@@ -1,5 +1,5 @@
 image: Visual Studio 2019
-version: 0.0.{build}
+version: 0.1.{build}
 branches:
   only:
   - master
@@ -20,7 +20,6 @@ build:
   verbosity: minimal
 after_build:
 - cmd:  dotnet publish EarthTool.CLI -c Release -p:PublishSingleFile=true -r win-x64 --output %appveyor_build_folder%\dist
-- cmd:  dotnet publish EarthTool.GUI.WPF -c Release -p:PublishSingleFile=true -r win-x64 --output %appveyor_build_folder%\dist
 artifacts:
 - path: dist\EarthTool.*.exe
   name: deploy
