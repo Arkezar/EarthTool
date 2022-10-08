@@ -16,7 +16,8 @@ namespace EarthTool.MSH.Models.Elements
 
     public UVMap()
     {
-      
+      U = 0;
+      V = 1;
     }
 
     public UVMap(float u, float v)
