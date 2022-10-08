@@ -6,6 +6,7 @@ using EarthTool.MSH.Models;
 using EarthTool.MSH.Services;
 using Microsoft.Extensions.Logging;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 
@@ -15,11 +16,14 @@ namespace EarthTool.MSH.Converters.Collada
   {
     private readonly ModelFactory _modelFactory;
     private readonly EarthMeshWriter _earthMeshWriter;
+    private readonly ILogger<MSHColladaConverter> _logger;
 
-    public MSHColladaConverter(ModelFactory modelFactory, EarthMeshWriter earthMeshWriter, ILogger<MSHColladaConverter> logger) : base(logger)
+    public MSHColladaConverter(ModelFactory modelFactory, EarthMeshWriter earthMeshWriter,
+      ILogger<MSHColladaConverter> logger) : base(logger)
     {
       _modelFactory = modelFactory;
       _earthMeshWriter = earthMeshWriter;
+      _logger = logger;
     }
 
     public override Task InternalConvert(ModelType outputModelType, IMesh model, string outputPath = null)
@@ -36,6 +40,7 @@ namespace EarthTool.MSH.Converters.Collada
       {
         Directory.CreateDirectory(outputPath);
       }
+
       var outputFileName = GetOutputFileName(outputPath, modelName, outputModelType);
 
       switch (outputModelType)
@@ -59,6 +64,12 @@ namespace EarthTool.MSH.Converters.Collada
       using (var stream = new FileStream(outputFile, FileMode.Create))
       {
         serializer.Serialize(stream, colladaModel);
+      }
+
+      foreach (var imageFile in colladaModel.Library_Images.SelectMany(l => l.Image.Select(i => i.Init_From))
+                 .Distinct())
+      {
+        _logger.LogInformation("Mesh uses texture: {Texture}", Path.ChangeExtension(imageFile, "tex"));
       }
     }
 
