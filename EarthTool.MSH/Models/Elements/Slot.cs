@@ -16,7 +16,7 @@ namespace EarthTool.MSH.Models.Elements
     public byte Flag { get; set; }
 
     public bool IsValid
-      => Position.X != -128 && Position.Y != -128 && Position.Z != -128;
+      => Flag == 128;
 
     public Slot()
     {
