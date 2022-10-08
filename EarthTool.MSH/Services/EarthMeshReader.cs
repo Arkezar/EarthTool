@@ -64,36 +64,36 @@ namespace EarthTool.MSH.Services
         Template = LoadModelTemplate(reader),
         Frames = LoadMeshFrames(reader),
         Empty = reader.ReadInt32(),
-        MountPoints = LoadSlotList(reader, 4, (reader, _) => LoadVector(reader)),
-        SpotLights = LoadSlotList(reader, 4, (reader, _) => LoadSpotLight(reader)),
-        OmniLights = LoadSlotList(reader, 4, (reader, _) => LoadOmniLight(reader)),
+        MountPoints = LoadSlotList(reader, 4, (r, _) => LoadVector(r)),
+        SpotLights = LoadSlotList(reader, 4, (r, _) => LoadSpotLight(r)),
+        OmnidirectionalLights = LoadSlotList(reader, 4, (r, _) => LoadOmniLight(r)),
         TemplateDetails = LoadTemplateDetails(reader),
         Slots = LoadModelSlots(reader),
-        Boundries = LoadMeshBoundries(reader),
+        Boundaries = LoadMeshBoundaries(reader),
         MeshSubType = reader.ReadInt32()
       };
 
     private IModelSlots LoadModelSlots(BinaryReader reader)
       => new ModelSlots()
       {
-        Turrets = LoadSlotList(reader, 4, (reader, i) => LoadSlot(reader, i)),
-        BarrelMuzzels = LoadSlotList(reader, 4, (reader, i) => LoadSlot(reader, i)),
-        TurretMuzzels = LoadSlotList(reader, 4, (reader, i) => LoadSlot(reader, i)),
-        Headlights = LoadSlotList(reader, 4, (reader, i) => LoadSlot(reader, i)),
-        Omnilights = LoadSlotList(reader, 4, (reader, i) => LoadSlot(reader, i)),
-        UnloadPoints = LoadSlotList(reader, 4, (reader, i) => LoadSlot(reader, i)),
-        HitSpots = LoadSlotList(reader, 4, (reader, i) => LoadSlot(reader, i)),
-        SmokeSpots = LoadSlotList(reader, 4, (reader, i) => LoadSlot(reader, i)),
-        Unknown = LoadSlotList(reader, 4, (reader, i) => LoadSlot(reader, i)),
-        Chimneys = LoadSlotList(reader, 2, (reader, i) => LoadSlot(reader, i)),
-        SmokeTraces = LoadSlotList(reader, 2, (reader, i) => LoadSlot(reader, i)),
-        Exhausts = LoadSlotList(reader, 2, (reader, i) => LoadSlot(reader, i)),
-        KeelTraces = LoadSlotList(reader, 2, (reader, i) => LoadSlot(reader, i)),
-        InterfacePivot = LoadSlotList(reader, 1, (reader, i) => LoadSlot(reader, i)),
-        CenterPivot = LoadSlotList(reader, 1, (reader, i) => LoadSlot(reader, i)),
-        ProductionSpotStart = LoadSlotList(reader, 1, (reader, i) => LoadSlot(reader, i)),
-        ProductionSpotEnd = LoadSlotList(reader, 1, (reader, i) => LoadSlot(reader, i)),
-        LandingSpot = LoadSlotList(reader, 1, (reader, i) => LoadSlot(reader, i))
+        Turrets = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
+        BarrelMuzzels = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
+        TurretMuzzels = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
+        Headlights = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
+        Omnilights = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
+        UnloadPoints = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
+        HitSpots = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
+        SmokeSpots = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
+        Unknown = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
+        Chimneys = LoadSlotList(reader, 2, (r, i) => LoadSlot(r, i)),
+        SmokeTraces = LoadSlotList(reader, 2, (r, i) => LoadSlot(r, i)),
+        Exhausts = LoadSlotList(reader, 2, (r, i) => LoadSlot(r, i)),
+        KeelTraces = LoadSlotList(reader, 2, (r, i) => LoadSlot(r, i)),
+        InterfacePivot = LoadSlotList(reader, 1, (r, i) => LoadSlot(r, i)),
+        CenterPivot = LoadSlotList(reader, 1, (r, i) => LoadSlot(r, i)),
+        ProductionSpotStart = LoadSlotList(reader, 1, (r, i) => LoadSlot(r, i)),
+        ProductionSpotEnd = LoadSlotList(reader, 1, (r, i) => LoadSlot(r, i)),
+        LandingSpot = LoadSlotList(reader, 1, (r, i) => LoadSlot(r, i))
       };
 
     private ISlot LoadSlot(BinaryReader reader, int id)
@@ -138,7 +138,7 @@ namespace EarthTool.MSH.Services
         LoopedFrames = reader.ReadByte()
       };
 
-    private IMeshBoundries LoadMeshBoundries(BinaryReader reader)
+    private IMeshBoundries LoadMeshBoundaries(BinaryReader reader)
       => new MeshBoundries
       {
         MaxY = reader.ReadInt16(),
@@ -152,8 +152,8 @@ namespace EarthTool.MSH.Services
       {
         SectionHeights = GetSectionHeights(reader),
         SectionFlags = GetSectionFlags(reader),
-        SectionRotations = LoadSlotList(reader, 4, (reader, _) => LoadModelTemplate(reader)),
-        SectionFlagRotations = LoadSlotList(reader, 4, (reader, _) => LoadSectionFlagRotation(reader))
+        SectionRotations = LoadSlotList(reader, 4, (r, _) => LoadModelTemplate(r)),
+        SectionFlagRotations = LoadSlotList(reader, 4, (r, _) => LoadSectionFlagRotation(r))
       };
 
     private IEnumerable<T> LoadSlotList<T>(BinaryReader reader, int count, Func<BinaryReader, int, T> load)
@@ -277,9 +277,9 @@ namespace EarthTool.MSH.Services
     private IAnimations LoadAnimations(BinaryReader reader)
       => new Animations()
       {
-        UnknownAnimationData = LoadSlotList(reader, reader.ReadInt32(), (reader, _) => LoadVector(reader)),
-        MovementFrames = LoadSlotList(reader, reader.ReadInt32(), (reader, _) => LoadVector(reader)),
-        RotationFrames = LoadSlotList(reader, reader.ReadInt32(), (reader, _) => LoadRotationFrame(reader)),
+        UnknownAnimationData = LoadSlotList(reader, reader.ReadInt32(), (r, _) => LoadVector(r)),
+        MovementFrames = LoadSlotList(reader, reader.ReadInt32(), (r, _) => LoadVector(r)),
+        RotationFrames = LoadSlotList(reader, reader.ReadInt32(), (r, _) => LoadRotationFrame(r)),
       };
 
     private IRotationFrame LoadRotationFrame(BinaryReader reader)

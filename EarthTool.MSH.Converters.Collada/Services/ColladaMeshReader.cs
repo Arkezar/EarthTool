@@ -183,10 +183,10 @@ namespace EarthTool.MSH.Converters.Collada.Services
         RegularMeshSubType = MeshSubType.Unit,
         Frames = LoadFrames(model),
         SpotLights = LoadSpotLights(model),
-        OmniLights = LoadOmniLights(model),
+        OmnidirectionalLights = LoadOmniLights(model),
         MountPoints = LoadMountPoints(model),
         Slots = LoadSlots(model),
-        Boundries = LoadBoundries(model, geometries),
+        Boundaries = LoadBoundries(model, geometries),
         Template = LoadTemplate(model),
         TemplateDetails = LoadTemplateDetails(model)
       };

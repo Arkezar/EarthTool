@@ -20,13 +20,13 @@ namespace EarthTool.MSH.Models
 
     public IEnumerable<ISpotLight> SpotLights { get; set; }
 
-    public IEnumerable<IOmniLight> OmniLights { get; set; }
+    public IEnumerable<IOmniLight> OmnidirectionalLights { get; set; }
 
     public ITemplateDetails TemplateDetails { get; set; }
 
     public IModelSlots Slots { get; set; }
 
-    public IMeshBoundries Boundries { get; set; }
+    public IMeshBoundries Boundaries { get; set; }
 
     public int MeshSubType { get; set; }
 
@@ -66,11 +66,11 @@ namespace EarthTool.MSH.Models
           bw.Write(Empty);
           bw.Write(MountPoints.SelectMany(x => x.ToByteArray(encoding)).ToArray());
           bw.Write(SpotLights.SelectMany(x => x.ToByteArray(encoding)).ToArray());
-          bw.Write(OmniLights.SelectMany(x => x.ToByteArray(encoding)).ToArray());
+          bw.Write(OmnidirectionalLights.SelectMany(x => x.ToByteArray(encoding)).ToArray());
           bw.Write(TemplateDetails.ToByteArray(encoding));
           bw.Write(Slots.ToByteArray(encoding));
-          bw.Write(Boundries.ToByteArray(encoding));
-          bw.Write((int)DynamicMeshSubType);
+          bw.Write(Boundaries.ToByteArray(encoding));
+          bw.Write(MeshSubType);
         }
         return output.ToArray();
       }

@@ -10,10 +10,10 @@ namespace EarthTool.MSH.Interfaces
     IMeshFrames Frames { get; }
     IEnumerable<IVector> MountPoints { get; }
     IEnumerable<ISpotLight> SpotLights { get; }
-    IEnumerable<IOmniLight> OmniLights { get; }
+    IEnumerable<IOmniLight> OmnidirectionalLights { get; }
     IModelSlots Slots { get; }
     ITemplateDetails TemplateDetails { get; }
-    IMeshBoundries Boundries { get; }
+    IMeshBoundries Boundaries { get; }
     MeshType MeshType { get; }
     MeshSubType? RegularMeshSubType { get; }
     DynamicMeshSubType? DynamicMeshSubType { get; }

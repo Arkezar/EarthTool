@@ -13,7 +13,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
     public IEnumerable<(Light Light, Node LightNode)> GetLights(IMesh model)
     {
       return model.Descriptor.SpotLights.Where(l => l.IsAvailable).Select((l, i) => (GetLight(l, i), GetLightNode(l, i)))
-        .Concat(model.Descriptor.OmniLights.Where(l => l.IsAvailable).Select((l, i) => (GetLight(l, i), GetLightNode(l, i))));
+        .Concat(model.Descriptor.OmnidirectionalLights.Where(l => l.IsAvailable).Select((l, i) => (GetLight(l, i), GetLightNode(l, i))));
     }
 
     private Node GetLightNode(ILight light, int i)

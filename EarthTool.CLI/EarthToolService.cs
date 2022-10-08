@@ -55,12 +55,12 @@ namespace EarthTool.CLI
 
     private Parser BuildParser(IEnumerable<Command> commands)
     {
-      _logger.LogTrace("Preparing command-line parser.");
+      _logger.LogTrace("Preparing command-line parser");
       var commandLineBuilder = new CommandLineBuilder();
       foreach (Command command in commands)
       {
         commandLineBuilder.AddCommand(command);
-        _logger.LogTrace("Registered command {Command}.", command.Name);
+        _logger.LogTrace("Registered command {Command}", command.Name);
       }
       return commandLineBuilder.UseDefaults().Build();
     }
