@@ -10,6 +10,7 @@ using EarthTool.WD;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Spectre.Console;
 using Spectre.Console.Cli;
 using System.Text;
 using System.Threading.Tasks;
@@ -28,7 +29,12 @@ namespace EarthTool.CLI
       {
         config.AddCommand<Commands.WD.ExtractCommand>("wd");
         config.AddCommand<Commands.MSH.ConvertCommand>("msh");
+        config.AddCommand<Commands.DAE.ConvertCommand>("dae");
         config.AddCommand<Commands.TEX.ConvertCommand>("tex");
+        config.SetExceptionHandler(ex =>
+        {
+          AnsiConsole.WriteException(ex, ExceptionFormats.ShortenEverything);
+        });
       });
       return app.RunAsync(args);
     }

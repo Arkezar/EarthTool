@@ -17,12 +17,13 @@ namespace EarthTool.MSH.Services
 
     public string OutputFileExtension => "msh";
 
-    public void Write(IMesh mesh, string fileName)
+    public string Write(IMesh mesh, string fileName)
     {
       CheckOrCreateOutputPath(fileName);
       using (var stream = File.Create(fileName))
       {
         Write(stream, mesh);
+        return fileName;
       }
     }
 

@@ -11,7 +11,7 @@ namespace EarthTool.MSH.Converters.Collada
     {
       builder.RegisterType<ModelFactory>();
       builder.RegisterType<ColladaModelFactory>();
-      builder.RegisterType<ColladaMeshReader>();
+      builder.RegisterType<ColladaMeshReader>().AsSelf().AsImplementedInterfaces();
       builder.RegisterType<MaterialFactory>();
       builder.RegisterType<LightingFactory>();
       builder.RegisterType<GeometriesFactory>();

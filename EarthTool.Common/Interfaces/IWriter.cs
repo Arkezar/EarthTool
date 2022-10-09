@@ -4,6 +4,6 @@
   {
     string OutputFileExtension { get; }
     
-    void Write(T data, string filePath);
+    string Write(T data, string filePath);
   }
 }

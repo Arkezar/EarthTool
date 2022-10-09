@@ -9,7 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace EarthTool.CLI.Commands.MSH;
+namespace EarthTool.CLI.Commands.DAE;
 
 public sealed class ConvertCommand : AsyncCommand<CommonSettings>
 {
@@ -18,8 +18,8 @@ public sealed class ConvertCommand : AsyncCommand<CommonSettings>
 
   public ConvertCommand(IEnumerable<IReader<IMesh>> meshReaders, IEnumerable<IWriter<IMesh>> meshWriters)
   {
-    _meshReader = meshReaders.Single(w => w.InputFileExtension == "msh");
-    _meshWriter = meshWriters.Single(w => w.OutputFileExtension == "dae");
+    _meshReader = meshReaders.Single(w => w.InputFileExtension == "dae");
+    _meshWriter = meshWriters.Single(w => w.OutputFileExtension == "msh");
   }
 
   public override Task<int> ExecuteAsync(CommandContext context, CommonSettings settings)
@@ -35,8 +35,9 @@ public sealed class ConvertCommand : AsyncCommand<CommonSettings>
 
     foreach (var filePath in files)
     {
+      var fileName = Path.ChangeExtension(Path.GetFileName(filePath), "msh");
       var model = _meshReader.Read(filePath);
-      var outputFile = _meshWriter.Write(model, settings.OutputFolderPath.Value);
+      var outputFile = _meshWriter.Write(model, Path.Combine(settings.OutputFolderPath.Value, fileName));
       PrintModelDetails(filePath, outputFile, model);
     }
 
@@ -62,10 +63,14 @@ public sealed class ConvertCommand : AsyncCommand<CommonSettings>
       textures.AddNode(texture);
     }
 
-    var hierarchy = root.AddNode("Hierarchy");
-    var id = 0;
-    PopulateHierarchy(hierarchy, model.PartsTree, modelName, ref id);
-    
+    //TODO: Handle hierarchy in dae files
+    if (model.PartsTree != null)
+    {
+      var hierarchy = root.AddNode("Hierarchy");
+      var id = 0;
+      PopulateHierarchy(hierarchy, model.PartsTree, modelName, ref id);
+    }
+
     AnsiConsole.Write(root);
   }
 

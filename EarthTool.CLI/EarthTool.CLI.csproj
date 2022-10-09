@@ -20,8 +20,4 @@
     <ProjectReference Include="..\EarthTool.WD\EarthTool.WD.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Commands\DAE" />
-  </ItemGroup>
-
 </Project>

@@ -1,28 +1,33 @@
 ﻿using Collada141;
 using EarthTool.Common.Enums;
+using EarthTool.Common.Interfaces;
 using EarthTool.MSH.Converters.Collada.Elements;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Services;
 using Microsoft.Extensions.Logging;
 using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 
 namespace EarthTool.MSH.Converters.Collada
 {
-  public class MSHColladaConverter : MSHConverter
+  public class MSHColladaConverter : MSHConverter, IWriter<IMesh>
   {
     private readonly ModelFactory _modelFactory;
     private readonly EarthMeshWriter _earthMeshWriter;
-    private readonly ILogger<MSHColladaConverter> _logger;
 
     public MSHColladaConverter(ModelFactory modelFactory, EarthMeshWriter earthMeshWriter,
       ILogger<MSHColladaConverter> logger) : base(logger)
     {
       _modelFactory = modelFactory;
       _earthMeshWriter = earthMeshWriter;
-      _logger = logger;
+    }
+
+    public string OutputFileExtension => "dae";
+    
+    public string Write(IMesh data, string filePath)
+    {
+      return WriteModel(data, ModelType.DAE, filePath);
     }
 
     public override Task InternalConvert(ModelType outputModelType, IMesh model, string outputPath = null)
@@ -31,7 +36,7 @@ namespace EarthTool.MSH.Converters.Collada
       return Task.CompletedTask;
     }
 
-    private void WriteModel(IMesh model, ModelType outputModelType, string outputPath)
+    private string WriteModel(IMesh model, ModelType outputModelType, string outputPath)
     {
       var modelName = GetModelName(model);
 
@@ -46,14 +51,13 @@ namespace EarthTool.MSH.Converters.Collada
       {
         case ModelType.DAE:
           WriteColladaModel(model, modelName, outputFileName);
-#if DEBUG
-          WriteMeshModel(model, Path.ChangeExtension(outputFileName, "msh1"));
-#endif
           break;
         case ModelType.MSH:
           WriteMeshModel(model, outputFileName);
           break;
       }
+
+      return outputFileName;
     }
 
     private void WriteColladaModel(IMesh model, string modelName, string outputFile)
@@ -63,12 +67,6 @@ namespace EarthTool.MSH.Converters.Collada
       using (var stream = new FileStream(outputFile, FileMode.Create))
       {
         serializer.Serialize(stream, colladaModel);
-      }
-
-      foreach (var imageFile in colladaModel.Library_Images.SelectMany(l => l.Image.Select(i => i.Init_From))
-                 .Distinct())
-      {
-        _logger.LogInformation("Mesh uses texture: {Texture}", Path.ChangeExtension(imageFile, "tex"));
       }
     }
 
