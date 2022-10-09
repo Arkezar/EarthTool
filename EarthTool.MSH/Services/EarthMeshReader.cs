@@ -17,11 +17,13 @@ namespace EarthTool.MSH.Services
   public class EarthMeshReader : IReader<IMesh>
   {
     private readonly IEarthInfoFactory _earthInfoFactory;
+    private readonly IHierarchyBuilder _hierarchyBuilder;
     private readonly Encoding _encoding;
 
-    public EarthMeshReader(IEarthInfoFactory earthInfoFactory, Encoding encoding)
+    public EarthMeshReader(IEarthInfoFactory earthInfoFactory, IHierarchyBuilder hierarchyBuilder, Encoding encoding)
     {
       _earthInfoFactory = earthInfoFactory;
+      _hierarchyBuilder = hierarchyBuilder;
       _encoding = encoding;
     }
 
@@ -49,11 +51,13 @@ namespace EarthTool.MSH.Services
             }
 
             mesh.Geometries = LoadParts(reader).ToList();
-            mesh.PartsTree = GetPartsTree(mesh.Geometries);
+            mesh.PartsTree = _hierarchyBuilder.GetPartsTree(mesh.Geometries);
           }
+
           return mesh;
         }
       }
+
       return default;
     }
 
@@ -143,10 +147,7 @@ namespace EarthTool.MSH.Services
     private IMeshBoundries LoadMeshBoundaries(BinaryReader reader)
       => new MeshBoundries
       {
-        MaxY = reader.ReadInt16(),
-        MinY = reader.ReadInt16(),
-        MaxX = reader.ReadInt16(),
-        MinX = reader.ReadInt16()
+        MaxY = reader.ReadInt16(), MinY = reader.ReadInt16(), MaxX = reader.ReadInt16(), MinX = reader.ReadInt16()
       };
 
     private ITemplateDetails LoadTemplateDetails(BinaryReader reader)
@@ -180,12 +181,7 @@ namespace EarthTool.MSH.Services
 
     private IOmniLight LoadOmniLight(BinaryReader reader)
     {
-      return new OmniLight()
-      {
-        Value = GetVector(reader),
-        Color = GetColor(reader),
-        Radius = reader.ReadSingle()
-      };
+      return new OmniLight() { Value = GetVector(reader), Color = GetColor(reader), Radius = reader.ReadSingle() };
     }
 
     private Color GetColor(BinaryReader reader)
@@ -244,6 +240,7 @@ namespace EarthTool.MSH.Services
         rotation[i, 2] = r2;
         rotation[i, 3] = r3;
       }
+
       return rotation;
     }
 
@@ -317,20 +314,14 @@ namespace EarthTool.MSH.Services
     private IFace LoadFace(BinaryReader reader)
       => new Face()
       {
-        V1 = reader.ReadInt16(),
-        V2 = reader.ReadInt16(),
-        V3 = reader.ReadInt16(),
-        UNKNOWN = reader.ReadInt16(),
+        V1 = reader.ReadInt16(), V2 = reader.ReadInt16(), V3 = reader.ReadInt16(), UNKNOWN = reader.ReadInt16(),
       };
 
     private ITextureInfo LoadTextureInfo(BinaryReader reader)
     {
       var fileNameLength = reader.ReadInt32();
       var fileName = Encoding.GetEncoding("ISO-8859-2").GetString(reader.ReadBytes(fileNameLength));
-      return new TextureInfo()
-      {
-        FileName = fileName
-      };
+      return new TextureInfo() { FileName = fileName };
     }
 
     private IEnumerable<IVertex> LoadVertices(BinaryReader reader)
@@ -364,38 +355,13 @@ namespace EarthTool.MSH.Services
       }
     }
 
-    private PartNode GetPartsTree(IEnumerable<IModelPart> parts)
-    {
-      var currentId = 0;
-      var root = new PartNode(currentId, parts.First());
-      var lastNode = root;
-      foreach (var part in parts.Skip(1))
-      {
-        var skip = part.BackTrackDepth;
-        var parent = lastNode;
-        for (var i = 0; i < skip; i++)
-        {
-          parent = parent.Parent;
-        }
-        lastNode = new PartNode(++currentId, part, parent);
-        if (part.PartType == 0)
-        {
-          lastNode = parent;
-        }
-      }
-      return root;
-    }
-
     #endregion
 
     #region Common
 
     private IVector LoadVector(BinaryReader reader)
     {
-      return new Vector()
-      {
-        Value = GetVector(reader),
-      };
+      return new Vector() { Value = GetVector(reader), };
     }
 
     private System.Numerics.Vector3 GetVector(BinaryReader reader)

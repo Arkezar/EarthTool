@@ -21,10 +21,12 @@ namespace EarthTool.DAE.Services
   public class ColladaMeshReader : IReader<IMesh>
   {
     private readonly IEarthInfoFactory _earthInfoFactory;
+    private readonly IHierarchyBuilder _hierarchyBuilder;
 
-    public ColladaMeshReader(IEarthInfoFactory earthInfoFactory)
+    public ColladaMeshReader(IEarthInfoFactory earthInfoFactory, IHierarchyBuilder hierarchyBuilder)
     {
       _earthInfoFactory = earthInfoFactory;
+      _hierarchyBuilder = hierarchyBuilder;
     }
 
     public string InputFileExtension => "dae";
@@ -46,7 +48,8 @@ namespace EarthTool.DAE.Services
       {
         FileHeader = earthInfo,
         Descriptor = descriptor,
-        Geometries = geometries
+        Geometries = geometries,
+        PartsTree = _hierarchyBuilder.GetPartsTree(geometries)
       };
     }
 

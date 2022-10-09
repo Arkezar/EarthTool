@@ -63,13 +63,9 @@ public sealed class ConvertCommand : AsyncCommand<CommonSettings>
       textures.AddNode(texture);
     }
 
-    //TODO: Handle hierarchy in dae files
-    if (model.PartsTree != null)
-    {
-      var hierarchy = root.AddNode("Hierarchy");
-      var id = 0;
-      PopulateHierarchy(hierarchy, model.PartsTree, modelName, ref id);
-    }
+    var hierarchy = root.AddNode("Hierarchy");
+    var id = 0;
+    PopulateHierarchy(hierarchy, model.PartsTree, modelName, ref id);
 
     AnsiConsole.Write(root);
   }

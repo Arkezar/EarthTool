@@ -9,6 +9,7 @@ namespace EarthTool.MSH
     {
       builder.RegisterType<EarthMeshReader>().AsSelf().AsImplementedInterfaces();
       builder.RegisterType<EarthMeshWriter>().AsSelf().AsImplementedInterfaces();
+      builder.RegisterType<HierarchyBuilder>().AsImplementedInterfaces().SingleInstance();
     }
   }
 }
