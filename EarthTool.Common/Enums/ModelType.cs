@@ -7,7 +7,6 @@ namespace EarthTool.Common.Enums
   public enum ModelType
   {
     MSH,
-    DAE,
-    OBJ
+    DAE
   }
 }

@@ -106,7 +106,6 @@ namespace EarthTool.MSH.Converters.Collada
       {
         ModelType.DAE => _modelFactory.GetMeshModel(filePath),
         ModelType.MSH => _modelFactory.GetColladaModel(filePath),
-        ModelType.OBJ => throw new System.NotImplementedException(),
         _ => throw new System.NotImplementedException()
       };
     }
