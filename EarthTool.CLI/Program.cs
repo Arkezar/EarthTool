@@ -33,7 +33,10 @@ namespace EarthTool.CLI
         .ConfigureLogging(config =>
         {
           config.AddConfiguration(configuration.GetSection("Logging"));
-          config.AddConsole();
+          config.AddSimpleConsole(opts =>
+          {
+            opts.SingleLine = true;
+          });
           config.AddDebug();
         })
         .ConfigureContainer<ContainerBuilder>(containerBuilder =>
