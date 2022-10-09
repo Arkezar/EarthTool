@@ -1,5 +1,5 @@
 ﻿using Collada141;
-using EarthTool.MSH.Converters.Collada.Services;
+using EarthTool.DAE.Services;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using EarthTool.MSH.Services;
@@ -8,7 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace EarthTool.MSH.Converters.Collada.Elements
+namespace EarthTool.DAE.Elements
 {
   public class ModelFactory
   {

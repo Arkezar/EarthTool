@@ -7,7 +7,7 @@ using System.Globalization;
 using System.Linq;
 using System.Numerics;
 
-namespace EarthTool.MSH.Converters.Collada.Elements
+namespace EarthTool.DAE.Elements
 {
   public class AnimationsFactory
   {

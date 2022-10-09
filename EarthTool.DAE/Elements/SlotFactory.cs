@@ -8,7 +8,7 @@ using System.Linq;
 using System.Numerics;
 using System.Text;
 
-namespace EarthTool.MSH.Converters.Collada.Elements
+namespace EarthTool.DAE.Elements
 {
   public class SlotFactory
   {

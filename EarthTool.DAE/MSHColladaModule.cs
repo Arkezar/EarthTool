@@ -1,9 +1,9 @@
 ﻿using Autofac;
 using EarthTool.Common.Interfaces;
-using EarthTool.MSH.Converters.Collada.Elements;
-using EarthTool.MSH.Converters.Collada.Services;
+using EarthTool.DAE.Elements;
+using EarthTool.DAE.Services;
 
-namespace EarthTool.MSH.Converters.Collada
+namespace EarthTool.DAE
 {
   public class MSHColladaModule : Module
   {

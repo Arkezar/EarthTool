@@ -1,12 +1,14 @@
 ﻿using Collada141;
 using EarthTool.MSH.Interfaces;
+using EarthTool.MSH.Models.Elements;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
+using Light = Collada141.Light;
 
-namespace EarthTool.MSH.Converters.Collada.Elements
+namespace EarthTool.DAE.Elements
 {
   public class LightingFactory
   {
@@ -27,13 +29,13 @@ namespace EarthTool.MSH.Converters.Collada.Elements
 
       var rotationZrad = light switch
       {
-        Models.Elements.SpotLight sl => sl.Direction / 255f * Math.PI / 2,
+        SpotLight sl => sl.Direction / 255f * Math.PI / 2,
         _ => 0
       };
 
       var rotationYrad = light switch
       {
-        Models.Elements.SpotLight sl => -Math.PI / 2f - sl.Tilt,
+        SpotLight sl => -Math.PI / 2f - sl.Tilt,
         _ => 0
       };
 
@@ -80,8 +82,8 @@ namespace EarthTool.MSH.Converters.Collada.Elements
         Name = GetLightName(light, i),
         Technique_Common = light switch
         {
-          Models.Elements.SpotLight sl => GetSpotLight(sl),
-          Models.Elements.OmniLight ol => GetPointLight(ol),
+          SpotLight sl => GetSpotLight(sl),
+          OmniLight ol => GetPointLight(ol),
           _ => null
         }
       };
@@ -90,7 +92,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
     private string GetLightName(ILight light, int i)
       => $"{light.GetType().Name}-{i}";
 
-    private LightTechnique_Common GetSpotLight(Models.Elements.SpotLight light)
+    private LightTechnique_Common GetSpotLight(SpotLight light)
     {
       return new LightTechnique_Common()
       {
@@ -120,7 +122,7 @@ namespace EarthTool.MSH.Converters.Collada.Elements
       };
     }
 
-    private LightTechnique_Common GetPointLight(Models.Elements.OmniLight light)
+    private LightTechnique_Common GetPointLight(OmniLight light)
     {
       return new LightTechnique_Common()
       {

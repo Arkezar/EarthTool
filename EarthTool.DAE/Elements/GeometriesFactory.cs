@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
-namespace EarthTool.MSH.Converters.Collada.Elements
+namespace EarthTool.DAE.Elements
 {
   public class GeometriesFactory
   {

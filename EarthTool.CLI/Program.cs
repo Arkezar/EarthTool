@@ -3,7 +3,7 @@ using Autofac.Extensions.DependencyInjection;
 using EarthTool.CLI.Commands;
 using EarthTool.Common;
 using EarthTool.MSH;
-using EarthTool.MSH.Converters.Collada;
+using EarthTool.DAE;
 using EarthTool.PAR;
 using EarthTool.TEX;
 using EarthTool.WD;

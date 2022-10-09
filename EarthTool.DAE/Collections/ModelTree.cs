@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace EarthTool.MSH.Converters.Collada.Collections
+namespace EarthTool.DAE.Collections
 {
   internal class ModelTree : IEnumerable<(Node Node, int BacktrackLevel)>
   {

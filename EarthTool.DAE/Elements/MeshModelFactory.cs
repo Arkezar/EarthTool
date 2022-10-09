@@ -6,7 +6,7 @@ using System.IO;
 using System.Text;
 using System.Xml.Serialization;
 
-namespace EarthTool.MSH.Converters.Collada.Elements
+namespace EarthTool.DAE.Elements
 {
   public class MeshModelFactory
   {

@@ -1,8 +1,10 @@
 ﻿using Collada141;
 using EarthTool.Common.Interfaces;
-using EarthTool.MSH.Converters.Collada.Collections;
+using EarthTool.DAE.Collections;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
+using EarthTool.MSH.Models.Collections;
+using EarthTool.MSH.Models.Elements;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -11,8 +13,10 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Xml.Serialization;
+using Light = Collada141.Light;
+using Vector = EarthTool.MSH.Models.Elements.Vector;
 
-namespace EarthTool.MSH.Converters.Collada.Services
+namespace EarthTool.DAE.Services
 {
   public class ColladaMeshReader : IReader<IMesh>
   {
@@ -95,12 +99,12 @@ namespace EarthTool.MSH.Converters.Collada.Services
       var samplerSourceId = eefectProfile.Newparam.Single(p => p.Sid == diffuseTextureId).Sampler2D.Source;
       var sourceId = eefectProfile.Newparam.Single(p => p.Sid == samplerSourceId).Surface.Init_From.First().Value;
       var texture = model.Library_Images.First().Image.Single(i => i.Id == sourceId).Init_From;
-      return new Models.Elements.TextureInfo() { FileName = Path.Combine("Textures", Path.ChangeExtension(texture, "tex")) };
+      return new TextureInfo() { FileName = Path.Combine("Textures", Path.ChangeExtension(texture, "tex")) };
     }
 
     private IAnimations LoadAnimations(Geometry g, COLLADA model)
     {
-      return new Models.Collections.Animations();
+      return new Animations();
     }
 
     private (IEnumerable<IFace> Faces, IEnumerable<IVertex> Vertices) LoadFacesWithVertices(Geometry g)
@@ -121,7 +125,7 @@ namespace EarthTool.MSH.Converters.Collada.Services
         .GroupBy(v => v.Group)
         .Select(x => x.Select(v => v.Face.ToArray()).ToArray()).ToArray();
 
-      var vertices = new List<Models.Elements.Vertex>();
+      var vertices = new List<Vertex>();
       foreach (var group in faces)
       {
         foreach (var face in group)
@@ -135,7 +139,7 @@ namespace EarthTool.MSH.Converters.Collada.Services
 
           if (!vertices.Any(v => v.Position.Equals(position) && v.Normal.Equals(normal) && v.UVMap.Equals(uv)))
           {
-            vertices.Add(new Models.Elements.Vertex(position, normal, uv, (short)normalId, (short)positionId));
+            vertices.Add(new Vertex(position, normal, uv, (short)normalId, (short)positionId));
           }
         }
       }
@@ -144,13 +148,13 @@ namespace EarthTool.MSH.Converters.Collada.Services
       return (resultFaces, vertices);
     }
 
-    private Models.Elements.Face GetFace(int[][] f, IList<Models.Elements.Vertex> vertices, IVector[] vertexVectors, IVector[] normalVector, IUVMap[] uvs)
+    private Face GetFace(int[][] f, IList<Vertex> vertices, IVector[] vertexVectors, IVector[] normalVector, IUVMap[] uvs)
     {
       var v1 = vertices.Single(v => v.Position.Equals(vertexVectors[f[0][0]]) && v.Normal.Equals(normalVector[f[0][1]]) && v.UVMap.Equals(uvs[f[0][2]]));
       var v2 = vertices.Single(v => v.Position.Equals(vertexVectors[f[1][0]]) && v.Normal.Equals(normalVector[f[1][1]]) && v.UVMap.Equals(uvs[f[1][2]]));
       var v3 = vertices.Single(v => v.Position.Equals(vertexVectors[f[2][0]]) && v.Normal.Equals(normalVector[f[2][1]]) && v.UVMap.Equals(uvs[f[2][2]]));
 
-      return new Models.Elements.Face()
+      return new Face()
       {
         V1 = (short)vertices.IndexOf(v1),
         V2 = (short)vertices.IndexOf(v2),
@@ -165,7 +169,7 @@ namespace EarthTool.MSH.Converters.Collada.Services
       var groupSizes = source.Technique_Common.Accessor.Param.Count;
       return values.Select((v, i) => new { Value = v, Group = i / groupSizes }).GroupBy(v => v.Group)
                    .Select(g => g.Select(v => v.Value))
-                   .Select(v => new Models.Elements.UVMap(v.ElementAt(0), v.ElementAt(1))).ToArray();
+                   .Select(v => new UVMap(v.ElementAt(0), v.ElementAt(1))).ToArray();
     }
 
     private IVector[] LoadVectors(Source source)
@@ -174,7 +178,7 @@ namespace EarthTool.MSH.Converters.Collada.Services
       var groupSizes = source.Technique_Common.Accessor.Param.Count;
       return values.Select((v, i) => new { Value = v, Group = i / groupSizes }).GroupBy(v => v.Group)
                    .Select(g => g.Select(v => v.Value))
-                   .Select(v => new Models.Elements.Vector(v.ElementAt(0), v.ElementAt(1), v.ElementAt(2))).ToArray();
+                   .Select(v => new Vector(v.ElementAt(0), v.ElementAt(1), v.ElementAt(2))).ToArray();
     }
 
     private IMeshDescriptor LoadDescriptor(COLLADA model, IEnumerable<IModelPart> geometries)
@@ -196,12 +200,12 @@ namespace EarthTool.MSH.Converters.Collada.Services
 
     private ITemplateDetails LoadTemplateDetails(COLLADA model)
     {
-      return new Models.Elements.TemplateDetails();
+      return new TemplateDetails();
     }
 
     private IModelTemplate LoadTemplate(COLLADA model)
     {
-      return new Models.Elements.ModelTemplate();
+      return new ModelTemplate();
     }
 
     private IMeshBoundries LoadBoundries(COLLADA model, IEnumerable<IModelPart> geometries)
@@ -223,7 +227,7 @@ namespace EarthTool.MSH.Converters.Collada.Services
 
     private IModelSlots LoadSlots(COLLADA model)
     {
-      return new Models.Collections.ModelSlots()
+      return new ModelSlots()
       {
         BarrelMuzzels = LoadSlots(model, "BarrelMuzzle", 4),
         CenterPivot = LoadSlots(model, "CenterPivot", 1),
@@ -249,14 +253,14 @@ namespace EarthTool.MSH.Converters.Collada.Services
     private IEnumerable<ISlot> LoadOmniLightSlots(COLLADA model, int count)
     {
       var lights = LoadOmniLights(model);
-      var meshLightSlots = lights.Select((l, i) => new Models.Elements.Slot() { Position = l, Id = i });
+      var meshLightSlots = lights.Select((l, i) => new Slot() { Position = l, Id = i });
       return Fill(meshLightSlots, count);
     }
 
     private IEnumerable<ISlot> LoadSpotLightSlots(COLLADA model, int count)
     {
       var lights = LoadSpotLights(model);
-      var meshLightSlots = lights.Select((l, i) => new Models.Elements.Slot() { Position = l, Id = i });
+      var meshLightSlots = lights.Select((l, i) => new Slot() { Position = l, Id = i });
       return Fill(meshLightSlots, count);
     }
 
@@ -265,16 +269,16 @@ namespace EarthTool.MSH.Converters.Collada.Services
       var slots = model.Library_Lights.SelectMany(ll => ll.Light.Where(l => l.Technique_Common.Directional != null && l.Name.StartsWith($"{slotName}-"))).ToLookup(l => l.Name);
       var slotsPosition = model.Library_Visual_Scenes.SelectMany(lvs => lvs.Visual_Scene.SelectMany(vs => vs.Node.SelectMany(n => n.NodeProperty.First().NodeProperty.Where(np => slots.Contains(np.Name)))));
       var meshSlots = slotsPosition.Select((n, i) => GetSlot(n, i));
-      return Fill(meshSlots, count, () => new Models.Elements.Slot());
+      return Fill(meshSlots, count, () => new Slot());
     }
 
-    private Models.Elements.Slot GetSlot(Node n, int i)
+    private Slot GetSlot(Node n, int i)
     {
       var matrix = GetTransformationMatrix(n.Matrix.First());
       Matrix4x4.Decompose(matrix, out var _, out var q, out var _);
       var direction = Math.Atan2(2.0f * (q.X * q.Y + q.Z * q.W), 1.0f - 2.0f * (q.X * q.X + q.Z * q.Z));
 
-      return new Models.Elements.Slot()
+      return new Slot()
       {
         Position = GetVector(n),
         Direction = direction,
@@ -297,10 +301,10 @@ namespace EarthTool.MSH.Converters.Collada.Services
       return Fill(meshMountPoints, 4);
     }
 
-    private Models.Elements.Vector GetVector(Node p)
+    private Vector GetVector(Node p)
     {
       var matrix = GetTransformationMatrix(p.Matrix.First());
-      return new Models.Elements.Vector()
+      return new Vector()
       {
         Value = matrix.Translation
       };
@@ -322,7 +326,7 @@ namespace EarthTool.MSH.Converters.Collada.Services
       return Fill(meshOmnilights, 4);
     }
 
-    private Models.Elements.SpotLight GetSpotLight(Light light, Node node)
+    private SpotLight GetSpotLight(Light light, Node node)
     {
       var color = light.Technique_Common.Spot.Color.Value.Split(' ').Select(c => (int)(255 * float.Parse(c, System.Globalization.CultureInfo.InvariantCulture))).ToArray();
       var matrix = GetTransformationMatrix(node.Matrix.First());
@@ -330,7 +334,7 @@ namespace EarthTool.MSH.Converters.Collada.Services
       Matrix4x4.Decompose(matrix, out var _, out var q, out var _);
       var tilt = (float)MathF.Atan2(2.0f * (q.Y * q.W + q.X * q.Z), 1.0f - 2.0f * (q.X * q.X + q.Y * q.Y));
       var direction = (float)MathF.Atan2(2.0f * (q.X * q.Y + q.Z * q.W), 1.0f - 2.0f * (q.X * q.X + q.Z * q.Z));
-      return new Models.Elements.SpotLight()
+      return new SpotLight()
       {
         Value = matrix.Translation,
         Color = Color.FromArgb(color[0], color[1], color[2]),
@@ -342,12 +346,12 @@ namespace EarthTool.MSH.Converters.Collada.Services
       };
     }
 
-    private Models.Elements.OmniLight GetOmniLight(Light light, Node node)
+    private OmniLight GetOmniLight(Light light, Node node)
     {
       var color = light.Technique_Common.Spot.Color.Value.Split(' ').Select(c => (int)(255 * float.Parse(c, System.Globalization.CultureInfo.InvariantCulture))).ToArray();
       var matrix = GetTransformationMatrix(node.Matrix.First());
 
-      return new Models.Elements.OmniLight()
+      return new OmniLight()
       {
         Value = matrix.Translation,
         Color = Color.FromArgb(color[0], color[1], color[2]),

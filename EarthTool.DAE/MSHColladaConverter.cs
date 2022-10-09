@@ -1,7 +1,8 @@
 ﻿using Collada141;
 using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
-using EarthTool.MSH.Converters.Collada.Elements;
+using EarthTool.DAE.Elements;
+using EarthTool.MSH;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Services;
 using Microsoft.Extensions.Logging;
@@ -9,7 +10,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 
-namespace EarthTool.MSH.Converters.Collada
+namespace EarthTool.DAE
 {
   public class MSHColladaConverter : MSHConverter, IWriter<IMesh>
   {
