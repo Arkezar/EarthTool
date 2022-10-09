@@ -1,5 +1,4 @@
 ﻿using Autofac;
-using System.CommandLine;
 
 namespace EarthTool.PAR
 {
@@ -7,7 +6,6 @@ namespace EarthTool.PAR
   {
     protected override void Load(ContainerBuilder builder)
     {
-      builder.RegisterType<PARCommand>().As<Command>().SingleInstance();
       builder.RegisterType<PARConverter>().AsImplementedInterfaces();
     }
   }

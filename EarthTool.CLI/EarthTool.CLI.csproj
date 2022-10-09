@@ -9,6 +9,7 @@
     <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="7.2.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="6.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.0" />
+    <PackageReference Include="Spectre.Console.Cli" Version="0.45.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -17,6 +18,10 @@
     <ProjectReference Include="..\EarthTool.PAR\EarthTool.PAR.csproj" />
     <ProjectReference Include="..\EarthTool.TEX\EarthTool.TEX.csproj" />
     <ProjectReference Include="..\EarthTool.WD\EarthTool.WD.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Commands\DAE" />
   </ItemGroup>
 
 </Project>

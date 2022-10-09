@@ -14,7 +14,7 @@ using System.Xml.Serialization;
 
 namespace EarthTool.MSH.Converters.Collada.Services
 {
-  public class ColladaMeshReader : IMeshReader
+  public class ColladaMeshReader : IReader<IMesh>
   {
     private readonly IEarthInfoFactory _earthInfoFactory;
 
@@ -22,6 +22,8 @@ namespace EarthTool.MSH.Converters.Collada.Services
     {
       _earthInfoFactory = earthInfoFactory;
     }
+
+    public string InputFileExtension => "dae";
 
     public IMesh Read(string filePath)
     {

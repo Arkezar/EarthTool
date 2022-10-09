@@ -1,11 +1,12 @@
-﻿using EarthTool.MSH.Interfaces;
+﻿using EarthTool.Common.Interfaces;
+using EarthTool.MSH.Interfaces;
 using System.IO;
 using System.Linq;
 using System.Text;
 
 namespace EarthTool.MSH.Services
 {
-  public class EarthMeshWriter : IMeshWriter
+  public class EarthMeshWriter : IWriter<IMesh>
   {
     private readonly Encoding _encoding;
 
@@ -14,7 +15,9 @@ namespace EarthTool.MSH.Services
       _encoding = encoding;
     }
 
-    public void Write(string fileName, IMesh mesh)
+    public string OutputFileExtension => "msh";
+
+    public void Write(IMesh mesh, string fileName)
     {
       CheckOrCreateOutputPath(fileName);
       using (var stream = File.Create(fileName))

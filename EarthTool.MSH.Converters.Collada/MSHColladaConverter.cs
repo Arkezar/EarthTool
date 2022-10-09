@@ -2,7 +2,6 @@
 using EarthTool.Common.Enums;
 using EarthTool.MSH.Converters.Collada.Elements;
 using EarthTool.MSH.Interfaces;
-using EarthTool.MSH.Models;
 using EarthTool.MSH.Services;
 using Microsoft.Extensions.Logging;
 using System.IO;
@@ -75,7 +74,7 @@ namespace EarthTool.MSH.Converters.Collada
 
     private void WriteMeshModel(IMesh model, string outputFile)
     {
-      _earthMeshWriter.Write(outputFile, model);
+      _earthMeshWriter.Write(model, outputFile);
     }
 
     private string GetOutputFileName(string outputPath, string modelName, ModelType outputModelType)

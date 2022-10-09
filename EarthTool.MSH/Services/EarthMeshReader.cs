@@ -14,7 +14,7 @@ using System.Text;
 
 namespace EarthTool.MSH.Services
 {
-  public class EarthMeshReader : IMeshReader
+  public class EarthMeshReader : IReader<IMesh>
   {
     private readonly IEarthInfoFactory _earthInfoFactory;
     private readonly Encoding _encoding;
@@ -24,6 +24,8 @@ namespace EarthTool.MSH.Services
       _earthInfoFactory = earthInfoFactory;
       _encoding = encoding;
     }
+
+    public string InputFileExtension => "msh";
 
     public IMesh Read(string filePath)
       => ReadStream(filePath);

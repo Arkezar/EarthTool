@@ -5,6 +5,7 @@
       //"commandLineArgs": "msh -o D:\\earthwork\\test2 D:\\earthwork\\wdwork\\meshes\\*.msh",
       //"commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\wdwork\\meshes\\EDBBTC.msh",
       "commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\wdwork\\meshes\\UCSUML1.msh",
+//      "commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\testdae\\UCSUML1.dae",
       //"commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\testdae\\EDUST1b.dae",
       //"commandLineArgs": "tex -o D:\\earthwork\\testdae D:\\earthwork\\wdwork\\Textures\\UCSUML1.tex",
       //"commandLineArgs": "par \"D:\\earthwork\\paramsls\\Parameters\\EARTH2150.par\"",

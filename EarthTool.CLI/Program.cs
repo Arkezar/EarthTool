@@ -1,5 +1,6 @@
 ﻿using Autofac;
 using Autofac.Extensions.DependencyInjection;
+using EarthTool.CLI.Commands;
 using EarthTool.Common;
 using EarthTool.MSH;
 using EarthTool.MSH.Converters.Collada;
@@ -7,10 +8,9 @@ using EarthTool.PAR;
 using EarthTool.TEX;
 using EarthTool.WD;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Configuration;
+using Spectre.Console.Cli;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -21,22 +21,26 @@ namespace EarthTool.CLI
     public static Task Main(string[] args)
     {
       Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-      return Initialize(args).Build().RunAsync();
+      var hostBuilder = Initialize(args);
+
+      var app = new CommandApp(new CommandTypeRegistrar(hostBuilder));
+      app.Configure(config =>
+      {
+        config.AddCommand<Commands.WD.ExtractCommand>("wd");
+        config.AddCommand<Commands.MSH.ConvertCommand>("msh");
+        config.AddCommand<Commands.TEX.ConvertCommand>("tex");
+      });
+      return app.RunAsync(args);
     }
 
     private static IHostBuilder Initialize(string[] args)
     {
       var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
-
       return Host.CreateDefaultBuilder(args)
         .UseServiceProviderFactory(new AutofacServiceProviderFactory())
         .ConfigureLogging(config =>
         {
           config.AddConfiguration(configuration.GetSection("Logging"));
-          config.AddSimpleConsole(opts =>
-          {
-            opts.SingleLine = true;
-          });
           config.AddDebug();
         })
         .ConfigureContainer<ContainerBuilder>(containerBuilder =>
@@ -47,10 +51,6 @@ namespace EarthTool.CLI
           containerBuilder.RegisterModule<MSHModule>();
           containerBuilder.RegisterModule<PARModule>();
           containerBuilder.RegisterModule<MSHColladaModule>();
-        })
-        .ConfigureServices((ctx, services) =>
-        {
-          services.AddHostedService<EarthToolService>();
         });
     }
   }
