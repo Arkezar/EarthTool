@@ -266,7 +266,7 @@ namespace EarthTool.MSH.Services
       result.Texture = LoadTextureInfo(reader);
       result.Faces = LoadFaces(reader);
       result.Animations = LoadAnimations(reader);
-      result.UnknownValue = reader.ReadInt32();
+      result.AnimationType = reader.ReadInt32();
       result.Offset = LoadVector(reader);
       result.RiseAngle = reader.ReadByte() / byte.MaxValue * 360;
       result.UnknownBytes = reader.ReadBytes(4);

@@ -81,7 +81,7 @@ namespace EarthTool.DAE.Services
         UnknownBytes = new byte[] { 0, 0, 120, 0 },
         Offset = offsetAndDepth.Vector,
         BackTrackDepth = (byte)offsetAndDepth.BacktrackLevel,
-        PartType = 8
+        PartType = 8 // 0 if sidecolor part
       };
     }
 
@@ -108,7 +108,7 @@ namespace EarthTool.DAE.Services
 
     private IAnimations LoadAnimations(Geometry g, COLLADA model, IVector offset)
     {
-      var animation = model.Library_Animations.First().Animation.SingleOrDefault(a => a.Name == g.Name);
+      var animation = model.Library_Animations.FirstOrDefault()?.Animation.SingleOrDefault(a => a.Name == g.Name);
       var sourceId = animation?.AnimationProperty.FirstOrDefault()?.Sampler.FirstOrDefault()?.Input
         .Single(i => i.Semantic == "OUTPUT").Source;
       var source = animation?.AnimationProperty.FirstOrDefault()?.Source.SingleOrDefault(s => "#" + s.Id == sourceId);
@@ -137,8 +137,8 @@ namespace EarthTool.DAE.Services
 
         return new Animations()
         {
-          MovementFrames = movement.Distinct().Count() > 1 ? movement : Enumerable.Empty<IVector>(),
-          RotationFrames = rotations.Distinct().Count() > 1 ? rotations : Enumerable.Empty<IRotationFrame>()
+          MovementFrames = tmpMovement.Distinct().Count() > 1 ? movement : Enumerable.Empty<IVector>(),
+          RotationFrames = tmpRotations.Distinct().Count() > 1 ? rotations : Enumerable.Empty<IRotationFrame>()
         };
       }
 

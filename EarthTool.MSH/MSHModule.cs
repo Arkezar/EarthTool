@@ -7,8 +7,8 @@ namespace EarthTool.MSH
   {
     protected override void Load(ContainerBuilder builder)
     {
-      builder.RegisterType<EarthMeshReader>().AsSelf().AsImplementedInterfaces();
-      builder.RegisterType<EarthMeshWriter>().AsSelf().AsImplementedInterfaces();
+      builder.RegisterType<EarthMeshReader>().AsImplementedInterfaces();
+      builder.RegisterType<EarthMeshWriter>().AsImplementedInterfaces();
       builder.RegisterType<HierarchyBuilder>().AsImplementedInterfaces().SingleInstance();
     }
   }

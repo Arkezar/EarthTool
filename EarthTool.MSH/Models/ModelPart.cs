@@ -24,7 +24,7 @@ namespace EarthTool.MSH.Models
 
     public IAnimations Animations { get; set; }
 
-    public int UnknownValue { get; set; }
+    public int AnimationType { get; set; }
 
     public IVector Offset { get; set; }
 
@@ -46,7 +46,7 @@ namespace EarthTool.MSH.Models
           writer.Write(Faces.Count());
           writer.Write(Faces.SelectMany(x => x.ToByteArray(encoding)).ToArray());
           writer.Write(Animations.ToByteArray(encoding));
-          writer.Write(UnknownValue);
+          writer.Write(AnimationType);
           writer.Write(Offset.ToByteArray(encoding));
           writer.Write(GetRiseAngle());
           writer.Write(UnknownBytes);

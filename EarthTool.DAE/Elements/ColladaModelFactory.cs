@@ -16,7 +16,11 @@ namespace EarthTool.DAE.Elements
     private readonly LightingFactory _lightingFactory;
     private readonly SlotFactory _slotFactory;
 
-    public ColladaModelFactory(AnimationsFactory animationsFactory, GeometriesFactory geometriesFactory, MaterialFactory materialFactory, LightingFactory lightingFactory, SlotFactory slotFactory)
+    public ColladaModelFactory(AnimationsFactory animationsFactory,
+      GeometriesFactory geometriesFactory,
+      MaterialFactory materialFactory,
+      LightingFactory lightingFactory,
+      SlotFactory slotFactory)
     {
       _animationsFactory = animationsFactory;
       _geometriesFactory = geometriesFactory;

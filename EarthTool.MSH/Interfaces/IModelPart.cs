@@ -14,7 +14,7 @@ namespace EarthTool.MSH.Interfaces
     byte PartType { get; }
     double RiseAngle { get; }
     short UnknownFlag2 { get; }
-    int UnknownValue { get; }
+    int AnimationType { get; }
     IEnumerable<IVertex> Vertices { get; }
   }
 }

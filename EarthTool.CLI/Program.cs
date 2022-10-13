@@ -56,7 +56,7 @@ namespace EarthTool.CLI
           containerBuilder.RegisterModule<TEXModule>();
           containerBuilder.RegisterModule<MSHModule>();
           containerBuilder.RegisterModule<PARModule>();
-          containerBuilder.RegisterModule<MSHColladaModule>();
+          containerBuilder.RegisterModule<DAEModule>();
         });
     }
   }
