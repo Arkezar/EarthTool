@@ -1,6 +1,6 @@
 ﻿using Collada141;
+using EarthTool.Common.Bases;
 using EarthTool.Common.Enums;
-using EarthTool.Common.Interfaces;
 using EarthTool.DAE.Elements;
 using EarthTool.MSH.Interfaces;
 using System.IO;
@@ -8,7 +8,7 @@ using System.Xml.Serialization;
 
 namespace EarthTool.DAE.Services
 {
-  public class ColladaMeshWriter : IWriter<IMesh>
+  public class ColladaMeshWriter : Writer<IMesh>
   {
     private readonly ColladaModelFactory _modelFactory;
 
@@ -17,29 +17,17 @@ namespace EarthTool.DAE.Services
       _modelFactory = modelFactory;
     }
 
-    public string OutputFileExtension => "dae";
+    public override FileType OutputFileExtension => FileType.DAE;
 
-    public string Write(IMesh data, string filePath)
+    protected override string InternalWrite(IMesh data, string filePath)
     {
-      return WriteModel(data, ModelType.DAE, filePath);
+      var modelName = Path.GetFileNameWithoutExtension(filePath);
+
+      WriteColladaModel(data, modelName, filePath);
+
+      return filePath;
     }
-
-    private string WriteModel(IMesh model, ModelType outputModelType, string outputPath)
-    {
-      var modelName = GetModelName(model);
-
-      if (!Directory.Exists(outputPath))
-      {
-        Directory.CreateDirectory(outputPath);
-      }
-
-      var outputFileName = GetOutputFileName(outputPath, modelName, outputModelType);
-
-      WriteColladaModel(model, modelName, outputFileName);
-
-      return outputFileName;
-    }
-
+    
     private void WriteColladaModel(IMesh model, string modelName, string outputFile)
     {
       var colladaModel = _modelFactory.GetColladaModel(model, modelName);
@@ -48,14 +36,6 @@ namespace EarthTool.DAE.Services
       {
         serializer.Serialize(stream, colladaModel);
       }
-    }
-
-    private string GetOutputFileName(string outputPath, string modelName, ModelType outputModelType)
-      => Path.Combine(outputPath, $"{modelName}.{outputModelType.ToString().ToLower()}");
-
-    private string GetModelName(IMesh model)
-    {
-      return Path.GetFileNameWithoutExtension(model.FileHeader.FilePath);
     }
   }
 }

@@ -1,8 +1,10 @@
-﻿namespace EarthTool.Common.Interfaces
+﻿using EarthTool.Common.Enums;
+
+namespace EarthTool.Common.Interfaces
 {
   public interface IReader<out T>
   {
-    string InputFileExtension { get; }
+    FileType InputFileExtension { get; }
     
     T Read(string filePath);
   }

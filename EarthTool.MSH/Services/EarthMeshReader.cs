@@ -1,4 +1,6 @@
 ﻿using EarthTool.Common;
+using EarthTool.Common.Bases;
+using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
@@ -14,7 +16,7 @@ using System.Text;
 
 namespace EarthTool.MSH.Services
 {
-  public class EarthMeshReader : IReader<IMesh>
+  public class EarthMeshReader : Reader<IMesh>
   {
     private readonly IEarthInfoFactory _earthInfoFactory;
     private readonly IHierarchyBuilder _hierarchyBuilder;
@@ -27,38 +29,30 @@ namespace EarthTool.MSH.Services
       _encoding = encoding;
     }
 
-    public string InputFileExtension => "msh";
+    public override FileType InputFileExtension => FileType.MSH;
 
-    public IMesh Read(string filePath)
-      => ReadStream(filePath);
-
-    private IMesh ReadStream(string filePath)
+    protected override IMesh InternalRead(string filePath)
     {
-      if (File.Exists(filePath))
+      using (var stream = File.OpenRead(filePath))
       {
-        using (var stream = File.OpenRead(filePath))
+        var mesh = new EarthMesh();
+        mesh.FileHeader = _earthInfoFactory.Get(stream);
+        using (var reader = new BinaryReader(stream, _encoding))
         {
-          var mesh = new EarthMesh();
-          mesh.FileHeader = _earthInfoFactory.Get(stream);
-          using (var reader = new BinaryReader(stream, _encoding))
+          IsValidModel(reader);
+          mesh.Descriptor = LoadMeshDescriptor(reader);
+
+          if (mesh.Descriptor.MeshType != 0)
           {
-            IsValidModel(reader);
-            mesh.Descriptor = LoadMeshDescriptor(reader);
-
-            if (mesh.Descriptor.MeshType != 0)
-            {
-              throw new NotSupportedException("Not supported mesh format");
-            }
-
-            mesh.Geometries = LoadParts(reader).ToList();
-            mesh.PartsTree = _hierarchyBuilder.GetPartsTree(mesh.Geometries);
+            throw new NotSupportedException("Not supported mesh format");
           }
 
-          return mesh;
+          mesh.Geometries = LoadParts(reader).ToList();
+          mesh.PartsTree = _hierarchyBuilder.GetPartsTree(mesh.Geometries);
         }
-      }
 
-      return default;
+        return mesh;
+      }
     }
 
     #region Descriptor

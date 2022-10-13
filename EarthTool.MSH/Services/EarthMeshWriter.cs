@@ -1,11 +1,12 @@
-﻿using EarthTool.Common.Interfaces;
+﻿using EarthTool.Common.Bases;
+using EarthTool.Common.Enums;
 using EarthTool.MSH.Interfaces;
 using System.IO;
 using System.Text;
 
 namespace EarthTool.MSH.Services
 {
-  public class EarthMeshWriter : IWriter<IMesh>
+  public class EarthMeshWriter : Writer<IMesh>
   {
     private readonly Encoding _encoding;
 
@@ -14,32 +15,18 @@ namespace EarthTool.MSH.Services
       _encoding = encoding;
     }
 
-    public string OutputFileExtension => "msh";
+    public override FileType OutputFileExtension => FileType.MSH;
 
-    public string Write(IMesh mesh, string fileName)
+    protected override string InternalWrite(IMesh data, string filePath)
     {
-      CheckOrCreateOutputPath(fileName);
-      using (var stream = File.Create(fileName))
+      using (var stream = File.Create(filePath))
       {
-        Write(stream, mesh);
-        return fileName;
-      }
-    }
+        using (var writer = new BinaryWriter(stream, _encoding))
+        {
+          writer.Write(data.ToByteArray(_encoding));
+        }
 
-    private void Write(FileStream stream, IMesh mesh)
-    {
-      using (var writer = new BinaryWriter(stream, _encoding))
-      {
-        writer.Write(mesh.ToByteArray(_encoding));
-      }
-    }
-
-    private void CheckOrCreateOutputPath(string filePath)
-    {
-      var outputPath = Path.GetDirectoryName(filePath);
-      if (!Directory.Exists(outputPath))
-      {
-        Directory.CreateDirectory(outputPath);
+        return filePath;
       }
     }
   }

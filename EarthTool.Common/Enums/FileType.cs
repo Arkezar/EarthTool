@@ -37,6 +37,9 @@ namespace EarthTool.Common.Enums
     [Description("")]
     ATD,
     [Description("Sound wave file")]
-    WAV
+    WAV,
+    
+    [Description("Collada mesh file")]
+    DAE
   }
 }

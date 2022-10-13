@@ -1,4 +1,6 @@
 ﻿using Collada141;
+using EarthTool.Common.Bases;
+using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
 using EarthTool.DAE.Collections;
 using EarthTool.MSH.Interfaces;
@@ -18,7 +20,7 @@ using Vector = EarthTool.MSH.Models.Elements.Vector;
 
 namespace EarthTool.DAE.Services
 {
-  public class ColladaMeshReader : IReader<IMesh>
+  public class ColladaMeshReader : Reader<IMesh>
   {
     private readonly IEarthInfoFactory _earthInfoFactory;
     private readonly IHierarchyBuilder _hierarchyBuilder;
@@ -29,9 +31,9 @@ namespace EarthTool.DAE.Services
       _hierarchyBuilder = hierarchyBuilder;
     }
 
-    public string InputFileExtension => "dae";
+    public override FileType InputFileExtension => FileType.DAE;
 
-    public IMesh Read(string filePath)
+    protected override IMesh InternalRead(string filePath)
     {
       var model = LoadModel(filePath);
       return Read(model);
@@ -41,7 +43,7 @@ namespace EarthTool.DAE.Services
     {
       var modelName = model.Library_Visual_Scenes.First().Visual_Scene.First().Node.First().Id;
       var earthInfo = _earthInfoFactory.Get(modelName, Common.Enums.FileFlags.None, Guid.NewGuid());
-      var geometries = LoadGeometries(model);
+      var geometries = LoadGeometries(model).ToArray();
       var descriptor = LoadDescriptor(model, geometries);
 
       return new EarthMesh()

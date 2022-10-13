@@ -1,13 +1,14 @@
 ﻿using EarthTool.Common.Interfaces;
 using Spectre.Console.Cli;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
 namespace EarthTool.CLI.Commands.PAR;
 
-public class ConvertCommand : AsyncCommand<CommonSettings>
+public class ConvertCommand : CommonCommand<CommonSettings>
 {
   private readonly IPARConverter _converter;
 
@@ -16,21 +17,8 @@ public class ConvertCommand : AsyncCommand<CommonSettings>
     _converter = converter;
   }
 
-  public override Task<int> ExecuteAsync(CommandContext context, CommonSettings settings)
+  protected override async Task InternalExecuteAsync(string filePath, CommonSettings settings)
   {
-    var path = Path.GetDirectoryName(settings.InputFilePath);
-    if (string.IsNullOrEmpty(path))
-    {
-      path = Environment.CurrentDirectory;
-    }
-    var filePattern = Path.GetFileName(settings.InputFilePath);
-    var files = Directory.GetFiles(path, filePattern, SearchOption.TopDirectoryOnly);
-
-    files.AsParallel().ForAll(filePath =>
-    {
-        _converter.Convert(filePath, settings.OutputFolderPath.Value);
-    });
-
-    return Task.FromResult(0);
+    await _converter.Convert(filePath, settings.OutputFolderPath.Value ?? Path.GetDirectoryName(filePath));
   }
 }

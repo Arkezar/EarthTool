@@ -1,6 +1,6 @@
 ﻿using EarthTool.Common.Interfaces;
 using Spectre.Console.Cli;
-using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace EarthTool.CLI.Commands.TEX;
 
-public sealed class ConvertCommand : AsyncCommand<ConvertCommand.Settings>
+public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
 {
   private readonly ITEXConverter _converter;
 
@@ -25,24 +25,11 @@ public sealed class ConvertCommand : AsyncCommand<ConvertCommand.Settings>
     _converter = converter;
   }
 
-  public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
+  protected override async Task InternalExecuteAsync(string filePath, Settings settings)
   {
-    var path = Path.GetDirectoryName(settings.InputFilePath);
-    if (string.IsNullOrEmpty(path))
-    {
-      path = Environment.CurrentDirectory;
-    }
-    var filePattern = Path.GetFileName(settings.InputFilePath);
-    var files = Directory.GetFiles(path, filePattern, SearchOption.TopDirectoryOnly);
-
-    var options = new Common.Models.Option[] { new Common.Models.Option("HighResolutionOnly", settings.HighResolutionOnly) };
+    var options = new[] { new Common.Models.Option("HighResolutionOnly", settings.HighResolutionOnly) };
     var converter = _converter.WithOptions(options);
 
-    files.AsParallel().ForAll(filePath =>
-    {
-        converter.Convert(filePath, settings.OutputFolderPath.Value);
-    });
-
-    return Task.FromResult(0);
+    await converter.Convert(filePath, settings.OutputFolderPath.Value ?? Path.GetDirectoryName(filePath));
   }
 }

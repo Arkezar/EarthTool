@@ -1,13 +1,12 @@
 ﻿using EarthTool.Common.Interfaces;
-using Spectre.Console.Cli;
-using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
 namespace EarthTool.CLI.Commands.WD;
 
-public sealed class ExtractCommand : AsyncCommand<CommonSettings>
+public sealed class ExtractCommand : CommonCommand<CommonSettings>
 {
   private readonly IWDExtractor _extractor;
 
@@ -16,21 +15,8 @@ public sealed class ExtractCommand : AsyncCommand<CommonSettings>
     _extractor = extractor;
   }
 
-  public override Task<int> ExecuteAsync(CommandContext context, CommonSettings settings)
+  protected override async Task InternalExecuteAsync(string filePath, CommonSettings settings)
   {
-    var path = Path.GetDirectoryName(settings.InputFilePath);
-    if (string.IsNullOrEmpty(path))
-    {
-      path = Environment.CurrentDirectory;
-    }
-    
-    var filePattern = Path.GetFileName(settings.InputFilePath);
-    var files = Directory.GetFiles(path, filePattern, SearchOption.TopDirectoryOnly);
-
-    files.AsParallel().ForAll(async filePath =>
-    {
-        await _extractor.Extract(filePath, settings.OutputFolderPath.Value);
-    });
-    return Task.FromResult(0);
+    await _extractor.Extract(filePath, settings.OutputFolderPath.Value ?? Path.GetDirectoryName(filePath));
   }
 }

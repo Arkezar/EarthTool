@@ -1,8 +1,10 @@
-﻿namespace EarthTool.Common.Interfaces
+﻿using EarthTool.Common.Enums;
+
+namespace EarthTool.Common.Interfaces
 {
   public interface IWriter<in T>
   {
-    string OutputFileExtension { get; }
+    FileType OutputFileExtension { get; }
     
     string Write(T data, string filePath);
   }

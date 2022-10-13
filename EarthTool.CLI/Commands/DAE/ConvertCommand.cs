@@ -1,9 +1,8 @@
-﻿using EarthTool.Common.Interfaces;
+﻿using EarthTool.Common.Enums;
+using EarthTool.Common.Interfaces;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using Spectre.Console;
-using Spectre.Console.Cli;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -11,37 +10,29 @@ using System.Threading.Tasks;
 
 namespace EarthTool.CLI.Commands.DAE;
 
-public sealed class ConvertCommand : AsyncCommand<CommonSettings>
+public sealed class ConvertCommand : CommonCommand<CommonSettings>
 {
   private readonly IReader<IMesh> _meshReader;
   private readonly IWriter<IMesh> _meshWriter;
 
   public ConvertCommand(IEnumerable<IReader<IMesh>> meshReaders, IEnumerable<IWriter<IMesh>> meshWriters)
   {
-    _meshReader = meshReaders.Single(w => w.InputFileExtension == "dae");
-    _meshWriter = meshWriters.Single(w => w.OutputFileExtension == "msh");
+    _meshReader = meshReaders.Single(w => w.InputFileExtension == FileType.DAE);
+    _meshWriter = meshWriters.Single(w => w.OutputFileExtension == FileType.MSH);
   }
 
-  public override Task<int> ExecuteAsync(CommandContext context, CommonSettings settings)
+  protected override Task InternalExecuteAsync(string filePath, CommonSettings settings)
   {
-    var path = Path.GetDirectoryName(settings.InputFilePath);
-    if (string.IsNullOrEmpty(path))
-    {
-      path = Environment.CurrentDirectory;
-    }
+    var model = _meshReader.Read(filePath);
 
-    var filePattern = Path.GetFileName(settings.InputFilePath);
-    var files = Directory.GetFiles(path, filePattern, SearchOption.TopDirectoryOnly);
+    var outputFilePath =
+      GetOutputFilePath(filePath, settings.OutputFolderPath.Value, _meshWriter.OutputFileExtension);
 
-    foreach (var filePath in files)
-    {
-      var fileName = Path.ChangeExtension(Path.GetFileName(filePath), "msh");
-      var model = _meshReader.Read(filePath);
-      var outputFile = _meshWriter.Write(model, Path.Combine(settings.OutputFolderPath.Value, fileName));
-      PrintModelDetails(filePath, outputFile, model);
-    }
+    var outputFile = _meshWriter.Write(model, outputFilePath);
 
-    return Task.FromResult(0);
+    PrintModelDetails(filePath, outputFile, model);
+
+    return Task.CompletedTask;
   }
 
   private void PrintModelDetails(string inputFilePath, string outputFilePath, IMesh model)
