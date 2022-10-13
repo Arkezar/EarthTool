@@ -320,7 +320,7 @@ namespace EarthTool.MSH.Services
     private ITextureInfo LoadTextureInfo(BinaryReader reader)
     {
       var fileNameLength = reader.ReadInt32();
-      var fileName = Encoding.GetEncoding("ISO-8859-2").GetString(reader.ReadBytes(fileNameLength));
+      var fileName = _encoding.GetString(reader.ReadBytes(fileNameLength));
       return new TextureInfo() { FileName = fileName };
     }
 

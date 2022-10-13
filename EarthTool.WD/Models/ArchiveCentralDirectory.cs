@@ -18,10 +18,10 @@ namespace EarthTool.WD.Models
     public IEnumerable<IArchiveFileHeader> FileHeaders
       => _fileHeaders;
 
-    public ArchiveCentralDirectory(Stream stream)
+    public ArchiveCentralDirectory(Stream stream, Encoding encoding)
     {
       LastModified = DateTime.FromFileTimeUtc(BitConverter.ToInt64(stream.ReadBytes(8)));
-      _fileHeaders = GetFileHeaders(stream);
+      _fileHeaders = GetFileHeaders(stream, encoding);
     }
 
     public ArchiveCentralDirectory()
@@ -62,13 +62,13 @@ namespace EarthTool.WD.Models
       _fileHeaders.Remove(fileHeader);
     }
 
-    private LinkedList<IArchiveFileHeader> GetFileHeaders(Stream stream)
+    private LinkedList<IArchiveFileHeader> GetFileHeaders(Stream stream, Encoding encoding)
     {
       var fileCount = BitConverter.ToInt16(stream.ReadBytes(2));
-      return new LinkedList<IArchiveFileHeader>(Enumerable.Range(0, fileCount).Select(i => GetFileHeader(stream)));
+      return new LinkedList<IArchiveFileHeader>(Enumerable.Range(0, fileCount).Select(i => GetFileHeader(stream, encoding)));
     }
 
-    private IArchiveFileHeader GetFileHeader(Stream stream)
-      => new ArchiveFileHeader(stream);
+    private IArchiveFileHeader GetFileHeader(Stream stream, Encoding encoding)
+      => new ArchiveFileHeader(stream, encoding);
   }
 }

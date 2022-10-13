@@ -1,11 +1,7 @@
 ﻿using AutoFixture;
 using AutoFixture.Kernel;
 using FluentAssertions;
-using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using EarthTool.WD.Models;
 using EarthTool.WD.Resources;
 using Xunit;
@@ -32,7 +28,7 @@ namespace EarthTool.WD.Tests
       var serialized = centralDirectory.ToByteArray();
 
       using var input = new MemoryStream(serialized);
-      var deserialized = new ArchiveCentralDirectory(input);
+      var deserialized = new ArchiveCentralDirectory(input, Encoding);
       
       // Then
       deserialized.LastModified.Should().Be(centralDirectory.LastModified);

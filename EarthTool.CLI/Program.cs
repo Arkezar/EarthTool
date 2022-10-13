@@ -22,7 +22,7 @@ namespace EarthTool.CLI
     public static Task Main(string[] args)
     {
       Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-      var hostBuilder = Initialize(args);
+      var hostBuilder = CreateHostBuilder(args);
 
       var app = new CommandApp(new CommandTypeRegistrar(hostBuilder));
       app.Configure(config =>
@@ -39,7 +39,7 @@ namespace EarthTool.CLI
       return app.RunAsync(args);
     }
 
-    private static IHostBuilder Initialize(string[] args)
+    private static IHostBuilder CreateHostBuilder(string[] args)
     {
       var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
       return Host.CreateDefaultBuilder(args)

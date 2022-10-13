@@ -11,6 +11,7 @@ namespace EarthTool.WD.Resources
 {
   public class ArchiveFileHeader : IArchiveFileHeader
   {
+    private readonly Encoding _encoding;
     public string FileName { get; }
 
     public int Offset { get; private set; }
@@ -27,9 +28,11 @@ namespace EarthTool.WD.Resources
 
     public FileFlags Flags { get; }
 
-    public ArchiveFileHeader(Stream stream)
+    public ArchiveFileHeader(Stream stream, Encoding encoding)
     {
-      using (var br = new BinaryReader(stream, Encoding.GetEncoding("ISO-8859-2"), true))
+      _encoding = encoding;
+      
+      using (var br = new BinaryReader(stream, encoding, true))
       {
         FileName = br.ReadString();
         Flags = (FileFlags)br.ReadByte();
@@ -42,8 +45,10 @@ namespace EarthTool.WD.Resources
       }
     }
 
-    public ArchiveFileHeader(string fileName, int offset, int length, int decompressedLength, FileFlags flags, string translationId = null, ResourceType? resourceType = null, Guid? guid = null)
+    public ArchiveFileHeader(string fileName, Encoding encoding, int offset, int length, int decompressedLength, FileFlags flags, string translationId = null, ResourceType? resourceType = null, Guid? guid = null)
     {
+      _encoding = encoding;
+      
       FileName = fileName;
       Offset = offset;
       Length = length;
@@ -63,7 +68,7 @@ namespace EarthTool.WD.Resources
     {
       using (var output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, Encoding.GetEncoding("ISO-8859-2")))
+        using (var bw = new BinaryWriter(output, _encoding))
         {
           bw.Write(FileName);
           bw.Write((byte)Flags);
@@ -107,10 +112,9 @@ namespace EarthTool.WD.Resources
           ResourceType = ResourceType,
           FilePath = FileName
         };
-      } else
-      {
-        return default;
       }
+
+      return default;
     }
 
     public override string ToString()

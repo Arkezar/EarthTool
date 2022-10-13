@@ -10,7 +10,7 @@ namespace EarthTool.Common
   {
     protected override void Load(ContainerBuilder builder)
     {
-      builder.Register(_ => Encoding.GetEncoding("ISO-8859-2")).SingleInstance();
+      builder.RegisterInstance(Encoding.GetEncoding("ISO-8859-2"));
       builder.RegisterType<EarthInfoFactory>().AsImplementedInterfaces().SingleInstance();
     }
   }

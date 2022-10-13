@@ -1,14 +1,8 @@
 ﻿using AutoFixture;
 using AutoFixture.Kernel;
-using EarthTool.Common.Enums;
 using EarthTool.WD.Resources;
 using FluentAssertions;
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Xunit;
 
 namespace EarthTool.WD.Tests
@@ -32,7 +26,7 @@ namespace EarthTool.WD.Tests
 
       // When
       using var input = new MemoryStream(serialized);
-      var deserialized = new ArchiveFileHeader(input);
+      var deserialized = new ArchiveFileHeader(input, Encoding);
 
       // Then
       deserialized.FileName.Should().Be(_testHeader.FileName);

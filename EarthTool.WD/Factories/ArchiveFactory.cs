@@ -13,11 +13,13 @@ namespace EarthTool.WD.Factories
   {
     private readonly IDecompressor _decompressor;
     private readonly ICompressor _compressor;
+    private readonly Encoding _encoding;
 
-    public ArchiveFactory(IDecompressor decompressor, ICompressor compressor)
+    public ArchiveFactory(IDecompressor decompressor, ICompressor compressor, Encoding encoding)
     {
       _decompressor = decompressor;
       _compressor = compressor;
+      _encoding = encoding;
     }
 
     public IArchive NewArchive()
@@ -29,7 +31,7 @@ namespace EarthTool.WD.Factories
     {
       using (var stream = new FileStream(path, FileMode.Open))
       {
-        return new Archive(path, stream, _decompressor, _compressor);
+        return new Archive(path, stream, _decompressor, _compressor, _encoding);
       }
     }
 
@@ -37,7 +39,7 @@ namespace EarthTool.WD.Factories
     {
       using (var stream = new MemoryStream(data))
       {
-        return new Archive(null, stream, _decompressor, _compressor);
+        return new Archive(null, stream, _decompressor, _compressor, _encoding);
       }
     }
   }

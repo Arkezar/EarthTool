@@ -1,6 +1,5 @@
 ﻿using Autofac;
 using AutoFixture;
-using AutoFixture.Kernel;
 using EarthTool.Common.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -17,6 +16,8 @@ namespace EarthTool.WD.Tests
     protected ICompressor Compressor { get; }
 
     protected IDecompressor Decompressor { get; }
+    
+    protected Encoding Encoding { get; }
 
     public ArchiveTestsBase()
     {
@@ -26,6 +27,7 @@ namespace EarthTool.WD.Tests
 
       var cb = new ContainerBuilder();
       cb.RegisterModule<WDModule>();
+      cb.RegisterInstance(Encoding.GetEncoding("ISO-8859-2"));
       cb.RegisterInstance(new NullLoggerFactory()).AsImplementedInterfaces();
       cb.RegisterGeneric(typeof(NullLogger<>)).As(typeof(ILogger<>)).SingleInstance();
       var container = cb.Build();
@@ -33,6 +35,7 @@ namespace EarthTool.WD.Tests
       ArchiveFactory = container.Resolve<IArchiveFactory>();
       Compressor = container.Resolve<ICompressor>();
       Decompressor = container.Resolve<IDecompressor>();
+      Encoding = container.Resolve<Encoding>();
     }
   }
 }
