@@ -1,5 +1,6 @@
 ﻿using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
+using EarthTool.MSH.Enums;
 using EarthTool.MSH.Interfaces;
 using Spectre.Console;
 using System;
@@ -26,14 +27,6 @@ public class AnalyzeCommand : CommonCommand<CommonSettings>
 
       //Part Types
       // AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, string.Join('|', model.Geometries.Select(g => g.PartType)));
-
-      //Animation Types
-      // AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, string.Join('|', model.Geometries.Select(g => g.AnimationType)));
-
-      // UnknownAnimationData
-      // if (model.Geometries.Any(g => g.Animations.UnknownAnimationData.Any()))
-      //   AnsiConsole.WriteLine("{0}\t{1}", inputFilePath,
-      //     model.Geometries.Max(g => g.Animations.UnknownAnimationData.Count()));
     }
     catch
     {

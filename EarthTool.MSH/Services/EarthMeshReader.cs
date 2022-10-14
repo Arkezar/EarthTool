@@ -2,6 +2,7 @@
 using EarthTool.Common.Bases;
 using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
+using EarthTool.MSH.Enums;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using EarthTool.MSH.Models.Collections;
@@ -260,7 +261,7 @@ namespace EarthTool.MSH.Services
       result.Texture = LoadTextureInfo(reader);
       result.Faces = LoadFaces(reader);
       result.Animations = LoadAnimations(reader);
-      result.AnimationType = reader.ReadInt32();
+      result.AnimationType = (AnimationType)reader.ReadInt32();
       result.Offset = LoadVector(reader);
       result.RiseAngle = reader.ReadByte() / byte.MaxValue * 360;
       result.UnknownBytes = reader.ReadBytes(4);
@@ -270,7 +271,7 @@ namespace EarthTool.MSH.Services
     private IAnimations LoadAnimations(BinaryReader reader)
       => new Animations()
       {
-        UnknownAnimationData = LoadSlotList(reader, reader.ReadInt32(), (r, _) => LoadVector(r)),
+        ScaleFrames = LoadSlotList(reader, reader.ReadInt32(), (r, _) => LoadVector(r)),
         MovementFrames = LoadSlotList(reader, reader.ReadInt32(), (r, _) => LoadVector(r)),
         RotationFrames = LoadSlotList(reader, reader.ReadInt32(), (r, _) => LoadRotationFrame(r)),
       };

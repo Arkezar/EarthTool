@@ -7,6 +7,6 @@ namespace EarthTool.MSH.Interfaces
   {
     IEnumerable<IVector> MovementFrames { get; }
     IEnumerable<IRotationFrame> RotationFrames { get; }
-    IEnumerable<IVector> UnknownAnimationData { get; }
+    IEnumerable<IVector> ScaleFrames { get; }
   }
 }

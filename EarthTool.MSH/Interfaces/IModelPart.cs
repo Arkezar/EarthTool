@@ -1,4 +1,5 @@
 ﻿using EarthTool.Common.Interfaces;
+using EarthTool.MSH.Enums;
 using System.Collections.Generic;
 
 namespace EarthTool.MSH.Interfaces
@@ -14,7 +15,7 @@ namespace EarthTool.MSH.Interfaces
     byte PartType { get; }
     double RiseAngle { get; }
     short Empty { get; }
-    int AnimationType { get; }
+    AnimationType AnimationType { get; }
     IEnumerable<IVertex> Vertices { get; }
   }
 }

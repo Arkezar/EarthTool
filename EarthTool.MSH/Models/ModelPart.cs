@@ -1,4 +1,5 @@
-﻿using EarthTool.MSH.Interfaces;
+﻿using EarthTool.MSH.Enums;
+using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models.Elements;
 using System;
 using System.Collections.Generic;
@@ -24,7 +25,7 @@ namespace EarthTool.MSH.Models
 
     public IAnimations Animations { get; set; }
 
-    public int AnimationType { get; set; }
+    public AnimationType AnimationType { get; set; }
 
     public IVector Offset { get; set; }
 
@@ -46,7 +47,7 @@ namespace EarthTool.MSH.Models
           writer.Write(Faces.Count());
           writer.Write(Faces.SelectMany(x => x.ToByteArray(encoding)).ToArray());
           writer.Write(Animations.ToByteArray(encoding));
-          writer.Write(AnimationType);
+          writer.Write((int)AnimationType);
           writer.Write(Offset.ToByteArray(encoding));
           writer.Write(GetRiseAngle());
           writer.Write(UnknownBytes);
