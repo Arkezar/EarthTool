@@ -256,7 +256,7 @@ namespace EarthTool.MSH.Services
       result.Vertices = LoadVertices(reader);
       result.BackTrackDepth = reader.ReadByte();
       result.PartType = reader.ReadByte();
-      result.UnknownFlag2 = reader.ReadInt16();
+      result.Empty = reader.ReadInt16();
       result.Texture = LoadTextureInfo(reader);
       result.Faces = LoadFaces(reader);
       result.Animations = LoadAnimations(reader);

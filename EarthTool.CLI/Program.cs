@@ -31,6 +31,10 @@ namespace EarthTool.CLI
         config.AddCommand<Commands.MSH.ConvertCommand>("msh");
         config.AddCommand<Commands.DAE.ConvertCommand>("dae");
         config.AddCommand<Commands.TEX.ConvertCommand>("tex");
+
+#if DEBUG
+        config.AddCommand<Commands.MSH.AnalyzeCommand>("msha");
+#endif
         config.SetExceptionHandler(ex =>
         {
           AnsiConsole.WriteException(ex, ExceptionFormats.ShortenEverything);

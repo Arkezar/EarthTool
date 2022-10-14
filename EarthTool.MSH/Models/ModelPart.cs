@@ -16,7 +16,7 @@ namespace EarthTool.MSH.Models
 
     public byte PartType { get; set; }
 
-    public short UnknownFlag2 { get; set; }
+    public short Empty { get; set; }
 
     public ITextureInfo Texture { get; set; }
 
@@ -41,7 +41,7 @@ namespace EarthTool.MSH.Models
           writer.Write(GetVertexBytes());
           writer.Write(BackTrackDepth);
           writer.Write(PartType);
-          writer.Write(UnknownFlag2);
+          writer.Write(Empty);
           writer.Write(Texture.ToByteArray(encoding));
           writer.Write(Faces.Count());
           writer.Write(Faces.SelectMany(x => x.ToByteArray(encoding)).ToArray());

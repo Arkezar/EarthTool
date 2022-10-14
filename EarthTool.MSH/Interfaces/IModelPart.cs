@@ -13,7 +13,7 @@ namespace EarthTool.MSH.Interfaces
     byte[] UnknownBytes { get; }
     byte PartType { get; }
     double RiseAngle { get; }
-    short UnknownFlag2 { get; }
+    short Empty { get; }
     int AnimationType { get; }
     IEnumerable<IVertex> Vertices { get; }
   }
