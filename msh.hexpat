@@ -32,10 +32,7 @@ struct Position {
 	float z;
 };
 
-struct SpotLight {
-	float x;
-	float y;
-	float x;
+struct SpotLight : Position {
 	float r;
 	float g;
 	float b;
@@ -47,10 +44,7 @@ struct SpotLight {
 	float ambience;
 };
 
-struct OmniLight {
-	float x;
-	float y;
-	float x;
+struct OmniLight : Position {
 	float r;
 	float g;
 	float b;
@@ -218,7 +212,7 @@ struct StaticGeometry {
 	u32 animationType;
 	Position offset;
 	u8 riseAngleRad;
-	u8 unknown[4];
+	u8 unknownBytes[4];
 };
 
 struct Mesh {
@@ -233,5 +227,6 @@ struct Mesh {
 };
 
 Mesh data @ std::mem::find_sequence(0, 0x4D, 0x45, 0x53, 0x48);
+
 
 
