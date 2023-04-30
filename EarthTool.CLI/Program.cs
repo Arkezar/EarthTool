@@ -52,7 +52,7 @@ namespace EarthTool.CLI
         .ConfigureContainer<ContainerBuilder>(containerBuilder =>
         {
           containerBuilder.RegisterModule<CommonModule>();
-          containerBuilder.RegisterModule<WDModule>();
+          containerBuilder.RegisterModule<EarthTool.WD.Legacy.WDModule>();
           containerBuilder.RegisterModule<TEXModule>();
           containerBuilder.RegisterModule<MSHModule>();
           containerBuilder.RegisterModule<PARModule>();

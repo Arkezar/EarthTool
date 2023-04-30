@@ -17,6 +17,7 @@
     <ProjectReference Include="..\EarthTool.DAE\EarthTool.DAE.csproj" />
     <ProjectReference Include="..\EarthTool.PAR\EarthTool.PAR.csproj" />
     <ProjectReference Include="..\EarthTool.TEX\EarthTool.TEX.csproj" />
+    <ProjectReference Include="..\EarthTool.WD.Legacy\EarthTool.WD.Legacy.csproj" />
     <ProjectReference Include="..\EarthTool.WD\EarthTool.WD.csproj" />
   </ItemGroup>
 
