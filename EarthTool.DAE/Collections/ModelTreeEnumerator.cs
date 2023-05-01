@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace EarthTool.DAE.Collections
@@ -40,7 +41,7 @@ namespace EarthTool.DAE.Collections
         _parentStack.Push(_currentLevel);
       }
 
-      _currentLevel = _current.NodeProperty.GetEnumerator();
+      _currentLevel = _current.NodeProperty.OrderBy(n => n.Name).GetEnumerator();
 
       while (BackTrack())
       {
