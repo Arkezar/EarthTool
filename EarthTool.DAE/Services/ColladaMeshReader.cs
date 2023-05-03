@@ -58,9 +58,7 @@ namespace EarthTool.DAE.Services
     private IEnumerable<IModelPart> LoadGeometries(COLLADA model)
     {
       var modelTree = new ModelTree(model);
-      var geometries = model.Library_Geometries.First().Geometry;
-      var result = modelTree.Select(g => LoadGeometry(geometries.Single(n => n.Name == g.Node.Name), model, modelTree))
-        .ToArray();
+      var result = modelTree.Select(LoadModelPart).ToArray();
 
       result.Last().UnknownBytes = new byte[4];
       result.Last().PartType = 0;
@@ -69,42 +67,35 @@ namespace EarthTool.DAE.Services
       return result;
     }
 
-    private ModelPart LoadGeometry(Geometry g, COLLADA model, ModelTree modelTree)
+    private ModelPart LoadModelPart(ModelTreeNode node)
     {
+      var g = node.Geometry;
       var facesAndVertices = LoadFacesWithVertices(g);
-      var offsetAndDepth = LoadOffsetAndDepth(modelTree, g.Name);
+      var offset = new Vector() { Value = GetTransformationMatrix(node.TransformationMatrix).Translation };
 
       return new ModelPart()
       {
         Faces = facesAndVertices.Faces,
         Vertices = facesAndVertices.Vertices,
-        Animations = LoadAnimations(g, model, offsetAndDepth.Vector),
-        Texture = LoadTexture(model, modelTree, g.Name),
+        Animations = LoadAnimations(g, node.Model, offset),
+        Texture = LoadTexture(node),
         UnknownBytes = new byte[] { 0, 0, 120, 0 },
-        Offset = offsetAndDepth.Vector,
-        BackTrackDepth = (byte)offsetAndDepth.BacktrackLevel,
+        Offset = offset,
+        BackTrackDepth = (byte)node.BacktrackLevel,
         PartType = 8 // 0 if sidecolor part
       };
     }
 
-    private (IVector Vector, int BacktrackLevel) LoadOffsetAndDepth(ModelTree model, string id)
+    private ITextureInfo LoadTexture(ModelTreeNode node)
     {
-      var node = model.Single(n => n.Node.Id == id.Replace(".", "_"));
-      return (GetVector(node.Node), node.BacktrackLevel);
-    }
-
-    private ITextureInfo LoadTexture(COLLADA model, ModelTree modelTree, string id)
-    {
-      var node = modelTree.Single(n => n.Node.Id == id.Replace(".", "_"));
-      var materialId = node.Node.Instance_Geometry.First().Bind_Material.Technique_Common.First().Symbol;
-      var material = model.Library_Materials.First().Material.Single(m => m.Id == materialId);
+      var material = node.Materials.First();
       var effectId = material.Instance_Effect.Url.Substring(1);
-      var effect = model.Library_Effects.First().Effect.Single(e => e.Id == effectId);
-      var eefectProfile = effect.Fx_Profile_Abstract.OfType<Profile_COMMON>().First();
-      var diffuseTextureId = eefectProfile.Technique.Lambert.Diffuse.Texture.Texture;
-      var samplerSourceId = eefectProfile.Newparam.Single(p => p.Sid == diffuseTextureId).Sampler2D.Source;
-      var sourceId = eefectProfile.Newparam.Single(p => p.Sid == samplerSourceId).Surface.Init_From.First().Value;
-      var texture = model.Library_Images.First().Image.Single(i => i.Id == sourceId).Init_From;
+      var effect = node.Model.Library_Effects.First().Effect.Single(e => e.Id == effectId);
+      var effectProfile = effect.Fx_Profile_Abstract.OfType<Profile_COMMON>().First();
+      var diffuseTextureId = effectProfile.Technique.Lambert.Diffuse.Texture.Texture;
+      var samplerSourceId = effectProfile.Newparam.Single(p => p.Sid == diffuseTextureId).Sampler2D.Source;
+      var sourceId = effectProfile.Newparam.Single(p => p.Sid == samplerSourceId).Surface.Init_From.First().Value;
+      var texture = node.Model.Library_Images.First().Image.Single(i => i.Id == sourceId).Init_From;
       return new TextureInfo() { FileName = Path.Combine("Textures", Path.ChangeExtension(texture, "tex")) };
     }
 
@@ -149,19 +140,54 @@ namespace EarthTool.DAE.Services
 
     private (IEnumerable<IFace> Faces, IEnumerable<IVertex> Vertices) LoadFacesWithVertices(Geometry g)
     {
-      var vertexSource = g.Mesh.Vertices.Input.First().Source.Trim('#');
-      var normalSource = g.Mesh.Triangles.First().Input.Single(i => i.Semantic == "NORMAL").Source.Trim('#');
-      var uvMapSource = g.Mesh.Triangles.First().Input.Single(i => i.Semantic == "TEXCOORD").Source.Trim('#');
+      var vertexSource = g.Mesh.Vertices.Input.First(i => i.Semantic == "POSITION").Source.Trim('#');
+      InputLocalOffset vertexInput;
+      InputLocalOffset normalInput;
+      InputLocalOffset uvMapInput;
 
+      string polys;
+      int polyCount;
+      int vCount = 3;
+      int inputCount;
+
+      if (g.Mesh.TrianglesSpecified)
+      {
+        vertexInput = g.Mesh.Triangles.First().Input.Single(i => i.Semantic == "VERTEX");
+        normalInput = g.Mesh.Triangles.First().Input.Single(i => i.Semantic == "NORMAL");
+        uvMapInput = g.Mesh.Triangles.First().Input.Single(i => i.Semantic == "TEXCOORD");
+
+        polys = g.Mesh.Triangles.First().P;
+        polyCount = (int)g.Mesh.Triangles.First().Count;
+        inputCount = g.Mesh.Triangles.First().Input.Sum(i => (int)i.Offset);
+      }
+      else if (g.Mesh.PolylistSpecified)
+      {
+        vertexInput = g.Mesh.Polylist.First().Input.Single(i => i.Semantic == "VERTEX");
+        normalInput = g.Mesh.Polylist.First().Input.Single(i => i.Semantic == "NORMAL");
+        uvMapInput = g.Mesh.Polylist.First().Input.Single(i => i.Semantic == "TEXCOORD");
+        polys = g.Mesh.Polylist.First().P;
+        polyCount = (int)g.Mesh.Polylist.First().Count;
+        inputCount = g.Mesh.Polylist.First().Input.Sum(i => (int)i.Offset);
+      }
+      else
+      {
+        throw new NotSupportedException("Unsupported mesh type");
+      }
+
+      var normalSource = normalInput.Source.Trim('#');
+      var uvMapSource = uvMapInput.Source.Trim('#');
       var vertexVectors = LoadVectors(g.Mesh.Source.Single(s => s.Id == vertexSource)).ToArray();
       var normalVector = LoadVectors(g.Mesh.Source.Single(s => s.Id == normalSource)).ToArray();
       var uvs = LoadUVs(g.Mesh.Source.Single(s => s.Id == uvMapSource)).ToArray();
 
-      var triangles = g.Mesh.Triangles.First();
-      var faceValues = triangles.P.Split(' ').Select(v => int.Parse(v));
-      var faces = faceValues.Select((v, i) => new { Value = v, Group = i / triangles.Input.Count })
+      var faceValues = polys.Split(' ').Select(v => int.Parse(v));
+      var faces = faceValues.Select((v, i) => new
+        {
+          Value = v,
+          Group = i / new[] { vertexInput.Offset, normalInput.Offset, uvMapInput.Offset }.Distinct().Count()
+        })
         .GroupBy(v => v.Group)
-        .Select((v, i) => new { Face = v.Select(x => x.Value).ToArray(), Group = i / 3 })
+        .Select((v, i) => new { Face = v.Select(x => x.Value).ToArray(), Group = i / vCount })
         .GroupBy(v => v.Group)
         .Select(x => x.Select(v => v.Face.ToArray()).ToArray()).ToArray();
 
@@ -170,9 +196,9 @@ namespace EarthTool.DAE.Services
       {
         foreach (var face in group)
         {
-          var position = vertexVectors[face[0]];
-          var normal = normalVector[face[1]];
-          var uv = uvs[face[2]];
+          var position = vertexVectors[face[vertexInput.Offset]];
+          var normal = normalVector[face[normalInput.Offset]];
+          var uv = uvs[face[uvMapInput.Offset]];
 
           var positionId = vertices.IndexOf(vertices.FirstOrDefault(v => v.Position.Equals(position)));
           var normalId = vertices.IndexOf(vertices.FirstOrDefault(v => v.Normal.Equals(normal)));
@@ -184,22 +210,24 @@ namespace EarthTool.DAE.Services
         }
       }
 
-      var resultFaces = faces.Select(f => GetFace(f, vertices, vertexVectors, normalVector, uvs)).ToArray();
+      var resultFaces = faces.Select(f => GetFace(f, vertices, vertexVectors, vertexInput.Offset, normalVector,
+        normalInput.Offset, uvs, uvMapInput.Offset)).ToArray();
       return (resultFaces, vertices);
     }
 
-    private Face GetFace(int[][] f, IList<Vertex> vertices, IVector[] vertexVectors, IVector[] normalVector,
-      IUVMap[] uvs)
+    private Face GetFace(int[][] f, IList<Vertex> vertices, IVector[] vertexVectors, ulong vertexOffset,
+      IVector[] normalVector, ulong normalOffset,
+      IUVMap[] uvs, ulong uvOffset)
     {
       var v1 = vertices.Single(v =>
-        v.Position.Equals(vertexVectors[f[0][0]]) && v.Normal.Equals(normalVector[f[0][1]]) &&
-        v.UVMap.Equals(uvs[f[0][2]]));
+        v.Position.Equals(vertexVectors[f[0][vertexOffset]]) && v.Normal.Equals(normalVector[f[0][normalOffset]]) &&
+        v.UVMap.Equals(uvs[f[0][uvOffset]]));
       var v2 = vertices.Single(v =>
-        v.Position.Equals(vertexVectors[f[1][0]]) && v.Normal.Equals(normalVector[f[1][1]]) &&
-        v.UVMap.Equals(uvs[f[1][2]]));
+        v.Position.Equals(vertexVectors[f[1][vertexOffset]]) && v.Normal.Equals(normalVector[f[1][normalOffset]]) &&
+        v.UVMap.Equals(uvs[f[1][uvOffset]]));
       var v3 = vertices.Single(v =>
-        v.Position.Equals(vertexVectors[f[2][0]]) && v.Normal.Equals(normalVector[f[2][1]]) &&
-        v.UVMap.Equals(uvs[f[2][2]]));
+        v.Position.Equals(vertexVectors[f[2][vertexOffset]]) && v.Normal.Equals(normalVector[f[2][normalOffset]]) &&
+        v.UVMap.Equals(uvs[f[2][uvOffset]]));
 
       return new Face()
       {

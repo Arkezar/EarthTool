@@ -1,29 +1,27 @@
 ﻿using Collada141;
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace EarthTool.DAE.Collections
 {
-  internal class ModelTreeEnumerator : IEnumerator<(Node Node, int BacktrackLevel)>
+  internal class ModelTreeEnumerator : IEnumerator<ModelTreeNode>
   {
+    private readonly COLLADA _model;
     private readonly Node _root;
     private Stack<IEnumerator<Node>> _parentStack;
     private Node _current;
     private IEnumerator<Node> _currentLevel;
     private int _backtrackLevel;
 
-    public ModelTreeEnumerator(Node root)
+    public ModelTreeEnumerator(COLLADA model, Node root)
     {
+      _model = model;
       _root = root;
       _parentStack = new Stack<IEnumerator<Node>>();
     }
 
-    public int BackTrackLevel => _backtrackLevel;
-
-    public (Node Node, int BacktrackLevel) Current => (_current, _backtrackLevel);
+    public ModelTreeNode Current => new ModelTreeNode(_model, _current, _backtrackLevel, _parentStack.Count);
 
     object IEnumerator.Current => Current;
 
@@ -50,6 +48,7 @@ namespace EarthTool.DAE.Collections
         {
           return false;
         }
+
         _currentLevel = _parentStack.Pop();
         _backtrackLevel++;
       }
@@ -66,16 +65,16 @@ namespace EarthTool.DAE.Collections
     private bool BackTrack()
     {
       var modelName = _root.Name;
-      if(_currentLevel != null)
+      if (_currentLevel != null)
       {
-        while(_currentLevel.MoveNext())
+        while (_currentLevel.MoveNext())
         {
           if (_currentLevel.Current.Name.StartsWith(modelName))
           {
             return false;
           }
         }
-        
+
         return true;
       }
 
