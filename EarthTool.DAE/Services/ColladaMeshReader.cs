@@ -3,6 +3,7 @@ using EarthTool.Common.Bases;
 using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
 using EarthTool.DAE.Collections;
+using EarthTool.MSH.Enums;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using EarthTool.MSH.Models.Collections;
@@ -82,7 +83,7 @@ namespace EarthTool.DAE.Services
         UnknownBytes = new byte[] { 0, 0, 120, 0 },
         Offset = offset,
         BackTrackDepth = (byte)node.BacktrackLevel,
-        PartType = 8 // 0 if sidecolor part
+        PartType = PartType.Subpart // 0 if sidecolor part
       };
     }
 

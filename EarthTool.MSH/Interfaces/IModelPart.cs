@@ -12,7 +12,7 @@ namespace EarthTool.MSH.Interfaces
     IVector Offset { get; }
     ITextureInfo Texture { get; }
     byte[] UnknownBytes { get; }
-    byte PartType { get; }
+    PartType PartType { get; }
     double RiseAngle { get; }
     short Empty { get; }
     AnimationType AnimationType { get; }

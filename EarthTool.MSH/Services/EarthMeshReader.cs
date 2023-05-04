@@ -256,14 +256,14 @@ namespace EarthTool.MSH.Services
       var result = new ModelPart();
       result.Vertices = LoadVertices(reader);
       result.BackTrackDepth = reader.ReadByte();
-      result.PartType = reader.ReadByte();
+      result.PartType = (PartType)reader.ReadByte();
       result.Empty = reader.ReadInt16();
       result.Texture = LoadTextureInfo(reader);
       result.Faces = LoadFaces(reader);
       result.Animations = LoadAnimations(reader);
       result.AnimationType = (AnimationType)reader.ReadInt32();
       result.Offset = LoadVector(reader);
-      result.RiseAngle = reader.ReadByte() / byte.MaxValue * 360;
+      result.RiseAngle = Math.Round((double)reader.ReadByte() / byte.MaxValue) * 360;
       result.UnknownBytes = reader.ReadBytes(4);
       return result;
     }

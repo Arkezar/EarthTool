@@ -15,7 +15,7 @@ namespace EarthTool.MSH.Models
 
     public byte BackTrackDepth { get; set; }
 
-    public byte PartType { get; set; }
+    public PartType PartType { get; set; }
 
     public short Empty { get; set; }
 
@@ -41,7 +41,7 @@ namespace EarthTool.MSH.Models
         {
           writer.Write(GetVertexBytes());
           writer.Write(BackTrackDepth);
-          writer.Write(PartType);
+          writer.Write((byte)PartType);
           writer.Write(Empty);
           writer.Write(Texture.ToByteArray(encoding));
           writer.Write(Faces.Count());
