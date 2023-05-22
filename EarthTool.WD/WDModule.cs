@@ -1,18 +1,18 @@
-﻿using Autofac;
+﻿using EarthTool.Common.Interfaces;
 using EarthTool.WD.Factories;
 using EarthTool.WD.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EarthTool.WD
 {
-  public class WDModule : Module
+  public static class WDModule
   {
-    protected override void Load(ContainerBuilder builder)
-    {
-      builder.RegisterType<WDExtractor>().AsImplementedInterfaces();
-      builder.RegisterType<ArchiverService>().AsImplementedInterfaces();
-      builder.RegisterType<ArchiveFactory>().AsImplementedInterfaces();
-      builder.RegisterType<CompressorService>().AsImplementedInterfaces();
-      builder.RegisterType<DecompressorService>().AsImplementedInterfaces();
-    }
+    public static IServiceCollection AddWdServices(this IServiceCollection services)
+      => services
+        .AddTransient<IWDExtractor, WDExtractor>()
+        .AddTransient<IArchiver, ArchiverService>()
+        .AddTransient<IArchiveFactory, ArchiveFactory>()
+        .AddTransient<ICompressor, CompressorService>()
+        .AddTransient<IDecompressor, DecompressorService>();
   }
 }

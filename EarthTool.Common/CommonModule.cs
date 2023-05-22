@@ -1,17 +1,15 @@
-﻿using Autofac;
-using EarthTool.Common.Factories;
-using System;
-using System.Collections.Generic;
+﻿using EarthTool.Common.Factories;
+using EarthTool.Common.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 using System.Text;
 
 namespace EarthTool.Common
 {
-  public class CommonModule : Module
+  public static class CommonModule
   {
-    protected override void Load(ContainerBuilder builder)
-    {
-      builder.RegisterInstance(Encoding.GetEncoding("ISO-8859-2"));
-      builder.RegisterType<EarthInfoFactory>().AsImplementedInterfaces().SingleInstance();
-    }
+    public static IServiceCollection AddCommonServices(this IServiceCollection services)
+      => services
+        .AddSingleton(Encoding.GetEncoding("ISO-8859-2"))
+        .AddSingleton<IEarthInfoFactory, EarthInfoFactory>();
   }
 }

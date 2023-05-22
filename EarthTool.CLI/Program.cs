@@ -1,6 +1,4 @@
-﻿using Autofac;
-using Autofac.Extensions.DependencyInjection;
-using EarthTool.CLI.Commands;
+﻿using EarthTool.CLI.Commands;
 using EarthTool.Common;
 using EarthTool.MSH;
 using EarthTool.DAE;
@@ -43,21 +41,20 @@ namespace EarthTool.CLI
     {
       var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
       return Host.CreateDefaultBuilder(args)
-        .UseServiceProviderFactory(new AutofacServiceProviderFactory())
         .ConfigureLogging(config =>
         {
           config.AddConfiguration(configuration.GetSection("Logging"));
           config.AddDebug();
         })
-        .ConfigureContainer<ContainerBuilder>(containerBuilder =>
-        {
-          containerBuilder.RegisterModule<CommonModule>();
-          containerBuilder.RegisterModule<WDModule>();
-          containerBuilder.RegisterModule<TEXModule>();
-          containerBuilder.RegisterModule<MSHModule>();
-          containerBuilder.RegisterModule<PARModule>();
-          containerBuilder.RegisterModule<DAEModule>();
-        });
+        .ConfigureServices(services =>
+          services
+            .AddCommonServices()
+            .AddWdServices()
+            .AddTexServices()
+            .AddParServices()
+            .AddDaeServices()
+            .AddMshServices()
+        );
     }
   }
 }

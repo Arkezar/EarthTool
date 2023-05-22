@@ -1,22 +1,22 @@
-﻿using Autofac;
-using EarthTool.Common.Interfaces;
+﻿using EarthTool.Common.Interfaces;
 using EarthTool.DAE.Elements;
 using EarthTool.DAE.Services;
+using EarthTool.MSH.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EarthTool.DAE
 {
-  public class DAEModule : Module
+  public static class DAEModule
   {
-    protected override void Load(ContainerBuilder builder)
-    {
-      builder.RegisterType<ColladaModelFactory>();
-      builder.RegisterType<MaterialFactory>();
-      builder.RegisterType<LightingFactory>();
-      builder.RegisterType<GeometriesFactory>();
-      builder.RegisterType<AnimationsFactory>();
-      builder.RegisterType<SlotFactory>();
-      builder.RegisterType<ColladaMeshReader>().AsImplementedInterfaces();
-      builder.RegisterType<ColladaMeshWriter>().AsImplementedInterfaces();
-    }
+    public static IServiceCollection AddDaeServices(this IServiceCollection services)
+      => services
+        .AddTransient<ColladaModelFactory>()
+        .AddTransient<MaterialFactory>()
+        .AddTransient<LightingFactory>()
+        .AddTransient<GeometriesFactory>()
+        .AddTransient<AnimationsFactory>()
+        .AddTransient<SlotFactory>()
+        .AddTransient<IReader<IMesh>, ColladaMeshReader>()
+        .AddTransient<IWriter<IMesh>, ColladaMeshWriter>();
   }
 }

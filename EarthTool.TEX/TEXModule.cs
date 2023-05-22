@@ -1,12 +1,12 @@
-﻿using Autofac;
+﻿using EarthTool.Common.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EarthTool.TEX
 {
-  public class TEXModule : Module
+  public static class TEXModule
   {
-    protected override void Load(ContainerBuilder builder)
-    {
-      builder.RegisterType<TEXConverter>().AsImplementedInterfaces();
-    }
+    public static IServiceCollection AddTexServices(this IServiceCollection services)
+      => services
+        .AddTransient<ITEXConverter, TEXConverter>();
   }
 }

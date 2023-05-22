@@ -1,12 +1,12 @@
-﻿using Autofac;
+﻿using EarthTool.Common.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EarthTool.PAR
 {
-  public class PARModule : Module
+  public static class PARModule
   {
-    protected override void Load(ContainerBuilder builder)
-    {
-      builder.RegisterType<PARConverter>().AsImplementedInterfaces();
-    }
+    public static IServiceCollection AddParServices(this IServiceCollection services)
+      => services
+        .AddTransient<IPARConverter, PARConverter>();
   }
 }
