@@ -2,6 +2,7 @@
 using EarthTool.Common;
 using EarthTool.MSH;
 using EarthTool.DAE;
+using EarthTool.LAN;
 using EarthTool.PAR;
 using EarthTool.TEX;
 using EarthTool.WD;
@@ -29,6 +30,7 @@ namespace EarthTool.CLI
         config.AddCommand<Commands.MSH.ConvertCommand>("msh");
         config.AddCommand<Commands.DAE.ConvertCommand>("dae");
         config.AddCommand<Commands.TEX.ConvertCommand>("tex");
+        config.AddCommand<Commands.LAN.ConvertCommand>("lan");
         config.SetExceptionHandler(ex =>
         {
           AnsiConsole.WriteException(ex, ExceptionFormats.ShortenEverything);
@@ -54,6 +56,7 @@ namespace EarthTool.CLI
             .AddParServices()
             .AddDaeServices()
             .AddMshServices()
+            .AddLanServices()
         );
     }
   }
