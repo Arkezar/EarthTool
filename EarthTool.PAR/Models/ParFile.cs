@@ -11,13 +11,14 @@ namespace EarthTool.PAR.Models
   {
     public ParFile(Stream stream)
     {
+      stream.Seek(21, SeekOrigin.Begin); //TODO: Temporary
+      
       ValidateHeader(stream);
 
-      var groupCount = BitConverter.ToInt32(stream.ReadBytes(4));
-      stream.ReadBytes(4);
+      var groupCount = BitConverter.ToInt32(stream.ReadBytes(8));
       Groups = Enumerable.Range(0, groupCount).Select(i => new EntityGroup(stream)).ToList();
 
-      var researchCount = BitConverter.ToInt32(stream.ReadBytes(4));
+      var researchCount = BitConverter.ToInt32(stream.ReadBytes(8));
       Research = Enumerable.Range(0, researchCount).Select(i => new Research(stream)).ToList();
     }
 

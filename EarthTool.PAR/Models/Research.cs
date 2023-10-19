@@ -12,8 +12,6 @@ namespace EarthTool.PAR.Models
   {
     public Research(Stream data)
     {
-      var requiredResearchCount = BitConverter.ToInt32(data.ReadBytes(4));
-      RequiredResearch = Enumerable.Range(0, requiredResearchCount).Select(i => BitConverter.ToInt32(data.ReadBytes(4))).ToList();
       Id = BitConverter.ToInt32(data.ReadBytes(4));
       Faction = (Faction)BitConverter.ToInt32(data.ReadBytes(4));
       CampaignCost = BitConverter.ToInt32(data.ReadBytes(4));
@@ -25,10 +23,10 @@ namespace EarthTool.PAR.Models
       Type = (ResearchType)BitConverter.ToInt32(data.ReadBytes(4));
       Mesh = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
       MeshParamsIndex = BitConverter.ToInt32(data.ReadBytes(4));
+      var requiredResearchCount = BitConverter.ToInt32(data.ReadBytes(4));
+      RequiredResearch = Enumerable.Range(0, requiredResearchCount).Select(i => BitConverter.ToInt32(data.ReadBytes(4))).ToList();
     }
-
-    public IEnumerable<int> RequiredResearch { get; }
-
+    
     public int Id { get; }
 
     public Faction Faction { get; }
@@ -50,5 +48,7 @@ namespace EarthTool.PAR.Models
     public string Mesh { get; }
 
     public int MeshParamsIndex { get; }
+    
+    public IEnumerable<int> RequiredResearch { get; }
   }
 }
