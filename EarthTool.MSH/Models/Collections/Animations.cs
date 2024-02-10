@@ -9,13 +9,13 @@ namespace EarthTool.MSH.Models.Collections
   public class Animations : IAnimations
   {
     public IEnumerable<IVector> ScaleFrames { get; set; }
-    public IEnumerable<IVector> MovementFrames { get; set; }
+    public IEnumerable<IVector> TranslationFrames { get; set; }
     public IEnumerable<IRotationFrame> RotationFrames { get; set; }
 
     public Animations()
     {
       ScaleFrames = Enumerable.Empty<IVector>();
-      MovementFrames = Enumerable.Empty<IVector>();
+      TranslationFrames = Enumerable.Empty<IVector>();
       RotationFrames = Enumerable.Empty<IRotationFrame>();
     }
 
@@ -27,8 +27,8 @@ namespace EarthTool.MSH.Models.Collections
         {
           writer.Write(ScaleFrames.Count());
           writer.Write(ScaleFrames.SelectMany(x => x.ToByteArray(encoding)).ToArray());
-          writer.Write(MovementFrames.Count());
-          writer.Write(MovementFrames.SelectMany(x => x.ToByteArray(encoding)).ToArray());
+          writer.Write(TranslationFrames.Count());
+          writer.Write(TranslationFrames.SelectMany(x => x.ToByteArray(encoding)).ToArray());
           writer.Write(RotationFrames.Count());
           writer.Write(RotationFrames.SelectMany(x => x.ToByteArray(encoding)).ToArray());
         }

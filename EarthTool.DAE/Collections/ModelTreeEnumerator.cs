@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace EarthTool.DAE.Collections
 {
@@ -13,12 +14,15 @@ namespace EarthTool.DAE.Collections
     private Node _current;
     private IEnumerator<Node> _currentLevel;
     private int _backtrackLevel;
+    private Regex _regex;
 
     public ModelTreeEnumerator(COLLADA model, Node root)
     {
+      _backtrackLevel = 0;
       _model = model;
       _root = root;
       _parentStack = new Stack<IEnumerator<Node>>();
+      _regex = new Regex(@$"{_root.Name}-Part-(\d+)-(\d+)");
     }
 
     public ModelTreeNode Current => new ModelTreeNode(_model, _current, _backtrackLevel, _parentStack.Count);
@@ -27,8 +31,6 @@ namespace EarthTool.DAE.Collections
 
     public bool MoveNext()
     {
-      _backtrackLevel = 0;
-
       if (_current == null)
       {
         _current = _root;
@@ -39,8 +41,13 @@ namespace EarthTool.DAE.Collections
         _parentStack.Push(_currentLevel);
       }
 
-      _currentLevel = _current.NodeProperty.OrderBy(n => n.Name).GetEnumerator();
+      _currentLevel = _current.NodeProperty
+        .Where(n => n.Name.StartsWith(_root.Name))
+        .OrderBy(n => IsSubPart(n.Name))
+        .ThenBy(n => GetPartNumber(n.Name))
+        .GetEnumerator();
 
+      _backtrackLevel = 0;
       while (BackTrack())
       {
         _currentLevel.Dispose();
@@ -50,7 +57,11 @@ namespace EarthTool.DAE.Collections
         }
 
         _currentLevel = _parentStack.Pop();
-        _backtrackLevel++;
+
+        if (!IsSubPart(_currentLevel.Current.Name))
+        {
+          _backtrackLevel++;
+        }
       }
 
       if (_currentLevel != null)
@@ -60,6 +71,19 @@ namespace EarthTool.DAE.Collections
       }
 
       return false;
+    }
+
+    private int GetPartNumber(string name)
+    {
+      var result = _regex.Match(name);
+      int.TryParse(result.Groups[1].Value, out var partNumber);
+      return partNumber;
+    }
+
+    private bool IsSubPart(string name)
+    {
+      var result = _regex.Match(name);
+      return result.Success && int.Parse(result.Groups[2].Value) > 0;
     }
 
     private bool BackTrack()
@@ -84,10 +108,15 @@ namespace EarthTool.DAE.Collections
     public void Reset()
     {
       _current = _root;
+      _currentLevel?.Dispose();
+      _currentLevel = null;
+      _parentStack.Clear();
+      _backtrackLevel = 0;
     }
 
     public void Dispose()
     {
+      Reset();
     }
   }
 }

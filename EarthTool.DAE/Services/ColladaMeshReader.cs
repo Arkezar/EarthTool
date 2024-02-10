@@ -15,6 +15,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Text.RegularExpressions;
 using System.Xml.Serialization;
 using Light = Collada141.Light;
 using Vector = EarthTool.MSH.Models.Elements.Vector;
@@ -25,11 +26,13 @@ namespace EarthTool.DAE.Services
   {
     private readonly IEarthInfoFactory _earthInfoFactory;
     private readonly IHierarchyBuilder _hierarchyBuilder;
+    private readonly Regex _regex;
 
     public ColladaMeshReader(IEarthInfoFactory earthInfoFactory, IHierarchyBuilder hierarchyBuilder)
     {
       _earthInfoFactory = earthInfoFactory;
       _hierarchyBuilder = hierarchyBuilder;
+      _regex = new Regex(@$".*-Part-(\d+)-(\d+)");
     }
 
     public override FileType InputFileExtension => FileType.DAE;
@@ -58,17 +61,12 @@ namespace EarthTool.DAE.Services
 
     private IEnumerable<IModelPart> LoadGeometries(COLLADA model)
     {
-      var modelTree = new ModelTree(model);
-      var result = modelTree.Select(LoadModelPart).ToArray();
-
-      result.Last().UnknownBytes = new byte[4];
-      result.Last().PartType = 0;
-      result.First().PartType = 0;
-
+      var modelTree = new ModelTree(model).ToArray();
+      var result = modelTree.Select((p, i) => LoadModelPart(p, i, modelTree.Length)).ToArray();
       return result;
     }
 
-    private ModelPart LoadModelPart(ModelTreeNode node)
+    private ModelPart LoadModelPart(ModelTreeNode node, int idx, int count)
     {
       var g = node.Geometry;
       var facesAndVertices = LoadFacesWithVertices(g);
@@ -80,11 +78,20 @@ namespace EarthTool.DAE.Services
         Vertices = facesAndVertices.Vertices,
         Animations = LoadAnimations(g, node.Model, offset),
         Texture = LoadTexture(node),
-        UnknownBytes = new byte[] { 0, 0, 120, 0 },
+        UnknownFlag = 0,
+        UnknownByte1 = 0,
+        UnknownByte2 = (byte)(idx == count - 1 ? 0 : 120),
+        UnknownByte3 = 0,
         Offset = offset,
         BackTrackDepth = (byte)node.BacktrackLevel,
-        PartType = PartType.Subpart // 0 if sidecolor part
+        PartType = IsSubPart(node.Node.Name) || idx == 0 ? PartType.Base : PartType.Subpart
       };
+    }
+
+    private bool IsSubPart(string name)
+    {
+      var result = _regex.Match(name);
+      return result.Success && int.Parse(result.Groups[2].Value) > 0;
     }
 
     private ITextureInfo LoadTexture(ModelTreeNode node)
@@ -131,7 +138,7 @@ namespace EarthTool.DAE.Services
 
         return new Animations()
         {
-          MovementFrames = tmpMovement.Distinct().Count() > 1 ? movement : Enumerable.Empty<IVector>(),
+          TranslationFrames = tmpMovement.Distinct().Count() > 1 ? movement : Enumerable.Empty<IVector>(),
           RotationFrames = tmpRotations.Distinct().Count() > 1 ? rotations : Enumerable.Empty<IRotationFrame>()
         };
       }

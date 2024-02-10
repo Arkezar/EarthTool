@@ -3,7 +3,8 @@
     "EarthTool": {
       "commandName": "Project",
       //"commandLineArgs": "msh -o D:\\earthwork\\test2 D:\\earthwork\\wdwork\\meshes\\*.msh",
-      //"commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\wdwork\\meshes\\EDBBTC.msh",
+//      "commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\wdwork\\meshes\\EDBBTC.msh",
+//      "commandLineArgs": "dae -o D:\\earthwork\\testdae D:\\earthwork\\testdae\\EDBBTC.dae",
 //      "commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\wdwork\\meshes\\UCSUML1.msh",
       "commandLineArgs": "dae -o D:\\earthwork\\testdae D:\\earthwork\\testdae\\UCSUML1.dae",
       //"commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\testdae\\EDUST1b.dae",

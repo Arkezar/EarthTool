@@ -1,10 +1,8 @@
 ﻿using Collada141;
 using EarthTool.MSH.Interfaces;
-using EarthTool.MSH.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace EarthTool.DAE.Elements
 {
@@ -31,34 +29,17 @@ namespace EarthTool.DAE.Elements
 
     public COLLADA GetColladaModel(IMesh model, string modelName)
     {
-      var animations = _animationsFactory.GetAnimations(model.Geometries, modelName);
-      var images = _materialFactory.GetImages(model.Geometries, modelName);
-      var materials = _materialFactory.GetMaterials(model.Geometries, modelName);
-      var geometries = _geometriesFactory.GetGeometries(model.Geometries, modelName);
-      var geometryRootNode = _geometriesFactory.GetGeometryRootNode(geometries.Select(g => g.GeometryNode), model.PartsTree, modelName);
-      var lights = _lightingFactory.GetLights(model);
-      var slots = _slotFactory.GetSlots(model);
-      var slotNodes = lights.Select(l => l.LightNode).ToList().Concat(slots.Select(s => s.SlotNode)).ToList();
-      var scenes = GetScenes(geometryRootNode, slotNodes, modelName);
-      var scene = GetScene(scenes);
+      var collada = CreateColladaObject();
 
-      var collada = new COLLADA
-      {
-        Asset = new Asset
-        {
-          Created = DateTime.Now,
-          Up_Axis = UpAxisType.Z_UP
-        }
-      };
+      var images = _materialFactory.GetImages(model.PartsTree, modelName);
+      var imagesLibrary = new Library_Images();
+      images.ToList().ForEach(i => imagesLibrary.Image.Add(i));
 
-      var lightsLibrary = new Library_Lights();
-      lights.Select(l => l.Light).ToList().ForEach(l => lightsLibrary.Light.Add(l));
-      slots.Select(l => l.Slot).ToList().ForEach(l => lightsLibrary.Light.Add(l));
-      collada.Library_Lights.Add(lightsLibrary);
+      var animations = _animationsFactory.GetAnimations(model.PartsTree, modelName);
+      var animationsLibrary = new Library_Animations();
+      animations.ToList().ForEach(a => animationsLibrary.Animation.Add(a));
 
-      var geometriesLibrary = new Library_Geometries();
-      geometries.Select(g => g.Geometry).ToList().ForEach(g => geometriesLibrary.Geometry.Add(g));
-
+      var materials = _materialFactory.GetMaterials(model.PartsTree, modelName);
       var effectsLibrary = new Library_Effects();
       var materialsLibrary = new Library_Materials();
       materials.ToList().ForEach(m =>
@@ -67,12 +48,23 @@ namespace EarthTool.DAE.Elements
         materialsLibrary.Material.Add(m.Material);
       });
 
-      var imagesLibrary = new Library_Images();
-      images.ToList().ForEach(i => imagesLibrary.Image.Add(i));
+      var geometries = _geometriesFactory.GetGeometries(model.PartsTree, modelName);
+      var geometriesLibrary = new Library_Geometries();
+      geometries.ToList().ForEach(g => geometriesLibrary.Geometry.Add(g));
 
-      var animationsLibrary = new Library_Animations();
-      animations.ToList().ForEach(a => animationsLibrary.Animation.Add(a));
+      var lights = _lightingFactory.GetLights(model);
+      var slots = _slotFactory.GetSlots(model);
+      var lightsLibrary = new Library_Lights();
+      lights.Select(l => l.Light).ToList().ForEach(l => lightsLibrary.Light.Add(l));
+      slots.Select(l => l.Slot).ToList().ForEach(l => lightsLibrary.Light.Add(l));
 
+      var geometryNodes = _geometriesFactory.GetGeometryNodes(model.PartsTree, modelName);
+      var geometryRootNode = _geometriesFactory.GetGeometryRootNode(geometryNodes, model.PartsTree, modelName);
+      var slotNodes = lights.Select(l => l.LightNode).ToList().Concat(slots.Select(s => s.SlotNode)).ToList();
+      var scenes = GetScenes(geometryRootNode, slotNodes, modelName);
+      var scene = GetScene(scenes);
+
+      collada.Library_Lights.Add(lightsLibrary);
       collada.Library_Geometries.Add(geometriesLibrary);
       collada.Library_Visual_Scenes.Add(scenes);
       collada.Library_Images.Add(imagesLibrary);
@@ -84,13 +76,16 @@ namespace EarthTool.DAE.Elements
       return collada;
     }
 
+    private static COLLADA CreateColladaObject()
+    {
+      var collada = new COLLADA { Asset = new Asset { Created = DateTime.Now, Up_Axis = UpAxisType.Z_UP } };
+      return collada;
+    }
+
     private COLLADAScene GetScene(Library_Visual_Scenes scenes)
     {
       var scene = new COLLADAScene();
-      scene.Instance_Visual_Scene = new InstanceWithExtra()
-      {
-        Url = $"#{scenes.Visual_Scene.First().Id}"
-      };
+      scene.Instance_Visual_Scene = new InstanceWithExtra() { Url = $"#{scenes.Visual_Scene.First().Id}" };
 
       return scene;
     }
@@ -98,16 +93,9 @@ namespace EarthTool.DAE.Elements
     private Library_Visual_Scenes GetScenes(Node geometryNode, IEnumerable<Node> nodes, string modelName)
     {
       var visualScenes = new Library_Visual_Scenes();
-      var visualScene = new Visual_Scene()
-      {
-        Id = "scene"
-      };
+      var visualScene = new Visual_Scene() { Id = "scene" };
 
-      var masterNode = new Node()
-      {
-        Id = modelName,
-        Name = modelName
-      };
+      var masterNode = new Node() { Id = modelName, Name = modelName };
       masterNode.NodeProperty.Add(geometryNode);
 
       nodes.ToList().ForEach(l => geometryNode.NodeProperty.Add(l));

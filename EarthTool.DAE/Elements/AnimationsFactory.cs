@@ -13,21 +13,21 @@ namespace EarthTool.DAE.Elements
   {
     const float FRAMERATE = 23.976f;
 
-    public IEnumerable<Animation> GetAnimations(IEnumerable<IModelPart> parts, string modelName)
+    public IEnumerable<Animation> GetAnimations(IEnumerable<PartNode> parts, string modelName)
     {
-      return parts.Select((p, i) => GetAnimation(p, i, modelName)).Where(a => a != null);
+      return parts.SelectMany((p, i) => p.Parts.Select((sp, idx) => GetAnimation(sp, i, idx, modelName)) ).Where(a => a != null);
     }
 
-    private Animation GetAnimation(IModelPart part, int i, string modelName)
+    private Animation GetAnimation(IModelPart part, int i, int idx, string modelName)
     {
-      var frames = Math.Max(part.Animations.MovementFrames.Count(), part.Animations.RotationFrames.Count());
+      var frames = Math.Max(part.Animations.TranslationFrames.Count(), part.Animations.RotationFrames.Count());
 
       if (frames == 0)
       {
         return null;
       }
 
-      var id = $"{modelName}-Part-{i}";
+      var id = $"{modelName}-Part-{i}-{idx}";
       var animationContainer = new Animation
       {
         Id = $"{id}-animation",
@@ -118,7 +118,7 @@ namespace EarthTool.DAE.Elements
       var transforms = part.Animations.RotationFrames.Select(f => f.TransformationMatrix).ToArray();
       if (!transforms.Any())
       {
-        transforms = Enumerable.Repeat(Matrix4x4.Identity, part.Animations.MovementFrames.Count()).ToArray();
+        transforms = Enumerable.Repeat(Matrix4x4.Identity, part.Animations.TranslationFrames.Count()).ToArray();
       }
 
       for (var i = 0; i < transforms.Count(); i++)
@@ -126,7 +126,7 @@ namespace EarthTool.DAE.Elements
         Matrix4x4.Decompose(transforms[i], out _, out var rotation, out _);
         rotation.Y = -rotation.Y;
         var matrix = Matrix4x4.CreateFromQuaternion(rotation);
-        var translationMatrix = Matrix4x4.CreateTranslation(part.Animations.MovementFrames.ElementAtOrDefault(i)?.Value ?? part.Offset.Value);
+        var translationMatrix = Matrix4x4.CreateTranslation(part.Animations.TranslationFrames.ElementAtOrDefault(i)?.Value ?? part.Offset.Value);
         transforms[i] = matrix * translationMatrix;
       }
 

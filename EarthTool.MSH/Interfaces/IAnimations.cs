@@ -5,7 +5,7 @@ namespace EarthTool.MSH.Interfaces
 {
   public interface IAnimations : IBinarySerializable
   {
-    IEnumerable<IVector> MovementFrames { get; }
+    IEnumerable<IVector> TranslationFrames { get; }
     IEnumerable<IRotationFrame> RotationFrames { get; }
     IEnumerable<IVector> ScaleFrames { get; }
   }

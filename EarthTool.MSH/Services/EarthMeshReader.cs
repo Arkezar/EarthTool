@@ -264,7 +264,10 @@ namespace EarthTool.MSH.Services
       result.AnimationType = (AnimationType)reader.ReadInt32();
       result.Offset = LoadVector(reader);
       result.RiseAngle = Math.Round((double)reader.ReadByte() / byte.MaxValue) * 360;
-      result.UnknownBytes = reader.ReadBytes(4);
+      result.UnknownFlag = reader.ReadByte();
+      result.UnknownByte1 = reader.ReadByte();
+      result.UnknownByte2 = reader.ReadByte();
+      result.UnknownByte3 = reader.ReadByte();
       return result;
     }
 
@@ -272,7 +275,7 @@ namespace EarthTool.MSH.Services
       => new Animations()
       {
         ScaleFrames = LoadSlotList(reader, reader.ReadInt32(), (r, _) => LoadVector(r)),
-        MovementFrames = LoadSlotList(reader, reader.ReadInt32(), (r, _) => LoadVector(r)),
+        TranslationFrames = LoadSlotList(reader, reader.ReadInt32(), (r, _) => LoadVector(r)),
         RotationFrames = LoadSlotList(reader, reader.ReadInt32(), (r, _) => LoadRotationFrame(r)),
       };
 

@@ -29,7 +29,13 @@ namespace EarthTool.MSH.Models
 
     public IVector Offset { get; set; }
 
-    public byte[] UnknownBytes { get; set; }
+    public byte UnknownFlag { get; set; }
+
+    public byte UnknownByte1 { get; set; }
+
+    public byte UnknownByte2 { get; set; }
+
+    public byte UnknownByte3 { get; set; }
 
     public double RiseAngle { get; set; }
 
@@ -50,8 +56,12 @@ namespace EarthTool.MSH.Models
           writer.Write((int)AnimationType);
           writer.Write(Offset.ToByteArray(encoding));
           writer.Write(GetRiseAngle());
-          writer.Write(UnknownBytes);
+          writer.Write(UnknownFlag);
+          writer.Write(UnknownByte1);
+          writer.Write(UnknownByte2);
+          writer.Write(UnknownByte3);
         }
+
         return stream.ToArray();
       }
     }
@@ -78,7 +88,8 @@ namespace EarthTool.MSH.Models
               using (var blockWriter = new BinaryWriter(blockStream))
               {
                 var blockVertices = Vertices.Skip(i * 4).Take(4).ToList();
-                blockVertices.AddRange(Enumerable.Repeat(new Vertex(new Vector(), new Vector(), new UVMap(), 0, 0), 4 - blockVertices.Count()));
+                blockVertices.AddRange(Enumerable.Repeat(new Vertex(new Vector(), new Vector(), new UVMap(), 0, 0),
+                  4 - blockVertices.Count()));
                 blockVertices.ForEach(v => blockWriter.Write(v.Position.X));
                 blockVertices.ForEach(v => blockWriter.Write(-v.Position.Y));
                 blockVertices.ForEach(v => blockWriter.Write(v.Position.Z));
@@ -91,10 +102,12 @@ namespace EarthTool.MSH.Models
                 blockVertices.ForEach(v => blockWriter.Write(v.NormalVectorIdx));
                 blockVertices.ForEach(v => blockWriter.Write(v.PositionVectorIdx));
               }
+
               writer.Write(blockStream.ToArray());
             }
           }
         }
+
         return stream.ToArray();
       }
     }

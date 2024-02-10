@@ -11,7 +11,10 @@ namespace EarthTool.MSH.Interfaces
     IEnumerable<IFace> Faces { get; }
     IVector Offset { get; }
     ITextureInfo Texture { get; }
-    byte[] UnknownBytes { get; }
+    byte UnknownFlag { get; }
+    byte UnknownByte1 { get; }
+    byte UnknownByte2 { get; }
+    byte UnknownByte3 { get; }
     PartType PartType { get; }
     double RiseAngle { get; }
     short Empty { get; }

@@ -1,4 +1,5 @@
-﻿using EarthTool.MSH.Interfaces;
+﻿using EarthTool.MSH.Enums;
+using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,23 +11,32 @@ namespace EarthTool.MSH.Services
     public PartNode GetPartsTree(IEnumerable<IModelPart> parts)
     {
       var currentId = 0;
-      var root = new PartNode(currentId, parts.First());
-      var lastNode = root;
+      var node = new PartNode(currentId++, parts.First());
       foreach (var part in parts.Skip(1))
       {
         var skip = part.BackTrackDepth;
-        var parent = lastNode;
+        var parent = node;
         for (var i = 0; i < skip; i++)
         {
           parent = parent.Parent;
         }
-        lastNode = new PartNode(++currentId, part, parent);
-        if (part.PartType == 0)
+    
+        if (part.PartType == PartType.Base)
         {
-          lastNode = parent;
+          node = parent;
+          node.Parts.Add(part);
+        }
+        else
+        {
+          node = new PartNode(currentId++, part, parent);
         }
       }
-      return root;
+
+      while (node.Parent != null)
+      {
+        node = node.Parent;
+      }
+      return node;
     }
   }
 }

@@ -1,16 +1,17 @@
 ﻿using EarthTool.MSH.Interfaces;
+using System.Collections;
 using System.Collections.Generic;
 
 namespace EarthTool.MSH.Models
 {
-  public class PartNode
+  public class PartNode : IEnumerable<PartNode>
   {
     public int Id
     {
       get;
     }
 
-    public IModelPart Part
+    public List<IModelPart> Parts
     {
       get;
     }
@@ -27,14 +28,25 @@ namespace EarthTool.MSH.Models
 
     public PartNode(int id, IModelPart part = null, PartNode parent = null)
     {
+      Parts = new List<IModelPart>();
+      Parts.Add(part);
       Children = new List<PartNode>();
       Id = id;
-      Part = part;
       Parent = parent;
       if (parent != null)
       {
         parent.Children.Add(this);
       }
+    }
+
+    public IEnumerator<PartNode> GetEnumerator()
+    {
+      return new PartNodeEnumerator(this);
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+      return GetEnumerator();
     }
   }
 }
