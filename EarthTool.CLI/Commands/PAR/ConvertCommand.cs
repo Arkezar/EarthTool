@@ -16,29 +16,71 @@ namespace EarthTool.CLI.Commands.PAR;
 
 public class ConvertCommand : CommonCommand<CommonSettings>
 {
-  private readonly IPARConverter _converter;
+  private readonly IEarthInfoFactory _earthInfoFactory;
 
-  public ConvertCommand(IPARConverter converter)
+  public ConvertCommand(IEarthInfoFactory earthInfoFactory)
   {
-    _converter = converter;
+    _earthInfoFactory = earthInfoFactory;
   }
 
   protected override Task InternalExecuteAsync(string filePath, CommonSettings settings)
   {
-    var data = File.ReadAllBytes(filePath);
-    
     var outputDirectory = settings.OutputFolderPath.Value ?? Path.GetDirectoryName(filePath);
     var fileName = Path.GetFileName(filePath);
     var outputFileName = Path.ChangeExtension(fileName, "json");
     var outputFilePath = Path.Combine(outputDirectory, outputFileName);
-    
-    using (var stream = new MemoryStream(data))
+
+    using (var stream = File.OpenRead(filePath))
     {
+      var hd = _earthInfoFactory.Get(stream);
       var file = new ParFile(stream);
-      PrintModelDetails(file);
+
+      SaveReaserchToFile(file.Research, outputFilePath);
+      SaveGroupsToFile(file.Groups, outputFilePath);
     }
 
     return Task.CompletedTask;
+  }
+
+  private void SaveGroupsToFile(IEnumerable<EntityGroup> entityGroups, string outputFilePath)
+  {
+    var groups = entityGroups.ToLookup(g => (g.Faction, g.GroupType));
+    
+    foreach (var group in groups)
+    {
+      var entitiesByType = group.SelectMany(g => g.Entities).GroupBy(e => e.GetType());
+      foreach (var type in entitiesByType)
+      {
+        var ofTypeMethod = typeof(Enumerable).GetMethod("OfType").MakeGenericMethod(type.Key);
+        
+        var typedEntities = ofTypeMethod.Invoke(null, new object[] { group.SelectMany(g => g.Entities) });
+        
+        var serialized =
+          JsonSerializer.Serialize(typedEntities, new JsonSerializerOptions { WriteIndented = true });
+
+        var directory = Path.GetDirectoryName(outputFilePath);
+        var fileName = Path.GetFileNameWithoutExtension(outputFilePath);
+        fileName +=
+          $"_{group.Key.Faction.ToString().ToLower()}_{group.Key.GroupType.ToString().ToLower()}_{type.Key.Name.ToLower()}";
+        var extension = Path.GetExtension(outputFilePath);
+        var newFileName = Path.Combine(directory, $"{fileName}{extension}");
+
+        File.WriteAllText(newFileName, serialized);
+      }
+    }
+  }
+
+  private void SaveReaserchToFile(IEnumerable<Research> research, string outputFilePath)
+  {
+    var serializedResearch = JsonSerializer.Serialize(research, new JsonSerializerOptions { WriteIndented = true });
+
+    var directory = Path.GetDirectoryName(outputFilePath);
+    var fileName = Path.GetFileNameWithoutExtension(outputFilePath);
+    fileName += $"_{typeof(Research).Name.ToLower()}";
+    var extension = Path.GetExtension(outputFilePath);
+    var newFileName = Path.Combine(directory, $"{fileName}{extension}");
+    
+    File.WriteAllText(newFileName, serializedResearch);
   }
 
   private void PrintModelDetails(ParFile model)
@@ -64,13 +106,13 @@ public class ConvertCommand : CommonCommand<CommonSettings>
       {
         var groupTypeNode = factionNode.AddNode($"Group: {group.GroupType}");
         var table = new Table();
-        
+
         foreach (var entity in group.Entities)
         {
           var data = GetData(entity);
-          if(!table.Columns.Any()) table.AddColumns(data.Keys.ToArray());
+          if (!table.Columns.Any()) table.AddColumns(data.Keys.ToArray());
           table.AddRow(data.Values.ToArray());
-          
+
           groupTypeNode.AddNode(table);
         }
       }
@@ -104,20 +146,20 @@ public class ConvertCommand : CommonCommand<CommonSettings>
     table.AddRow(data.Values.ToArray());
 
     var researchNode = research.AddNode(table);
-    
+
     foreach (var child in modelResearch.Where(n => n.RequiredResearch.Any(r => r == currentNode.Id)))
     {
       FillResearchNodeHierarchy(researchNode, child, modelResearch);
     }
   }
-  
+
   private IDictionary<string, string> GetData(object model)
   {
     var data = new Dictionary<string, string>();
     foreach (var property in model.GetType().GetProperties())
     {
       var value = property.GetValue(model);
-      if(value is ICollection collection)
+      if (value is ICollection collection)
       {
         data.Add(property.Name, string.Join(',', collection.Cast<object>().Select(o => o.ToString())));
       }
