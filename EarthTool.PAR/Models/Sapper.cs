@@ -9,7 +9,7 @@ namespace EarthTool.PAR.Models
 {
   public class Sapper : Vehicle
   {
-    public Sapper(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
+    public Sapper(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
     {
       MinesLookRange = GetInteger(data);
       MineId = GetString(data);
@@ -38,5 +38,29 @@ namespace EarthTool.PAR.Models
     public int AnimUpEnd { get; }
 
     public string PutMineSmokeId { get; }
+    
+    public override byte[] ToByteArray(Encoding encoding)
+    {
+      using (var output = new MemoryStream())
+      {
+        using (var bw = new BinaryWriter(output, encoding))
+        {
+          bw.Write(base.ToByteArray(encoding));
+          bw.Write(MinesLookRange);
+          bw.Write(MineId.Length);
+          bw.Write(encoding.GetBytes(MineId));
+          bw.Write(-1);
+          bw.Write(MaxMinesCount);
+          bw.Write(AnimDownStart);
+          bw.Write(AnimDownEnd);
+          bw.Write(AnimUpStart);
+          bw.Write(AnimUpEnd);
+          bw.Write(PutMineSmokeId.Length);
+          bw.Write(encoding.GetBytes(PutMineSmokeId));
+          bw.Write(-1);
+        }
+        return output.ToArray();
+      }
+    }
   }
 }

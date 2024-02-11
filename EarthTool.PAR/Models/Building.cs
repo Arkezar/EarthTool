@@ -9,7 +9,7 @@ namespace EarthTool.PAR.Models
 {
   public class Building : EquipableEntity
   {
-    public Building(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
+    public Building(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
     {
       BuildingType = GetInteger(data);
       BuildingTypeEx = GetInteger(data);
@@ -133,5 +133,84 @@ namespace EarthTool.PAR.Models
     public string LaserId { get; }
 
     public int SpaceStationType { get; }
+    
+    public override byte[] ToByteArray(Encoding encoding)
+    {
+      using (var output = new MemoryStream())
+      {
+        using (var bw = new BinaryWriter(output, encoding))
+        {
+          bw.Write(base.ToByteArray(encoding));
+          bw.Write(BuildingType);
+          bw.Write(BuildingTypeEx);
+          bw.Write(BuildingTabType);
+          bw.Write(InitCannonId1.Length);
+          bw.Write(encoding.GetBytes(InitCannonId1));
+          bw.Write(-1);
+          bw.Write(InitCannonId2.Length);
+          bw.Write(encoding.GetBytes(InitCannonId2));
+          bw.Write(-1);
+          bw.Write(InitCannonId3.Length);
+          bw.Write(encoding.GetBytes(InitCannonId3));
+          bw.Write(-1);
+          bw.Write(InitCannonId4.Length);
+          bw.Write(encoding.GetBytes(InitCannonId4));
+          bw.Write(-1);
+          bw.Write(CopulaId.Length);
+          bw.Write(encoding.GetBytes(CopulaId));
+          bw.Write(-1);
+          bw.Write(BuildingTunnelNumber);
+          bw.Write(UpgradeCopulaSmallId.Length);
+          bw.Write(encoding.GetBytes(UpgradeCopulaSmallId));
+          bw.Write(-1);
+          bw.Write(UpgradeCopulaBigId.Length);
+          bw.Write(encoding.GetBytes(UpgradeCopulaBigId));
+          bw.Write(-1);
+          bw.Write(BuildLCTransporterId.Length);
+          bw.Write(encoding.GetBytes(BuildLCTransporterId));
+          bw.Write(-1);
+          bw.Write(ChimneySmokeId.Length);
+          bw.Write(encoding.GetBytes(ChimneySmokeId));
+          bw.Write(-1);
+          bw.Write(NeedPower);
+          bw.Write(SlaveBuildingId.Length);
+          bw.Write(encoding.GetBytes(SlaveBuildingId));
+          bw.Write(-1);
+          bw.Write(MaxSubBuildingCount);
+          bw.Write(PowerLevel);
+          bw.Write(PowerTransmitterRange);
+          bw.Write(ConnectTransmitterRange);
+          bw.Write(FullEnergyPowerInDay);
+          bw.Write(ResourceInputOutput);
+          bw.Write(TickPerContainer);
+          bw.Write(ContainerId.Length);
+          bw.Write(encoding.GetBytes(ContainerId));
+          bw.Write(-1);
+          bw.Write(ContainerSmeltingTicks);
+          bw.Write(ResourcesPerTransport);
+          bw.Write(TransporterId.Length);
+          bw.Write(encoding.GetBytes(TransporterId));
+          bw.Write(-1);
+          bw.Write(BuildingAmmoId.Length);
+          bw.Write(encoding.GetBytes(BuildingAmmoId));
+          bw.Write(-1);
+          bw.Write(RangeOfBuildingFire);
+          bw.Write(ShootExplosionId.Length);
+          bw.Write(encoding.GetBytes(ShootExplosionId));
+          bw.Write(-1);
+          bw.Write(AmmoReloadingTime);
+          bw.Write(BuildExplosionId.Length);
+          bw.Write(encoding.GetBytes(BuildExplosionId));
+          bw.Write(-1);
+          bw.Write(CopulaAnimationFlags);
+          bw.Write(EndOfClosingCopulaAnimation);
+          bw.Write(LaserId.Length);
+          bw.Write(encoding.GetBytes(LaserId));
+          bw.Write(-1);
+          bw.Write(SpaceStationType);
+        }
+        return output.ToArray();
+      }
+    }
   }
 }

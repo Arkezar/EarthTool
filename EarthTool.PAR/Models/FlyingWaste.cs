@@ -9,7 +9,7 @@ namespace EarthTool.PAR.Models
 {
   public class FlyingWaste : DestructibleEntity
   {
-    public FlyingWaste(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
+    public FlyingWaste(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
     {
       WasteSize = GetInteger(data);
       SubWasteId1 = GetString(data);
@@ -55,5 +55,38 @@ namespace EarthTool.PAR.Models
     public int WasteDistanceX4 { get; }
 
     public int WasteBeta { get; }
+
+    public override byte[] ToByteArray(Encoding encoding)
+    {
+      using (var output = new MemoryStream())
+      {
+        using (var bw = new BinaryWriter(output, encoding))
+        {
+          bw.Write(base.ToByteArray(encoding));
+          bw.Write(WasteSize);
+          bw.Write(SubWasteId1.Length);
+          bw.Write(encoding.GetBytes(SubWasteId1));
+          bw.Write(-1);
+          bw.Write(SubWaste1Alpha);
+          bw.Write(SubWasteId2.Length);
+          bw.Write(encoding.GetBytes(SubWasteId2));
+          bw.Write(-1);
+          bw.Write(SubWaste2Alpha);
+          bw.Write(SubWasteId3.Length);
+          bw.Write(encoding.GetBytes(SubWasteId3));
+          bw.Write(-1);
+          bw.Write(SubWaste3Alpha);
+          bw.Write(SubWasteId4.Length);
+          bw.Write(encoding.GetBytes(SubWasteId4));
+          bw.Write(-1);
+          bw.Write(SubWaste4Alpha);
+          bw.Write(FlightTime);
+          bw.Write(WasteSpeed);
+          bw.Write(WasteDistanceX4);
+          bw.Write(WasteBeta);
+        }
+        return output.ToArray();
+      }
+    }
   }
 }

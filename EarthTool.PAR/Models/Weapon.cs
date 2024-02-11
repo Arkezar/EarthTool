@@ -9,7 +9,7 @@ namespace EarthTool.PAR.Models
 {
   public class Weapon : InteractableEntity
   {
-    public Weapon(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
+    public Weapon(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
     {
       RangeOfSight = GetInteger(data);
       PlugType = GetInteger(data);
@@ -77,5 +77,42 @@ namespace EarthTool.PAR.Models
     public int MaxAmmo { get; }
 
     public string BarrelExplosionId { get; }
+    
+    public override byte[] ToByteArray(Encoding encoding)
+    {
+      using (var output = new MemoryStream())
+      {
+        using (var bw = new BinaryWriter(output, encoding))
+        {
+          bw.Write(base.ToByteArray(encoding));
+          bw.Write(RangeOfSight);
+          bw.Write(PlugType);
+          bw.Write(SlotType);
+          bw.Write(MaxAlphaPerTick);
+          bw.Write(MaxBetaPerTick);
+          bw.Write(AlphaMargin);
+          bw.Write(BetaMargin);
+          bw.Write(BarrelBetaType);
+          bw.Write(BarrelBetaAngle);
+          bw.Write(BarrelCount);
+          bw.Write(AmmoId.Length);
+          bw.Write(encoding.GetBytes(AmmoId));
+          bw.Write(-1);
+          bw.Write(AmmoType);
+          bw.Write(TargetType);
+          bw.Write(RangeOfFire);
+          bw.Write(PlusDamage);
+          bw.Write(FireType);
+          bw.Write(ShootDelay);
+          bw.Write(NeedExternal);
+          bw.Write(ReloadDelay);
+          bw.Write(MaxAmmo);
+          bw.Write(BarrelExplosionId.Length);
+          bw.Write(encoding.GetBytes(BarrelExplosionId));
+          bw.Write(-1);
+        }
+        return output.ToArray();
+      }
+    }
   }
 }

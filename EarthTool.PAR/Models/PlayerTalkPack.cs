@@ -9,7 +9,7 @@ namespace EarthTool.PAR.Models
 {
   public class PlayerTalkPack : Entity
   {
-    public PlayerTalkPack(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type)
+    public PlayerTalkPack(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, fieldTypes)
     {
       BaseUnderAttack = GetString(data);
       BuildingUnderAttack = GetString(data);
@@ -86,5 +86,64 @@ namespace EarthTool.PAR.Models
 
     public string BuildingLost { get; }
 
+    public override byte[] ToByteArray(Encoding encoding)
+    {
+      using (var output = new MemoryStream())
+      {
+        using (var bw = new BinaryWriter(output, encoding))
+        {
+          bw.Write(base.ToByteArray(encoding));
+          bw.Write(BaseUnderAttack.Length);
+          bw.Write(encoding.GetBytes(BaseUnderAttack));
+          bw.Write(BuildingUnderAttack.Length);
+          bw.Write(encoding.GetBytes(BuildingUnderAttack));
+          bw.Write(SpacePortUnderAttack.Length);
+          bw.Write(encoding.GetBytes(SpacePortUnderAttack));
+          bw.Write(EnemyLandInBase.Length);
+          bw.Write(encoding.GetBytes(EnemyLandInBase));
+          bw.Write(LowMaterials.Length);
+          bw.Write(encoding.GetBytes(LowMaterials));
+          bw.Write(LowMaterialsInBase.Length);
+          bw.Write(encoding.GetBytes(LowMaterialsInBase));
+          bw.Write(LowPower.Length);
+          bw.Write(encoding.GetBytes(LowPower));
+          bw.Write(LowPowerInBase.Length);
+          bw.Write(encoding.GetBytes(LowPowerInBase));
+          bw.Write(ResearchComplete.Length);
+          bw.Write(encoding.GetBytes(ResearchComplete));
+          bw.Write(ProductionStarted.Length);
+          bw.Write(encoding.GetBytes(ProductionStarted));
+          bw.Write(ProductionCompleted.Length);
+          bw.Write(encoding.GetBytes(ProductionCompleted));
+          bw.Write(ProductionCanceled.Length);
+          bw.Write(encoding.GetBytes(ProductionCanceled));
+          bw.Write(PlatoonLost.Length);
+          bw.Write(encoding.GetBytes(PlatoonLost));
+          bw.Write(PlatoonCreated.Length);
+          bw.Write(encoding.GetBytes(PlatoonCreated));
+          bw.Write(PlatoonDisbanded.Length);
+          bw.Write(encoding.GetBytes(PlatoonDisbanded));
+          bw.Write(UnitLost.Length);
+          bw.Write(encoding.GetBytes(UnitLost));
+          bw.Write(TransporterArrived.Length);
+          bw.Write(encoding.GetBytes(TransporterArrived));
+          bw.Write(ArtefactLocated.Length);
+          bw.Write(encoding.GetBytes(ArtefactLocated));
+          bw.Write(ArtefactRecovered.Length);
+          bw.Write(encoding.GetBytes(ArtefactRecovered));
+          bw.Write(NewAreaLocationFound.Length);
+          bw.Write(encoding.GetBytes(NewAreaLocationFound));
+          bw.Write(EnemyMainBaseLocated.Length);
+          bw.Write(encoding.GetBytes(EnemyMainBaseLocated));
+          bw.Write(NewSourceFieldLocated.Length);
+          bw.Write(encoding.GetBytes(NewSourceFieldLocated));
+          bw.Write(SourceFieldExploited.Length);
+          bw.Write(encoding.GetBytes(SourceFieldExploited));
+          bw.Write(BuildingLost.Length);
+          bw.Write(encoding.GetBytes(BuildingLost));
+        }
+        return output.ToArray();
+      }
+    }
   }
 }

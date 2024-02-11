@@ -9,7 +9,7 @@ namespace EarthTool.PAR.Models
 {
   public class Smoke : DestructibleEntity
   {
-    public Smoke(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
+    public Smoke(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
     {
       Mesh1 = GetString(data);
       Mesh2 = GetString(data);
@@ -48,5 +48,32 @@ namespace EarthTool.PAR.Models
     public int SmokeUpSpeed { get; }
 
     public int NewSmokeDistance { get; }
+    
+    public override byte[] ToByteArray(Encoding encoding)
+    {
+      using (var output = new MemoryStream())
+      {
+        using (var bw = new BinaryWriter(output, encoding))
+        {
+          bw.Write(base.ToByteArray(encoding));
+          bw.Write(Mesh1.Length);
+          bw.Write(encoding.GetBytes(Mesh1));
+          bw.Write(Mesh2.Length);
+          bw.Write(encoding.GetBytes(Mesh2));
+          bw.Write(Mesh3.Length);
+          bw.Write(encoding.GetBytes(Mesh3));
+          bw.Write(SmokeTime1);
+          bw.Write(SmokeTime2);
+          bw.Write(SmokeTime3);
+          bw.Write(SmokeFrequency);
+          bw.Write(StartingTime);
+          bw.Write(SmokingTime);
+          bw.Write(EndingTime);
+          bw.Write(SmokeUpSpeed);
+          bw.Write(NewSmokeDistance);
+        }
+        return output.ToArray();
+      }
+    }
   }
 }

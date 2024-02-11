@@ -27,16 +27,17 @@ namespace EarthTool.PAR.Services
     {
       using (var stream = File.OpenRead(filePath))
       {
-        var mesh = new ParFile();
-        mesh.FileHeader = _earthInfoFactory.Get(stream);
+        var parameters = new ParFile();
+        
+        parameters.FileHeader = _earthInfoFactory.Get(stream);
         using (var reader = new BinaryReader(stream, _encoding))
         {
           IsValidModel(reader);
-          mesh.Groups = LoadGroups(reader);
-          mesh.Research = LoadResearch(reader);
+          parameters.Groups = LoadGroups(reader);
+          parameters.Research = LoadResearch(reader);
         }
 
-        return mesh;
+        return parameters;
       }
     }
 

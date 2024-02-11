@@ -9,7 +9,7 @@ namespace EarthTool.PAR.Models
 {
   public class MultiExplosion : InteractableEntity
   {
-    public MultiExplosion(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
+    public MultiExplosion(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
     {
       UseDownBuilding = GetInteger(data);
       DownBuildingStart = GetInteger(data);
@@ -122,5 +122,68 @@ namespace EarthTool.PAR.Models
     public int Time8 { get; }
     public int Angle8 { get; }
     public int Dist4X8 { get; }
+    
+    public override byte[] ToByteArray(Encoding encoding)
+    {
+      using (var output = new MemoryStream())
+      {
+        using (var bw = new BinaryWriter(output, encoding))
+        {
+          bw.Write(base.ToByteArray(encoding));
+          bw.Write(UseDownBuilding);
+          bw.Write(DownBuildingStart);
+          bw.Write(DownBuildingTime);
+          bw.Write(SubObject1.Length);
+          bw.Write(encoding.GetBytes(SubObject1));
+          bw.Write(-1);
+          bw.Write(Time1);
+          bw.Write(Angle1);
+          bw.Write(Dist4X1);
+          bw.Write(SubObject2.Length);
+          bw.Write(encoding.GetBytes(SubObject2));
+          bw.Write(-1);
+          bw.Write(Time2);
+          bw.Write(Angle2);
+          bw.Write(Dist4X2);
+          bw.Write(SubObject3.Length);
+          bw.Write(encoding.GetBytes(SubObject3));
+          bw.Write(-1);
+          bw.Write(Time3);
+          bw.Write(Angle3);
+          bw.Write(Dist4X3);
+          bw.Write(SubObject4.Length);
+          bw.Write(encoding.GetBytes(SubObject4));
+          bw.Write(-1);
+          bw.Write(Time4);
+          bw.Write(Angle4);
+          bw.Write(Dist4X4);
+          bw.Write(SubObject5.Length);
+          bw.Write(encoding.GetBytes(SubObject5));
+          bw.Write(-1);
+          bw.Write(Time5);
+          bw.Write(Angle5);
+          bw.Write(Dist4X5);
+          bw.Write(SubObject6.Length);
+          bw.Write(encoding.GetBytes(SubObject6));
+          bw.Write(-1);
+          bw.Write(Time6);
+          bw.Write(Angle6);
+          bw.Write(Dist4X6);
+          bw.Write(SubObject7.Length);
+          bw.Write(encoding.GetBytes(SubObject7));
+          bw.Write(-1);
+          bw.Write(Time7);
+          bw.Write(Angle7);
+          bw.Write(Dist4X7);
+          bw.Write(SubObject8.Length);
+          bw.Write(encoding.GetBytes(SubObject8));
+          bw.Write(-1);
+          bw.Write(Time8);
+          bw.Write(Angle8);
+          bw.Write(Dist4X8);
+        }
+        return output.ToArray();
+      }
+    }
   }
 }

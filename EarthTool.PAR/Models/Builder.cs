@@ -9,7 +9,7 @@ namespace EarthTool.PAR.Models
 {
   public class Builder : Vehicle
   {
-    public Builder(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
+    public Builder(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
     {
       WallId = GetString(data);
       data.ReadBytes(4);
@@ -102,5 +102,52 @@ namespace EarthTool.PAR.Models
     public int AnimDigLowEndEnd { get; }
 
     public string DigSmokeId { get; }
+    
+    public override byte[] ToByteArray(Encoding encoding)
+    {
+      using (var output = new MemoryStream())
+      {
+        using (var bw = new BinaryWriter(output, encoding))
+        {
+          bw.Write(base.ToByteArray(encoding));
+          bw.Write(WallId.Length);
+          bw.Write(encoding.GetBytes(WallId));
+          bw.Write(-1);
+          bw.Write(BridgeId.Length);
+          bw.Write(encoding.GetBytes(BridgeId));
+          bw.Write(-1);
+          bw.Write(TunnelNumber);
+          bw.Write(RoadBuildTime);
+          bw.Write(FlatBuildTime);
+          bw.Write(TrenchBuildTime);
+          bw.Write(TunnelBuildTime);
+          bw.Write(BuildObjectAnimationAngle);
+          bw.Write(DigNormalAnimationAngle);
+          bw.Write(DigLowAnimationAngle);
+          bw.Write(AnimBuildObjectStartStart);
+          bw.Write(AnimBuildObjectStartEnd);
+          bw.Write(AnimBuildObjectWorkStart);
+          bw.Write(AnimBuildObjectWorkEnd);
+          bw.Write(AnimBuildObjectEndStart);
+          bw.Write(AnimBuildObjectEndEnd);
+          bw.Write(AnimDigNormalStartStart);
+          bw.Write(AnimDigNormalStartEnd);
+          bw.Write(AnimDigNormalWorkStart);
+          bw.Write(AnimDigNormalWorkEnd);
+          bw.Write(AnimDigNormalEndStart);
+          bw.Write(AnimDigNormalEndEnd);
+          bw.Write(AnimDigLowStartStart);
+          bw.Write(AnimDigLowStartEnd);
+          bw.Write(AnimDigLowWorkStart);
+          bw.Write(AnimDigLowWorkEnd);
+          bw.Write(AnimDigLowEndStart);
+          bw.Write(AnimDigLowEndEnd);
+          bw.Write(DigSmokeId.Length);
+          bw.Write(encoding.GetBytes(DigSmokeId));
+          bw.Write(-1);
+        }
+        return output.ToArray();
+      }
+    }
   }
 }

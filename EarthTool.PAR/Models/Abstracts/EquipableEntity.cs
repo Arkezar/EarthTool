@@ -9,7 +9,7 @@ namespace EarthTool.PAR.Models
 {
   public abstract class EquipableEntity : DestructibleEntity
   {
-    public EquipableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
+    public EquipableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
     {
       SightRange = GetInteger(data);
       TalkPackId = GetString(data);
@@ -38,5 +38,29 @@ namespace EarthTool.PAR.Models
     public int Slot3Type { get; }
 
     public int Slot4Type { get; }
+    
+    public override byte[] ToByteArray(Encoding encoding)
+    {
+      using (var output = new MemoryStream())
+      {
+        using (var bw = new BinaryWriter(output, encoding))
+        {
+          bw.Write(base.ToByteArray(encoding));
+          bw.Write(SightRange);
+          bw.Write(TalkPackId.Length);
+          bw.Write(encoding.GetBytes(TalkPackId));
+          bw.Write(-1);
+          bw.Write(ShieldGeneratorId.Length);
+          bw.Write(encoding.GetBytes(ShieldGeneratorId));
+          bw.Write(-1);
+          bw.Write(MaxShieldUpdate);
+          bw.Write(Slot1Type);
+          bw.Write(Slot2Type);
+          bw.Write(Slot3Type);
+          bw.Write(Slot4Type);
+        }
+        return output.ToArray();
+      }
+    }
   }
 }

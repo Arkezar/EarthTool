@@ -9,7 +9,7 @@ namespace EarthTool.PAR.Models
 {
   public class TalkPack : Entity
   {
-    public TalkPack(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type)
+    public TalkPack(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, fieldTypes)
     {
       Selected = GetString(data);
       Move = GetString(data);
@@ -33,5 +33,31 @@ namespace EarthTool.PAR.Models
     public string Help { get; }
 
     public string FreeWay { get; }
+    
+    public override byte[] ToByteArray(Encoding encoding)
+    {
+      using (var output = new MemoryStream())
+      {
+        using (var bw = new BinaryWriter(output, encoding))
+        {
+          bw.Write(base.ToByteArray(encoding));
+          bw.Write(Selected.Length);
+          bw.Write(encoding.GetBytes(Selected));
+          bw.Write(Move.Length);
+          bw.Write(encoding.GetBytes(Move));
+          bw.Write(Attack.Length);
+          bw.Write(encoding.GetBytes(Attack));
+          bw.Write(Command.Length);
+          bw.Write(encoding.GetBytes(Command));
+          bw.Write(Enemy.Length);
+          bw.Write(encoding.GetBytes(Enemy));
+          bw.Write(Help.Length);
+          bw.Write(encoding.GetBytes(Help));
+          bw.Write(FreeWay.Length);
+          bw.Write(encoding.GetBytes(FreeWay));
+        }
+        return output.ToArray();
+      }
+    }
   }
 }

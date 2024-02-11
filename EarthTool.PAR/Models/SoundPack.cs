@@ -9,7 +9,7 @@ namespace EarthTool.PAR.Models
 {
   public class SoundPack : Entity
   {
-    public SoundPack(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type)
+    public SoundPack(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, fieldTypes)
     {
       NormalWavePack1 = GetString(data);
       NormalWavePack2 = GetString(data);
@@ -36,5 +36,33 @@ namespace EarthTool.PAR.Models
     public string LoopedWavePack3 { get; }
 
     public string LoopedWavePack4 { get; }
+    
+    public override byte[] ToByteArray(Encoding encoding)
+    {
+      using (var output = new MemoryStream())
+      {
+        using (var bw = new BinaryWriter(output, encoding))
+        {
+          bw.Write(base.ToByteArray(encoding));
+          bw.Write(NormalWavePack1.Length);
+          bw.Write(encoding.GetBytes(NormalWavePack1));
+          bw.Write(NormalWavePack2.Length);
+          bw.Write(encoding.GetBytes(NormalWavePack2));
+          bw.Write(NormalWavePack3.Length);
+          bw.Write(encoding.GetBytes(NormalWavePack3));
+          bw.Write(NormalWavePack4.Length);
+          bw.Write(encoding.GetBytes(NormalWavePack4));
+          bw.Write(LoopedWavePack1.Length);
+          bw.Write(encoding.GetBytes(LoopedWavePack1));
+          bw.Write(LoopedWavePack2.Length);
+          bw.Write(encoding.GetBytes(LoopedWavePack2));
+          bw.Write(LoopedWavePack3.Length);
+          bw.Write(encoding.GetBytes(LoopedWavePack3));
+          bw.Write(LoopedWavePack4.Length);
+          bw.Write(encoding.GetBytes(LoopedWavePack4));
+        }
+        return output.ToArray();
+      }
+    }
   }
 }

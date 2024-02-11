@@ -8,7 +8,7 @@ namespace EarthTool.PAR.Models
 {
   public class Platoon : EquipableEntity
   {
-    public Platoon(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
+    public Platoon(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
     {
     }
   }

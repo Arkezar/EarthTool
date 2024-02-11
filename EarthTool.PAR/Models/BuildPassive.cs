@@ -8,7 +8,7 @@ namespace EarthTool.PAR.Models
 {
   public class BuildPassive : PassiveEntity
   {
-    public BuildPassive(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
+    public BuildPassive(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
     {
     }
   }

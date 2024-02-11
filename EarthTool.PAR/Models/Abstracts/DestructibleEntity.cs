@@ -9,7 +9,7 @@ namespace EarthTool.PAR.Models
 {
   public abstract class DestructibleEntity : InteractableEntity
   {
-    public DestructibleEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
+    public DestructibleEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
     {
       HP = GetInteger(data);
       HpRegeneration = GetInteger(data);
@@ -33,5 +33,24 @@ namespace EarthTool.PAR.Models
     public int StoreableFlags { get; }
 
     public int StandType { get; }
+    
+    public override byte[] ToByteArray(Encoding encoding)
+    {
+      using (var output = new MemoryStream())
+      {
+        using (var bw = new BinaryWriter(output, encoding))
+        {
+          bw.Write(base.ToByteArray(encoding));
+          bw.Write(HP);
+          bw.Write(HpRegeneration);
+          bw.Write(Armor);
+          bw.Write(CalorificCapacity);
+          bw.Write(DisableResist);
+          bw.Write(StoreableFlags);
+          bw.Write(StandType);
+        }
+        return output.ToArray();
+      }
+    }
   }
 }

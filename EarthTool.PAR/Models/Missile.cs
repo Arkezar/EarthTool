@@ -9,7 +9,7 @@ namespace EarthTool.PAR.Models
 {
   public class Missile : DestructibleEntity
   {
-    public Missile(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
+    public Missile(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
     {
       Type = GetInteger(data);
       RocketType = GetInteger(data);
@@ -53,5 +53,34 @@ namespace EarthTool.PAR.Models
     public int Damage { get; }
 
     public string ExplosionId { get; }
+    
+    public override byte[] ToByteArray(Encoding encoding)
+    {
+      using (var output = new MemoryStream())
+      {
+        using (var bw = new BinaryWriter(output, encoding))
+        {
+          bw.Write(base.ToByteArray(encoding));
+          bw.Write(Type);
+          bw.Write(RocketType);
+          bw.Write(MissileSize);
+          bw.Write(RocketDummyId.Length);
+          bw.Write(encoding.GetBytes(RocketDummyId));
+          bw.Write(-1);
+          bw.Write(IsAntiRocketTarget);
+          bw.Write(Speed);
+          bw.Write(TimeOfShoot);
+          bw.Write(PlusRangeOfFire);
+          bw.Write(HitType);
+          bw.Write(HitRange);
+          bw.Write(TypeOfDamage);
+          bw.Write(Damage);
+          bw.Write(ExplosionId.Length);
+          bw.Write(encoding.GetBytes(ExplosionId));
+          bw.Write(-1);
+        }
+        return output.ToArray();
+      }
+    }
   }
 }
