@@ -9,12 +9,12 @@ namespace EarthTool.PAR.Models
 {
   public class ContainerTransporter : Equipment
   {
-    public ContainerTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public ContainerTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      AnimContainerDownStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimContainerDownEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimContainerUpStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimContainerUpEnd = BitConverter.ToInt32(data.ReadBytes(4));
+      AnimContainerDownStart = GetInteger(data);
+      AnimContainerDownEnd = GetInteger(data);
+      AnimContainerUpStart = GetInteger(data);
+      AnimContainerUpEnd = GetInteger(data);
     }
 
     public int AnimContainerDownStart { get; }

@@ -8,10 +8,10 @@ namespace EarthTool.PAR.Models
 {
   public abstract class VerticalTransporter : EquipableEntity
   {
-    public VerticalTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public VerticalTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      VehicleSpeed = BitConverter.ToInt32(data.ReadBytes(4));
-      VerticalVehicleAnimationType = BitConverter.ToInt32(data.ReadBytes(4));
+      VehicleSpeed = GetInteger(data);
+      VerticalVehicleAnimationType = GetInteger(data);
     }
 
     public int VehicleSpeed { get; }

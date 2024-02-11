@@ -9,11 +9,11 @@ namespace EarthTool.PAR.Models
 {
   public class Artifact : PassiveEntity
   {
-    public Artifact(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public Artifact(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      ArtefactMask = BitConverter.ToInt32(data.ReadBytes(4));
-      ArtefactParam = BitConverter.ToInt32(data.ReadBytes(4));
-      RespawnTime = BitConverter.ToInt32(data.ReadBytes(4));
+      ArtefactMask = GetInteger(data);
+      ArtefactParam = GetInteger(data);
+      RespawnTime = GetInteger(data);
     }
 
     public int ArtefactMask { get; }

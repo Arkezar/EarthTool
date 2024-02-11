@@ -9,16 +9,16 @@ namespace EarthTool.PAR.Models
 {
   public class SoundPack : Entity
   {
-    public SoundPack(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type)
+    public SoundPack(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type)
     {
-      NormalWavePack1 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      NormalWavePack2 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      NormalWavePack3 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      NormalWavePack4 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      LoopedWavePack1 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      LoopedWavePack2 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      LoopedWavePack3 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      LoopedWavePack4 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      NormalWavePack1 = GetString(data);
+      NormalWavePack2 = GetString(data);
+      NormalWavePack3 = GetString(data);
+      NormalWavePack4 = GetString(data);
+      LoopedWavePack1 = GetString(data);
+      LoopedWavePack2 = GetString(data);
+      LoopedWavePack3 = GetString(data);
+      LoopedWavePack4 = GetString(data);
     }
 
     public string NormalWavePack1 { get; }

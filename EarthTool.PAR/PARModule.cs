@@ -1,4 +1,5 @@
 ﻿using Autofac;
+using EarthTool.PAR.Services;
 
 namespace EarthTool.PAR
 {
@@ -6,7 +7,7 @@ namespace EarthTool.PAR
   {
     protected override void Load(ContainerBuilder builder)
     {
-      builder.RegisterType<PARConverter>().AsImplementedInterfaces();
+      builder.RegisterType<ParameterReader>().AsImplementedInterfaces();
     }
   }
 }

@@ -9,18 +9,18 @@ namespace EarthTool.PAR.Models
 {
   public class Harvester : Vehicle
   {
-    public Harvester(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public Harvester(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      ContainerCount = BitConverter.ToInt32(data.ReadBytes(4));
-      TicksPerContainer = BitConverter.ToInt32(data.ReadBytes(4));
-      PutResourceAngle = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimHarvestStartStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimHarvestStartEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimHarvestWorkStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimHarvestWorkEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimHarvestEndStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimHarvestEndEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      HarvestSomkeId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      ContainerCount = GetInteger(data);
+      TicksPerContainer = GetInteger(data);
+      PutResourceAngle = GetInteger(data);
+      AnimHarvestStartStart = GetInteger(data);
+      AnimHarvestStartEnd = GetInteger(data);
+      AnimHarvestWorkStart = GetInteger(data);
+      AnimHarvestWorkEnd = GetInteger(data);
+      AnimHarvestEndStart = GetInteger(data);
+      AnimHarvestEndEnd = GetInteger(data);
+      HarvestSomkeId = GetString(data);
       data.ReadBytes(4);
     }
 

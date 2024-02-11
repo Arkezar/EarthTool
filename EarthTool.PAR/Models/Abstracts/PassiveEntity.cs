@@ -9,10 +9,10 @@ namespace EarthTool.PAR.Models
 {
   public abstract class PassiveEntity : DestructibleEntity
   {
-    public PassiveEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public PassiveEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      PassiveMask = BitConverter.ToInt32(data.ReadBytes(4));
-      WallCopulaId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      PassiveMask = GetInteger(data);
+      WallCopulaId = GetString(data);
       data.ReadBytes(4);
     }
 

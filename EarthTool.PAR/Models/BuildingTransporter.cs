@@ -9,9 +9,9 @@ namespace EarthTool.PAR.Models
 {
   public class BuildingTransporter : VerticalTransporter
   {
-    public BuildingTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public BuildingTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      BuilderLineId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      BuilderLineId = GetString(data);
       data.ReadBytes(4);
     }
 

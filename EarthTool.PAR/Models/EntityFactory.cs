@@ -10,19 +10,25 @@ namespace EarthTool.PAR.Models
 {
   public class EntityFactory
   {
-    public Entity CreateEntity(Stream data, EntityGroupType groupType)
+    public Entity CreateEntity(BinaryReader data, EntityGroupType groupType)
     {
-      var name = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      var RequiredResearch = Enumerable.Range(0, BitConverter.ToInt32(data.ReadBytes(4))).Select(i => BitConverter.ToInt32(data.ReadBytes(4))).ToList();
-      var fieldTypes = Enumerable.Range(0, BitConverter.ToInt32(data.ReadBytes(4))).Select(i => Convert.ToBoolean(data.ReadByte())).ToList();
+      var name = new string(data.ReadChars(data.ReadInt32()));
+      var requiredResearch = Enumerable.Range(0, data.ReadInt32()).Select(i => data.ReadInt32()).ToList();
+      var fieldTypes = Enumerable.Range(0, data.ReadInt32()).Select(i => Convert.ToBoolean(data.ReadByte())).ToList();
 
-      var type = groupType == EntityGroupType.SoundPack || groupType == EntityGroupType.ShieldGenerator || groupType == EntityGroupType.Parameter || groupType == EntityGroupType.SpecialUpdatesLink
-        ? EntityClassType.None : (EntityClassType)BitConverter.ToInt32(data.ReadBytes(4));
-
-      return BuildEntity(groupType, name, RequiredResearch, type, data, fieldTypes);
+      var type = groupType switch
+      {
+        EntityGroupType.SoundPack => EntityClassType.None,
+        EntityGroupType.ShieldGenerator => EntityClassType.None,
+        EntityGroupType.Parameter => EntityClassType.None,
+        EntityGroupType.SpecialUpdatesLink => EntityClassType.None,
+        _ => (EntityClassType)data.ReadInt32()
+      };
+        
+      return BuildEntity(groupType, name, requiredResearch, type, data, fieldTypes);
     }
 
-    private Entity BuildEntity(EntityGroupType groupType, string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data, IEnumerable<bool> fieldTypes)
+    private Entity BuildEntity(EntityGroupType groupType, string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes)
       => (groupType, type) switch
       {
         (EntityGroupType.Building, EntityClassType.Building) => new Building(name, requiredResearch, type, data),

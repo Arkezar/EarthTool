@@ -9,15 +9,15 @@ namespace EarthTool.PAR.Models
 {
   public class TransporterHook : Equipment
   {
-    public TransporterHook(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public TransporterHook(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      AnimTransporterDownStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimTransporterDownEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimTransporterUpStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimTransporterUpEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AngleToGetPut = BitConverter.ToInt32(data.ReadBytes(4));
-      AngleOfGetUnitByLandTransporter = BitConverter.ToInt32(data.ReadBytes(4));
-      TakeHeight = BitConverter.ToInt32(data.ReadBytes(4));
+      AnimTransporterDownStart = GetInteger(data);
+      AnimTransporterDownEnd = GetInteger(data);
+      AnimTransporterUpStart = GetInteger(data);
+      AnimTransporterUpEnd = GetInteger(data);
+      AngleToGetPut = GetInteger(data);
+      AngleOfGetUnitByLandTransporter = GetInteger(data);
+      TakeHeight = GetInteger(data);
     }
 
     public int AnimTransporterDownStart { get; }

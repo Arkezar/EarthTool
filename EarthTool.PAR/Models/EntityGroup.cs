@@ -10,14 +10,14 @@ namespace EarthTool.PAR.Models
 {
   public class EntityGroup
   {
-    public EntityGroup(Stream data)
+    public EntityGroup(BinaryReader reader)
     {
       var entityFactory = new EntityFactory();
 
-      Faction = (Faction)BitConverter.ToInt32(data.ReadBytes(4));
-      GroupType = (EntityGroupType)BitConverter.ToInt32(data.ReadBytes(4));
-      var groupSize = BitConverter.ToInt32(data.ReadBytes(4));
-      Entities = Enumerable.Range(0, groupSize).Select(i => entityFactory.CreateEntity(data, GroupType)).ToList();
+      Faction = (Faction)reader.ReadInt32();
+      GroupType = (EntityGroupType)reader.ReadInt32();
+      var groupSize = reader.ReadInt32();
+      Entities = Enumerable.Range(0, groupSize).Select(i => entityFactory.CreateEntity(reader, GroupType)).ToList();
     }
 
     public Faction Faction { get; }

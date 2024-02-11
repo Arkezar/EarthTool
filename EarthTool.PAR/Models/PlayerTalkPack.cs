@@ -9,32 +9,32 @@ namespace EarthTool.PAR.Models
 {
   public class PlayerTalkPack : Entity
   {
-    public PlayerTalkPack(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type)
+    public PlayerTalkPack(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type)
     {
-      BaseUnderAttack = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      BuildingUnderAttack = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      SpacePortUnderAttack = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      EnemyLandInBase = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      LowMaterials = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      LowMaterialsInBase = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      LowPower = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      LowPowerInBase = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      ResearchComplete = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      ProductionStarted = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      ProductionCompleted = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      ProductionCanceled = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      PlatoonLost = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      PlatoonCreated = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      PlatoonDisbanded = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      UnitLost = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      TransporterArrived = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      ArtefactLocated = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      ArtefactRecovered = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      NewAreaLocationFound = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      EnemyMainBaseLocated = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      NewSourceFieldLocated = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      SourceFieldExploited = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      BuildingLost = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      BaseUnderAttack = GetString(data);
+      BuildingUnderAttack = GetString(data);
+      SpacePortUnderAttack = GetString(data);
+      EnemyLandInBase = GetString(data);
+      LowMaterials = GetString(data);
+      LowMaterialsInBase = GetString(data);
+      LowPower = GetString(data);
+      LowPowerInBase = GetString(data);
+      ResearchComplete = GetString(data);
+      ProductionStarted = GetString(data);
+      ProductionCompleted = GetString(data);
+      ProductionCanceled = GetString(data);
+      PlatoonLost = GetString(data);
+      PlatoonCreated = GetString(data);
+      PlatoonDisbanded = GetString(data);
+      UnitLost = GetString(data);
+      TransporterArrived = GetString(data);
+      ArtefactLocated = GetString(data);
+      ArtefactRecovered = GetString(data);
+      NewAreaLocationFound = GetString(data);
+      EnemyMainBaseLocated = GetString(data);
+      NewSourceFieldLocated = GetString(data);
+      SourceFieldExploited = GetString(data);
+      BuildingLost = GetString(data);
 
     }
 

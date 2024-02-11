@@ -9,51 +9,51 @@ namespace EarthTool.PAR.Models
 {
   public class MultiExplosion : InteractableEntity
   {
-    public MultiExplosion(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public MultiExplosion(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      UseDownBuilding = BitConverter.ToInt32(data.ReadBytes(4));
-      DownBuildingStart = BitConverter.ToInt32(data.ReadBytes(4));
-      DownBuildingTime = BitConverter.ToInt32(data.ReadBytes(4));
-      SubObject1 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      UseDownBuilding = GetInteger(data);
+      DownBuildingStart = GetInteger(data);
+      DownBuildingTime = GetInteger(data);
+      SubObject1 = GetString(data);
       data.ReadBytes(4);
-      Time1 = BitConverter.ToInt32(data.ReadBytes(4));
-      Angle1 = BitConverter.ToInt32(data.ReadBytes(4));
-      Dist4X1 = BitConverter.ToInt32(data.ReadBytes(4));
-      SubObject2 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      Time1 = GetInteger(data);
+      Angle1 = GetInteger(data);
+      Dist4X1 = GetInteger(data);
+      SubObject2 = GetString(data);
       data.ReadBytes(4);
-      Time2 = BitConverter.ToInt32(data.ReadBytes(4));
-      Angle2 = BitConverter.ToInt32(data.ReadBytes(4));
-      Dist4X2 = BitConverter.ToInt32(data.ReadBytes(4));
-      SubObject3 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      Time2 = GetInteger(data);
+      Angle2 = GetInteger(data);
+      Dist4X2 = GetInteger(data);
+      SubObject3 = GetString(data);
       data.ReadBytes(4);
-      Time3 = BitConverter.ToInt32(data.ReadBytes(4));
-      Angle3 = BitConverter.ToInt32(data.ReadBytes(4));
-      Dist4X3 = BitConverter.ToInt32(data.ReadBytes(4));
-      SubObject4 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      Time3 = GetInteger(data);
+      Angle3 = GetInteger(data);
+      Dist4X3 = GetInteger(data);
+      SubObject4 = GetString(data);
       data.ReadBytes(4);
-      Time4 = BitConverter.ToInt32(data.ReadBytes(4));
-      Angle4 = BitConverter.ToInt32(data.ReadBytes(4));
-      Dist4X4 = BitConverter.ToInt32(data.ReadBytes(4));
-      SubObject5 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      Time4 = GetInteger(data);
+      Angle4 = GetInteger(data);
+      Dist4X4 = GetInteger(data);
+      SubObject5 = GetString(data);
       data.ReadBytes(4);
-      Time5 = BitConverter.ToInt32(data.ReadBytes(4));
-      Angle5 = BitConverter.ToInt32(data.ReadBytes(4));
-      Dist4X5 = BitConverter.ToInt32(data.ReadBytes(4));
-      SubObject6 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      Time5 = GetInteger(data);
+      Angle5 = GetInteger(data);
+      Dist4X5 = GetInteger(data);
+      SubObject6 = GetString(data);
       data.ReadBytes(4);
-      Time6 = BitConverter.ToInt32(data.ReadBytes(4));
-      Angle6 = BitConverter.ToInt32(data.ReadBytes(4));
-      Dist4X6 = BitConverter.ToInt32(data.ReadBytes(4));
-      SubObject7 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      Time6 = GetInteger(data);
+      Angle6 = GetInteger(data);
+      Dist4X6 = GetInteger(data);
+      SubObject7 = GetString(data);
       data.ReadBytes(4);
-      Time7 = BitConverter.ToInt32(data.ReadBytes(4));
-      Angle7 = BitConverter.ToInt32(data.ReadBytes(4));
-      Dist4X7 = BitConverter.ToInt32(data.ReadBytes(4));
-      SubObject8 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      Time7 = GetInteger(data);
+      Angle7 = GetInteger(data);
+      Dist4X7 = GetInteger(data);
+      SubObject8 = GetString(data);
       data.ReadBytes(4);
-      Time8 = BitConverter.ToInt32(data.ReadBytes(4));
-      Angle8 = BitConverter.ToInt32(data.ReadBytes(4));
-      Dist4X8 = BitConverter.ToInt32(data.ReadBytes(4));
+      Time8 = GetInteger(data);
+      Angle8 = GetInteger(data);
+      Dist4X8 = GetInteger(data);
     }
 
     public int UseDownBuilding { get; }

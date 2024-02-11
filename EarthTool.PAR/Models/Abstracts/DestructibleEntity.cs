@@ -9,15 +9,15 @@ namespace EarthTool.PAR.Models
 {
   public abstract class DestructibleEntity : InteractableEntity
   {
-    public DestructibleEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public DestructibleEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      HP = BitConverter.ToInt32(data.ReadBytes(4));
-      HpRegeneration = BitConverter.ToInt32(data.ReadBytes(4));
-      Armor = BitConverter.ToInt32(data.ReadBytes(4));
-      CalorificCapacity = BitConverter.ToInt32(data.ReadBytes(4));
-      DisableResist = BitConverter.ToInt32(data.ReadBytes(4));
-      StoreableFlags = BitConverter.ToInt32(data.ReadBytes(4));
-      StandType = BitConverter.ToInt32(data.ReadBytes(4));
+      HP = GetInteger(data);
+      HpRegeneration = GetInteger(data);
+      Armor = GetInteger(data);
+      CalorificCapacity = GetInteger(data);
+      DisableResist = GetInteger(data);
+      StoreableFlags = GetInteger(data);
+      StandType = GetInteger(data);
     }
 
     public int HP { get; }

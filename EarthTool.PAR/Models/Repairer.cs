@@ -10,40 +10,40 @@ namespace EarthTool.PAR.Models
 {
   public class Repairer : Equipment
   {
-    public Repairer(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data)
+    public Repairer(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data)
     {
       if (fieldTypes.Count() > 44)
       {
-        RepairerFlags = BitConverter.ToInt32(data.ReadBytes(4));
-        RepairHPPerTick = BitConverter.ToInt32(data.ReadBytes(4));
-        RepairElectronicsPerTick = BitConverter.ToInt32(data.ReadBytes(4));
-        TicksPerRepair = BitConverter.ToInt32(data.ReadBytes(4));
+        RepairerFlags = GetInteger(data);
+        RepairHPPerTick = GetInteger(data);
+        RepairElectronicsPerTick = GetInteger(data);
+        TicksPerRepair = GetInteger(data);
       }
-      ConvertTankTime = BitConverter.ToInt32(data.ReadBytes(4));
-      ConvertBuildingTime = BitConverter.ToInt32(data.ReadBytes(4));
-      ConvertHealthyTankTime = BitConverter.ToInt32(data.ReadBytes(4));
-      ConvertHealthyBuildingTime = BitConverter.ToInt32(data.ReadBytes(4));
-      RepaintTankTime = BitConverter.ToInt32(data.ReadBytes(4));
-      RepaintBuildingTime = BitConverter.ToInt32(data.ReadBytes(4));
-      UpgradeTankTime = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimRepairStartStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimRepairStartEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimRepairWorkStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimRepairWorkEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimRepairEndStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimRepairEndEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimConvertStartStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimConvertStartEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimConvertWorkStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimConvertWorkEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimConvertEndStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimConvertEndEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimRepaintStartStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimRepaintStartEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimRepaintWorkStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimRepaintWorkEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimRepaintEndStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimRepaintEndEnd = BitConverter.ToInt32(data.ReadBytes(4));
+      ConvertTankTime = GetInteger(data);
+      ConvertBuildingTime = GetInteger(data);
+      ConvertHealthyTankTime = GetInteger(data);
+      ConvertHealthyBuildingTime = GetInteger(data);
+      RepaintTankTime = GetInteger(data);
+      RepaintBuildingTime = GetInteger(data);
+      UpgradeTankTime = GetInteger(data);
+      AnimRepairStartStart = GetInteger(data);
+      AnimRepairStartEnd = GetInteger(data);
+      AnimRepairWorkStart = GetInteger(data);
+      AnimRepairWorkEnd = GetInteger(data);
+      AnimRepairEndStart = GetInteger(data);
+      AnimRepairEndEnd = GetInteger(data);
+      AnimConvertStartStart = GetInteger(data);
+      AnimConvertStartEnd = GetInteger(data);
+      AnimConvertWorkStart = GetInteger(data);
+      AnimConvertWorkEnd = GetInteger(data);
+      AnimConvertEndStart = GetInteger(data);
+      AnimConvertEndEnd = GetInteger(data);
+      AnimRepaintStartStart = GetInteger(data);
+      AnimRepaintStartEnd = GetInteger(data);
+      AnimRepaintWorkStart = GetInteger(data);
+      AnimRepaintWorkEnd = GetInteger(data);
+      AnimRepaintEndStart = GetInteger(data);
+      AnimRepaintEndEnd = GetInteger(data);
     }
 
     public int RepairerFlags { get; }

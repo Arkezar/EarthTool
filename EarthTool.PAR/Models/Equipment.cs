@@ -9,13 +9,13 @@ namespace EarthTool.PAR.Models
 {
   public class Equipment : InteractableEntity
   {
-    public Equipment(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public Equipment(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      RangeOfSight = BitConverter.ToInt32(data.ReadBytes(4));
-      PlugType = BitConverter.ToInt32(data.ReadBytes(4));
-      SlotType = BitConverter.ToInt32(data.ReadBytes(4));
-      MaxAlphaPerTick = BitConverter.ToInt32(data.ReadBytes(4));
-      MaxBetaPerTick = BitConverter.ToInt32(data.ReadBytes(4));
+      RangeOfSight = GetInteger(data);
+      PlugType = GetInteger(data);
+      SlotType = GetInteger(data);
+      MaxAlphaPerTick = GetInteger(data);
+      MaxBetaPerTick = GetInteger(data);
     }
 
     public int RangeOfSight { get; }

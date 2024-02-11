@@ -9,10 +9,10 @@ namespace EarthTool.PAR.Models
 {
   public class Explosion : DestructibleEntity
   {
-    public Explosion(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public Explosion(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      ExplosionTicks = BitConverter.ToInt32(data.ReadBytes(4));
-      ExplosionFlags = BitConverter.ToInt32(data.ReadBytes(4));
+      ExplosionTicks = GetInteger(data);
+      ExplosionFlags = GetInteger(data);
     }
 
     public int ExplosionTicks { get; }

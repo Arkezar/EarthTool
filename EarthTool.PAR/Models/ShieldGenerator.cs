@@ -9,13 +9,14 @@ namespace EarthTool.PAR.Models
 {
   public class ShieldGenerator : Entity
   {
-    public ShieldGenerator(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type)
+    public ShieldGenerator(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) :
+      base(name, requiredResearch, type)
     {
-      ShieldCost = BitConverter.ToInt32(data.ReadBytes(4));
-      ShieldValue = BitConverter.ToInt32(data.ReadBytes(4));
-      ReloadTime = BitConverter.ToInt32(data.ReadBytes(4));
-      ShieldMeshName = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      ShieldMeshViewIndex = BitConverter.ToInt32(data.ReadBytes(4));
+      ShieldCost = GetInteger(data);
+      ShieldValue = GetInteger(data);
+      ReloadTime = GetInteger(data);
+      ShieldMeshName = GetString(data);
+      ShieldMeshViewIndex = GetInteger(data);
     }
 
     public int ShieldCost { get; }

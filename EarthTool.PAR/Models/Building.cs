@@ -9,59 +9,59 @@ namespace EarthTool.PAR.Models
 {
   public class Building : EquipableEntity
   {
-    public Building(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public Building(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      BuildingType = BitConverter.ToInt32(data.ReadBytes(4));
-      BuildingTypeEx = BitConverter.ToInt32(data.ReadBytes(4));
-      BuildingTabType = BitConverter.ToInt32(data.ReadBytes(4));
-      InitCannonId1 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      BuildingType = GetInteger(data);
+      BuildingTypeEx = GetInteger(data);
+      BuildingTabType = GetInteger(data);
+      InitCannonId1 = GetString(data);
       data.ReadBytes(4);
-      InitCannonId2 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      InitCannonId2 = GetString(data);
       data.ReadBytes(4);
-      InitCannonId3 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      InitCannonId3 = GetString(data);
       data.ReadBytes(4);
-      InitCannonId4 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      InitCannonId4 = GetString(data);
       data.ReadBytes(4);
-      CopulaId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      CopulaId = GetString(data);
       data.ReadBytes(4);
-      BuildingTunnelNumber = BitConverter.ToInt32(data.ReadBytes(4));
-      UpgradeCopulaSmallId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      BuildingTunnelNumber = GetInteger(data);
+      UpgradeCopulaSmallId = GetString(data);
       data.ReadBytes(4);
-      UpgradeCopulaBigId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      UpgradeCopulaBigId = GetString(data);
       data.ReadBytes(4);
-      BuildLCTransporterId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      BuildLCTransporterId = GetString(data);
       data.ReadBytes(4);
-      ChimneySmokeId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      ChimneySmokeId = GetString(data);
       data.ReadBytes(4);
-      NeedPower = BitConverter.ToInt32(data.ReadBytes(4));
-      SlaveBuildingId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      NeedPower = GetInteger(data);
+      SlaveBuildingId = GetString(data);
       data.ReadBytes(4);
-      MaxSubBuildingCount = BitConverter.ToInt32(data.ReadBytes(4));
-      PowerLevel = BitConverter.ToInt32(data.ReadBytes(4));
-      PowerTransmitterRange = BitConverter.ToInt32(data.ReadBytes(4));
-      ConnectTransmitterRange = BitConverter.ToInt32(data.ReadBytes(4));
-      FullEnergyPowerInDay = BitConverter.ToInt32(data.ReadBytes(4));
-      ResourceInputOutput = BitConverter.ToInt32(data.ReadBytes(4));
-      TickPerContainer = BitConverter.ToInt32(data.ReadBytes(4));
-      ContainerId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      MaxSubBuildingCount = GetInteger(data);
+      PowerLevel = GetInteger(data);
+      PowerTransmitterRange = GetInteger(data);
+      ConnectTransmitterRange = GetInteger(data);
+      FullEnergyPowerInDay = GetInteger(data);
+      ResourceInputOutput = GetInteger(data);
+      TickPerContainer = GetInteger(data);
+      ContainerId = GetString(data);
       data.ReadBytes(4);
-      ContainerSmeltingTicks = BitConverter.ToInt32(data.ReadBytes(4));
-      ResourcesPerTransport = BitConverter.ToInt32(data.ReadBytes(4));
-      TransporterId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      ContainerSmeltingTicks = GetInteger(data);
+      ResourcesPerTransport = GetInteger(data);
+      TransporterId = GetString(data);
       data.ReadBytes(4);
-      BuildingAmmoId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      BuildingAmmoId = GetString(data);
       data.ReadBytes(4);
-      RangeOfBuildingFire = BitConverter.ToInt32(data.ReadBytes(4));
-      ShootExplosionId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      RangeOfBuildingFire = GetInteger(data);
+      ShootExplosionId = GetString(data);
       data.ReadBytes(4);
-      AmmoReloadingTime = BitConverter.ToInt32(data.ReadBytes(4));
-      BuildExplosionId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      AmmoReloadingTime = GetInteger(data);
+      BuildExplosionId = GetString(data);
       data.ReadBytes(4);
-      CopulaAnimationFlags = BitConverter.ToInt32(data.ReadBytes(4));
-      EndOfClosingCopulaAnimation = BitConverter.ToInt32(data.ReadBytes(4));
-      LaserId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      CopulaAnimationFlags = GetInteger(data);
+      EndOfClosingCopulaAnimation = GetInteger(data);
+      LaserId = GetString(data);
       data.ReadBytes(4);
-      SpaceStationType = BitConverter.ToInt32(data.ReadBytes(4));
+      SpaceStationType = GetInteger(data);
     }
 
     public int BuildingType { get; }

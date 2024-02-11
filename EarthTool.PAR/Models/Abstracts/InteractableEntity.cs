@@ -9,20 +9,20 @@ namespace EarthTool.PAR.Models
 {
   public abstract class InteractableEntity : Entity
   {
-    protected InteractableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type)
+    protected InteractableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type)
     {
-      Mesh = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      ShadowType = BitConverter.ToInt32(data.ReadBytes(4));
-      ViewParamsIndex = BitConverter.ToInt32(data.ReadBytes(4));
-      Cost = BitConverter.ToInt32(data.ReadBytes(4));
-      TimeOfBuild = BitConverter.ToInt32(data.ReadBytes(4));
-      SoundPackId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      Mesh = GetString(data);
+      ShadowType = GetInteger(data);
+      ViewParamsIndex = GetInteger(data);
+      Cost = GetInteger(data);
+      TimeOfBuild = GetInteger(data);
+      SoundPackId = GetString(data);
       data.ReadBytes(4);
-      SmokeId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      SmokeId = GetString(data);
       data.ReadBytes(4);
-      KillExplosionId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      KillExplosionId = GetString(data);
       data.ReadBytes(4);
-      DestructedId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      DestructedId = GetString(data);
       data.ReadBytes(4);
     }
 

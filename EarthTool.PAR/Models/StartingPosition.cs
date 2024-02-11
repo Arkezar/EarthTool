@@ -9,9 +9,9 @@ namespace EarthTool.PAR.Models
 {
   public class StartingPosition : EquipableEntity
   {
-    public StartingPosition(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public StartingPosition(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      PositionType = BitConverter.ToInt32(data.ReadBytes(4));
+      PositionType = GetInteger(data);
     }
 
     public int PositionType { get; }

@@ -9,17 +9,17 @@ namespace EarthTool.PAR.Models
 {
   public class Sapper : Vehicle
   {
-    public Sapper(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public Sapper(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      MinesLookRange = BitConverter.ToInt32(data.ReadBytes(4));
-      MineId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      MinesLookRange = GetInteger(data);
+      MineId = GetString(data);
       data.ReadBytes(4);
-      MaxMinesCount = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimDownStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimDownEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimUpStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimUpEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      PutMineSmokeId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      MaxMinesCount = GetInteger(data);
+      AnimDownStart = GetInteger(data);
+      AnimDownEnd = GetInteger(data);
+      AnimUpStart = GetInteger(data);
+      AnimUpEnd = GetInteger(data);
+      PutMineSmokeId = GetString(data);
       data.ReadBytes(4);
     }
 

@@ -8,7 +8,7 @@ namespace EarthTool.PAR.Models
 {
   public abstract class MovableEntity : InteractableEntity
   {
-    public MovableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public MovableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
     }
   }

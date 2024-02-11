@@ -9,25 +9,25 @@ namespace EarthTool.PAR.Models
 {
   public class FlyingWaste : DestructibleEntity
   {
-    public FlyingWaste(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public FlyingWaste(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      WasteSize = BitConverter.ToInt32(data.ReadBytes(4));
-      SubWasteId1 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      WasteSize = GetInteger(data);
+      SubWasteId1 = GetString(data);
       data.ReadBytes(4);
-      SubWaste1Alpha = BitConverter.ToInt32(data.ReadBytes(4));
-      SubWasteId2 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      SubWaste1Alpha = GetInteger(data);
+      SubWasteId2 = GetString(data);
       data.ReadBytes(4);
-      SubWaste2Alpha = BitConverter.ToInt32(data.ReadBytes(4));
-      SubWasteId3 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      SubWaste2Alpha = GetInteger(data);
+      SubWasteId3 = GetString(data);
       data.ReadBytes(4);
-      SubWaste3Alpha = BitConverter.ToInt32(data.ReadBytes(4));
-      SubWasteId4 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      SubWaste3Alpha = GetInteger(data);
+      SubWasteId4 = GetString(data);
       data.ReadBytes(4);
-      SubWaste4Alpha = BitConverter.ToInt32(data.ReadBytes(4));
-      FlightTime = BitConverter.ToInt32(data.ReadBytes(4));
-      WasteSpeed = BitConverter.ToInt32(data.ReadBytes(4));
-      WasteDistanceX4 = BitConverter.ToInt32(data.ReadBytes(4));
-      WasteBeta = BitConverter.ToInt32(data.ReadBytes(4));
+      SubWaste4Alpha = GetInteger(data);
+      FlightTime = GetInteger(data);
+      WasteSpeed = GetInteger(data);
+      WasteDistanceX4 = GetInteger(data);
+      WasteBeta = GetInteger(data);
     }
 
     public int WasteSize { get; }

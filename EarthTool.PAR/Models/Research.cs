@@ -1,30 +1,27 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Enums;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 
 namespace EarthTool.PAR.Models
 {
-  public class Research
+  public class Research : ParameterEntry
   {
-    public Research(Stream data)
+    public Research(BinaryReader data)
     {
-      Id = BitConverter.ToInt32(data.ReadBytes(4));
-      Faction = (Faction)BitConverter.ToInt32(data.ReadBytes(4));
-      CampaignCost = BitConverter.ToInt32(data.ReadBytes(4));
-      SkirmishCost = BitConverter.ToInt32(data.ReadBytes(4));
-      CampaignTime = BitConverter.ToInt32(data.ReadBytes(4));
-      SkirmishTime = BitConverter.ToInt32(data.ReadBytes(4));
-      Name = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      Video = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      Type = (ResearchType)BitConverter.ToInt32(data.ReadBytes(4));
-      Mesh = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      MeshParamsIndex = BitConverter.ToInt32(data.ReadBytes(4));
-      var requiredResearchCount = BitConverter.ToInt32(data.ReadBytes(4));
-      RequiredResearch = Enumerable.Range(0, requiredResearchCount).Select(i => BitConverter.ToInt32(data.ReadBytes(4))).ToList();
+      Id = GetInteger(data);
+      Faction = (Faction)GetInteger(data);
+      CampaignCost = GetInteger(data);
+      SkirmishCost = GetInteger(data);
+      CampaignTime = GetInteger(data);
+      SkirmishTime = GetInteger(data);
+      Name = GetString(data);
+      Video = GetString(data);
+      Type = (ResearchType)GetInteger(data);
+      Mesh = GetString(data);
+      MeshParamsIndex = GetInteger(data);
+      var requiredResearchCount = GetInteger(data);
+      RequiredResearch = Enumerable.Range(0, requiredResearchCount).Select(i => GetInteger(data)).ToList();
     }
     
     public int Id { get; }
@@ -50,5 +47,15 @@ namespace EarthTool.PAR.Models
     public int MeshParamsIndex { get; }
     
     public IEnumerable<int> RequiredResearch { get; }
+    
+    protected int GetInteger(BinaryReader data)
+    {
+      return data.ReadInt32();
+    }
+
+    protected string GetString(BinaryReader data)
+    {
+      return new string(data.ReadChars(data.ReadInt32()));
+    }
   }
 }

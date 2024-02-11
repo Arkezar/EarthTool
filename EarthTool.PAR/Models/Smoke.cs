@@ -9,20 +9,20 @@ namespace EarthTool.PAR.Models
 {
   public class Smoke : DestructibleEntity
   {
-    public Smoke(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public Smoke(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      Mesh1 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      Mesh2 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      Mesh3 = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
-      SmokeTime1 = BitConverter.ToInt32(data.ReadBytes(4));
-      SmokeTime2 = BitConverter.ToInt32(data.ReadBytes(4));
-      SmokeTime3 = BitConverter.ToInt32(data.ReadBytes(4));
-      SmokeFrequency = BitConverter.ToInt32(data.ReadBytes(4));
-      StartingTime = BitConverter.ToInt32(data.ReadBytes(4));
-      SmokingTime = BitConverter.ToInt32(data.ReadBytes(4));
-      EndingTime = BitConverter.ToInt32(data.ReadBytes(4));
-      SmokeUpSpeed = BitConverter.ToInt32(data.ReadBytes(4));
-      NewSmokeDistance = BitConverter.ToInt32(data.ReadBytes(4));
+      Mesh1 = GetString(data);
+      Mesh2 = GetString(data);
+      Mesh3 = GetString(data);
+      SmokeTime1 = GetInteger(data);
+      SmokeTime2 = GetInteger(data);
+      SmokeTime3 = GetInteger(data);
+      SmokeFrequency = GetInteger(data);
+      StartingTime = GetInteger(data);
+      SmokingTime = GetInteger(data);
+      EndingTime = GetInteger(data);
+      SmokeUpSpeed = GetInteger(data);
+      NewSmokeDistance = GetInteger(data);
     }
 
     public string Mesh1 { get; }

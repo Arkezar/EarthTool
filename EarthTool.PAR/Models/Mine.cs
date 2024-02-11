@@ -9,11 +9,11 @@ namespace EarthTool.PAR.Models
 {
   public class Mine : DestructibleEntity
   {
-    public Mine(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public Mine(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      MineSize = BitConverter.ToInt32(data.ReadBytes(4));
-      MineTypeOfDamage = BitConverter.ToInt32(data.ReadBytes(4));
-      MineDamage = BitConverter.ToInt32(data.ReadBytes(4));
+      MineSize = GetInteger(data);
+      MineTypeOfDamage = GetInteger(data);
+      MineDamage = GetInteger(data);
     }
 
     public int MineSize { get; }

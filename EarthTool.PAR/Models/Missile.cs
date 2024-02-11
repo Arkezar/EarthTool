@@ -9,22 +9,22 @@ namespace EarthTool.PAR.Models
 {
   public class Missile : DestructibleEntity
   {
-    public Missile(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public Missile(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      Type = BitConverter.ToInt32(data.ReadBytes(4));
-      RocketType = BitConverter.ToInt32(data.ReadBytes(4));
-      MissileSize = BitConverter.ToInt32(data.ReadBytes(4));
-      RocketDummyId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      Type = GetInteger(data);
+      RocketType = GetInteger(data);
+      MissileSize = GetInteger(data);
+      RocketDummyId = GetString(data);
       data.ReadBytes(4);
-      IsAntiRocketTarget = BitConverter.ToInt32(data.ReadBytes(4));
-      Speed = BitConverter.ToInt32(data.ReadBytes(4));
-      TimeOfShoot = BitConverter.ToInt32(data.ReadBytes(4));
-      PlusRangeOfFire = BitConverter.ToInt32(data.ReadBytes(4));
-      HitType = BitConverter.ToInt32(data.ReadBytes(4));
-      HitRange = BitConverter.ToInt32(data.ReadBytes(4));
-      TypeOfDamage = BitConverter.ToInt32(data.ReadBytes(4));
-      Damage = BitConverter.ToInt32(data.ReadBytes(4));
-      ExplosionId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      IsAntiRocketTarget = GetInteger(data);
+      Speed = GetInteger(data);
+      TimeOfShoot = GetInteger(data);
+      PlusRangeOfFire = GetInteger(data);
+      HitType = GetInteger(data);
+      HitRange = GetInteger(data);
+      TypeOfDamage = GetInteger(data);
+      Damage = GetInteger(data);
+      ExplosionId = GetString(data);
       data.ReadBytes(4);
     }
 

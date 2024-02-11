@@ -1,39 +1,14 @@
-﻿using EarthTool.Common.Extensions;
-using System;
+﻿using EarthTool.Common.Interfaces;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
 
 namespace EarthTool.PAR.Models
 {
   public class ParFile
   {
-    public ParFile(Stream stream)
-    {
-      stream.Seek(21, SeekOrigin.Begin); //TODO: Temporary
-      
-      ValidateHeader(stream);
+    public IEarthInfo FileHeader { get; set; }
 
-      var groupCount = BitConverter.ToInt32(stream.ReadBytes(8));
-      Groups = Enumerable.Range(0, groupCount).Select(i => new EntityGroup(stream)).ToList();
+    public IEnumerable<EntityGroup> Groups { get; set; }
 
-      var researchCount = BitConverter.ToInt32(stream.ReadBytes(8));
-      Research = Enumerable.Range(0, researchCount).Select(i => new Research(stream)).ToList();
-    }
-
-    public IEnumerable<EntityGroup> Groups { get; }
-
-    public IEnumerable<Research> Research { get; }
-
-    private void ValidateHeader(Stream stream)
-    {
-      var identifer = Encoding.ASCII.GetString(stream.ReadBytes(8));
-
-      if (identifer != "PAR\0?\0\0\0")
-      {
-        throw new Exception("Unsupported file format.");
-      }
-    }
+    public IEnumerable<Research> Research { get; set; }
   }
 }

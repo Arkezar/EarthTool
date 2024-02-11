@@ -9,18 +9,18 @@ namespace EarthTool.PAR.Models
 {
   public abstract class EquipableEntity : DestructibleEntity
   {
-    public EquipableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public EquipableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      SightRange = BitConverter.ToInt32(data.ReadBytes(4));
-      TalkPackId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      SightRange = GetInteger(data);
+      TalkPackId = GetString(data);
       data.ReadBytes(4);
-      ShieldGeneratorId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      ShieldGeneratorId = GetString(data);
       data.ReadBytes(4);
-      MaxShieldUpdate = BitConverter.ToInt32(data.ReadBytes(4));
-      Slot1Type = BitConverter.ToInt32(data.ReadBytes(4));
-      Slot2Type = BitConverter.ToInt32(data.ReadBytes(4));
-      Slot3Type = BitConverter.ToInt32(data.ReadBytes(4));
-      Slot4Type = BitConverter.ToInt32(data.ReadBytes(4));
+      MaxShieldUpdate = GetInteger(data);
+      Slot1Type = GetInteger(data);
+      Slot2Type = GetInteger(data);
+      Slot3Type = GetInteger(data);
+      Slot4Type = GetInteger(data);
     }
 
     public int SightRange { get; }

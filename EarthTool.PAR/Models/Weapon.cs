@@ -9,30 +9,30 @@ namespace EarthTool.PAR.Models
 {
   public class Weapon : InteractableEntity
   {
-    public Weapon(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public Weapon(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      RangeOfSight = BitConverter.ToInt32(data.ReadBytes(4));
-      PlugType = BitConverter.ToInt32(data.ReadBytes(4));
-      SlotType = BitConverter.ToInt32(data.ReadBytes(4));
-      MaxAlphaPerTick = BitConverter.ToInt32(data.ReadBytes(4));
-      MaxBetaPerTick = BitConverter.ToInt32(data.ReadBytes(4));
-      AlphaMargin = BitConverter.ToInt32(data.ReadBytes(4));
-      BetaMargin = BitConverter.ToInt32(data.ReadBytes(4));
-      BarrelBetaType = BitConverter.ToInt32(data.ReadBytes(4));
-      BarrelBetaAngle = BitConverter.ToInt32(data.ReadBytes(4));
-      BarrelCount = BitConverter.ToInt32(data.ReadBytes(4));
-      AmmoId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      RangeOfSight = GetInteger(data);
+      PlugType = GetInteger(data);
+      SlotType = GetInteger(data);
+      MaxAlphaPerTick = GetInteger(data);
+      MaxBetaPerTick = GetInteger(data);
+      AlphaMargin = GetInteger(data);
+      BetaMargin = GetInteger(data);
+      BarrelBetaType = GetInteger(data);
+      BarrelBetaAngle = GetInteger(data);
+      BarrelCount = GetInteger(data);
+      AmmoId = GetString(data);
       data.ReadBytes(4);
-      AmmoType = BitConverter.ToInt32(data.ReadBytes(4));
-      TargetType = BitConverter.ToInt32(data.ReadBytes(4));
-      RangeOfFire = BitConverter.ToInt32(data.ReadBytes(4));
-      PlusDamage = BitConverter.ToInt32(data.ReadBytes(4));
-      FireType = BitConverter.ToInt32(data.ReadBytes(4));
-      ShootDelay = BitConverter.ToInt32(data.ReadBytes(4));
-      NeedExternal = BitConverter.ToInt32(data.ReadBytes(4));
-      ReloadDelay = BitConverter.ToInt32(data.ReadBytes(4));
-      MaxAmmo = BitConverter.ToInt32(data.ReadBytes(4));
-      BarrelExplosionId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      AmmoType = GetInteger(data);
+      TargetType = GetInteger(data);
+      RangeOfFire = GetInteger(data);
+      PlusDamage = GetInteger(data);
+      FireType = GetInteger(data);
+      ShootDelay = GetInteger(data);
+      NeedExternal = GetInteger(data);
+      ReloadDelay = GetInteger(data);
+      MaxAmmo = GetInteger(data);
+      BarrelExplosionId = GetString(data);
       data.ReadBytes(4);
     }
 

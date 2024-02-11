@@ -9,14 +9,14 @@ namespace EarthTool.PAR.Models
 {
   public class OmnidirectionalEquipment : Equipment
   {
-    public OmnidirectionalEquipment(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public OmnidirectionalEquipment(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      LookRoundTypeMask = BitConverter.ToInt32(data.ReadBytes(4));
-      LookRoundRange = BitConverter.ToInt32(data.ReadBytes(4));
-      TurnSpeed = BitConverter.ToInt32(data.ReadBytes(4));
-      BannerAddExperienceLevel = BitConverter.ToInt32(data.ReadBytes(4));
-      RegenerationHPMultiple = BitConverter.ToInt32(data.ReadBytes(4));
-      ShieldReloadAdd = BitConverter.ToInt32(data.ReadBytes(4));
+      LookRoundTypeMask = GetInteger(data);
+      LookRoundRange = GetInteger(data);
+      TurnSpeed = GetInteger(data);
+      BannerAddExperienceLevel = GetInteger(data);
+      RegenerationHPMultiple = GetInteger(data);
+      ShieldReloadAdd = GetInteger(data);
     }
 
     public int LookRoundTypeMask { get; }

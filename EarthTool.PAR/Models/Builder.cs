@@ -9,39 +9,39 @@ namespace EarthTool.PAR.Models
 {
   public class Builder : Vehicle
   {
-    public Builder(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public Builder(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      WallId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      WallId = GetString(data);
       data.ReadBytes(4);
-      BridgeId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      BridgeId = GetString(data);
       data.ReadBytes(4);
-      TunnelNumber = BitConverter.ToInt32(data.ReadBytes(4));
-      RoadBuildTime = BitConverter.ToInt32(data.ReadBytes(4));
-      FlatBuildTime = BitConverter.ToInt32(data.ReadBytes(4));
-      TrenchBuildTime = BitConverter.ToInt32(data.ReadBytes(4));
-      TunnelBuildTime = BitConverter.ToInt32(data.ReadBytes(4));
-      BuildObjectAnimationAngle = BitConverter.ToInt32(data.ReadBytes(4));
-      DigNormalAnimationAngle = BitConverter.ToInt32(data.ReadBytes(4));
-      DigLowAnimationAngle = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimBuildObjectStartStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimBuildObjectStartEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimBuildObjectWorkStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimBuildObjectWorkEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimBuildObjectEndStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimBuildObjectEndEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimDigNormalStartStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimDigNormalStartEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimDigNormalWorkStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimDigNormalWorkEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimDigNormalEndStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimDigNormalEndEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimDigLowStartStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimDigLowStartEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimDigLowWorkStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimDigLowWorkEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimDigLowEndStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimDigLowEndEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      DigSmokeId = Encoding.ASCII.GetString(data.ReadBytes(BitConverter.ToInt32(data.ReadBytes(4))));
+      TunnelNumber = GetInteger(data);
+      RoadBuildTime = GetInteger(data);
+      FlatBuildTime = GetInteger(data);
+      TrenchBuildTime = GetInteger(data);
+      TunnelBuildTime = GetInteger(data);
+      BuildObjectAnimationAngle = GetInteger(data);
+      DigNormalAnimationAngle = GetInteger(data);
+      DigLowAnimationAngle = GetInteger(data);
+      AnimBuildObjectStartStart = GetInteger(data);
+      AnimBuildObjectStartEnd = GetInteger(data);
+      AnimBuildObjectWorkStart = GetInteger(data);
+      AnimBuildObjectWorkEnd = GetInteger(data);
+      AnimBuildObjectEndStart = GetInteger(data);
+      AnimBuildObjectEndEnd = GetInteger(data);
+      AnimDigNormalStartStart = GetInteger(data);
+      AnimDigNormalStartEnd = GetInteger(data);
+      AnimDigNormalWorkStart = GetInteger(data);
+      AnimDigNormalWorkEnd = GetInteger(data);
+      AnimDigNormalEndStart = GetInteger(data);
+      AnimDigNormalEndEnd = GetInteger(data);
+      AnimDigLowStartStart = GetInteger(data);
+      AnimDigLowStartEnd = GetInteger(data);
+      AnimDigLowWorkStart = GetInteger(data);
+      AnimDigLowWorkEnd = GetInteger(data);
+      AnimDigLowEndStart = GetInteger(data);
+      AnimDigLowEndEnd = GetInteger(data);
+      DigSmokeId = GetString(data);
       data.ReadBytes(4);
     }
 

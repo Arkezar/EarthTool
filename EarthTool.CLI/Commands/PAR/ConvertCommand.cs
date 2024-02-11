@@ -16,11 +16,11 @@ namespace EarthTool.CLI.Commands.PAR;
 
 public class ConvertCommand : CommonCommand<CommonSettings>
 {
-  private readonly IEarthInfoFactory _earthInfoFactory;
+  private readonly IReader<ParFile> _reader;
 
-  public ConvertCommand(IEarthInfoFactory earthInfoFactory)
+  public ConvertCommand(IReader<ParFile> reader)
   {
-    _earthInfoFactory = earthInfoFactory;
+    _reader = reader;
   }
 
   protected override Task InternalExecuteAsync(string filePath, CommonSettings settings)
@@ -30,14 +30,10 @@ public class ConvertCommand : CommonCommand<CommonSettings>
     var outputFileName = Path.ChangeExtension(fileName, "json");
     var outputFilePath = Path.Combine(outputDirectory, outputFileName);
 
-    using (var stream = File.OpenRead(filePath))
-    {
-      var hd = _earthInfoFactory.Get(stream);
-      var file = new ParFile(stream);
+    var file = _reader.Read(filePath);
 
-      SaveReaserchToFile(file.Research, outputFilePath);
-      SaveGroupsToFile(file.Groups, outputFilePath);
-    }
+    SaveReaserchToFile(file.Research, outputFilePath);
+    SaveGroupsToFile(file.Groups, outputFilePath);
 
     return Task.CompletedTask;
   }
@@ -45,16 +41,16 @@ public class ConvertCommand : CommonCommand<CommonSettings>
   private void SaveGroupsToFile(IEnumerable<EntityGroup> entityGroups, string outputFilePath)
   {
     var groups = entityGroups.ToLookup(g => (g.Faction, g.GroupType));
-    
+
     foreach (var group in groups)
     {
       var entitiesByType = group.SelectMany(g => g.Entities).GroupBy(e => e.GetType());
       foreach (var type in entitiesByType)
       {
         var ofTypeMethod = typeof(Enumerable).GetMethod("OfType").MakeGenericMethod(type.Key);
-        
+
         var typedEntities = ofTypeMethod.Invoke(null, new object[] { group.SelectMany(g => g.Entities) });
-        
+
         var serialized =
           JsonSerializer.Serialize(typedEntities, new JsonSerializerOptions { WriteIndented = true });
 
@@ -79,7 +75,7 @@ public class ConvertCommand : CommonCommand<CommonSettings>
     fileName += $"_{typeof(Research).Name.ToLower()}";
     var extension = Path.GetExtension(outputFilePath);
     var newFileName = Path.Combine(directory, $"{fileName}{extension}");
-    
+
     File.WriteAllText(newFileName, serializedResearch);
   }
 

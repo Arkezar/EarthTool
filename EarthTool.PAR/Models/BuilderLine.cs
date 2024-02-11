@@ -8,7 +8,7 @@ namespace EarthTool.PAR.Models
 {
   public class BuilderLine : DestructibleEntity
   {
-    public BuilderLine(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public BuilderLine(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
     }
   }

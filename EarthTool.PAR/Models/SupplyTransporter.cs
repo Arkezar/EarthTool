@@ -9,13 +9,13 @@ namespace EarthTool.PAR.Models
 {
   public class SupplyTransporter : Vehicle
   {
-    public SupplyTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public SupplyTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      AmmoCapacity = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimSupplyDownStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimSupplyDownEnd = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimSupplyUpStart = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimSupplyUpEnd = BitConverter.ToInt32(data.ReadBytes(4));
+      AmmoCapacity = GetInteger(data);
+      AnimSupplyDownStart = GetInteger(data);
+      AnimSupplyDownEnd = GetInteger(data);
+      AnimSupplyUpStart = GetInteger(data);
+      AnimSupplyUpEnd = GetInteger(data);
     }
 
     public int AmmoCapacity { get; }

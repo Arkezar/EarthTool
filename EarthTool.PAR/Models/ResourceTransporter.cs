@@ -9,12 +9,12 @@ namespace EarthTool.PAR.Models
 {
   public class ResourceTransporter : VerticalTransporter
   {
-    public ResourceTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, Stream data) : base(name, requiredResearch, type, data)
+    public ResourceTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(name, requiredResearch, type, data)
     {
-      ResourceVehicleType = BitConverter.ToInt32(data.ReadBytes(4));
-      AnimatedTransporterStop = BitConverter.ToInt32(data.ReadBytes(4));
-      ShowVideoPerTransportersCount = BitConverter.ToInt32(data.ReadBytes(4));
-      TotalOrbitalMoney = BitConverter.ToInt32(data.ReadBytes(4));
+      ResourceVehicleType = GetInteger(data);
+      AnimatedTransporterStop = GetInteger(data);
+      ShowVideoPerTransportersCount = GetInteger(data);
+      TotalOrbitalMoney = GetInteger(data);
     }
 
     public int ResourceVehicleType { get; }
