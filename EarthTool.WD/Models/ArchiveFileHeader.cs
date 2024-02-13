@@ -40,7 +40,7 @@ namespace EarthTool.WD.Resources
         Length = br.ReadInt32();
         DecompressedLength = br.ReadInt32();
         TranslationId = Flags.HasFlag(FileFlags.Named) ? br.ReadString() : null;
-        ResourceType = Flags.HasFlag(FileFlags.Resource) ? (ResourceType)br.ReadInt32() : null;
+        ResourceType = Flags.HasFlag(FileFlags.Resource) ? (ResourceType)(byte)br.ReadInt32() : null;
         Guid = Flags.HasFlag(FileFlags.Guid) ? new Guid(br.ReadBytes(16)) : null;
       }
     }

@@ -1,4 +1,5 @@
-﻿using EarthTool.Common.Interfaces;
+﻿using EarthTool.Common.Enums;
+using EarthTool.Common.Interfaces;
 using Microsoft.Extensions.Logging;
 using System.IO;
 using System.Linq;
@@ -33,6 +34,7 @@ namespace EarthTool.WD.Services
       }
 
       var fileHeader = resource.ToEarthInfo();
+      fileHeader?.RemoveFlag(FileFlags.Compressed);
       var data = _archive.ExtractResource(resource);
 
       var outputData = fileHeader?.ToByteArray(_encoding) ?? new byte[0];
