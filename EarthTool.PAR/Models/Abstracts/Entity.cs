@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models.Abstracts
 {
@@ -25,6 +26,7 @@ namespace EarthTool.PAR.Models.Abstracts
 
     public IEnumerable<int> RequiredResearch { get; set; }
 
+    [JsonIgnore]
     public abstract IEnumerable<bool> FieldTypes { get; set; }
 
     public EntityClassType ClassId { get; set; }

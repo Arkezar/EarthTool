@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models.Abstracts
 {
@@ -23,6 +24,7 @@ namespace EarthTool.PAR.Models.Abstracts
 
     public int VerticalVehicleAnimationType { get; set; }
 
+    [JsonIgnore]
     public override IEnumerable<bool> FieldTypes
     {
       get => base.FieldTypes.Concat(IsStringMember(

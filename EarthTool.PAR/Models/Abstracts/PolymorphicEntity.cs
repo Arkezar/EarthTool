@@ -9,6 +9,7 @@ namespace EarthTool.PAR.Models.Abstracts
       TypeName = GetType().FullName;
     }
 
-    [JsonPropertyName("$type")] public string TypeName { get; set; }
+    [JsonPropertyName("$type")] 
+    public string TypeName { get; set; }
   }
 }

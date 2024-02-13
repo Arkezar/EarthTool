@@ -1,5 +1,6 @@
 ﻿using EarthTool.PAR.Enums;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models.Abstracts
 {
@@ -14,6 +15,7 @@ namespace EarthTool.PAR.Models.Abstracts
     {
     }
 
+    [JsonIgnore]
     public override IEnumerable<bool> FieldTypes { get; set; }
   }
 }
