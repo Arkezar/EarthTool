@@ -52,7 +52,7 @@ namespace EarthTool.Common.Factories
             FilePath = stream.Name,
             Flags = flags,
             TranslationId = flags.HasFlag(FileFlags.Named) ? br.ReadString() : null,
-            ResourceType = flags.HasFlag(FileFlags.Resource) ? (ResourceType)br.ReadByte() : null,
+            ResourceType = flags.HasFlag(FileFlags.Resource) ? (ResourceType)br.ReadInt32() : null,
             Guid = flags.HasFlag(FileFlags.Guid) ? new Guid(br.ReadBytes(16)) : null
           };
         }

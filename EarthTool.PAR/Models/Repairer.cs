@@ -1,24 +1,25 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Enums;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
   public class Repairer : Equipment
   {
-    public Repairer(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
+    public Repairer()
     {
-      if (fieldTypes.Count() > 44)
-      {
-        RepairerFlags = GetInteger(data);
-        RepairHPPerTick = GetInteger(data);
-        RepairElectronicsPerTick = GetInteger(data);
-        TicksPerRepair = GetInteger(data);
-      }
+    }
+
+    public Repairer(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
+      : base(name, requiredResearch, type, data)
+    {
+      RepairerFlags = GetInteger(data);
+      RepairHPPerTick = GetInteger(data);
+      RepairElectronicsPerTick = GetInteger(data);
+      TicksPerRepair = GetInteger(data);
       ConvertTankTime = GetInteger(data);
       ConvertBuildingTime = GetInteger(data);
       ConvertHealthyTankTime = GetInteger(data);
@@ -46,78 +47,112 @@ namespace EarthTool.PAR.Models
       AnimRepaintEndEnd = GetInteger(data);
     }
 
-    public int RepairerFlags { get; }
+    public int RepairerFlags { get; set; }
 
-    public int RepairHPPerTick { get; }
+    public int RepairHPPerTick { get; set; }
 
-    public int RepairElectronicsPerTick { get; }
+    public int RepairElectronicsPerTick { get; set; }
 
-    public int TicksPerRepair { get; }
+    public int TicksPerRepair { get; set; }
 
-    public int ConvertTankTime { get; }
+    public int ConvertTankTime { get; set; }
 
-    public int ConvertBuildingTime { get; }
+    public int ConvertBuildingTime { get; set; }
 
-    public int ConvertHealthyTankTime { get; }
+    public int ConvertHealthyTankTime { get; set; }
 
-    public int ConvertHealthyBuildingTime { get; }
+    public int ConvertHealthyBuildingTime { get; set; }
 
-    public int RepaintTankTime { get; }
+    public int RepaintTankTime { get; set; }
 
-    public int RepaintBuildingTime { get; }
+    public int RepaintBuildingTime { get; set; }
 
-    public int UpgradeTankTime { get; }
+    public int UpgradeTankTime { get; set; }
 
-    public int AnimRepairStartStart { get; }
+    public int AnimRepairStartStart { get; set; }
 
-    public int AnimRepairStartEnd { get; }
+    public int AnimRepairStartEnd { get; set; }
 
-    public int AnimRepairWorkStart { get; }
+    public int AnimRepairWorkStart { get; set; }
 
-    public int AnimRepairWorkEnd { get; }
+    public int AnimRepairWorkEnd { get; set; }
 
-    public int AnimRepairEndStart { get; }
+    public int AnimRepairEndStart { get; set; }
 
-    public int AnimRepairEndEnd { get; }
+    public int AnimRepairEndEnd { get; set; }
 
-    public int AnimConvertStartStart { get; }
+    public int AnimConvertStartStart { get; set; }
 
-    public int AnimConvertStartEnd { get; }
+    public int AnimConvertStartEnd { get; set; }
 
-    public int AnimConvertWorkStart { get; }
+    public int AnimConvertWorkStart { get; set; }
 
-    public int AnimConvertWorkEnd { get; }
+    public int AnimConvertWorkEnd { get; set; }
 
-    public int AnimConvertEndStart { get; }
+    public int AnimConvertEndStart { get; set; }
 
-    public int AnimConvertEndEnd { get; }
+    public int AnimConvertEndEnd { get; set; }
 
-    public int AnimRepaintStartStart { get; }
+    public int AnimRepaintStartStart { get; set; }
 
-    public int AnimRepaintStartEnd { get; }
+    public int AnimRepaintStartEnd { get; set; }
 
-    public int AnimRepaintWorkStart { get; }
+    public int AnimRepaintWorkStart { get; set; }
 
-    public int AnimRepaintWorkEnd { get; }
+    public int AnimRepaintWorkEnd { get; set; }
 
-    public int AnimRepaintEndStart { get; }
+    public int AnimRepaintEndStart { get; set; }
 
-    public int AnimRepaintEndEnd { get; }
-    
+    public int AnimRepaintEndEnd { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => base.FieldTypes.Concat(IsStringMember(
+        () => RepairerFlags,
+        () => RepairHPPerTick,
+        () => RepairElectronicsPerTick,
+        () => TicksPerRepair,
+        () => ConvertTankTime,
+        () => ConvertBuildingTime,
+        () => ConvertHealthyTankTime,
+        () => ConvertHealthyBuildingTime,
+        () => RepaintTankTime,
+        () => RepaintBuildingTime,
+        () => UpgradeTankTime,
+        () => AnimRepairStartStart,
+        () => AnimRepairStartEnd,
+        () => AnimRepairWorkStart,
+        () => AnimRepairWorkEnd,
+        () => AnimRepairEndStart,
+        () => AnimRepairEndEnd,
+        () => AnimConvertStartStart,
+        () => AnimConvertStartEnd,
+        () => AnimConvertWorkStart,
+        () => AnimConvertWorkEnd,
+        () => AnimConvertEndStart,
+        () => AnimConvertEndEnd,
+        () => AnimRepaintStartStart,
+        () => AnimRepaintStartEnd,
+        () => AnimRepaintWorkStart,
+        () => AnimRepaintWorkEnd,
+        () => AnimRepaintEndStart,
+        () => AnimRepaintEndEnd
+      ));
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
-          if (FieldTypes.Count() > 44)
-          {
-            bw.Write(RepairerFlags);
-            bw.Write(RepairHPPerTick);
-            bw.Write(RepairElectronicsPerTick);
-            bw.Write(TicksPerRepair);
-          }
+          bw.Write(RepairerFlags);
+          bw.Write(RepairHPPerTick);
+          bw.Write(RepairElectronicsPerTick);
+          bw.Write(TicksPerRepair);
           bw.Write(ConvertTankTime);
           bw.Write(ConvertBuildingTime);
           bw.Write(ConvertHealthyTankTime);
@@ -144,6 +179,7 @@ namespace EarthTool.PAR.Models
           bw.Write(AnimRepaintEndStart);
           bw.Write(AnimRepaintEndEnd);
         }
+
         return output.ToArray();
       }
     }

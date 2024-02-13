@@ -11,5 +11,7 @@ namespace EarthTool.Common.Interfaces
     ResourceType? ResourceType { get; }
     string TranslationId { get; }
 
+    void SetFlag(FileFlags flag);
+    void RemoveFlag(FileFlags flag);
   }
 }

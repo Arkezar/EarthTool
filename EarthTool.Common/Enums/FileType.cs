@@ -40,6 +40,8 @@ namespace EarthTool.Common.Enums
     WAV,
     
     [Description("Collada mesh file")]
-    DAE
+    DAE,
+    [Description("Generic JSON file")]
+    JSON
   }
 }

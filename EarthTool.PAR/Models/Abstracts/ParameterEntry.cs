@@ -1,10 +1,8 @@
-﻿using EarthTool.Common.Interfaces;
-using System.IO;
-using System.Text;
+﻿using System.IO;
 
-namespace EarthTool.PAR.Models
+namespace EarthTool.PAR.Models.Abstracts
 {
-  public abstract class ParameterEntry : IBinarySerializable
+  public abstract class ParameterEntry
   {
     protected int GetInteger(BinaryReader data)
     {
@@ -15,7 +13,5 @@ namespace EarthTool.PAR.Models
     {
       return new string(data.ReadChars(data.ReadInt32()));
     }
-
-    public abstract byte[] ToByteArray(Encoding encoding);
   }
 }

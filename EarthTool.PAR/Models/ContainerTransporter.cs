@@ -1,15 +1,20 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Enums;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
   public class ContainerTransporter : Equipment
   {
-    public ContainerTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
+    public ContainerTransporter()
+    {
+    }
+
+    public ContainerTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
+      : base(name, requiredResearch, type, data)
     {
       AnimContainerDownStart = GetInteger(data);
       AnimContainerDownEnd = GetInteger(data);
@@ -17,19 +22,31 @@ namespace EarthTool.PAR.Models
       AnimContainerUpEnd = GetInteger(data);
     }
 
-    public int AnimContainerDownStart { get; }
+    public int AnimContainerDownStart { get; set; }
 
-    public int AnimContainerDownEnd { get; }
+    public int AnimContainerDownEnd { get; set; }
 
-    public int AnimContainerUpStart { get; }
+    public int AnimContainerUpStart { get; set; }
 
-    public int AnimContainerUpEnd { get; }
-    
+    public int AnimContainerUpEnd { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => base.FieldTypes.Concat(IsStringMember(
+        () => AnimContainerDownStart,
+        () => AnimContainerDownEnd,
+        () => AnimContainerUpStart,
+        () => AnimContainerUpEnd
+      ));
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(AnimContainerDownStart);
@@ -37,6 +54,7 @@ namespace EarthTool.PAR.Models
           bw.Write(AnimContainerUpStart);
           bw.Write(AnimContainerUpEnd);
         }
+
         return output.ToArray();
       }
     }

@@ -1,14 +1,21 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
   public class Vehicle : EquipableEntity
   {
-    public Vehicle(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data,
-      IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
+    public Vehicle()
+    {
+    }
+
+    public Vehicle(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
+      : base(name, requiredResearch, type, data)
     {
       SoilSpeed = GetInteger(data);
       RoadSpeed = GetInteger(data);
@@ -30,37 +37,63 @@ namespace EarthTool.PAR.Models
       data.ReadBytes(4);
     }
 
-    public int SoilSpeed { get; }
+    public int SoilSpeed { get; set; }
 
-    public int RoadSpeed { get; }
+    public int RoadSpeed { get; set; }
 
-    public int SandSpeed { get; }
+    public int SandSpeed { get; set; }
 
-    public int BankSpeed { get; }
+    public int BankSpeed { get; set; }
 
-    public int WaterSpeed { get; }
+    public int WaterSpeed { get; set; }
 
-    public int DeepWaterSpeed { get; }
+    public int DeepWaterSpeed { get; set; }
 
-    public int AirSpeed { get; }
+    public int AirSpeed { get; set; }
 
-    public int ObjectType { get; }
+    public int ObjectType { get; set; }
 
-    public string EngineSmokeId { get; }
+    public string EngineSmokeId { get; set; }
 
-    public string DustId { get; }
+    public string DustId { get; set; }
 
-    public string BillowId { get; }
+    public string BillowId { get; set; }
 
-    public string StandBillowId { get; }
+    public string StandBillowId { get; set; }
 
-    public string TrackId { get; }
+    public string TrackId { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => base.FieldTypes.Concat(IsStringMember(
+        () => SoilSpeed,
+        () => RoadSpeed,
+        () => SandSpeed,
+        () => BankSpeed,
+        () => WaterSpeed,
+        () => DeepWaterSpeed,
+        () => AirSpeed,
+        () => ObjectType,
+        () => EngineSmokeId,
+        () => 1,
+        () => DustId,
+        () => 1,
+        () => BillowId,
+        () => 1,
+        () => StandBillowId,
+        () => 1,
+        () => TrackId,
+        () => 1
+      ));
+      set => base.FieldTypes = value;
+    }
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(SoilSpeed);

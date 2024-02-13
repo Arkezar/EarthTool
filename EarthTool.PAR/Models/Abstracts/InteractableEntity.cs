@@ -1,15 +1,19 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Enums;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
-namespace EarthTool.PAR.Models
+namespace EarthTool.PAR.Models.Abstracts
 {
-  public abstract class InteractableEntity : Entity
+  public abstract class InteractableEntity : TypedEntity
   {
-    protected InteractableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, fieldTypes)
+    public InteractableEntity()
+    {
+    }
+
+    protected InteractableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type,
+      BinaryReader data) : base(name, requiredResearch, type)
     {
       Mesh = GetString(data);
       ShadowType = GetInteger(data);
@@ -26,29 +30,49 @@ namespace EarthTool.PAR.Models
       data.ReadBytes(4);
     }
 
-    public string Mesh { get; }
+    public string Mesh { get; set; }
 
-    public int ShadowType { get; }
+    public int ShadowType { get; set; }
 
-    public int ViewParamsIndex { get; }
+    public int ViewParamsIndex { get; set; }
 
-    public int Cost { get; }
+    public int Cost { get; set; }
 
-    public int TimeOfBuild { get; }
+    public int TimeOfBuild { get; set; }
 
-    public string SoundPackId { get; }
+    public string SoundPackId { get; set; }
 
-    public string SmokeId { get; }
+    public string SmokeId { get; set; }
 
-    public string KillExplosionId { get; }
+    public string KillExplosionId { get; set; }
 
-    public string DestructedId { get; }
-    
+    public string DestructedId { get; set; }
+
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => base.FieldTypes.Concat(IsStringMember(
+        () => Mesh,
+        () => ShadowType,
+        () => ViewParamsIndex,
+        () => Cost,
+        () => TimeOfBuild,
+        () => SoundPackId,
+        () => 0,
+        () => SmokeId,
+        () => 0,
+        () => KillExplosionId,
+        () => 0,
+        () => DestructedId,
+        () => 0
+      ));
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(Mesh.Length);
@@ -70,6 +94,7 @@ namespace EarthTool.PAR.Models
           bw.Write(encoding.GetBytes(DestructedId));
           bw.Write(-1);
         }
+
         return output.ToArray();
       }
     }

@@ -1,15 +1,19 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
-  public class SoundPack : Entity
+  public class SoundPack : TypelessEntity
   {
-    public SoundPack(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, fieldTypes)
+    public SoundPack()
+    {
+    }
+
+    public SoundPack(string name, IEnumerable<int> requiredResearch, BinaryReader data)
+      : base(name, requiredResearch)
     {
       NormalWavePack1 = GetString(data);
       NormalWavePack2 = GetString(data);
@@ -21,27 +25,43 @@ namespace EarthTool.PAR.Models
       LoopedWavePack4 = GetString(data);
     }
 
-    public string NormalWavePack1 { get; }
+    public string NormalWavePack1 { get; set; }
 
-    public string NormalWavePack2 { get; }
+    public string NormalWavePack2 { get; set; }
 
-    public string NormalWavePack3 { get; }
+    public string NormalWavePack3 { get; set; }
 
-    public string NormalWavePack4 { get; }
+    public string NormalWavePack4 { get; set; }
 
-    public string LoopedWavePack1 { get; }
+    public string LoopedWavePack1 { get; set; }
 
-    public string LoopedWavePack2 { get; }
+    public string LoopedWavePack2 { get; set; }
 
-    public string LoopedWavePack3 { get; }
+    public string LoopedWavePack3 { get; set; }
 
-    public string LoopedWavePack4 { get; }
-    
+    public string LoopedWavePack4 { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => IsStringMember(
+        () => NormalWavePack1,
+        () => NormalWavePack2,
+        () => NormalWavePack3,
+        () => NormalWavePack4,
+        () => LoopedWavePack1,
+        () => LoopedWavePack2,
+        () => LoopedWavePack3,
+        () => LoopedWavePack4
+      );
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(NormalWavePack1.Length);
@@ -61,6 +81,7 @@ namespace EarthTool.PAR.Models
           bw.Write(LoopedWavePack4.Length);
           bw.Write(encoding.GetBytes(LoopedWavePack4));
         }
+
         return output.ToArray();
       }
     }

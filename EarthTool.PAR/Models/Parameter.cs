@@ -1,40 +1,51 @@
-﻿using EarthTool.PAR.Enums;
+﻿using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
-  public class Parameter : Entity
+  public class Parameter : TypelessEntity
   {
-    public Parameter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, fieldTypes)
+    public Parameter()
     {
-      Values = fieldTypes.Select(s => s ? (object)GetString(data) : GetInteger(data)).ToList();
     }
 
-    public IEnumerable<object> Values { get; }
-    
+    public Parameter(string name, IEnumerable<int> requiredResearch, BinaryReader data, IEnumerable<bool> fieldTypes)
+      : base(name, requiredResearch)
+    {
+      FieldTypes = fieldTypes;
+      Values = fieldTypes.Select(s => s ? GetString(data) : GetInteger(data).ToString()).ToList();
+    }
+
+    [JsonInclude] public override IEnumerable<bool> FieldTypes { get; set; }
+
+    public IEnumerable<string> Values { get; set; }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
-          foreach (var value in Values)
+          for (int i = 0; i < Values.Count(); i++)
           {
-            if (value is string stringValue)
+            bool isString = FieldTypes.ElementAt(i);
+            if (isString)
             {
-              bw.Write(stringValue.Length);
-              bw.Write(encoding.GetBytes(stringValue));
+              bw.Write(Values.ElementAt(i).Length);
+              bw.Write(encoding.GetBytes(Values.ElementAt(i)));
             }
-            else if (value is int intValue)
+            else
             {
-              bw.Write(intValue);
+              bw.Write(int.Parse(Values.ElementAt(i)));
             }
           }
         }
+
         return output.ToArray();
       }
     }

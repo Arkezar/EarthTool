@@ -1,15 +1,21 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
   public class Weapon : InteractableEntity
   {
-    public Weapon(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
+    public Weapon()
+    {
+    }
+
+    public Weapon(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
+      : base(name, requiredResearch, type, data)
     {
       RangeOfSight = GetInteger(data);
       PlugType = GetInteger(data);
@@ -36,53 +42,84 @@ namespace EarthTool.PAR.Models
       data.ReadBytes(4);
     }
 
-    public int RangeOfSight { get; }
+    public int RangeOfSight { get; set; }
 
-    public int PlugType { get; }
+    public int PlugType { get; set; }
 
-    public int SlotType { get; }
+    public int SlotType { get; set; }
 
-    public int MaxAlphaPerTick { get; }
+    public int MaxAlphaPerTick { get; set; }
 
-    public int MaxBetaPerTick { get; }
+    public int MaxBetaPerTick { get; set; }
 
-    public int AlphaMargin { get; }
+    public int AlphaMargin { get; set; }
 
-    public int BetaMargin { get; }
+    public int BetaMargin { get; set; }
 
-    public int BarrelBetaType { get; }
+    public int BarrelBetaType { get; set; }
 
-    public int BarrelBetaAngle { get; }
+    public int BarrelBetaAngle { get; set; }
 
-    public int BarrelCount { get; }
+    public int BarrelCount { get; set; }
 
-    public string AmmoId { get; }
+    public string AmmoId { get; set; }
 
-    public int AmmoType { get; }
+    public int AmmoType { get; set; }
 
-    public int TargetType { get; }
+    public int TargetType { get; set; }
 
-    public int RangeOfFire { get; }
+    public int RangeOfFire { get; set; }
 
-    public int PlusDamage { get; }
+    public int PlusDamage { get; set; }
 
-    public int FireType { get; }
+    public int FireType { get; set; }
 
-    public int ShootDelay { get; }
+    public int ShootDelay { get; set; }
 
-    public int NeedExternal { get; }
+    public int NeedExternal { get; set; }
 
-    public int ReloadDelay { get; }
+    public int ReloadDelay { get; set; }
 
-    public int MaxAmmo { get; }
+    public int MaxAmmo { get; set; }
 
-    public string BarrelExplosionId { get; }
-    
+    public string BarrelExplosionId { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => base.FieldTypes.Concat(IsStringMember(
+        () => RangeOfSight,
+        () => PlugType,
+        () => SlotType,
+        () => MaxAlphaPerTick,
+        () => MaxBetaPerTick,
+        () => AlphaMargin,
+        () => BetaMargin,
+        () => BarrelBetaType,
+        () => BarrelBetaAngle,
+        () => BarrelCount,
+        () => AmmoId,
+        () => 1,
+        () => AmmoType,
+        () => TargetType,
+        () => RangeOfFire,
+        () => PlusDamage,
+        () => FireType,
+        () => ShootDelay,
+        () => NeedExternal,
+        () => ReloadDelay,
+        () => MaxAmmo,
+        () => BarrelExplosionId,
+        () => 1
+      ));
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(RangeOfSight);
@@ -111,6 +148,7 @@ namespace EarthTool.PAR.Models
           bw.Write(encoding.GetBytes(BarrelExplosionId));
           bw.Write(-1);
         }
+
         return output.ToArray();
       }
     }

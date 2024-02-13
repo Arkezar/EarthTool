@@ -1,15 +1,21 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
   public class MultiExplosion : InteractableEntity
   {
-    public MultiExplosion(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
+    public MultiExplosion()
+    {
+    }
+
+    public MultiExplosion(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
+      : base(name, requiredResearch, type, data)
     {
       UseDownBuilding = GetInteger(data);
       DownBuildingStart = GetInteger(data);
@@ -56,78 +62,129 @@ namespace EarthTool.PAR.Models
       Dist4X8 = GetInteger(data);
     }
 
-    public int UseDownBuilding { get; }
-    
-    public int DownBuildingStart { get; }
-    
-    public int DownBuildingTime { get; }
-    
-    public string SubObject1 { get; }
-    
-    public int Time1 { get; }
-    
-    public int Angle1 { get; }
-    
-    public int Dist4X1 { get; }
-    
-    public string SubObject2 { get; }
-    
-    public int Time2 { get; }
-    
-    public int Angle2 { get; }
-    
-    public int Dist4X2 { get; }
-    
-    public string SubObject3 { get; }
-    
-    public int Time3 { get; }
-    
-    public int Angle3 { get; }
-    
-    public int Dist4X3 { get; }
-    
-    public string SubObject4 { get; }
-    
-    public int Time4 { get; }
-    
-    public int Angle4 { get; }
-    
-    public int Dist4X4 { get; }
-    
-    public string SubObject5 { get; }
-    
-    public int Time5 { get; }
-    
-    public int Angle5 { get; }
-    
-    public int Dist4X5 { get; }
-    
-    public string SubObject6 { get; }
-    
-    public int Time6 { get; }
-    
-    public int Angle6 { get; }
-    
-    public int Dist4X6 { get; }
-    
-    public string SubObject7 { get; }
-    
-    public int Time7 { get; }
-    
-    public int Angle7 { get; }
-    
-    public int Dist4X7 { get; }
-    
-    public string SubObject8 { get; }
-    public int Time8 { get; }
-    public int Angle8 { get; }
-    public int Dist4X8 { get; }
-    
+    public int UseDownBuilding { get; set; }
+
+    public int DownBuildingStart { get; set; }
+
+    public int DownBuildingTime { get; set; }
+
+    public string SubObject1 { get; set; }
+
+    public int Time1 { get; set; }
+
+    public int Angle1 { get; set; }
+
+    public int Dist4X1 { get; set; }
+
+    public string SubObject2 { get; set; }
+
+    public int Time2 { get; set; }
+
+    public int Angle2 { get; set; }
+
+    public int Dist4X2 { get; set; }
+
+    public string SubObject3 { get; set; }
+
+    public int Time3 { get; set; }
+
+    public int Angle3 { get; set; }
+
+    public int Dist4X3 { get; set; }
+
+    public string SubObject4 { get; set; }
+
+    public int Time4 { get; set; }
+
+    public int Angle4 { get; set; }
+
+    public int Dist4X4 { get; set; }
+
+    public string SubObject5 { get; set; }
+
+    public int Time5 { get; set; }
+
+    public int Angle5 { get; set; }
+
+    public int Dist4X5 { get; set; }
+
+    public string SubObject6 { get; set; }
+
+    public int Time6 { get; set; }
+
+    public int Angle6 { get; set; }
+
+    public int Dist4X6 { get; set; }
+
+    public string SubObject7 { get; set; }
+
+    public int Time7 { get; set; }
+
+    public int Angle7 { get; set; }
+
+    public int Dist4X7 { get; set; }
+
+    public string SubObject8 { get; set; }
+    public int Time8 { get; set; }
+    public int Angle8 { get; set; }
+    public int Dist4X8 { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => base.FieldTypes.Concat(IsStringMember(
+        () => UseDownBuilding,
+        () => DownBuildingStart,
+        () => DownBuildingTime,
+        () => SubObject1,
+        () => 1,
+        () => Time1,
+        () => Angle1,
+        () => Dist4X1,
+        () => SubObject2,
+        () => 1,
+        () => Time2,
+        () => Angle2,
+        () => Dist4X2,
+        () => SubObject3,
+        () => 1,
+        () => Time3,
+        () => Angle3,
+        () => Dist4X3,
+        () => SubObject4,
+        () => 1,
+        () => Time4,
+        () => Angle4,
+        () => Dist4X4,
+        () => SubObject5,
+        () => 1,
+        () => Time5,
+        () => Angle5,
+        () => Dist4X5,
+        () => SubObject6,
+        () => 1,
+        () => Time6,
+        () => Angle6,
+        () => Dist4X6,
+        () => SubObject7,
+        () => 1,
+        () => Time7,
+        () => Angle7,
+        () => Dist4X7,
+        () => SubObject8,
+        () => 1,
+        () => Time8,
+        () => Angle8,
+        () => Dist4X8
+      ));
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(UseDownBuilding);
@@ -182,6 +239,7 @@ namespace EarthTool.PAR.Models
           bw.Write(Angle8);
           bw.Write(Dist4X8);
         }
+
         return output.ToArray();
       }
     }

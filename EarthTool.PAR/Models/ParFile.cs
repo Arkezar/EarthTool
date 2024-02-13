@@ -4,12 +4,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
   public class ParFile : IBinarySerializable
   {
-    public IEarthInfo FileHeader { get; set; }
+    [JsonIgnore] public IEarthInfo FileHeader { get; set; }
 
     public IEnumerable<EntityGroup> Groups { get; set; }
 
@@ -17,22 +18,22 @@ namespace EarthTool.PAR.Models
 
     public byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(FileHeader.ToByteArray(encoding));
           bw.Write(Identifiers.Paramters);
           bw.Write(Groups.Count());
           bw.Write(0);
-          foreach (var group in Groups)
+          foreach (EntityGroup group in Groups)
           {
             bw.Write(group.ToByteArray(encoding));
           }
 
           bw.Write(Research.Count());
           bw.Write(-1);
-          foreach (var research in Research)
+          foreach (Research research in Research)
           {
             bw.Write(research.ToByteArray(encoding));
           }

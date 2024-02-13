@@ -1,54 +1,62 @@
-﻿using EarthTool.PAR.Enums;
+﻿using EarthTool.Common.Interfaces;
+using EarthTool.PAR.Enums;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace EarthTool.PAR.Models
+namespace EarthTool.PAR.Models.Abstracts
 {
-  public abstract class Entity : ParameterEntry
+  public abstract class Entity : PolymorphicEntity, IBinarySerializable
   {
-    public Entity(string name, IEnumerable<int> requiredResearch, EntityClassType type, IEnumerable<bool> fieldTypes)
+    public Entity()
+    {
+    }
+
+    public Entity(string name, IEnumerable<int> requiredResearch, EntityClassType type) : this()
     {
       Name = name;
       RequiredResearch = requiredResearch;
       ClassId = type;
-      FieldTypes = fieldTypes;
     }
 
-    public string Name { get; }
+    public string Name { get; set; }
 
-    public IEnumerable<int> RequiredResearch { get; }
-    
-    public IEnumerable<bool> FieldTypes { get; }
+    public IEnumerable<int> RequiredResearch { get; set; }
 
-    public EntityClassType ClassId { get; }
+    public abstract IEnumerable<bool> FieldTypes { get; set; }
 
-    public override byte[] ToByteArray(Encoding encoding)
+    public EntityClassType ClassId { get; set; }
+
+    public virtual byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(Name.Length);
           bw.Write(encoding.GetBytes(Name));
           bw.Write(RequiredResearch.Count());
-          foreach (var research in RequiredResearch)
+          foreach (int research in RequiredResearch)
           {
             bw.Write(research);
           }
+
           bw.Write(FieldTypes.Count());
-          foreach (var fieldType in FieldTypes)
+          foreach (bool fieldType in FieldTypes)
           {
             bw.Write(fieldType);
           }
-          if(ClassId != EntityClassType.None)
-          {
-            bw.Write((int)ClassId);
-          }
         }
+
         return output.ToArray();
       }
+    }
+
+    protected IEnumerable<bool> IsStringMember(params Func<object>[] fieldGetter)
+    {
+      return fieldGetter.Select(f => f.Invoke() is string);
     }
   }
 }

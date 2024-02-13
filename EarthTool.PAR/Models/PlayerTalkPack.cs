@@ -1,15 +1,19 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
-  public class PlayerTalkPack : Entity
+  public class PlayerTalkPack : TypelessEntity
   {
-    public PlayerTalkPack(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, fieldTypes)
+    public PlayerTalkPack()
+    {
+    }
+
+    public PlayerTalkPack(string name, IEnumerable<int> requiredResearch, BinaryReader data)
+      : base(name, requiredResearch)
     {
       BaseUnderAttack = GetString(data);
       BuildingUnderAttack = GetString(data);
@@ -35,62 +39,93 @@ namespace EarthTool.PAR.Models
       NewSourceFieldLocated = GetString(data);
       SourceFieldExploited = GetString(data);
       BuildingLost = GetString(data);
-
     }
 
-    public string BaseUnderAttack { get; }
+    public string BaseUnderAttack { get; set; }
 
-    public string BuildingUnderAttack { get; }
+    public string BuildingUnderAttack { get; set; }
 
-    public string SpacePortUnderAttack { get; }
+    public string SpacePortUnderAttack { get; set; }
 
-    public string EnemyLandInBase { get; }
+    public string EnemyLandInBase { get; set; }
 
-    public string LowMaterials { get; }
+    public string LowMaterials { get; set; }
 
-    public string LowMaterialsInBase { get; }
+    public string LowMaterialsInBase { get; set; }
 
-    public string LowPower { get; }
+    public string LowPower { get; set; }
 
-    public string LowPowerInBase { get; }
+    public string LowPowerInBase { get; set; }
 
-    public string ResearchComplete { get; }
+    public string ResearchComplete { get; set; }
 
-    public string ProductionStarted { get; }
+    public string ProductionStarted { get; set; }
 
-    public string ProductionCompleted { get; }
+    public string ProductionCompleted { get; set; }
 
-    public string ProductionCanceled { get; }
+    public string ProductionCanceled { get; set; }
 
-    public string PlatoonLost { get; }
+    public string PlatoonLost { get; set; }
 
-    public string PlatoonCreated { get; }
+    public string PlatoonCreated { get; set; }
 
-    public string PlatoonDisbanded { get; }
+    public string PlatoonDisbanded { get; set; }
 
-    public string UnitLost { get; }
+    public string UnitLost { get; set; }
 
-    public string TransporterArrived { get; }
+    public string TransporterArrived { get; set; }
 
-    public string ArtefactLocated { get; }
+    public string ArtefactLocated { get; set; }
 
-    public string ArtefactRecovered { get; }
+    public string ArtefactRecovered { get; set; }
 
-    public string NewAreaLocationFound { get; }
+    public string NewAreaLocationFound { get; set; }
 
-    public string EnemyMainBaseLocated { get; }
+    public string EnemyMainBaseLocated { get; set; }
 
-    public string NewSourceFieldLocated { get; }
+    public string NewSourceFieldLocated { get; set; }
 
-    public string SourceFieldExploited { get; }
+    public string SourceFieldExploited { get; set; }
 
-    public string BuildingLost { get; }
+    public string BuildingLost { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => IsStringMember(
+        () => BaseUnderAttack,
+        () => BuildingUnderAttack,
+        () => SpacePortUnderAttack,
+        () => EnemyLandInBase,
+        () => LowMaterials,
+        () => LowMaterialsInBase,
+        () => LowPower,
+        () => LowPowerInBase,
+        () => ResearchComplete,
+        () => ProductionStarted,
+        () => ProductionCompleted,
+        () => ProductionCanceled,
+        () => PlatoonLost,
+        () => PlatoonCreated,
+        () => PlatoonDisbanded,
+        () => UnitLost,
+        () => TransporterArrived,
+        () => ArtefactLocated,
+        () => ArtefactRecovered,
+        () => NewAreaLocationFound,
+        () => EnemyMainBaseLocated,
+        () => NewSourceFieldLocated,
+        () => SourceFieldExploited,
+        () => BuildingLost
+      );
+      set => base.FieldTypes = value;
+    }
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(BaseUnderAttack.Length);
@@ -142,6 +177,7 @@ namespace EarthTool.PAR.Models
           bw.Write(BuildingLost.Length);
           bw.Write(encoding.GetBytes(BuildingLost));
         }
+
         return output.ToArray();
       }
     }

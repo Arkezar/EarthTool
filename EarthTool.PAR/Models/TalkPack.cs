@@ -1,15 +1,19 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
-  public class TalkPack : Entity
+  public class TalkPack : TypelessEntity
   {
-    public TalkPack(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, fieldTypes)
+    public TalkPack()
+    {
+    }
+
+    public TalkPack(string name, IEnumerable<int> requiredResearch, BinaryReader data)
+      : base(name, requiredResearch)
     {
       Selected = GetString(data);
       Move = GetString(data);
@@ -20,25 +24,40 @@ namespace EarthTool.PAR.Models
       FreeWay = GetString(data);
     }
 
-    public string Selected { get; }
+    public string Selected { get; set; }
 
-    public string Move { get; }
+    public string Move { get; set; }
 
-    public string Attack { get; }
+    public string Attack { get; set; }
 
-    public string Command { get; }
+    public string Command { get; set; }
 
-    public string Enemy { get; }
+    public string Enemy { get; set; }
 
-    public string Help { get; }
+    public string Help { get; set; }
 
-    public string FreeWay { get; }
-    
+    public string FreeWay { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => IsStringMember(
+        () => Selected,
+        () => Move,
+        () => Attack,
+        () => Command,
+        () => Enemy,
+        () => Help,
+        () => FreeWay
+      );
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(Selected.Length);
@@ -56,6 +75,7 @@ namespace EarthTool.PAR.Models
           bw.Write(FreeWay.Length);
           bw.Write(encoding.GetBytes(FreeWay));
         }
+
         return output.ToArray();
       }
     }

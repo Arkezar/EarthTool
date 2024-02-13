@@ -1,34 +1,51 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
   public class Explosion : DestructibleEntity
   {
-    public Explosion(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
+    public Explosion()
+    {
+    }
+
+    public Explosion(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
+      : base(name, requiredResearch, type, data)
     {
       ExplosionTicks = GetInteger(data);
       ExplosionFlags = GetInteger(data);
     }
 
-    public int ExplosionTicks { get; }
+    public int ExplosionTicks { get; set; }
 
-    public int ExplosionFlags { get; }
-    
+    public int ExplosionFlags { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => base.FieldTypes.Concat(IsStringMember(
+        () => ExplosionTicks,
+        () => ExplosionFlags
+      ));
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(ExplosionTicks);
           bw.Write(ExplosionFlags);
         }
+
         return output.ToArray();
       }
     }

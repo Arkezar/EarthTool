@@ -8,6 +8,7 @@ namespace EarthTool.PAR
     protected override void Load(ContainerBuilder builder)
     {
       builder.RegisterType<ParameterReader>().AsImplementedInterfaces();
+      builder.RegisterType<ParameterWriter>().AsImplementedInterfaces();
     }
   }
 }

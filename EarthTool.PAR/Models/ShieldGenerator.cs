@@ -1,16 +1,19 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
-  public class ShieldGenerator : Entity
+  public class ShieldGenerator : TypelessEntity
   {
-    public ShieldGenerator(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) :
-      base(name, requiredResearch, type, fieldTypes)
+    public ShieldGenerator()
+    {
+    }
+
+    public ShieldGenerator(string name, IEnumerable<int> requiredResearch, BinaryReader data)
+      : base(name, requiredResearch)
     {
       ShieldCost = GetInteger(data);
       ShieldValue = GetInteger(data);
@@ -19,21 +22,34 @@ namespace EarthTool.PAR.Models
       ShieldMeshViewIndex = GetInteger(data);
     }
 
-    public int ShieldCost { get; }
+    public int ShieldCost { get; set; }
 
-    public int ShieldValue { get; }
+    public int ShieldValue { get; set; }
 
-    public int ReloadTime { get; }
+    public int ReloadTime { get; set; }
 
-    public string ShieldMeshName { get; }
+    public string ShieldMeshName { get; set; }
 
-    public int ShieldMeshViewIndex { get; }
-    
+    public int ShieldMeshViewIndex { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => IsStringMember(
+        () => ShieldCost,
+        () => ShieldValue,
+        () => ReloadTime,
+        () => ShieldMeshName,
+        () => ShieldMeshViewIndex
+      );
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(ShieldCost);
@@ -43,6 +59,7 @@ namespace EarthTool.PAR.Models
           bw.Write(encoding.GetBytes(ShieldMeshName));
           bw.Write(ShieldMeshViewIndex);
         }
+
         return output.ToArray();
       }
     }

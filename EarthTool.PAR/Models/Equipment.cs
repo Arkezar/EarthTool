@@ -1,15 +1,21 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
   public class Equipment : InteractableEntity
   {
-    public Equipment(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
+    public Equipment()
+    {
+    }
+
+    public Equipment(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
+      : base(name, requiredResearch, type, data)
     {
       RangeOfSight = GetInteger(data);
       PlugType = GetInteger(data);
@@ -18,21 +24,34 @@ namespace EarthTool.PAR.Models
       MaxBetaPerTick = GetInteger(data);
     }
 
-    public int RangeOfSight { get; }
+    public int RangeOfSight { get; set; }
 
-    public int PlugType { get; }
+    public int PlugType { get; set; }
 
-    public int SlotType { get; }
+    public int SlotType { get; set; }
 
-    public int MaxAlphaPerTick { get; }
+    public int MaxAlphaPerTick { get; set; }
 
-    public int MaxBetaPerTick { get; }
-    
+    public int MaxBetaPerTick { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => base.FieldTypes.Concat(IsStringMember(
+        () => RangeOfSight,
+        () => PlugType,
+        () => SlotType,
+        () => MaxAlphaPerTick,
+        () => MaxBetaPerTick
+      ));
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(RangeOfSight);
@@ -41,6 +60,7 @@ namespace EarthTool.PAR.Models
           bw.Write(MaxAlphaPerTick);
           bw.Write(MaxBetaPerTick);
         }
+
         return output.ToArray();
       }
     }

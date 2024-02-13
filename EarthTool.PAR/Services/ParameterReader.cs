@@ -15,7 +15,6 @@ namespace EarthTool.PAR.Services
   {
     private readonly IEarthInfoFactory _earthInfoFactory;
     private readonly Encoding _encoding;
-    public override FileType InputFileExtension => FileType.PAR;
 
     public ParameterReader(IEarthInfoFactory earthInfoFactory, Encoding encoding)
     {
@@ -23,14 +22,16 @@ namespace EarthTool.PAR.Services
       _encoding = encoding;
     }
 
+    public override FileType InputFileExtension => FileType.PAR;
+
     protected override ParFile InternalRead(string filePath)
     {
-      using (var stream = File.OpenRead(filePath))
+      using (FileStream stream = File.OpenRead(filePath))
       {
-        var parameters = new ParFile();
-        
+        ParFile parameters = new ParFile();
+
         parameters.FileHeader = _earthInfoFactory.Get(stream);
-        using (var reader = new BinaryReader(stream, _encoding))
+        using (BinaryReader reader = new BinaryReader(stream, _encoding))
         {
           IsValidModel(reader);
           parameters.Groups = LoadGroups(reader);
@@ -43,21 +44,21 @@ namespace EarthTool.PAR.Services
 
     private static IEnumerable<Research> LoadResearch(BinaryReader reader)
     {
-      var researchCount = reader.ReadInt32();
+      int researchCount = reader.ReadInt32();
       reader.ReadInt32();
       return Enumerable.Range(0, researchCount).Select(i => new Research(reader)).ToList();
     }
 
     private static IEnumerable<EntityGroup> LoadGroups(BinaryReader reader)
     {
-      var groupCount = reader.ReadInt32();
+      int groupCount = reader.ReadInt32();
       reader.ReadInt32();
       return Enumerable.Range(0, groupCount).Select(i => new EntityGroup(reader)).ToList();
     }
 
     private void IsValidModel(BinaryReader reader)
     {
-      var valid = reader.ReadBytes(Identifiers.Paramters.Length).AsSpan().SequenceEqual(Identifiers.Paramters);
+      bool valid = reader.ReadBytes(Identifiers.Paramters.Length).AsSpan().SequenceEqual(Identifiers.Paramters);
       if (!valid)
       {
         throw new NotSupportedException("Unhandled file format");

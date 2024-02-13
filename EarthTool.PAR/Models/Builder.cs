@@ -1,15 +1,20 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Enums;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
   public class Builder : Vehicle
   {
-    public Builder(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
+    public Builder()
+    {
+    }
+
+    public Builder(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
+      : base(name, requiredResearch, type, data)
     {
       WallId = GetString(data);
       data.ReadBytes(4);
@@ -45,69 +50,109 @@ namespace EarthTool.PAR.Models
       data.ReadBytes(4);
     }
 
-    public string WallId { get; }
+    public string WallId { get; set; }
 
-    public string BridgeId { get; }
+    public string BridgeId { get; set; }
 
-    public int TunnelNumber { get; }
+    public int TunnelNumber { get; set; }
 
-    public int RoadBuildTime { get; }
+    public int RoadBuildTime { get; set; }
 
-    public int FlatBuildTime { get; }
+    public int FlatBuildTime { get; set; }
 
-    public int TrenchBuildTime { get; }
+    public int TrenchBuildTime { get; set; }
 
-    public int TunnelBuildTime { get; }
+    public int TunnelBuildTime { get; set; }
 
-    public int BuildObjectAnimationAngle { get; }
+    public int BuildObjectAnimationAngle { get; set; }
 
-    public int DigNormalAnimationAngle { get; }
+    public int DigNormalAnimationAngle { get; set; }
 
-    public int DigLowAnimationAngle { get; }
+    public int DigLowAnimationAngle { get; set; }
 
-    public int AnimBuildObjectStartStart { get; }
+    public int AnimBuildObjectStartStart { get; set; }
 
-    public int AnimBuildObjectStartEnd { get; }
+    public int AnimBuildObjectStartEnd { get; set; }
 
-    public int AnimBuildObjectWorkStart { get; }
+    public int AnimBuildObjectWorkStart { get; set; }
 
-    public int AnimBuildObjectWorkEnd { get; }
+    public int AnimBuildObjectWorkEnd { get; set; }
 
-    public int AnimBuildObjectEndStart { get; }
+    public int AnimBuildObjectEndStart { get; set; }
 
-    public int AnimBuildObjectEndEnd { get; }
+    public int AnimBuildObjectEndEnd { get; set; }
 
-    public int AnimDigNormalStartStart { get; }
+    public int AnimDigNormalStartStart { get; set; }
 
-    public int AnimDigNormalStartEnd { get; }
+    public int AnimDigNormalStartEnd { get; set; }
 
-    public int AnimDigNormalWorkStart { get; }
+    public int AnimDigNormalWorkStart { get; set; }
 
-    public int AnimDigNormalWorkEnd { get; }
+    public int AnimDigNormalWorkEnd { get; set; }
 
-    public int AnimDigNormalEndStart { get; }
+    public int AnimDigNormalEndStart { get; set; }
 
-    public int AnimDigNormalEndEnd { get; }
+    public int AnimDigNormalEndEnd { get; set; }
 
-    public int AnimDigLowStartStart { get; }
+    public int AnimDigLowStartStart { get; set; }
 
-    public int AnimDigLowStartEnd { get; }
+    public int AnimDigLowStartEnd { get; set; }
 
-    public int AnimDigLowWorkStart { get; }
+    public int AnimDigLowWorkStart { get; set; }
 
-    public int AnimDigLowWorkEnd { get; }
+    public int AnimDigLowWorkEnd { get; set; }
 
-    public int AnimDigLowEndStart { get; }
+    public int AnimDigLowEndStart { get; set; }
 
-    public int AnimDigLowEndEnd { get; }
+    public int AnimDigLowEndEnd { get; set; }
 
-    public string DigSmokeId { get; }
-    
+    public string DigSmokeId { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => base.FieldTypes.Concat(IsStringMember(
+        () => WallId,
+        () => 1,
+        () => BridgeId,
+        () => 1,
+        () => TunnelNumber,
+        () => RoadBuildTime,
+        () => FlatBuildTime,
+        () => TrenchBuildTime,
+        () => TunnelBuildTime,
+        () => BuildObjectAnimationAngle,
+        () => DigNormalAnimationAngle,
+        () => DigLowAnimationAngle,
+        () => AnimBuildObjectStartStart,
+        () => AnimBuildObjectStartEnd,
+        () => AnimBuildObjectWorkStart,
+        () => AnimBuildObjectWorkEnd,
+        () => AnimBuildObjectEndStart,
+        () => AnimBuildObjectEndEnd,
+        () => AnimDigNormalStartStart,
+        () => AnimDigNormalStartEnd,
+        () => AnimDigNormalWorkStart,
+        () => AnimDigNormalWorkEnd,
+        () => AnimDigNormalEndStart,
+        () => AnimDigNormalEndEnd,
+        () => AnimDigLowStartStart,
+        () => AnimDigLowStartEnd,
+        () => AnimDigLowWorkStart,
+        () => AnimDigLowWorkEnd,
+        () => AnimDigLowEndStart,
+        () => AnimDigLowEndEnd,
+        () => DigSmokeId,
+        () => 1
+      ));
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(WallId.Length);
@@ -146,6 +191,7 @@ namespace EarthTool.PAR.Models
           bw.Write(encoding.GetBytes(DigSmokeId));
           bw.Write(-1);
         }
+
         return output.ToArray();
       }
     }

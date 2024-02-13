@@ -14,6 +14,12 @@ namespace EarthTool.Common.Models
 
     public string TranslationId { get; set; }
 
+    public void SetFlag(FileFlags flag)
+      => Flags |= flag;
+
+    public void RemoveFlag(FileFlags flag)
+      => Flags &= ~flag;
+
     public ResourceType? ResourceType { get; set; }
 
     public Guid? Guid { get; set; }
@@ -32,16 +38,19 @@ namespace EarthTool.Common.Models
             {
               writer.Write(TranslationId);
             }
+
             if (Flags.HasFlag(FileFlags.Resource))
             {
-              writer.Write((byte)ResourceType);
+              writer.Write((int)ResourceType);
             }
+
             if (Flags.HasFlag(FileFlags.Guid))
             {
               writer.Write(Guid.Value.ToByteArray());
             }
           }
         }
+
         return stream.ToArray();
       }
     }

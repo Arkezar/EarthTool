@@ -2,14 +2,16 @@
   "profiles": {
     "EarthTool": {
       "commandName": "Project",
-//      "commandLineArgs": "msh -o D:\\earthwork\\test2 D:\\earthwork\\wdwork\\meshes\\*.msh",
-//      "commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\wdwork\\meshes\\EDBBTC.msh",
-//      "commandLineArgs": "dae -o D:\\earthwork\\testdae D:\\earthwork\\testdae\\EDBBTC.dae",
-//      "commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\wdwork\\meshes\\UCSUML1.msh",
-//      "commandLineArgs": "dae -o D:\\earthwork\\testdae D:\\earthwork\\testdae\\UCSUML1.dae",
-//      "commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\testdae\\EDUST1b.dae",
-//      "commandLineArgs": "tex -o D:\\earthwork\\testdae D:\\earthwork\\wdwork\\Textures\\UCSUML1.tex",
-      "commandLineArgs": "par -o D:\\earthwork\\testdae\\par D:\\earthwork\\wdwork\\Parameters\\EARTH2150.par",
+      //      "commandLineArgs": "msh -o D:\\earthwork\\test2 D:\\earthwork\\wdwork\\meshes\\*.msh",
+      //      "commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\wdwork\\meshes\\EDBBTC.msh",
+      //      "commandLineArgs": "dae -o D:\\earthwork\\testdae D:\\earthwork\\testdae\\EDBBTC.dae",
+      //      "commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\wdwork\\meshes\\UCSUML1.msh",
+      //      "commandLineArgs": "dae -o D:\\earthwork\\testdae D:\\earthwork\\testdae\\UCSUML1.dae",
+      //      "commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\testdae\\EDUST1b.dae",
+      //      "commandLineArgs": "tex -o D:\\earthwork\\testdae D:\\earthwork\\wdwork\\Textures\\UCSUML1.tex",
+//            "commandLineArgs": "par -o D:\\earthwork\\testdae\\par D:\\earthwork\\original_tmp_extracted\\Parameters\\EARTH2150.par",
+//      "commandLineArgs": "par -o D:\\earthwork\\testdae\\par D:\\earthwork\\testdae\\par\\EARTH2150.json",
+            "commandLineArgs": "wd -o D:\\earthwork\\original_tmp_extracted D:\\earthwork\\original_tmp\\*.wd",
       "environmentVariables": {
         "Logging:LogLevel:Default": "Information"
       }

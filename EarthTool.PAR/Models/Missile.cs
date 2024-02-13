@@ -1,15 +1,21 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
   public class Missile : DestructibleEntity
   {
-    public Missile(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
+    public Missile()
+    {
+    }
+
+    public Missile(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
+      : base(name, requiredResearch, type, data)
     {
       Type = GetInteger(data);
       RocketType = GetInteger(data);
@@ -28,37 +34,60 @@ namespace EarthTool.PAR.Models
       data.ReadBytes(4);
     }
 
-    public int Type { get; }
+    public int Type { get; set; }
 
-    public int RocketType { get; }
+    public int RocketType { get; set; }
 
-    public int MissileSize { get; }
+    public int MissileSize { get; set; }
 
-    public string RocketDummyId { get; }
+    public string RocketDummyId { get; set; }
 
-    public int IsAntiRocketTarget { get; }
+    public int IsAntiRocketTarget { get; set; }
 
-    public int Speed { get; }
+    public int Speed { get; set; }
 
-    public int TimeOfShoot { get; }
+    public int TimeOfShoot { get; set; }
 
-    public int PlusRangeOfFire { get; }
+    public int PlusRangeOfFire { get; set; }
 
-    public int HitType { get; }
+    public int HitType { get; set; }
 
-    public int HitRange { get; }
+    public int HitRange { get; set; }
 
-    public int TypeOfDamage { get; }
+    public int TypeOfDamage { get; set; }
 
-    public int Damage { get; }
+    public int Damage { get; set; }
 
-    public string ExplosionId { get; }
-    
+    public string ExplosionId { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => base.FieldTypes.Concat(IsStringMember(
+        () => Type,
+        () => RocketType,
+        () => MissileSize,
+        () => RocketDummyId,
+        () => 1,
+        () => IsAntiRocketTarget,
+        () => Speed,
+        () => TimeOfShoot,
+        () => PlusRangeOfFire,
+        () => HitType,
+        () => HitRange,
+        () => TypeOfDamage,
+        () => Damage,
+        () => ExplosionId,
+        () => 1
+      ));
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(Type);
@@ -79,6 +108,7 @@ namespace EarthTool.PAR.Models
           bw.Write(encoding.GetBytes(ExplosionId));
           bw.Write(-1);
         }
+
         return output.ToArray();
       }
     }

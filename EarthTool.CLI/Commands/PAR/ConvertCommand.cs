@@ -1,15 +1,18 @@
-﻿using EarthTool.Common.Interfaces;
-using EarthTool.MSH.Interfaces;
-using EarthTool.MSH.Models;
+﻿using EarthTool.Common.Enums;
+using EarthTool.Common.Interfaces;
+using EarthTool.Common.Models;
+using EarthTool.PAR.Enums;
 using EarthTool.PAR.Models;
+using EarthTool.PAR.Models.Serialization;
 using Spectre.Console;
-using Spectre.Console.Cli;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace EarthTool.CLI.Commands.PAR;
@@ -17,66 +20,66 @@ namespace EarthTool.CLI.Commands.PAR;
 public class ConvertCommand : CommonCommand<CommonSettings>
 {
   private readonly IReader<ParFile> _reader;
+  private readonly IWriter<ParFile> _writer;
 
-  public ConvertCommand(IReader<ParFile> reader)
+  public ConvertCommand(IReader<ParFile> reader, IWriter<ParFile> writer)
   {
     _reader = reader;
+    _writer = writer;
   }
 
   protected override Task InternalExecuteAsync(string filePath, CommonSettings settings)
   {
     var outputDirectory = settings.OutputFolderPath.Value ?? Path.GetDirectoryName(filePath);
-    var fileName = Path.GetFileName(filePath);
-    var outputFileName = Path.ChangeExtension(fileName, "json");
-    var outputFilePath = Path.Combine(outputDirectory, outputFileName);
+    var extension = Path.GetExtension(filePath);
 
-    var file = _reader.Read(filePath);
-
-    SaveReaserchToFile(file.Research, outputFilePath);
-    SaveGroupsToFile(file.Groups, outputFilePath);
+    if (extension == ".par")
+    {
+      ConvertToJson(filePath, outputDirectory);
+    }
+    else if (extension == ".json")
+    {
+      ConvertToPar(filePath, outputDirectory);
+    }
+    else
+    {
+      AnsiConsole.MarkupLine("[red]Unsupported file format[/]");
+    }
 
     return Task.CompletedTask;
   }
 
-  private void SaveGroupsToFile(IEnumerable<EntityGroup> entityGroups, string outputFilePath)
+  private void ConvertToJson(string filePath, string outputDirectory)
   {
-    var groups = entityGroups.ToLookup(g => (g.Faction, g.GroupType));
+    var file = _reader.Read(filePath);
+    
+    var outputFileName = Path.ChangeExtension(Path.GetFileName(filePath), "json");
+    var outputFilePath = Path.Combine(outputDirectory, outputFileName);
 
-    foreach (var group in groups)
-    {
-      var entitiesByType = group.SelectMany(g => g.Entities).GroupBy(e => e.GetType());
-      foreach (var type in entitiesByType)
-      {
-        var ofTypeMethod = typeof(Enumerable).GetMethod("OfType").MakeGenericMethod(type.Key);
-
-        var typedEntities = ofTypeMethod.Invoke(null, new object[] { group.SelectMany(g => g.Entities) });
-
-        var serialized =
-          JsonSerializer.Serialize(typedEntities, new JsonSerializerOptions { WriteIndented = true });
-
-        var directory = Path.GetDirectoryName(outputFilePath);
-        var fileName = Path.GetFileNameWithoutExtension(outputFilePath);
-        fileName +=
-          $"_{group.Key.Faction.ToString().ToLower()}_{group.Key.GroupType.ToString().ToLower()}_{type.Key.Name.ToLower()}";
-        var extension = Path.GetExtension(outputFilePath);
-        var newFileName = Path.Combine(directory, $"{fileName}{extension}");
-
-        File.WriteAllText(newFileName, serialized);
-      }
-    }
+    var opts = new JsonSerializerOptions { WriteIndented = true };
+    opts.Converters.Add(new EntityConverter());
+    opts.Converters.Add(new JsonStringEnumConverter());
+    var serializedRoot = JsonSerializer.Serialize(file, opts);
+    File.WriteAllText(outputFilePath, serializedRoot);
   }
 
-  private void SaveReaserchToFile(IEnumerable<Research> research, string outputFilePath)
+  private void ConvertToPar(string filePath, string outputDirectory)
   {
-    var serializedResearch = JsonSerializer.Serialize(research, new JsonSerializerOptions { WriteIndented = true });
-
-    var directory = Path.GetDirectoryName(outputFilePath);
-    var fileName = Path.GetFileNameWithoutExtension(outputFilePath);
-    fileName += $"_{typeof(Research).Name.ToLower()}";
-    var extension = Path.GetExtension(outputFilePath);
-    var newFileName = Path.Combine(directory, $"{fileName}{extension}");
-
-    File.WriteAllText(newFileName, serializedResearch);
+    var outputFileName = Path.ChangeExtension(Path.GetFileName(filePath), "par");
+    var outputFilePath = Path.Combine(outputDirectory, outputFileName);
+    var opts = new JsonSerializerOptions();
+    opts.Converters.Add(new EntityConverter());
+    opts.Converters.Add(new JsonStringEnumConverter());
+    var parameters = JsonSerializer.Deserialize<ParFile>(File.ReadAllText(filePath), opts);
+    parameters.FileHeader = new EarthInfo()
+    {
+      FilePath = outputFilePath,
+      Flags = FileFlags.Resource | FileFlags.Guid,
+      Guid = Guid.NewGuid(),
+      ResourceType = ResourceType.Parameters
+    };
+    
+    _writer.Write(parameters, outputFilePath);
   }
 
   private void PrintModelDetails(ParFile model)

@@ -1,15 +1,21 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Enums;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
   public class OmnidirectionalEquipment : Equipment
   {
-    public OmnidirectionalEquipment(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
+    public OmnidirectionalEquipment()
+    {
+    }
+
+    public OmnidirectionalEquipment(string name, IEnumerable<int> requiredResearch, EntityClassType type,
+      BinaryReader data)
+      : base(name, requiredResearch, type, data)
     {
       LookRoundTypeMask = GetInteger(data);
       LookRoundRange = GetInteger(data);
@@ -19,23 +25,37 @@ namespace EarthTool.PAR.Models
       ShieldReloadAdd = GetInteger(data);
     }
 
-    public int LookRoundTypeMask { get; }
+    public int LookRoundTypeMask { get; set; }
 
-    public int LookRoundRange { get; }
+    public int LookRoundRange { get; set; }
 
-    public int TurnSpeed { get; }
+    public int TurnSpeed { get; set; }
 
-    public int BannerAddExperienceLevel { get; }
+    public int BannerAddExperienceLevel { get; set; }
 
-    public int RegenerationHPMultiple { get; }
+    public int RegenerationHPMultiple { get; set; }
 
-    public int ShieldReloadAdd { get; }
-    
+    public int ShieldReloadAdd { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => base.FieldTypes.Concat(IsStringMember(
+        () => LookRoundTypeMask,
+        () => LookRoundRange,
+        () => TurnSpeed,
+        () => BannerAddExperienceLevel,
+        () => RegenerationHPMultiple,
+        () => ShieldReloadAdd
+      ));
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(LookRoundTypeMask);
@@ -45,6 +65,7 @@ namespace EarthTool.PAR.Models
           bw.Write(RegenerationHPMultiple);
           bw.Write(ShieldReloadAdd);
         }
+
         return output.ToArray();
       }
     }

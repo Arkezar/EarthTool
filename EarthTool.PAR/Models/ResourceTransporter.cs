@@ -1,15 +1,21 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
   public class ResourceTransporter : VerticalTransporter
   {
-    public ResourceTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
+    public ResourceTransporter()
+    {
+    }
+
+    public ResourceTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
+      : base(name, requiredResearch, type, data)
     {
       ResourceVehicleType = GetInteger(data);
       AnimatedTransporterStop = GetInteger(data);
@@ -17,19 +23,31 @@ namespace EarthTool.PAR.Models
       TotalOrbitalMoney = GetInteger(data);
     }
 
-    public int ResourceVehicleType { get; }
+    public int ResourceVehicleType { get; set; }
 
-    public int AnimatedTransporterStop { get; }
+    public int AnimatedTransporterStop { get; set; }
 
-    public int ShowVideoPerTransportersCount { get; }
+    public int ShowVideoPerTransportersCount { get; set; }
 
-    public int TotalOrbitalMoney { get; }
-    
+    public int TotalOrbitalMoney { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => base.FieldTypes.Concat(IsStringMember(
+        () => ResourceVehicleType,
+        () => AnimatedTransporterStop,
+        () => ShowVideoPerTransportersCount,
+        () => TotalOrbitalMoney
+      ));
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(ResourceVehicleType);
@@ -37,6 +55,7 @@ namespace EarthTool.PAR.Models
           bw.Write(ShowVideoPerTransportersCount);
           bw.Write(TotalOrbitalMoney);
         }
+
         return output.ToArray();
       }
     }

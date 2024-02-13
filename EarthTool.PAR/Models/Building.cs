@@ -1,15 +1,21 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
   public class Building : EquipableEntity
   {
-    public Building(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
+    public Building()
+    {
+    }
+
+    public Building(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
+      : base(name, requiredResearch, type, data)
     {
       BuildingType = GetInteger(data);
       BuildingTypeEx = GetInteger(data);
@@ -64,81 +70,140 @@ namespace EarthTool.PAR.Models
       SpaceStationType = GetInteger(data);
     }
 
-    public int BuildingType { get; }
+    public int BuildingType { get; set; }
 
-    public int BuildingTypeEx { get; }
+    public int BuildingTypeEx { get; set; }
 
-    public int BuildingTabType { get; }
+    public int BuildingTabType { get; set; }
 
-    public string InitCannonId1 { get; }
+    public string InitCannonId1 { get; set; }
 
-    public string InitCannonId2 { get; }
+    public string InitCannonId2 { get; set; }
 
-    public string InitCannonId3 { get; }
+    public string InitCannonId3 { get; set; }
 
-    public string InitCannonId4 { get; }
+    public string InitCannonId4 { get; set; }
 
-    public string CopulaId { get; }
+    public string CopulaId { get; set; }
 
-    public int BuildingTunnelNumber { get; }
+    public int BuildingTunnelNumber { get; set; }
 
-    public string UpgradeCopulaSmallId { get; }
+    public string UpgradeCopulaSmallId { get; set; }
 
-    public string UpgradeCopulaBigId { get; }
+    public string UpgradeCopulaBigId { get; set; }
 
-    public string BuildLCTransporterId { get; }
+    public string BuildLCTransporterId { get; set; }
 
-    public string ChimneySmokeId { get; }
+    public string ChimneySmokeId { get; set; }
 
-    public int NeedPower { get; }
+    public int NeedPower { get; set; }
 
-    public string SlaveBuildingId { get; }
+    public string SlaveBuildingId { get; set; }
 
-    public int MaxSubBuildingCount { get; }
+    public int MaxSubBuildingCount { get; set; }
 
-    public int PowerLevel { get; }
+    public int PowerLevel { get; set; }
 
-    public int PowerTransmitterRange { get; }
+    public int PowerTransmitterRange { get; set; }
 
-    public int ConnectTransmitterRange { get; }
+    public int ConnectTransmitterRange { get; set; }
 
-    public int FullEnergyPowerInDay { get; }
+    public int FullEnergyPowerInDay { get; set; }
 
-    public int ResourceInputOutput { get; }
+    public int ResourceInputOutput { get; set; }
 
-    public int TickPerContainer { get; }
+    public int TickPerContainer { get; set; }
 
-    public string ContainerId { get; }
+    public string ContainerId { get; set; }
 
-    public int ContainerSmeltingTicks { get; }
+    public int ContainerSmeltingTicks { get; set; }
 
-    public int ResourcesPerTransport { get; }
+    public int ResourcesPerTransport { get; set; }
 
-    public string TransporterId { get; }
+    public string TransporterId { get; set; }
 
-    public string BuildingAmmoId { get; }
+    public string BuildingAmmoId { get; set; }
 
-    public int RangeOfBuildingFire { get; }
+    public int RangeOfBuildingFire { get; set; }
 
-    public string ShootExplosionId { get; }
+    public string ShootExplosionId { get; set; }
 
-    public int AmmoReloadingTime { get; }
+    public int AmmoReloadingTime { get; set; }
 
-    public string BuildExplosionId { get; }
+    public string BuildExplosionId { get; set; }
 
-    public int CopulaAnimationFlags { get; }
+    public int CopulaAnimationFlags { get; set; }
 
-    public int EndOfClosingCopulaAnimation { get; }
+    public int EndOfClosingCopulaAnimation { get; set; }
 
-    public string LaserId { get; }
+    public string LaserId { get; set; }
 
-    public int SpaceStationType { get; }
-    
+    public int SpaceStationType { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => base.FieldTypes.Concat(IsStringMember(
+        () => BuildingType,
+        () => BuildingTypeEx,
+        () => BuildingTabType,
+        () => InitCannonId1,
+        () => 1,
+        () => InitCannonId2,
+        () => 1,
+        () => InitCannonId3,
+        () => 1,
+        () => InitCannonId4,
+        () => 1,
+        () => CopulaId,
+        () => 1,
+        () => BuildingTunnelNumber,
+        () => UpgradeCopulaSmallId,
+        () => 1,
+        () => UpgradeCopulaBigId,
+        () => 1,
+        () => BuildLCTransporterId,
+        () => 1,
+        () => ChimneySmokeId,
+        () => 1,
+        () => NeedPower,
+        () => SlaveBuildingId,
+        () => 1,
+        () => MaxSubBuildingCount,
+        () => PowerLevel,
+        () => PowerTransmitterRange,
+        () => ConnectTransmitterRange,
+        () => FullEnergyPowerInDay,
+        () => ResourceInputOutput,
+        () => TickPerContainer,
+        () => ContainerId,
+        () => 1,
+        () => ContainerSmeltingTicks,
+        () => ResourcesPerTransport,
+        () => TransporterId,
+        () => 1,
+        () => BuildingAmmoId,
+        () => 1,
+        () => RangeOfBuildingFire,
+        () => ShootExplosionId,
+        () => 1,
+        () => AmmoReloadingTime,
+        () => BuildExplosionId,
+        () => 1,
+        () => CopulaAnimationFlags,
+        () => EndOfClosingCopulaAnimation,
+        () => LaserId,
+        () => 1,
+        () => SpaceStationType
+      ));
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(BuildingType);
@@ -209,6 +274,7 @@ namespace EarthTool.PAR.Models
           bw.Write(-1);
           bw.Write(SpaceStationType);
         }
+
         return output.ToArray();
       }
     }

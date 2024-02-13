@@ -1,4 +1,6 @@
-﻿using EarthTool.PAR.Enums;
+﻿using EarthTool.Common.Interfaces;
+using EarthTool.PAR.Enums;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -6,8 +8,12 @@ using System.Text;
 
 namespace EarthTool.PAR.Models
 {
-  public class Research : ParameterEntry
+  public class Research : ParameterEntry, IBinarySerializable
   {
+    public Research()
+    {
+    }
+
     public Research(BinaryReader data)
     {
       Id = GetInteger(data);
@@ -21,49 +27,39 @@ namespace EarthTool.PAR.Models
       Type = (ResearchType)GetInteger(data);
       Mesh = GetString(data);
       MeshParamsIndex = GetInteger(data);
-      var requiredResearchCount = GetInteger(data);
+      int requiredResearchCount = GetInteger(data);
       RequiredResearch = Enumerable.Range(0, requiredResearchCount).Select(i => GetInteger(data)).ToList();
     }
-    
-    public int Id { get; }
 
-    public Faction Faction { get; }
+    public int Id { get; set; }
 
-    public int CampaignCost { get; }
+    public Faction Faction { get; set; }
 
-    public int SkirmishCost { get; }
+    public int CampaignCost { get; set; }
 
-    public int CampaignTime { get; }
+    public int SkirmishCost { get; set; }
 
-    public int SkirmishTime { get; }
+    public int CampaignTime { get; set; }
 
-    public string Name { get; }
+    public int SkirmishTime { get; set; }
 
-    public string Video { get; }
+    public string Name { get; set; }
 
-    public ResearchType Type { get; }
+    public string Video { get; set; }
 
-    public string Mesh { get; }
+    public ResearchType Type { get; set; }
 
-    public int MeshParamsIndex { get; }
-    
-    public IEnumerable<int> RequiredResearch { get; }
-    
-    protected int GetInteger(BinaryReader data)
+    public string Mesh { get; set; }
+
+    public int MeshParamsIndex { get; set; }
+
+    public IEnumerable<int> RequiredResearch { get; set; }
+
+    public virtual byte[] ToByteArray(Encoding encoding)
     {
-      return data.ReadInt32();
-    }
-
-    protected string GetString(BinaryReader data)
-    {
-      return new string(data.ReadChars(data.ReadInt32()));
-    }
-
-    public override byte[] ToByteArray(Encoding encoding)
-    {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(Id);
           bw.Write((int)Faction);
@@ -80,13 +76,24 @@ namespace EarthTool.PAR.Models
           bw.Write(encoding.GetBytes(Mesh));
           bw.Write(MeshParamsIndex);
           bw.Write(RequiredResearch.Count());
-          foreach (var research in RequiredResearch)
+          foreach (int research in RequiredResearch)
           {
             bw.Write(research);
           }
         }
+
         return output.ToArray();
       }
+    }
+
+    protected int GetInteger(BinaryReader data)
+    {
+      return data.ReadInt32();
+    }
+
+    protected string GetString(BinaryReader data)
+    {
+      return new string(data.ReadChars(data.ReadInt32()));
     }
   }
 }

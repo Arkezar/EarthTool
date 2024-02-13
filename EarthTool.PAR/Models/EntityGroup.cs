@@ -1,7 +1,6 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.Common.Interfaces;
+﻿using EarthTool.Common.Interfaces;
 using EarthTool.PAR.Enums;
-using System;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -11,32 +10,38 @@ namespace EarthTool.PAR.Models
 {
   public class EntityGroup : IBinarySerializable
   {
+    public EntityGroup()
+    {
+    }
+
     public EntityGroup(BinaryReader reader)
     {
-      var entityFactory = new EntityFactory();
+      EntityFactory entityFactory = new EntityFactory();
 
       Faction = (Faction)reader.ReadInt32();
       GroupType = (EntityGroupType)reader.ReadInt32();
-      var groupSize = reader.ReadInt32();
+      int groupSize = reader.ReadInt32();
       Entities = Enumerable.Range(0, groupSize).Select(i => entityFactory.CreateEntity(reader, GroupType)).ToList();
     }
 
-    public Faction Faction { get; }
+    public Faction Faction { get; set; }
 
-    public EntityGroupType GroupType { get; }
+    public EntityGroupType GroupType { get; set; }
 
-    public IEnumerable<Entity> Entities { get; }
+    public IEnumerable<Entity> Entities { get; set; }
+
     public byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write((int)Faction);
           bw.Write((int)GroupType);
           bw.Write(Entities.Count());
           bw.Write(Entities.SelectMany(e => e.ToByteArray(encoding)).ToArray());
         }
+
         return output.ToArray();
       }
     }

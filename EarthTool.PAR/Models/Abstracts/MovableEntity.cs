@@ -1,14 +1,17 @@
 ﻿using EarthTool.PAR.Enums;
-using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
 
-namespace EarthTool.PAR.Models
+namespace EarthTool.PAR.Models.Abstracts
 {
   public abstract class MovableEntity : InteractableEntity
   {
-    public MovableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
+    public MovableEntity()
+    {
+    }
+
+    public MovableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
+      : base(name, requiredResearch, type, data)
     {
     }
   }

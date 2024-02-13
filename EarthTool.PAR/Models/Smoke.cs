@@ -1,15 +1,21 @@
-﻿using EarthTool.Common.Extensions;
-using EarthTool.PAR.Enums;
-using System;
+﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models
 {
   public class Smoke : DestructibleEntity
   {
-    public Smoke(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data, IEnumerable<bool> fieldTypes) : base(name, requiredResearch, type, data, fieldTypes)
+    public Smoke()
+    {
+    }
+
+    public Smoke(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
+      : base(name, requiredResearch, type, data)
     {
       Mesh1 = GetString(data);
       Mesh2 = GetString(data);
@@ -25,35 +31,55 @@ namespace EarthTool.PAR.Models
       NewSmokeDistance = GetInteger(data);
     }
 
-    public string Mesh1 { get; }
+    public string Mesh1 { get; set; }
 
-    public string Mesh2 { get; }
+    public string Mesh2 { get; set; }
 
-    public string Mesh3 { get; }
+    public string Mesh3 { get; set; }
 
-    public int SmokeTime1 { get; }
+    public int SmokeTime1 { get; set; }
 
-    public int SmokeTime2 { get; }
+    public int SmokeTime2 { get; set; }
 
-    public int SmokeTime3 { get; }
+    public int SmokeTime3 { get; set; }
 
-    public int SmokeFrequency { get; }
+    public int SmokeFrequency { get; set; }
 
-    public int StartingTime { get; }
+    public int StartingTime { get; set; }
 
-    public int SmokingTime { get; }
+    public int SmokingTime { get; set; }
 
-    public int EndingTime { get; }
+    public int EndingTime { get; set; }
 
-    public int SmokeUpSpeed { get; }
+    public int SmokeUpSpeed { get; set; }
 
-    public int NewSmokeDistance { get; }
-    
+    public int NewSmokeDistance { get; set; }
+
+    [JsonIgnore]
+    public override IEnumerable<bool> FieldTypes
+    {
+      get => base.FieldTypes.Concat(IsStringMember(
+        () => Mesh1,
+        () => Mesh2,
+        () => Mesh3,
+        () => SmokeTime1,
+        () => SmokeTime2,
+        () => SmokeTime3,
+        () => SmokeFrequency,
+        () => StartingTime,
+        () => SmokingTime,
+        () => EndingTime,
+        () => SmokeUpSpeed,
+        () => NewSmokeDistance
+      ));
+      set => base.FieldTypes = value;
+    }
+
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (var output = new MemoryStream())
+      using (MemoryStream output = new MemoryStream())
       {
-        using (var bw = new BinaryWriter(output, encoding))
+        using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(Mesh1.Length);
@@ -72,6 +98,7 @@ namespace EarthTool.PAR.Models
           bw.Write(SmokeUpSpeed);
           bw.Write(NewSmokeDistance);
         }
+
         return output.ToArray();
       }
     }
