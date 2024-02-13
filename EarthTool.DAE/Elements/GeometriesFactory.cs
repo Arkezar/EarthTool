@@ -17,19 +17,19 @@ namespace EarthTool.DAE.Elements
 
     public IEnumerable<Node> GetGeometryNodes(IEnumerable<PartNode> parts, string modelName)
     {
-      return parts.SelectMany((p, i) => p.Parts.Select( (sp, idx) => GetGeometryNode(sp, i, idx, modelName)));
+      return parts.SelectMany((p, i) => p.Parts.Select((sp, idx) => GetGeometryNode(sp, i, idx, modelName)));
     }
 
     public Node GetGeometryRootNode(IEnumerable<Node> geometryNodes, PartNode partsTree, string modelName)
     {
-      var partNodes = geometryNodes.Where(g => g.Id.Contains($"{modelName}-Part-{partsTree.Id}-")).OrderBy(p => p.Id); 
+      var partNodes = geometryNodes.Where(g => g.Id.Contains($"{modelName}-Part-{partsTree.Id}-")).OrderBy(p => p.Id);
       var root = partNodes.First();
 
       foreach (var subpart in partNodes.Skip(1))
       {
         root.NodeProperty.Add(subpart);
       }
-      
+
       foreach (var child in partsTree.Children)
       {
         root.NodeProperty.Add(GetGeometryRootNode(geometryNodes, child, modelName));
@@ -43,26 +43,29 @@ namespace EarthTool.DAE.Elements
       var id = $"{modelName}-Part-{i}-{idx}";
       var node = new Node() { Id = id, Name = id };
 
-      node.Matrix.Add(new Matrix
+      if (idx == 0)
       {
-        Sid = "transform",
-        Value = string.Format(CultureInfo.InvariantCulture, "1 0 0 {0} 0 1 0 {1} 0 0 1 {2} 0 0 0 1",
-          part.Offset.X,
-          part.Offset.Y, 
-          part.Offset.Z)
-      });
-      
-        var instanceGeometry = new Instance_Geometry() { Url = $"#{id}", Bind_Material = new Bind_Material() };
-
-        var instanceMaterial =
-          new Instance_Material { Symbol = $"{id}-material", Target = $"#{id}-material", };
-        instanceMaterial.Bind_Vertex_Input.Add(new Instance_MaterialBind_Vertex_Input
+        node.Matrix.Add(new Matrix
         {
-          Input_Set = 0, Input_Semantic = "TEXCOORD", Semantic = "UVMap"
+          Sid = "transform",
+          Value = string.Format(CultureInfo.InvariantCulture, "1 0 0 {0} 0 1 0 {1} 0 0 1 {2} 0 0 0 1",
+            part.Offset.X,
+            part.Offset.Y,
+            part.Offset.Z)
         });
+      }
 
-        instanceGeometry.Bind_Material.Technique_Common.Add(instanceMaterial);
-        node.Instance_Geometry.Add(instanceGeometry);
+      var instanceGeometry = new Instance_Geometry() { Url = $"#{id}", Bind_Material = new Bind_Material() };
+
+      var instanceMaterial =
+        new Instance_Material { Symbol = $"{id}-material", Target = $"#{id}-material", };
+      instanceMaterial.Bind_Vertex_Input.Add(new Instance_MaterialBind_Vertex_Input
+      {
+        Input_Set = 0, Input_Semantic = "TEXCOORD", Semantic = "UVMap"
+      });
+
+      instanceGeometry.Bind_Material.Technique_Common.Add(instanceMaterial);
+      node.Instance_Geometry.Add(instanceGeometry);
 
       return node;
     }
@@ -73,7 +76,8 @@ namespace EarthTool.DAE.Elements
 
       var geometry = new Geometry { Name = id, Id = id };
 
-      var positions = GetSource("positions", part.Vertices, v => new float[] { v.Position.X, v.Position.Y, v.Position.Z });
+      var positions = GetSource("positions", part.Vertices,
+        v => new float[] { v.Position.X, v.Position.Y, v.Position.Z });
       var normals = GetSource("normals", part.Vertices, v => new float[] { v.Normal.X, v.Normal.Y, v.Normal.Z });
       var uv = GetMapSource("map", part.Vertices, v => new float[] { v.UVMap.U, v.UVMap.V });
 
