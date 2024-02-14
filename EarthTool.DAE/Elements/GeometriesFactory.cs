@@ -22,7 +22,7 @@ namespace EarthTool.DAE.Elements
 
     public Node GetGeometryRootNode(IEnumerable<Node> geometryNodes, PartNode partsTree, string modelName)
     {
-      var partNodes = geometryNodes.Where(g => g.Id.Contains($"{modelName}-Part-{partsTree.Id}-")).OrderBy(p => p.Id);
+      var partNodes = geometryNodes.Where(g => g.Id.Contains($"Part-{partsTree.Id}-")).OrderBy(p => p.Id);
       var root = partNodes.First();
 
       foreach (var subpart in partNodes.Skip(1))
@@ -40,7 +40,7 @@ namespace EarthTool.DAE.Elements
 
     private Node GetGeometryNode(IModelPart part, int i, int idx, string modelName)
     {
-      var id = $"{modelName}-Part-{i}-{idx}";
+      var id = $"Part-{i}-{idx}";
       var node = new Node() { Id = id, Name = id };
 
       if (idx == 0)
@@ -72,7 +72,7 @@ namespace EarthTool.DAE.Elements
 
     private Geometry GetGeometry(IModelPart part, int i, int idx, string modelName)
     {
-      var id = $"{modelName}-Part-{i}-{idx}";
+      var id = $"Part-{i}-{idx}";
 
       var geometry = new Geometry { Name = id, Id = id };
 

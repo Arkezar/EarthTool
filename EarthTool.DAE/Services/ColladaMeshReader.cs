@@ -32,7 +32,7 @@ namespace EarthTool.DAE.Services
     {
       _earthInfoFactory = earthInfoFactory;
       _hierarchyBuilder = hierarchyBuilder;
-      _regex = new Regex(@$".*-Part-(\d+)-(\d+)");
+      _regex = new Regex(@$"Part-(\d+)-(\d+)");
     }
 
     public override FileType InputFileExtension => FileType.DAE;
@@ -84,8 +84,19 @@ namespace EarthTool.DAE.Services
         UnknownByte3 = 0,
         Offset = offset,
         BackTrackDepth = (byte)node.BacktrackLevel,
-        PartType = IsSubPart(node.Node.Name) || idx == 0 ? PartType.Base : PartType.Subpart
+        PartType = ParsePartType(node.Node.Name, idx),
+        AnimationType = ParseAnimationType(node.Node.Name, idx),
       };
+    }
+
+    private AnimationType ParseAnimationType(string nodeName, int idx)
+    {
+      return AnimationType.Looped;
+    }
+
+    private PartType ParsePartType(string nodeName, int idx)
+    {
+      return IsSubPart(nodeName) || idx == 0 ? PartType.Base : PartType.Subpart;
     }
 
     private bool IsSubPart(string name)

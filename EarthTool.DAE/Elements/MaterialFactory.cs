@@ -11,7 +11,7 @@ namespace EarthTool.DAE.Elements
   {
     public IEnumerable<Image> GetImages(IEnumerable<PartNode> parts, string modelName)
     {
-      var id = $"{modelName}-Part";
+      var id = $"Part";
       return parts.SelectMany((p, i) =>
         p.Parts.Select((sp, idx) =>
           new Image
@@ -29,7 +29,7 @@ namespace EarthTool.DAE.Elements
 
     private Effect GetEffect(IModelPart p, int i, int si, string modelName)
     {
-      var id = $"{modelName}-Part-{i}-{si}";
+      var id = $"Part-{i}-{si}";
       var effect = new Effect { Id = $"{id}-effect", Name = $"{id}-effect" };
 
       var profile = new Profile_COMMON
@@ -72,7 +72,7 @@ namespace EarthTool.DAE.Elements
 
     private Material GetMaterial(IModelPart part, int i, int si, string modelName)
     {
-      var id = $"{modelName}-Part-{i}-{si}";
+      var id = $"Part-{i}-{si}";
       return new Material
       {
         Id = $"{id}-material",

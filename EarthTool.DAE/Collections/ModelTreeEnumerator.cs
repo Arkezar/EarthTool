@@ -22,7 +22,7 @@ namespace EarthTool.DAE.Collections
       _model = model;
       _root = root;
       _parentStack = new Stack<IEnumerator<Node>>();
-      _regex = new Regex(@$"{_root.Name}-Part-(\d+)-(\d+)");
+      _regex = new Regex(@$"Part-(\d+)-(\d+)");
     }
 
     public ModelTreeNode Current => new ModelTreeNode(_model, _current, _backtrackLevel, _parentStack.Count);

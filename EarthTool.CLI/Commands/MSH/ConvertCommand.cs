@@ -65,7 +65,7 @@ public sealed class ConvertCommand : CommonCommand<CommonSettings>
   {
     var currentNode =
       treeNode.AddNode(
-        $"{name}-Part-{id++} ({string.Join(',', rootNode.Parts.Select((p, i) => $"{i}:{p.Texture.FileName}"))})");
+        $"Part-{id++} ({string.Join(',', rootNode.Parts.Select((p, i) => $"{i}:{p.Texture.FileName}"))})");
     foreach (var child in rootNode.Children)
     {
       PopulateHierarchy(currentNode, child, name, ref id);

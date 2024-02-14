@@ -27,7 +27,7 @@ namespace EarthTool.DAE.Elements
         return null;
       }
 
-      var id = $"{modelName}-Part-{i}-{idx}";
+      var id = $"Part-{i}-{idx}";
       var animationContainer = new Animation
       {
         Id = $"{id}-animation",
