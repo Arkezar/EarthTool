@@ -1,4 +1,5 @@
 ﻿using Collada141;
+using EarthTool.DAE.Extensions;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using System;
@@ -40,7 +41,7 @@ namespace EarthTool.DAE.Elements
 
     private Node GetGeometryNode(IModelPart part, int i, int idx, string modelName)
     {
-      var id = $"Part-{i}-{idx}";
+      var id = part.EnrichPartName($"Part-{i}-{idx}");
       var node = new Node() { Id = id, Name = id };
 
       if (idx == 0)
@@ -72,7 +73,7 @@ namespace EarthTool.DAE.Elements
 
     private Geometry GetGeometry(IModelPart part, int i, int idx, string modelName)
     {
-      var id = $"Part-{i}-{idx}";
+      var id = part.EnrichPartName($"Part-{i}-{idx}");
 
       var geometry = new Geometry { Name = id, Id = id };
 

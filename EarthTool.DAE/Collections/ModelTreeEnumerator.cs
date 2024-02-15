@@ -22,7 +22,7 @@ namespace EarthTool.DAE.Collections
       _model = model;
       _root = root;
       _parentStack = new Stack<IEnumerator<Node>>();
-      _regex = new Regex(@$"Part-(\d+)-(\d+)");
+      _regex = new Regex(@"Part-(\d+)-(\d+)");
     }
 
     public ModelTreeNode Current => new ModelTreeNode(_model, _current, _backtrackLevel, _parentStack.Count);
@@ -42,7 +42,7 @@ namespace EarthTool.DAE.Collections
       }
 
       _currentLevel = _current.NodeProperty
-        .Where(n => n.Name.StartsWith(_root.Name))
+        .Where(n => n.Name.StartsWith("Part-"))
         .OrderBy(n => IsSubPart(n.Name))
         .ThenBy(n => GetPartNumber(n.Name))
         .GetEnumerator();
@@ -88,12 +88,11 @@ namespace EarthTool.DAE.Collections
 
     private bool BackTrack()
     {
-      var modelName = _root.Name;
       if (_currentLevel != null)
       {
         while (_currentLevel.MoveNext())
         {
-          if (_currentLevel.Current.Name.StartsWith(modelName))
+          if (_currentLevel.Current.Name.StartsWith("Part-"))
           {
             return false;
           }

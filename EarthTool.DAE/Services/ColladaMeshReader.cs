@@ -3,6 +3,7 @@ using EarthTool.Common.Bases;
 using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
 using EarthTool.DAE.Collections;
+using EarthTool.DAE.Extensions;
 using EarthTool.MSH.Enums;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
@@ -72,6 +73,8 @@ namespace EarthTool.DAE.Services
       var facesAndVertices = LoadFacesWithVertices(g);
       var offset = new Vector() { Value = GetTransformationMatrix(node.TransformationMatrix).Translation };
 
+      var details = node.ParseAnimationDetails();
+
       return new ModelPart()
       {
         Faces = facesAndVertices.Faces,
@@ -84,19 +87,9 @@ namespace EarthTool.DAE.Services
         UnknownByte3 = 0,
         Offset = offset,
         BackTrackDepth = (byte)node.BacktrackLevel,
-        PartType = ParsePartType(node.Node.Name, idx),
-        AnimationType = ParseAnimationType(node.Node.Name, idx),
+        PartType = details.PartType,
+        AnimationType = details.AnimationType,
       };
-    }
-
-    private AnimationType ParseAnimationType(string nodeName, int idx)
-    {
-      return AnimationType.Looped;
-    }
-
-    private PartType ParsePartType(string nodeName, int idx)
-    {
-      return IsSubPart(nodeName) || idx == 0 ? PartType.Base : PartType.Subpart;
     }
 
     private bool IsSubPart(string name)
@@ -481,7 +474,26 @@ namespace EarthTool.DAE.Services
 
     private IMeshFrames LoadFrames(COLLADA model)
     {
-      return new MeshFrames() { ActionFrames = 0, BuildingFrames = 0, LoopedFrames = 0, MovementFrames = 0 };
+      var modelTree = new ModelTree(model).ToArray();
+      
+      return new MeshFrames()
+      {
+        LoopedFrames = GetFrameCount(modelTree, AnimationType.Looped),
+        MovementFrames = GetFrameCount(modelTree, AnimationType.TwoWay),
+        ActionFrames = GetFrameCount(modelTree, AnimationType.Single),
+        BuildingFrames = GetFrameCount(modelTree, AnimationType.Lift)
+      };
+    }
+    
+    private byte GetFrameCount(IEnumerable<ModelTreeNode> modelTree, AnimationType type)
+    {
+      var frames = modelTree
+        .Where(p => p.ParseAnimationDetails().AnimationType == type)
+        .Select(p => p.ParseAnimationDetails().FrameCount);
+      var def = frames.DefaultIfEmpty();
+      var max = def.Max();
+
+      return (byte)max;
     }
 
     private COLLADA LoadModel(string filePath)

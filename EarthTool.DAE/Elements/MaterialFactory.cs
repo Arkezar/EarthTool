@@ -1,4 +1,5 @@
 ﻿using Collada141;
+using EarthTool.DAE.Extensions;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using System.Collections.Generic;
@@ -11,13 +12,13 @@ namespace EarthTool.DAE.Elements
   {
     public IEnumerable<Image> GetImages(IEnumerable<PartNode> parts, string modelName)
     {
-      var id = $"Part";
+      var id = "Part";
       return parts.SelectMany((p, i) =>
         p.Parts.Select((sp, idx) =>
           new Image
           {
-            Id = $"{id}-{i}-{idx}-texture",
-            Name = $"{id}-{i}-{idx}-texture",
+            Id = $"{sp.EnrichPartName($"{id}-{i}-{idx}")}-texture",
+            Name = $"{sp.EnrichPartName($"{id}-{i}-{idx}")}-texture",
             Init_From = Path.ChangeExtension(sp.Texture.FileName, "png")
           }));
     }
@@ -29,7 +30,7 @@ namespace EarthTool.DAE.Elements
 
     private Effect GetEffect(IModelPart p, int i, int si, string modelName)
     {
-      var id = $"Part-{i}-{si}";
+      var id = p.EnrichPartName($"Part-{i}-{si}");
       var effect = new Effect { Id = $"{id}-effect", Name = $"{id}-effect" };
 
       var profile = new Profile_COMMON
@@ -72,7 +73,7 @@ namespace EarthTool.DAE.Elements
 
     private Material GetMaterial(IModelPart part, int i, int si, string modelName)
     {
-      var id = $"Part-{i}-{si}";
+      var id = part.EnrichPartName($"Part-{i}-{si}");
       return new Material
       {
         Id = $"{id}-material",

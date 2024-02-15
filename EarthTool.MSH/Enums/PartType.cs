@@ -10,9 +10,9 @@ namespace EarthTool.MSH.Enums
     Barrel = 0x2,
     Rotor = 0x4,
     Subpart = 0x8,
-    Missile1 = 0x10,
-    Missile2 = 0x20,
-    Missile3 = 0x40,
-    Missile4 = 0x80
+    Emitter1 = 0x10,
+    Emitter2 = 0x20,
+    Emitter3 = 0x40,
+    Emitter4 = 0x80
   }
 }

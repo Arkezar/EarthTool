@@ -1,4 +1,5 @@
 ﻿using Collada141;
+using EarthTool.DAE.Extensions;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using System;
@@ -27,7 +28,7 @@ namespace EarthTool.DAE.Elements
         return null;
       }
 
-      var id = $"Part-{i}-{idx}";
+      var id = part.EnrichPartName($"Part-{i}-{idx}");
       var animationContainer = new Animation
       {
         Id = $"{id}-animation",
