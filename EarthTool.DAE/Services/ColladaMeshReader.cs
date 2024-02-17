@@ -350,8 +350,10 @@ namespace EarthTool.DAE.Services
       var slots = model.Library_Lights.SelectMany(ll =>
           ll.Light.Where(l => l.Technique_Common.Directional != null && l.Name.StartsWith($"{slotName}-")))
         .ToLookup(l => l.Name);
-      var slotsPosition = model.Library_Visual_Scenes.SelectMany(lvs => lvs.Visual_Scene.SelectMany(vs =>
-        vs.Node.SelectMany(n => n.NodeProperty.First().NodeProperty.Where(np => slots.Contains(np.Name)))));
+
+      var modelTree = new ModelTree(model);
+      var slotsPosition = modelTree.SelectMany(n => n.Node.NodeProperty).Where(n =>  slots.Contains(n.Name));
+      
       var meshSlots = slotsPosition.Select((n, i) => GetSlot(n, i));
       return Fill(meshSlots, count, () => new Slot());
     }
