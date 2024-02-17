@@ -57,10 +57,12 @@ namespace EarthTool.DAE.Elements
       var lightsLibrary = new Library_Lights();
       lights.Select(l => l.Light).ToList().ForEach(l => lightsLibrary.Light.Add(l));
       slots.Select(l => l.Slot).ToList().ForEach(l => lightsLibrary.Light.Add(l));
-
-      var geometryNodes = _geometriesFactory.GetGeometryNodes(model.PartsTree, modelName);
+      
+      var emitterNodes = slots.Where(s => s.SlotNode.Name.StartsWith("BarrelMuzzle")).Select(s => s.SlotNode).ToList();
+      
+      var geometryNodes = _geometriesFactory.GetGeometryNodes(model.PartsTree, emitterNodes, modelName);
       var geometryRootNode = _geometriesFactory.GetGeometryRootNode(geometryNodes, model.PartsTree, modelName);
-      var slotNodes = lights.Select(l => l.LightNode).ToList().Concat(slots.Select(s => s.SlotNode)).ToList();
+      var slotNodes = lights.Select(l => l.LightNode).ToList().Concat(slots.Select(s => s.SlotNode)).Except(emitterNodes).ToList();
       var scenes = GetScenes(geometryRootNode, slotNodes, modelName);
       var scene = GetScene(scenes);
 

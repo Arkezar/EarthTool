@@ -1,5 +1,6 @@
 ﻿using Collada141;
 using EarthTool.DAE.Extensions;
+using EarthTool.MSH.Enums;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using System;
@@ -16,9 +17,9 @@ namespace EarthTool.DAE.Elements
       return parts.SelectMany((p, i) => p.Parts.Select((sp, idx) => GetGeometry(sp, i, idx, modelName)));
     }
 
-    public IEnumerable<Node> GetGeometryNodes(IEnumerable<PartNode> parts, string modelName)
+    public IEnumerable<Node> GetGeometryNodes(IEnumerable<PartNode> parts, IEnumerable<Node> emitterNodes, string modelName)
     {
-      return parts.SelectMany((p, i) => p.Parts.Select((sp, idx) => GetGeometryNode(sp, i, idx, modelName)));
+      return parts.SelectMany((p, i) => p.Parts.Select((sp, idx) => GetGeometryNode(sp, i, idx, emitterNodes, modelName)));
     }
 
     public Node GetGeometryRootNode(IEnumerable<Node> geometryNodes, PartNode partsTree, string modelName)
@@ -39,7 +40,7 @@ namespace EarthTool.DAE.Elements
       return root;
     }
 
-    private Node GetGeometryNode(IModelPart part, int i, int idx, string modelName)
+    private Node GetGeometryNode(IModelPart part, int i, int idx, IEnumerable<Node> emitterNodes, string modelName)
     {
       var id = part.EnrichPartName($"Part-{i}-{idx}");
       var node = new Node() { Id = id, Name = id };
@@ -68,6 +69,26 @@ namespace EarthTool.DAE.Elements
       instanceGeometry.Bind_Material.Technique_Common.Add(instanceMaterial);
       node.Instance_Geometry.Add(instanceGeometry);
 
+      if (part.PartType.HasFlag(PartType.Emitter1))
+      {
+        node.NodeProperty.Add(emitterNodes.ElementAt(0));
+      }
+      
+      if (part.PartType.HasFlag(PartType.Emitter2))
+      {
+        node.NodeProperty.Add(emitterNodes.ElementAt(1));
+      }
+      
+      if (part.PartType.HasFlag(PartType.Emitter3))
+      {
+        node.NodeProperty.Add(emitterNodes.ElementAt(2));
+      }
+      
+      if (part.PartType.HasFlag(PartType.Emitter4))
+      {
+        node.NodeProperty.Add(emitterNodes.ElementAt(3));
+      }
+      
       return node;
     }
 
