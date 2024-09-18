@@ -1,17 +1,50 @@
 {
   "profiles": {
-    "EarthTool": {
+    "EarthTool - Extract All WD": {
       "commandName": "Project",
-      //      "commandLineArgs": "msh -o D:\\earthwork\\test2 D:\\earthwork\\wdwork\\meshes\\*.msh",
-      //      "commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\wdwork\\meshes\\EDBBTC.msh",
-      //      "commandLineArgs": "dae -o D:\\earthwork\\testdae D:\\earthwork\\testdae\\EDBBTC.dae",
-      //      "commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\wdwork\\meshes\\UCSUML1.msh",
-      //      "commandLineArgs": "dae -o D:\\earthwork\\testdae D:\\earthwork\\testdae\\UCSUML1.dae",
-      //      "commandLineArgs": "msh -o D:\\earthwork\\testdae D:\\earthwork\\testdae\\EDUST1b.dae",
-      //      "commandLineArgs": "tex -o D:\\earthwork\\testdae D:\\earthwork\\wdwork\\Textures\\UCSUML1.tex",
-//            "commandLineArgs": "par -o D:\\earthwork\\testdae\\par D:\\earthwork\\original_tmp_extracted\\Parameters\\EARTH2150.par",
-//      "commandLineArgs": "par -o D:\\earthwork\\testdae\\par D:\\earthwork\\testdae\\par\\EARTH2150.json",
-            "commandLineArgs": "wd -o D:\\earthwork\\original_tmp_extracted D:\\earthwork\\original_tmp\\*.wd",
+      "commandLineArgs": "wd -o %HOME%/earthwork/WDFiles_extracted %HOME%/earthwork/WDFiles/*.wd",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - Decode All Meshes": {
+      "commandName": "Project",
+      "commandLineArgs": "msh -o %HOME%/earthwork/Meshes_decoded %HOME%/earthwork/WDFiles_extracted/meshes/*.msh",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - Unpack All Textures": {
+      "commandName": "Project",
+      "commandLineArgs": "tex -o %HOME%/earthwork/Textures_unpacked %HOME%/earthwork/WDFiles_extracted/Textures/*.tex",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - Decode Parameters": {
+      "commandName": "Project",
+      "commandLineArgs": "par -o %HOME%/earthwork/Parameters_decoded %HOME%/earthwork/WDFiles_extracted/Parameters/EARTH2150.par",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - Encode Parameters": {
+      "commandName": "Project",
+      "commandLineArgs": "par -o %HOME%/earthwork/Parameters_encoded %HOME%/earthwork/Parameters_decoded/EARTH2150.json",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - Decode Mesh": {
+      "commandName": "Project",
+      "commandLineArgs": "msh -o %HOME%/earthwork/Meshes_decoded_work %HOME%/earthwork/WDFiles_extracted/meshes/LCULU1.msh",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - Encode Mesh": {
+      "commandName": "Project",
+      "commandLineArgs": "dae -o %HOME%/earthwork/Meshes_encoded_work %HOME%/earthwork/Meshes_decoded_work/LCULU1T.dae",
       "environmentVariables": {
         "Logging:LogLevel:Default": "Information"
       }

@@ -1,4 +1,6 @@
 ﻿using EarthTool.Common.Enums;
+using Microsoft.Extensions.Logging;
+using Spectre.Console;
 using Spectre.Console.Cli;
 using System;
 using System.IO;
@@ -28,11 +30,20 @@ public abstract class CommonCommand<TSettings> : AsyncCommand<TSettings> where T
     }
 
     var filePattern = Path.GetFileName(settings.InputFilePath)!;
-    var files = Directory.GetFiles(path, filePattern, SearchOption.TopDirectoryOnly);
+
+    var files = Directory.GetFiles(path, filePattern,
+      new EnumerationOptions() { MatchCasing = MatchCasing.CaseInsensitive, RecurseSubdirectories = false });
 
     foreach (var file in files)
     {
-      await InternalExecuteAsync(file, settings);
+      try
+      {
+        await InternalExecuteAsync(file, settings);
+      }
+      catch (Exception exception)
+      {
+        AnsiConsole.WriteException(exception);
+      }
     }
 
     return 0;

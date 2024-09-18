@@ -2,6 +2,7 @@
 using EarthTool.Common.Interfaces;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
+using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using System.Collections.Generic;
 using System.IO;
@@ -63,7 +64,9 @@ public sealed class ConvertCommand : CommonCommand<CommonSettings>
 
   private void PopulateHierarchy(TreeNode treeNode, PartNode rootNode, string name, ref int id)
   {
-    var currentNode = treeNode.AddNode($"Part-{id++} ({string.Join(',', rootNode.Parts.Select((p, i) => $"{i}:{p.Texture.FileName}"))})");
+    var currentNode =
+      treeNode.AddNode(
+        $"Part-{id++} ({string.Join(',', rootNode.Parts.Select((p, i) => $"{i}:{p.Texture.FileName}"))})");
     foreach (var child in rootNode.Children)
     {
       PopulateHierarchy(currentNode, child, name, ref id);

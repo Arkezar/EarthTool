@@ -56,6 +56,11 @@ public class ConvertCommand : CommonCommand<CommonSettings>
     var outputFileName = Path.ChangeExtension(Path.GetFileName(filePath), "json");
     var outputFilePath = Path.Combine(outputDirectory, outputFileName);
 
+    if (!Directory.Exists(outputDirectory))
+    {
+      Directory.CreateDirectory(outputDirectory);
+    }
+    
     var opts = new JsonSerializerOptions { WriteIndented = true };
     opts.Converters.Add(new EntityConverter());
     opts.Converters.Add(new JsonStringEnumConverter());
