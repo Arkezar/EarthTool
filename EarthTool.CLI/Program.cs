@@ -33,7 +33,7 @@ namespace EarthTool.CLI
 #if DEBUG
         config.AddCommand<Commands.MSH.AnalyzeCommand>("msha");
 #endif
-        config.SetExceptionHandler(ex =>
+        config.SetExceptionHandler((ex, _) =>
         {
           AnsiConsole.WriteException(ex, ExceptionFormats.ShortenEverything);
         });
