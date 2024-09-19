@@ -1,6 +1,7 @@
-﻿using Autofac;
-using AutoFixture;
+﻿using AutoFixture;
+using EarthTool.Common;
 using EarthTool.Common.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Text;
@@ -25,17 +26,18 @@ namespace EarthTool.WD.Tests
 
       Fixture = new Fixture();
 
-      var cb = new ContainerBuilder();
-      cb.RegisterModule<WDModule>();
-      cb.RegisterInstance(Encoding.GetEncoding("ISO-8859-2"));
-      cb.RegisterInstance(new NullLoggerFactory()).AsImplementedInterfaces();
-      cb.RegisterGeneric(typeof(NullLogger<>)).As(typeof(ILogger<>)).SingleInstance();
-      var container = cb.Build();
+      var sc = new ServiceCollection()
+        .AddCommonServices()
+        .AddWdServices()
+        .AddSingleton<ILoggerFactory, NullLoggerFactory>()
+        .AddScoped(typeof(ILogger<>), typeof(NullLogger<>));
 
-      ArchiveFactory = container.Resolve<IArchiveFactory>();
-      Compressor = container.Resolve<ICompressor>();
-      Decompressor = container.Resolve<IDecompressor>();
-      Encoding = container.Resolve<Encoding>();
+      var container = sc.BuildServiceProvider();
+
+      ArchiveFactory = container.GetRequiredService<IArchiveFactory>();
+      Compressor = container.GetRequiredService<ICompressor>();
+      Decompressor = container.GetRequiredService<IDecompressor>();
+      Encoding = container.GetRequiredService<Encoding>();
     }
   }
 }

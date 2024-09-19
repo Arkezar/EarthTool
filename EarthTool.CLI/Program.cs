@@ -1,13 +1,10 @@
-﻿using Autofac;
-using Autofac.Extensions.DependencyInjection;
-using EarthTool.CLI.Commands;
+﻿using EarthTool.CLI.Commands;
 using EarthTool.Common;
 using EarthTool.MSH;
 using EarthTool.DAE;
 using EarthTool.PAR;
 using EarthTool.TEX;
 using EarthTool.WD;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
@@ -46,23 +43,19 @@ namespace EarthTool.CLI
 
     private static IHostBuilder CreateHostBuilder(string[] args)
     {
-      var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
       return Host.CreateDefaultBuilder(args)
-        .UseServiceProviderFactory(new AutofacServiceProviderFactory())
-        .ConfigureLogging(config =>
+        .ConfigureLogging((ctx, config) =>
         {
-          config.AddConfiguration(configuration.GetSection("Logging"));
+          config.AddConfiguration(ctx.Configuration.GetSection("Logging"));
           config.AddDebug();
         })
-        .ConfigureContainer<ContainerBuilder>(containerBuilder =>
-        {
-          containerBuilder.RegisterModule<CommonModule>();
-          containerBuilder.RegisterModule<WDModule>();
-          containerBuilder.RegisterModule<TEXModule>();
-          containerBuilder.RegisterModule<MSHModule>();
-          containerBuilder.RegisterModule<PARModule>();
-          containerBuilder.RegisterModule<DAEModule>();
-        });
+        .ConfigureServices(builder => builder
+          .AddCommonServices()
+          .AddDaeServices()
+          .AddMshServices()
+          .AddParServices()
+          .AddTexServices()
+          .AddWdServices());
     }
   }
 }
