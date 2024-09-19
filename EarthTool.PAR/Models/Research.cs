@@ -85,15 +85,5 @@ namespace EarthTool.PAR.Models
         return output.ToArray();
       }
     }
-
-    protected int GetInteger(BinaryReader data)
-    {
-      return data.ReadInt32();
-    }
-
-    protected string GetString(BinaryReader data)
-    {
-      return new string(data.ReadChars(data.ReadInt32()));
-    }
   }
 }
