@@ -88,7 +88,7 @@ namespace EarthTool.MSH.Models
               using (var blockWriter = new BinaryWriter(blockStream))
               {
                 var blockVertices = Vertices.Skip(i * 4).Take(4).ToList();
-                blockVertices.AddRange(Enumerable.Repeat(new Vertex(new Vector(), new Vector(), new UVMap(), 0, 0),
+                blockVertices.AddRange(Enumerable.Repeat(new Vertex(new Vector(), new Vector(), new TextureCoordinate(), 0, 0),
                   4 - blockVertices.Count()));
                 blockVertices.ForEach(v => blockWriter.Write(v.Position.X));
                 blockVertices.ForEach(v => blockWriter.Write(-v.Position.Y));
@@ -96,8 +96,8 @@ namespace EarthTool.MSH.Models
                 blockVertices.ForEach(v => blockWriter.Write(v.Normal.X));
                 blockVertices.ForEach(v => blockWriter.Write(-v.Normal.Y));
                 blockVertices.ForEach(v => blockWriter.Write(v.Normal.Z));
-                blockVertices.ForEach(v => blockWriter.Write(v.UVMap.U));
-                blockVertices.ForEach(v => blockWriter.Write(1 - v.UVMap.V));
+                blockVertices.ForEach(v => blockWriter.Write(v.TextureCoordinate.U));
+                blockVertices.ForEach(v => blockWriter.Write(v.TextureCoordinate.V));
                 blockVertices.ForEach(_ => blockWriter.Write(0));
                 blockVertices.ForEach(v => blockWriter.Write(v.NormalVectorIdx));
                 blockVertices.ForEach(v => blockWriter.Write(v.PositionVectorIdx));

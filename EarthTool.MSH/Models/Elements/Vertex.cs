@@ -14,7 +14,7 @@ namespace EarthTool.MSH.Models.Elements
       get;
     }
 
-    public IUVMap UVMap
+    public ITextureCoordinate TextureCoordinate
     {
       get;
     }
@@ -29,18 +29,18 @@ namespace EarthTool.MSH.Models.Elements
       get;
     }
 
-    public Vertex(IVector position, IVector normal, IUVMap uvMap, short normalVectorIdx, short positionVectorIdx)
+    public Vertex(IVector position, IVector normal, ITextureCoordinate textureCoordinate, short normalVectorIdx, short positionVectorIdx)
     {
       Position = position;
       Normal = normal;
-      UVMap = uvMap;
+      TextureCoordinate = textureCoordinate;
       NormalVectorIdx = normalVectorIdx;
       PositionVectorIdx = positionVectorIdx;
     }
 
     public bool Equals(IVertex other)
     {
-      return Position.Equals(other.Position) && Normal.Equals(other.Normal) && UVMap.Equals(other.UVMap);
+      return Position.Equals(other.Position) && Normal.Equals(other.Normal) && TextureCoordinate.Equals(other.TextureCoordinate);
     }
   }
 }

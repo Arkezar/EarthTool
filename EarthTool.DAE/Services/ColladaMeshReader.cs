@@ -215,7 +215,7 @@ namespace EarthTool.DAE.Services
           var positionId = vertices.IndexOf(vertices.FirstOrDefault(v => v.Position.Equals(position)));
           var normalId = vertices.IndexOf(vertices.FirstOrDefault(v => v.Normal.Equals(normal)));
 
-          if (!vertices.Any(v => v.Position.Equals(position) && v.Normal.Equals(normal) && v.UVMap.Equals(uv)))
+          if (!vertices.Any(v => v.Position.Equals(position) && v.Normal.Equals(normal) && v.TextureCoordinate.Equals(uv)))
           {
             vertices.Add(new Vertex(position, normal, uv, (short)normalId, (short)positionId));
           }
@@ -229,17 +229,17 @@ namespace EarthTool.DAE.Services
 
     private Face GetFace(int[][] f, IList<Vertex> vertices, IVector[] vertexVectors, ulong vertexOffset,
       IVector[] normalVector, ulong normalOffset,
-      IUVMap[] uvs, ulong uvOffset)
+      ITextureCoordinate[] uvs, ulong uvOffset)
     {
       var v1 = vertices.Single(v =>
         v.Position.Equals(vertexVectors[f[0][vertexOffset]]) && v.Normal.Equals(normalVector[f[0][normalOffset]]) &&
-        v.UVMap.Equals(uvs[f[0][uvOffset]]));
+        v.TextureCoordinate.Equals(uvs[f[0][uvOffset]]));
       var v2 = vertices.Single(v =>
         v.Position.Equals(vertexVectors[f[1][vertexOffset]]) && v.Normal.Equals(normalVector[f[1][normalOffset]]) &&
-        v.UVMap.Equals(uvs[f[1][uvOffset]]));
+        v.TextureCoordinate.Equals(uvs[f[1][uvOffset]]));
       var v3 = vertices.Single(v =>
         v.Position.Equals(vertexVectors[f[2][vertexOffset]]) && v.Normal.Equals(normalVector[f[2][normalOffset]]) &&
-        v.UVMap.Equals(uvs[f[2][uvOffset]]));
+        v.TextureCoordinate.Equals(uvs[f[2][uvOffset]]));
 
       return new Face()
       {
@@ -250,13 +250,13 @@ namespace EarthTool.DAE.Services
       };
     }
 
-    private IUVMap[] LoadUVs(Source source)
+    private ITextureCoordinate[] LoadUVs(Source source)
     {
       var values = source.Float_Array.Value.Split(' ').Select(v => float.Parse(v, CultureInfo.InvariantCulture));
       var groupSizes = source.Technique_Common.Accessor.Param.Count;
       return values.Select((v, i) => new { Value = v, Group = i / groupSizes }).GroupBy(v => v.Group)
         .Select(g => g.Select(v => v.Value))
-        .Select(v => new UVMap(v.ElementAt(0), v.ElementAt(1))).ToArray();
+        .Select(v => new TextureCoordinate(v.ElementAt(0), v.ElementAt(1))).ToArray();
     }
 
     private IVector[] LoadVectors(Source source)

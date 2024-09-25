@@ -101,7 +101,7 @@ namespace EarthTool.DAE.Elements
       var positions = GetSource("positions", part.Vertices,
         v => new float[] { v.Position.X, v.Position.Y, v.Position.Z });
       var normals = GetSource("normals", part.Vertices, v => new float[] { v.Normal.X, v.Normal.Y, v.Normal.Z });
-      var uv = GetMapSource("map", part.Vertices, v => new float[] { v.UVMap.U, v.UVMap.V });
+      var uv = GetMapSource("map", part.Vertices, v => new float[] { v.TextureCoordinate.S, v.TextureCoordinate.T });
 
       var vertices = new Vertices() { Id = "vertices" };
 

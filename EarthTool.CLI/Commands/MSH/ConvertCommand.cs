@@ -3,32 +3,44 @@ using EarthTool.Common.Interfaces;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using Spectre.Console;
+using Spectre.Console.Cli;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
 namespace EarthTool.CLI.Commands.MSH;
 
-public sealed class ConvertCommand : CommonCommand<CommonSettings>
+public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
 {
   private readonly IReader<IMesh> _meshReader;
-  private readonly IWriter<IMesh> _meshWriter;
+  private readonly Dictionary<FileType, IWriter<IMesh>> _meshWriters;
 
+  public sealed class Settings : CommonSettings
+  {
+    [CommandOption("-f|--output-format")]
+    [Description("Selected output format.")]
+    [DefaultValue(FileType.DAE)]
+    public FileType OutputFormat { get; set; }
+  }
+  
   public ConvertCommand(IEnumerable<IReader<IMesh>> meshReaders, IEnumerable<IWriter<IMesh>> meshWriters)
   {
     _meshReader = meshReaders.Single(w => w.InputFileExtension == FileType.MSH);
-    _meshWriter = meshWriters.Single(w => w.OutputFileExtension == FileType.DAE);
+    _meshWriters = meshWriters.ToDictionary(w => w.OutputFileExtension, w => w);
   }
 
-  protected override Task InternalExecuteAsync(string filePath, CommonSettings settings)
+  protected override Task InternalExecuteAsync(string filePath, ConvertCommand.Settings settings)
   {
+    var writer = _meshWriters[settings.OutputFormat];
+    
     var model = _meshReader.Read(filePath);
-
+    
     var outputFilePath =
-      GetOutputFilePath(filePath, settings.OutputFolderPath.Value, _meshWriter.OutputFileExtension);
-
-    var outputFile = _meshWriter.Write(model, outputFilePath);
+      GetOutputFilePath(filePath, settings.OutputFolderPath.Value, writer.OutputFileExtension);
+    
+    var outputFile = writer.Write(model, outputFilePath);
 
     PrintModelDetails(filePath, outputFile, model);
 

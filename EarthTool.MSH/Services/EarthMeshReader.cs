@@ -349,7 +349,7 @@ namespace EarthTool.MSH.Services
 
         var u1 = BitConverter.ToInt16(vertexData, i * sizeof(short) + 0x90);
         var u2 = BitConverter.ToInt16(vertexData, i * sizeof(short) + 0x98);
-        yield return new Vertex(new Vector(x, y, z), new Vector(normalX, normalY, normalZ), new UVMap(u, v), u1, u2);
+        yield return new Vertex(new Vector(x, y, z), new Vector(normalX, normalY, normalZ), new TextureCoordinate(u, v), u1, u2);
       }
     }
 
