@@ -14,15 +14,17 @@ namespace EarthTool.TEX
   {
     private readonly ILogger<TEXConverter> _logger;
     private readonly bool _highResolutionOnly;
+    private readonly bool _debug;
 
     public TEXConverter(ILogger<TEXConverter> logger)
     {
       _logger = logger;
     }
 
-    public TEXConverter(ILogger<TEXConverter> logger, bool highResOnly) : this(logger)
+    public TEXConverter(ILogger<TEXConverter> logger, IReadOnlyCollection<Option> options) : this(logger)
     {
-      _highResolutionOnly = highResOnly;
+      _highResolutionOnly = options.Any(o => o.Name == "HighResolutionOnly" && o.GetValue<bool>());
+      _debug = options.Any(o => o.Name == "Debug" && o.GetValue<bool>());
     }
 
     public Task Convert(string filePath, string outputPath = null)
@@ -154,7 +156,7 @@ namespace EarthTool.TEX
 
     public IConverter WithOptions(IReadOnlyCollection<Option> options)
     {
-      return new TEXConverter(_logger, options.Any(o => o.Name == "HighResolutionOnly" && o.GetValue<bool>()));
+      return new TEXConverter(_logger, options);
     }
   }
 }
