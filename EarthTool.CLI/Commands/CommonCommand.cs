@@ -1,5 +1,4 @@
 ﻿using EarthTool.Common.Enums;
-using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System;
@@ -11,6 +10,11 @@ namespace EarthTool.CLI.Commands;
 public abstract class CommonCommand<TSettings> : AsyncCommand<TSettings> where TSettings : CommonSettings
 {
   protected abstract Task InternalExecuteAsync(string inputFilePath, TSettings settings);
+
+  protected virtual Task InternalAnalyzeAsync(string inputFilePath, TSettings settings)
+  {
+    throw new NotSupportedException("Analyze is not supported for this command");
+  }
 
   protected string GetOutputFilePath(string inputFilePath, string outputPath, FileType outputFileType)
   {
@@ -38,7 +42,14 @@ public abstract class CommonCommand<TSettings> : AsyncCommand<TSettings> where T
     {
       try
       {
-        await InternalExecuteAsync(file, settings);
+        if (settings.Analyze.Value)
+        {
+          await InternalAnalyzeAsync(file, settings);
+        }
+        else
+        {
+          await InternalExecuteAsync(file, settings);
+        }
       }
       catch (Exception exception)
       {

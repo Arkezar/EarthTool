@@ -17,12 +17,7 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
     [CommandOption("--highres")]
     [Description("Extract only high res mipmaps.")]
     [DefaultValue(true)]
-    public bool? HighResolutionOnly { get; set; }
-    
-    [CommandOption("--debug")]
-    [Description("Extract additional image information")]
-    [DefaultValue(false)]
-    public bool? Debug { get; set; }
+    public FlagValue<bool> HighResolutionOnly { get; set; }
   }
 
   public ConvertCommand(ITEXConverter converter)
@@ -36,7 +31,6 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
     {
       new Common.Models.Option(nameof(Settings.HighResolutionOnly), settings.HighResolutionOnly),
       new Common.Models.Option(nameof(Settings.Debug), settings.Debug)
-
     };
     var converter = _converter.WithOptions(options);
 

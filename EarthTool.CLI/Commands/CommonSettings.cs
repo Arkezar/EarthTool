@@ -12,4 +12,14 @@ public class CommonSettings : CommandSettings
   [CommandOption("-o|--output [OutputFolderPath]")]
   [Description("Output directory. Current if not specified.")]
   public FlagValue<string> OutputFolderPath { get; set; }
+      
+  [CommandOption("--debug")]
+  [Description("Extract additional debug information")]
+  [DefaultValue(false)]
+  public FlagValue<bool> Debug { get; set; }
+  
+  [CommandOption("--analyze")]
+  [Description("Analyze the input file")]
+  [DefaultValue(false)]
+  public FlagValue<bool> Analyze { get; set; }
 }

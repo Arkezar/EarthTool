@@ -31,6 +31,23 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
     _meshWriters = meshWriters.ToDictionary(w => w.OutputFileExtension, w => w);
   }
 
+  protected override Task InternalAnalyzeAsync(string inputFilePath, Settings settings)
+  {
+    try
+    {
+      var model = _meshReader.Read(inputFilePath);
+
+      //Part Types
+      // AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, string.Join('|', model.Geometries.Select(g => g.PartType)));
+    }
+    catch
+    {
+    }
+
+
+    return Task.CompletedTask;
+  }
+
   protected override Task InternalExecuteAsync(string filePath, ConvertCommand.Settings settings)
   {
     var writer = _meshWriters[settings.OutputFormat];
