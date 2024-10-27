@@ -1,5 +1,4 @@
-﻿using EarthTool.DAE.Collections;using EarthTool.DAE.Collections;
-
+﻿using EarthTool.DAE.Collections;
 using EarthTool.MSH.Enums;
 using EarthTool.MSH.Interfaces;
 using System.Linq;
