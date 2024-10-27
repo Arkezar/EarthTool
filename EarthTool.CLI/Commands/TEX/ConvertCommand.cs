@@ -18,6 +18,11 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
     [Description("Extract only high res mipmaps.")]
     [DefaultValue(true)]
     public bool? HighResolutionOnly { get; set; }
+    
+    [CommandOption("--debug")]
+    [Description("Extract additional image information")]
+    [DefaultValue(false)]
+    public bool? Debug { get; set; }
   }
 
   public ConvertCommand(ITEXConverter converter)
@@ -27,7 +32,12 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
 
   protected override async Task InternalExecuteAsync(string filePath, Settings settings)
   {
-    var options = new[] { new Common.Models.Option("HighResolutionOnly", settings.HighResolutionOnly) };
+    var options = new[]
+    {
+      new Common.Models.Option(nameof(Settings.HighResolutionOnly), settings.HighResolutionOnly),
+      new Common.Models.Option(nameof(Settings.Debug), settings.Debug)
+
+    };
     var converter = _converter.WithOptions(options);
 
     await converter.Convert(filePath, settings.OutputFolderPath.Value ?? Path.GetDirectoryName(filePath));
