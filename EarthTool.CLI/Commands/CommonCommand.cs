@@ -3,6 +3,7 @@ using Spectre.Console;
 using Spectre.Console.Cli;
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace EarthTool.CLI.Commands;
@@ -16,9 +17,14 @@ public abstract class CommonCommand<TSettings> : AsyncCommand<TSettings> where T
     throw new NotSupportedException("Analyze is not supported for this command");
   }
 
+  protected string GetOutputDirectory(string inputFilePath, string outputPath)
+  {
+    return outputPath ?? Path.GetDirectoryName(inputFilePath);
+  }
+  
   protected string GetOutputFilePath(string inputFilePath, string outputPath, FileType outputFileType)
   {
-    var outputDirectory = outputPath ?? Path.GetDirectoryName(inputFilePath);
+    var outputDirectory = GetOutputDirectory(inputFilePath, outputPath);
     var fileName = Path.GetFileName(inputFilePath);
     var outputFileName =
       Path.ChangeExtension(fileName, outputFileType.ToString().ToLowerInvariant());
@@ -38,11 +44,11 @@ public abstract class CommonCommand<TSettings> : AsyncCommand<TSettings> where T
     var files = Directory.GetFiles(path, filePattern,
       new EnumerationOptions() { MatchCasing = MatchCasing.CaseInsensitive, RecurseSubdirectories = false });
 
-    foreach (var file in files)
+    foreach (var file in files.OrderBy(f => f))
     {
       try
       {
-        if (settings.Analyze.Value)
+        if (settings.Analyze)
         {
           await InternalAnalyzeAsync(file, settings);
         }

@@ -1,4 +1,5 @@
 using EarthTool.Common.Interfaces;
+using EarthTool.TEX.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EarthTool.TEX
@@ -7,6 +8,6 @@ namespace EarthTool.TEX
   {
     public static IServiceCollection AddTexServices(this IServiceCollection services)
       => services
-        .AddScoped<ITEXConverter, TEXConverter>();
+        .AddScoped<IReader<ITexFile>, TexReader>();
   }
 }

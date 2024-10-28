@@ -1,39 +1,122 @@
 ﻿using EarthTool.Common.Interfaces;
+using EarthTool.TEX;
+using EarthTool.TEX.Interfaces;
+using Spectre.Console;
 using Spectre.Console.Cli;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace EarthTool.CLI.Commands.TEX;
 
 public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
 {
-  private readonly ITEXConverter _converter;
+  private readonly IReader<ITexFile> _reader;
 
   public sealed class Settings : CommonSettings
   {
     [CommandOption("--highres")]
     [Description("Extract only high res mipmaps.")]
     [DefaultValue(true)]
-    public FlagValue<bool> HighResolutionOnly { get; set; }
+    public bool HighResolutionOnly { get; set; }
   }
 
-  public ConvertCommand(ITEXConverter converter)
+  public ConvertCommand(IReader<ITexFile> reader)
   {
-    _converter = converter;
+    _reader = reader;
+  }
+
+  protected override Task InternalAnalyzeAsync(string inputFilePath, Settings settings)
+  {
+    var options = new JsonSerializerOptions();
+    options.Converters.Add(new JsonStringEnumConverter());
+    var texFile = _reader.Read(inputFilePath);
+    AnalyzeFileHeader(inputFilePath, texFile.Header, options);
+    AnalyzeImages(inputFilePath, texFile.Images, options);
+    return Task.CompletedTask;
+  }
+
+  private void AnalyzeFileHeader(string inputFilePath, TexHeader header, JsonSerializerOptions options)
+  {
+    if (header == null) return;
+    var json = JsonSerializer.Serialize(header, options);
+    AnsiConsole.WriteLine("{0}\t\tGroup: {1}", inputFilePath, json);
+  }
+
+  private void AnalyzeImages(string inputFilePath, IEnumerable<IEnumerable<TexImage>> images,
+    JsonSerializerOptions options)
+  {
+    foreach (var group in images)
+    {
+      foreach (var image in group)
+      {
+        var json = JsonSerializer.Serialize(image.Header, options);
+        AnsiConsole.WriteLine("{0}\t\tImage: {1}", inputFilePath, json);
+      }
+    }
   }
 
   protected override async Task InternalExecuteAsync(string filePath, Settings settings)
   {
-    var options = new[]
-    {
-      new Common.Models.Option(nameof(Settings.HighResolutionOnly), settings.HighResolutionOnly),
-      new Common.Models.Option(nameof(Settings.Debug), settings.Debug)
-    };
-    var converter = _converter.WithOptions(options);
+    var texFile = _reader.Read(filePath);
+    SaveTex(filePath, texFile, settings);
+  }
 
-    await converter.Convert(filePath, settings.OutputFolderPath.Value ?? Path.GetDirectoryName(filePath));
+  private void SaveTex(string filePath, ITexFile texFile, Settings settings)
+  {
+    var outputPath = GetOutputDirectory(filePath, settings.OutputFolderPath.Value);
+    var fileName = Path.GetFileNameWithoutExtension(filePath);
+
+    if (texFile.HasHeader)
+    {
+      SaveHeader(settings, outputPath, fileName, texFile.Header);
+    }
+
+    var saved = texFile.Images.SelectMany((group, i) =>
+      group.SelectMany((img, j) =>
+      {
+        SaveHeader(settings, outputPath, $"{fileName}_{i}_{j}", img.Header);
+        return img.Mipmaps.Take(settings.HighResolutionOnly ? 1 : img.Mipmaps.Count())
+          .Select(mm => SaveBitmap(outputPath, $"{fileName}_{i}_{j}", mm, settings));
+      }));
+
+    AnsiConsole.MarkupLine($"[bold green]Saved:\n[/]{string.Join("\n", saved)}");
+  }
+
+  private static void SaveHeader(Settings settings, string outputPath, string fileName, TexHeader header)
+  {
+    if (settings.Debug)
+    {
+      if (!Directory.Exists(outputPath))
+      {
+        Directory.CreateDirectory(outputPath);
+      }
+
+      var options = new JsonSerializerOptions() { WriteIndented = true };
+      options.Converters.Add(new JsonStringEnumConverter());
+      File.WriteAllText(Path.Combine(outputPath, $"{fileName}_header.json"), JsonSerializer.Serialize(header, options));
+      File.WriteAllBytes(Path.Combine(outputPath, $"{fileName}_header.raw"), header.GetBytes());
+    }
+  }
+
+  private string SaveBitmap(string workDir, string filename, Image image, Settings settings)
+  {
+    if (!Directory.Exists(workDir))
+    {
+      Directory.CreateDirectory(workDir);
+    }
+
+    var outputFileName = settings.HighResolutionOnly
+      ? $"{filename}.png"
+      : $"{filename}_{image.Width}x{image.Height}.png";
+
+    var filePath = Path.Combine(workDir, outputFileName);
+    image.Save(filePath);
+    return filePath;
   }
 }

@@ -21,6 +21,20 @@
         "Logging:LogLevel:Default": "Information"
       }
     },
+    "EarthTool - Unpack All Textures (Debug)": {
+      "commandName": "Project",
+      "commandLineArgs": "tex --debug -o %HOME%/earthwork/Textures_unpacked %HOME%/earthwork/WDFiles_extracted/Textures/*.tex",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - Analyze All Textures": {
+      "commandName": "Project",
+      "commandLineArgs": "tex --analyze --highres False -o %HOME%/earthwork/Textures_unpacked %HOME%/earthwork/WDFiles_extracted/Textures/*.tex",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
     "EarthTool - Decode Parameters": {
       "commandName": "Project",
       "commandLineArgs": "par -o %HOME%/earthwork/Parameters_decoded %HOME%/earthwork/WDFiles_extracted/Parameters/EARTH2150.par",

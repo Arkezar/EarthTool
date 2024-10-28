@@ -44,7 +44,6 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
     {
     }
 
-
     return Task.CompletedTask;
   }
 

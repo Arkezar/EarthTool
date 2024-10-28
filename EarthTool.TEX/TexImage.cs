@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -7,27 +8,19 @@ namespace EarthTool.TEX
   public class TexImage
   {
     public TexHeader Header { get; }
-    public int Width { get; }
-    public int Height { get; }
-    public int LodLevels { get; }
-    public byte[] Unknown { get; }
     public IEnumerable<Image> Mipmaps { get; }
 
-    public TexImage(TexHeader header, int width, int height, int lodLevels, byte[] unknown, BinaryReader reader)
+    public TexImage(TexHeader header, BinaryReader reader)
     {
       Header = header;
-      Width = width;
-      Height = height;
-      LodLevels = lodLevels;
-      Unknown = unknown;
       Mipmaps = LoadMipmaps(reader);
     }
 
     private IEnumerable<Image> LoadMipmaps(BinaryReader reader)
     {
       var images = new List<Image>();
-      var width = Width;
-      var height = Height;
+      var width = Header.Width;
+      var height = Header.Height;
 
       do
       {
@@ -48,7 +41,7 @@ namespace EarthTool.TEX
         images.Add(image);
         width /= 2;
         height /= 2;
-      } while (images.Count < LodLevels);
+      } while (images.Count < Math.Max(Header.LodLevels, 1));
 
       return images;
     }

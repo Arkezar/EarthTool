@@ -1,56 +1,54 @@
 using EarthTool.Common;
+using EarthTool.TEX.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace EarthTool.TEX
 {
-  public class TexFile
+  public class TexFile : ITexFile
   {
     public bool HasHeader => Header != null;
     public TexHeader Header { get; private set; }
-    public IEnumerable<TexImage> Images { get; }
+    public IEnumerable<IEnumerable<TexImage>> Images { get; }
 
     public TexFile(BinaryReader reader)
     {
       Images = Read(reader);
     }
-    
-    private IEnumerable<TexImage> Read(BinaryReader reader)
+
+    private IEnumerable<IEnumerable<TexImage>> Read(BinaryReader reader)
     {
-      var images = new List<TexImage>();
+      var images = new List<List<TexImage>>();
       IsValidModel(reader);
       var header = new TexHeader(reader);
-      if (header.NumberOfMaps > 0)
+      if (header.SubType.HasFlag(TextureSubType.Grouped) ||
+          header.SubType.HasFlag(TextureSubType.Collection) ||
+          header.SubType.HasFlag(TextureSubType.Sides))
       {
         Header = header;
-        for (int i = 0; i < header.NumberOfMaps; i++)
+
+        var group = new List<List<TexImage>>();
+        for (int i = 0; i < Math.Max(header.GroupCount, 1); i++)
         {
-          images.AddRange(Read(reader));
+          var groupImages = new List<TexImage>();
+          for (int j = 0; j < Math.Max(header.ElementCount, 1); j++)
+          {
+            groupImages.AddRange(Read(reader).SelectMany(i => i));
+          }
+          group.Add(groupImages);
         }
+        images.AddRange(group);
       }
       else
       {
-        var width = reader.ReadInt32();
-        var height = reader.ReadInt32();
-        var lodLevels = 1;
-        var unknown = new byte[12];
-        if (header.Type == 6 || header.Type == 38)
-        {
-          lodLevels = reader.ReadInt32();
-        }
-
-        if (header.Type == 34 && header.Subtype > 0)
-        {
-          unknown = reader.ReadBytes(12);
-        }
-
-        images.Add(new TexImage(header, width, height, lodLevels, unknown, reader));
+        images.Add(new List<TexImage>() { new TexImage(header, reader) });
       }
 
       return images;
     }
-    
+
     private void IsValidModel(BinaryReader reader)
     {
       var valid = reader.ReadBytes(Identifiers.Texture.Length).AsSpan().SequenceEqual(Identifiers.Texture);

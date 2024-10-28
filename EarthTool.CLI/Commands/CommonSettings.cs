@@ -16,10 +16,10 @@ public class CommonSettings : CommandSettings
   [CommandOption("--debug")]
   [Description("Extract additional debug information")]
   [DefaultValue(false)]
-  public FlagValue<bool> Debug { get; set; }
+  public bool Debug { get; set; }
   
   [CommandOption("--analyze")]
   [Description("Analyze the input file")]
   [DefaultValue(false)]
-  public FlagValue<bool> Analyze { get; set; }
+  public bool Analyze { get; set; }
 }
