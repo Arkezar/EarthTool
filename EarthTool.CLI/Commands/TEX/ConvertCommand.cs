@@ -1,11 +1,11 @@
 ﻿using EarthTool.Common.Interfaces;
 using EarthTool.TEX;
 using EarthTool.TEX.Interfaces;
+using SkiaSharp;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -104,7 +104,7 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
     }
   }
 
-  private string SaveBitmap(string workDir, string filename, Image image, Settings settings)
+  private string SaveBitmap(string workDir, string filename, SKBitmap image, Settings settings)
   {
     if (!Directory.Exists(workDir))
     {
@@ -116,7 +116,11 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
       : $"{filename}_{image.Width}x{image.Height}.png";
 
     var filePath = Path.Combine(workDir, outputFileName);
-    image.Save(filePath);
+    using (var stream = new SKFileWStream(filePath))
+    {
+      image.Encode(stream, SKEncodedImageFormat.Png, 100);
+    }
+
     return filePath;
   }
 }
