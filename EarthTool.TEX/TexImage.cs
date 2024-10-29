@@ -1,6 +1,6 @@
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
 
 namespace EarthTool.TEX
@@ -8,7 +8,7 @@ namespace EarthTool.TEX
   public class TexImage
   {
     public TexHeader Header { get; }
-    public IEnumerable<Image> Mipmaps { get; }
+    public IEnumerable<SKBitmap> Mipmaps { get; }
 
     public TexImage(TexHeader header, BinaryReader reader)
     {
@@ -16,15 +16,15 @@ namespace EarthTool.TEX
       Mipmaps = LoadMipmaps(reader);
     }
 
-    private IEnumerable<Image> LoadMipmaps(BinaryReader reader)
+    private IEnumerable<SKBitmap> LoadMipmaps(BinaryReader reader)
     {
-      var images = new List<Image>();
+      var images = new List<SKBitmap>();
       var width = Header.Width;
       var height = Header.Height;
 
       do
       {
-        var image = new Bitmap(width, height);
+        var image = new SKBitmap(width, height);
         for (var w = 0; w < image.Width; w++)
         {
           for (var h = 0; h < image.Height; h++)
@@ -33,7 +33,7 @@ namespace EarthTool.TEX
             var green = reader.ReadByte();
             var blue = reader.ReadByte();
             var alpha = reader.ReadByte();
-            var color = Color.FromArgb(alpha, red, green, blue);
+            var color = new SKColor(red, green, blue, alpha);
             image.SetPixel(h, w, color);
           }
         }
