@@ -26,10 +26,12 @@ jobs:
         
     - name: Restore dependencies
       run: dotnet restore
-    - name: Build
-      run: dotnet publish EarthTool.CLI -c Release --no-restore -o dist -r win-x64
+
     - name: Publish
-      uses: actions/upload-artifact@v4
+      run: dotnet publish EarthTool.CLI -c Release --no-restore -o dist -r win-x64
+
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
       with:
-        name: EarthTool Release
-        path: dist\EarthTool.*.exe
+        files: dist/EarthTool.*.exe
