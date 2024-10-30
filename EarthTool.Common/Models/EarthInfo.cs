@@ -26,11 +26,11 @@ namespace EarthTool.Common.Models
 
     public byte[] ToByteArray(Encoding encoding)
     {
-      using (var stream = new MemoryStream())
+      using (MemoryStream stream = new())
       {
         if (Flags != FileFlags.None)
         {
-          using (var writer = new BinaryWriter(stream, encoding))
+          using (BinaryWriter writer = new(stream, encoding))
           {
             writer.Write(Identifiers.Info);
             writer.Write((byte)Flags);

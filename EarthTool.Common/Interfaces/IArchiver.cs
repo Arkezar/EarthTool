@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace EarthTool.Common.Interfaces
+﻿namespace EarthTool.Common.Interfaces
 {
   public interface IArchiver
   {

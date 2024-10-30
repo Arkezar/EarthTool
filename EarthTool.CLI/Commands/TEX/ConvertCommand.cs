@@ -61,10 +61,11 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
     }
   }
 
-  protected override async Task InternalExecuteAsync(string filePath, Settings settings)
+  protected override Task InternalExecuteAsync(string filePath, Settings settings)
   {
     var texFile = _reader.Read(filePath);
     SaveTex(filePath, texFile, settings);
+    return Task.CompletedTask;
   }
 
   private void SaveTex(string filePath, ITexFile texFile, Settings settings)

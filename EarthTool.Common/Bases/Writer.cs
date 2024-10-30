@@ -7,7 +7,7 @@ namespace EarthTool.Common.Bases
   public abstract class Writer<T> : IWriter<T>
   {
     public abstract FileType OutputFileExtension { get; }
-    
+
     public string Write(T data, string filePath)
     {
       var outputFolder = Path.GetDirectoryName(filePath);

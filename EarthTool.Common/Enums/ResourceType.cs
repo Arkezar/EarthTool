@@ -3,13 +3,13 @@
   public enum ResourceType
   {
     None,
-    Interface         = 0x49,
-    MainInterface     = 0xff,
-    Map               = 0x4c,
-    MapAssets         = 0x4d,
-    Parameters        = 0x99,
-    Terrain           = 0x54,
-    Asset             = 0x01,
+    Interface     = 0x49,
+    MainInterface = 0xff,
+    Map           = 0x4c,
+    MapAssets     = 0x4d,
+    Parameters    = 0x99,
+    Terrain       = 0x54,
+    Asset         = 0x01,
 
     TankScript        = 0x02,
     SapperScript      = 0x03,
@@ -24,6 +24,6 @@
     CampaignScript    = 0x0c,
     PlayerScript      = 0x0d,
     MissionScript     = 0x0e,
-    TransporterScript = 0x10,
+    TransporterScript = 0x10
   }
 }
