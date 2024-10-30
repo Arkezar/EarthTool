@@ -27,4 +27,9 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
     - name: Build
-      run: dotnet build --no-restore
+      run: dotnet publish EarthTool.CLI -c Release -p:PublishSingleFile=true -r win-x64 --output %appveyor_build_folder%\dist
+    - name: Publish
+      uses: actions/upload-artifact@v4
+      with:
+        name: EarthTool Release
+        path: dist\EarthTool.*.exe
