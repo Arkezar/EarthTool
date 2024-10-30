@@ -27,7 +27,7 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
     - name: Build
-      run: dotnet publish EarthTool.CLI -c Release -p:PublishSingleFile=true -r win-x64 --output dist
+      run: dotnet publish EarthTool.CLI -c Release --no-restore -o dist -r win-x64
     - name: Publish
       uses: actions/upload-artifact@v4
       with:
