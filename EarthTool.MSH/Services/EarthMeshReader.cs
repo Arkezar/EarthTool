@@ -2,6 +2,7 @@
 using EarthTool.Common.Bases;
 using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
+using EarthTool.Common.Models;
 using EarthTool.MSH.Enums;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
@@ -64,7 +65,7 @@ namespace EarthTool.MSH.Services
     private IDynamicPart LoadEffect(BinaryReader reader)
       => new DynamicPart
       {
-        LightType = (LightType)reader.ReadInt32(), 
+        LightType = (LightType)reader.ReadInt32(),
         SpriteStartIndex = reader.ReadInt32(),
         SpriteAnimationLength = reader.ReadInt32(),
         SpriteSheetVertical = reader.ReadInt32(),
@@ -72,20 +73,16 @@ namespace EarthTool.MSH.Services
         Framerate = reader.ReadInt32(),
         TextureSplitRatioVertical = reader.ReadSingle(),
         TextureSplitRatioHorizontal = reader.ReadSingle(),
-        Size1 = new Size()
-        {
-          X1 = reader.ReadSingle(),
-          X2 = reader.ReadSingle(),
-          Y1 = reader.ReadSingle(),
-          Y2 = reader.ReadSingle()
-        },
-        Size2 = new Size()
-        {
-          X1 = reader.ReadSingle(),
-          X2 = reader.ReadSingle(),
-          Y1 = reader.ReadSingle(),
-          Y2 = reader.ReadSingle()
-        },
+        Size1 =
+          new Size()
+          {
+            X1 = reader.ReadSingle(), X2 = reader.ReadSingle(), Y1 = reader.ReadSingle(), Y2 = reader.ReadSingle()
+          },
+        Size2 =
+          new Size()
+          {
+            X1 = reader.ReadSingle(), X2 = reader.ReadSingle(), Y1 = reader.ReadSingle(), Y2 = reader.ReadSingle()
+          },
         SizeZ = reader.ReadSingle(),
         Radius = reader.ReadSingle(),
         Unknown = reader.ReadInt32(),
@@ -112,7 +109,7 @@ namespace EarthTool.MSH.Services
 
     private IMesh LoadMesh(BinaryReader reader)
     {
-      var mesh = new EarthMesh();
+      var mesh = new EarthMesh { FileHeader = new EarthInfo() };
       IsValidModel(reader);
       mesh.Descriptor = LoadMeshDescriptor(reader);
       mesh.RootDynamic = LoadEffect(reader);

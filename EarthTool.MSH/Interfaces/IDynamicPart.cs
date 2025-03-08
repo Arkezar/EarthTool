@@ -1,10 +1,11 @@
+using EarthTool.Common.Interfaces;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Numerics;
 
 namespace EarthTool.MSH.Interfaces
 {
-  public interface IDynamicPart
+  public interface IDynamicPart : IBinarySerializable
   {
     LightType LightType { get; }
     int SpriteStartIndex { get; }

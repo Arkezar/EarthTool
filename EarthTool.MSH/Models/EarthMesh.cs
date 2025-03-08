@@ -28,14 +28,14 @@ namespace EarthTool.MSH.Models
         {
           bw.Write(FileHeader.ToByteArray(encoding));
           bw.Write(Identifiers.Mesh);
+          bw.Write(Descriptor.ToByteArray(encoding));
           if (Descriptor.MeshType == MeshType.Model)
           {
-            bw.Write(Descriptor.ToByteArray(encoding));
             bw.Write(Geometries.SelectMany(p => p.ToByteArray(encoding)).ToArray());
           }
           else if (Descriptor.MeshType == MeshType.Dynamic)
           {
-            //TODO: Someday
+            bw.Write(RootDynamic.ToByteArray(encoding));
           }
         }
 
