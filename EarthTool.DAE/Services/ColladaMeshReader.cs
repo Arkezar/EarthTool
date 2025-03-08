@@ -272,7 +272,7 @@ namespace EarthTool.DAE.Services
     {
       return new MeshDescriptor()
       {
-        MeshType = MeshType.Regular, // dynamic not supported yet
+        MeshType = MeshType.Model, // dynamic not supported yet
         RegularMeshSubType = MeshSubType.Unit,
         Frames = LoadFrames(model),
         SpotLights = LoadSpotLights(model),

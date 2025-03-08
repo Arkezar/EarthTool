@@ -6,7 +6,7 @@ namespace EarthTool.MSH.Interfaces
 {
   public enum MeshType
   {
-    Regular = 0,
+    Model = 0,
     Dynamic = 1
   }
 }

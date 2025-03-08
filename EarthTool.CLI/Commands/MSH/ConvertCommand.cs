@@ -37,6 +37,12 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
     {
       var model = _meshReader.Read(inputFilePath);
 
+      if (model.Descriptor.MeshType == MeshType.Dynamic)
+      {
+        AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, string.Join('|', model.RootDynamic.SubMeshes.Select(m => m.RootDynamic.Position2).Append(model.RootDynamic.Position2)));
+        // AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, model.RootEffect.UnknownFloats1.Last());
+      }
+      
       //Part Types
       // AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, string.Join('|', model.Geometries.Select(g => g.PartType)));
     }

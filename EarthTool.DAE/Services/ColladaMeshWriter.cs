@@ -3,6 +3,7 @@ using EarthTool.Common.Bases;
 using EarthTool.Common.Enums;
 using EarthTool.DAE.Elements;
 using EarthTool.MSH.Interfaces;
+using System;
 using System.IO;
 using System.Xml.Serialization;
 
@@ -30,6 +31,10 @@ namespace EarthTool.DAE.Services
     
     private void WriteColladaModel(IMesh model, string modelName, string outputFile)
     {
+      if (model.Descriptor.MeshType == MeshType.Dynamic)
+      {
+        throw new NotSupportedException("Dynamic mesh conversion is not supported");
+      }
       var colladaModel = _modelFactory.GetColladaModel(model, modelName);
       var serializer = new XmlSerializer(typeof(COLLADA));
       using (var stream = new FileStream(outputFile, FileMode.Create))

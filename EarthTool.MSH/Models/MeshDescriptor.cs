@@ -32,10 +32,10 @@ namespace EarthTool.MSH.Models
 
     public MeshSubType? RegularMeshSubType
     {
-      get => MeshType == MeshType.Regular ? (MeshSubType?)MeshSubType : null;
+      get => MeshType == MeshType.Model ? (MeshSubType?)MeshSubType : null;
       set
       {
-        if (MeshType == MeshType.Regular)
+        if (MeshType == MeshType.Model)
         {
           MeshSubType = value.HasValue ? (int)value.Value : 0;
         }

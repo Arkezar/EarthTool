@@ -14,6 +14,13 @@
         "Logging:LogLevel:Default": "Information"
       }
     },
+    "EarthTool - Analyze All Meshes": {
+      "commandName": "Project",
+      "commandLineArgs": "msh --analyze -o %HOME%/earthwork/Meshes_decoded %HOME%/earthwork/WDFiles_extracted/meshes/*.msh",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
     "EarthTool - Unpack All Textures": {
       "commandName": "Project",
       "commandLineArgs": "tex -o %HOME%/earthwork/Textures_unpacked %HOME%/earthwork/WDFiles_extracted/Textures/*.tex",
@@ -52,6 +59,20 @@
     "EarthTool - Decode Mesh": {
       "commandName": "Project",
       "commandLineArgs": "msh -o %HOME%/earthwork/Meshes_decoded_work %HOME%/earthwork/WDFiles_extracted/meshes/LCULU1.msh",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - Decode Effect Mesh": {
+      "commandName": "Project",
+      "commandLineArgs": "msh -o %HOME%/earthwork/Meshes_decoded_work %HOME%/earthwork/WDFiles_extracted/meshes/PYEXP_AT_MUSHROOM.msh",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - Analyze Effect Mesh": {
+      "commandName": "Project",
+      "commandLineArgs": "msh --analyze -o %HOME%/earthwork/Meshes_decoded_work %HOME%/earthwork/WDFiles_extracted/meshes/PYEXP_AT_MUSHROOM.msh",
       "environmentVariables": {
         "Logging:LogLevel:Default": "Information"
       }

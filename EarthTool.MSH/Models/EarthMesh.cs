@@ -1,9 +1,6 @@
 ﻿using EarthTool.Common;
-using EarthTool.Common.Extensions;
 using EarthTool.Common.Interfaces;
-using EarthTool.Common.Models;
 using EarthTool.MSH.Interfaces;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -21,6 +18,8 @@ namespace EarthTool.MSH.Models
 
     public PartNode PartsTree { get; set; }
 
+    public IDynamicPart RootDynamic { get; set; }
+
     public byte[] ToByteArray(Encoding encoding)
     {
       using (var output = new MemoryStream())
@@ -29,9 +28,17 @@ namespace EarthTool.MSH.Models
         {
           bw.Write(FileHeader.ToByteArray(encoding));
           bw.Write(Identifiers.Mesh);
-          bw.Write(Descriptor.ToByteArray(encoding));
-          bw.Write(Geometries.SelectMany(p => p.ToByteArray(encoding)).ToArray());
+          if (Descriptor.MeshType == MeshType.Model)
+          {
+            bw.Write(Descriptor.ToByteArray(encoding));
+            bw.Write(Geometries.SelectMany(p => p.ToByteArray(encoding)).ToArray());
+          }
+          else if (Descriptor.MeshType == MeshType.Dynamic)
+          {
+            //TODO: Someday
+          }
         }
+
         return output.ToArray().ToArray();
       }
     }

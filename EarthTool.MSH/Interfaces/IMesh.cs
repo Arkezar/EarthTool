@@ -10,5 +10,6 @@ namespace EarthTool.MSH.Interfaces
     IEarthInfo FileHeader { get; }
     IEnumerable<IModelPart> Geometries { get; }
     PartNode PartsTree { get; }
+    IDynamicPart RootDynamic { get; }
   }
 }

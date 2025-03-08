@@ -13,7 +13,10 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Text;
+using Size = EarthTool.MSH.Models.Size;
+using Vector = EarthTool.MSH.Models.Elements.Vector;
 
 namespace EarthTool.MSH.Services
 {
@@ -21,7 +24,7 @@ namespace EarthTool.MSH.Services
   {
     private readonly IEarthInfoFactory _earthInfoFactory;
     private readonly IHierarchyBuilder _hierarchyBuilder;
-    private readonly Encoding _encoding;
+    private readonly Encoding          _encoding;
 
     public EarthMeshReader(IEarthInfoFactory earthInfoFactory, IHierarchyBuilder hierarchyBuilder, Encoding encoding)
     {
@@ -43,17 +46,77 @@ namespace EarthTool.MSH.Services
           IsValidModel(reader);
           mesh.Descriptor = LoadMeshDescriptor(reader);
 
-          if (mesh.Descriptor.MeshType != 0)
+          if (mesh.Descriptor.MeshType == MeshType.Model)
           {
-            throw new NotSupportedException("Not supported mesh format");
+            mesh.Geometries = LoadParts(reader).ToList();
+            mesh.PartsTree = _hierarchyBuilder.GetPartsTree(mesh.Geometries);
           }
-
-          mesh.Geometries = LoadParts(reader).ToList();
-          mesh.PartsTree = _hierarchyBuilder.GetPartsTree(mesh.Geometries);
+          else if (mesh.Descriptor.MeshType == MeshType.Dynamic)
+          {
+            mesh.RootDynamic = LoadEffect(reader);
+          }
         }
 
         return mesh;
       }
+    }
+
+    private IDynamicPart LoadEffect(BinaryReader reader)
+      => new DynamicPart
+      {
+        LightType = (LightType)reader.ReadInt32(), 
+        SpriteStartIndex = reader.ReadInt32(),
+        SpriteAnimationLength = reader.ReadInt32(),
+        SpriteSheetVertical = reader.ReadInt32(),
+        SpriteSheetHorizontal = reader.ReadInt32(),
+        Framerate = reader.ReadInt32(),
+        TextureSplitRatioVertical = reader.ReadSingle(),
+        TextureSplitRatioHorizontal = reader.ReadSingle(),
+        Size1 = new Size()
+        {
+          X1 = reader.ReadSingle(),
+          X2 = reader.ReadSingle(),
+          Y1 = reader.ReadSingle(),
+          Y2 = reader.ReadSingle()
+        },
+        Size2 = new Size()
+        {
+          X1 = reader.ReadSingle(),
+          X2 = reader.ReadSingle(),
+          Y1 = reader.ReadSingle(),
+          Y2 = reader.ReadSingle()
+        },
+        SizeZ = reader.ReadSingle(),
+        Radius = reader.ReadSingle(),
+        Unknown = reader.ReadInt32(),
+        Additive = reader.ReadInt32() > 0,
+        LightColor = GetColor(reader),
+        Color = GetColor(reader),
+        ColorIntensity = reader.ReadSingle(),
+        AlphaInt = reader.ReadInt32(),
+        AlphaB = reader.ReadSingle(),
+        AlphaA = reader.ReadSingle(),
+        Scale = new Vector2(reader.ReadSingle(), reader.ReadSingle()),
+        Position1 = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()),
+        Position2 = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()),
+        Model = LoadTextureInfo(reader),
+        Texture = LoadTextureInfo(reader),
+        SubMeshes = LoadSubMeshes(reader)
+      };
+
+    private IEnumerable<IMesh> LoadSubMeshes(BinaryReader reader)
+    {
+      var count = reader.ReadInt32();
+      return Enumerable.Range(0, count).Select(_ => LoadMesh(reader)).ToArray();
+    }
+
+    private IMesh LoadMesh(BinaryReader reader)
+    {
+      var mesh = new EarthMesh();
+      IsValidModel(reader);
+      mesh.Descriptor = LoadMeshDescriptor(reader);
+      mesh.RootDynamic = LoadEffect(reader);
+      return mesh;
     }
 
     #region Descriptor
@@ -99,9 +162,9 @@ namespace EarthTool.MSH.Services
 
     private ISlot LoadSlot(BinaryReader reader, int id)
     {
-      var x = reader.ReadInt16() / 255f;
+      var x = reader.ReadInt16()  / 255f;
       var y = -reader.ReadInt16() / 255f;
-      var z = reader.ReadInt16() / 255f;
+      var z = reader.ReadInt16()  / 255f;
       var result = new Slot()
       {
         Id = id,
@@ -349,7 +412,8 @@ namespace EarthTool.MSH.Services
 
         var u1 = BitConverter.ToInt16(vertexData, i * sizeof(short) + 0x90);
         var u2 = BitConverter.ToInt16(vertexData, i * sizeof(short) + 0x98);
-        yield return new Vertex(new Vector(x, y, z), new Vector(normalX, normalY, normalZ), new TextureCoordinate(u, v), u1, u2);
+        yield return new Vertex(new Vector(x, y, z), new Vector(normalX, normalY, normalZ), new TextureCoordinate(u, v),
+          u1, u2);
       }
     }
 
