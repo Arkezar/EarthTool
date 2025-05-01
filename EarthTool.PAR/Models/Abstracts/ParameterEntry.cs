@@ -8,6 +8,11 @@ namespace EarthTool.PAR.Models.Abstracts
     {
       return data.ReadInt32();
     }
+    
+    protected uint GetUnsignedInteger(BinaryReader data)
+    {
+      return data.ReadUInt32();
+    }
 
     protected string GetString(BinaryReader data)
     {
