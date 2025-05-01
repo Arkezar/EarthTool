@@ -16,7 +16,7 @@ namespace EarthTool.PAR.Models
     public Repairer(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      RepairerFlags = GetInteger(data);
+      RepairerCapabilities = (RepairerCapabilities)GetInteger(data);
       RepairHPPerTick = GetInteger(data);
       RepairElectronicsPerTick = GetInteger(data);
       TicksPerRepair = GetInteger(data);
@@ -47,7 +47,7 @@ namespace EarthTool.PAR.Models
       AnimRepaintEndEnd = GetInteger(data);
     }
 
-    public int RepairerFlags { get; set; }
+    public RepairerCapabilities RepairerCapabilities { get; set; }
 
     public int RepairHPPerTick { get; set; }
 
@@ -108,37 +108,38 @@ namespace EarthTool.PAR.Models
     [JsonIgnore]
     public override IEnumerable<bool> FieldTypes
     {
-      get => base.FieldTypes.Concat(IsStringMember(
-        () => RepairerFlags,
-        () => RepairHPPerTick,
-        () => RepairElectronicsPerTick,
-        () => TicksPerRepair,
-        () => ConvertTankTime,
-        () => ConvertBuildingTime,
-        () => ConvertHealthyTankTime,
-        () => ConvertHealthyBuildingTime,
-        () => RepaintTankTime,
-        () => RepaintBuildingTime,
-        () => UpgradeTankTime,
-        () => AnimRepairStartStart,
-        () => AnimRepairStartEnd,
-        () => AnimRepairWorkStart,
-        () => AnimRepairWorkEnd,
-        () => AnimRepairEndStart,
-        () => AnimRepairEndEnd,
-        () => AnimConvertStartStart,
-        () => AnimConvertStartEnd,
-        () => AnimConvertWorkStart,
-        () => AnimConvertWorkEnd,
-        () => AnimConvertEndStart,
-        () => AnimConvertEndEnd,
-        () => AnimRepaintStartStart,
-        () => AnimRepaintStartEnd,
-        () => AnimRepaintWorkStart,
-        () => AnimRepaintWorkEnd,
-        () => AnimRepaintEndStart,
-        () => AnimRepaintEndEnd
-      ));
+      get
+        => base.FieldTypes.Concat(IsStringMember(
+          () => RepairerCapabilities,
+          () => RepairHPPerTick,
+          () => RepairElectronicsPerTick,
+          () => TicksPerRepair,
+          () => ConvertTankTime,
+          () => ConvertBuildingTime,
+          () => ConvertHealthyTankTime,
+          () => ConvertHealthyBuildingTime,
+          () => RepaintTankTime,
+          () => RepaintBuildingTime,
+          () => UpgradeTankTime,
+          () => AnimRepairStartStart,
+          () => AnimRepairStartEnd,
+          () => AnimRepairWorkStart,
+          () => AnimRepairWorkEnd,
+          () => AnimRepairEndStart,
+          () => AnimRepairEndEnd,
+          () => AnimConvertStartStart,
+          () => AnimConvertStartEnd,
+          () => AnimConvertWorkStart,
+          () => AnimConvertWorkEnd,
+          () => AnimConvertEndStart,
+          () => AnimConvertEndEnd,
+          () => AnimRepaintStartStart,
+          () => AnimRepaintStartEnd,
+          () => AnimRepaintWorkStart,
+          () => AnimRepaintWorkEnd,
+          () => AnimRepaintEndStart,
+          () => AnimRepaintEndEnd
+        ));
       set => base.FieldTypes = value;
     }
 
@@ -149,7 +150,7 @@ namespace EarthTool.PAR.Models
         using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
-          bw.Write(RepairerFlags);
+          bw.Write((int)RepairerCapabilities);
           bw.Write(RepairHPPerTick);
           bw.Write(RepairElectronicsPerTick);
           bw.Write(TicksPerRepair);
