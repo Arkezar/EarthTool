@@ -3,18 +3,48 @@
         xmlns:vm="using:EarthTool.PAR.GUI.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="clr-namespace:EarthTool.PAR.GUI.Views"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="EarthTool.PAR.GUI.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="EarthTool.PAR.GUI">
+        Title="{Binding Title}"
+        Width="1280" Height="800">
 
     <Design.DataContext>
         <!-- This only sets the DataContext for the previewer in an IDE,
              to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-        <vm:MainWindowViewModel/>
+        <vm:MainWindowViewModel />
     </Design.DataContext>
 
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"></RowDefinition>
+            <RowDefinition Height="*"></RowDefinition>
+            <RowDefinition Height="Auto"></RowDefinition>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"></ColumnDefinition>
+            <ColumnDefinition Width="*"></ColumnDefinition>
+        </Grid.ColumnDefinitions>
 
+        <DockPanel Grid.Row="0" DockPanel.Dock="Top">
+            <Menu>
+                <MenuItem Header="_File">
+                    <MenuItem Header="_Open..." Command="{Binding OpenFileCommand}" />
+                    <Separator />
+                    <MenuItem Header="_Exit" />
+                </MenuItem>
+            </Menu>
+        </DockPanel>
+
+        <TreeDataGrid Grid.Row="1" Grid.Column="0" Source="{Binding ParameterTree}" Margin="10" />
+        <StackPanel Grid.Row="1" Grid.Column="1" Margin="10">
+            <views:EntityDetailsView Grid.Row="1" Grid.Column="1" DataContext="{Binding SelectedItem}" />
+        </StackPanel>
+
+        <DockPanel Grid.Row="2" Dock="Bottom">
+            <Label Content="{Binding TotalEntities}"></Label>
+        </DockPanel>
+    </Grid>
 </Window>
