@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:EarthTool.PAR.Models"
+             x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.SpecialUpdateLinkTemplate"
+             x:DataType="local:SpecialUpdateLink">
+    <ScrollViewer>
+        <StackPanel Margin="10">
+            <Label Content="Special Update Link Details:" FontWeight="Bold" FontSize="16" />
+            
+            <Label Content="Name:" />
+            <TextBox Text="{Binding Name}" />
+            
+            <Label Content="Value:" />
+            <TextBox Text="{Binding Value}" />
+            
+            <!-- Z Entity -->
+            <Label Content="Required Research:" />
+            <TextBox Text="{Binding RequiredResearch}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

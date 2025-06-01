@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:EarthTool.PAR.Models"
+             x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.SoundPackTemplate"
+             x:DataType="local:SoundPack">
+    <ScrollViewer>
+        <StackPanel Margin="10">
+            <Label Content="Sound Pack Details:" FontWeight="Bold" FontSize="16" />
+            
+            <Label Content="Name:" />
+            <TextBox Text="{Binding Name}" />
+            
+            <Label Content="Normal Wave Pack 1:" />
+            <TextBox Text="{Binding NormalWavePack1}" />
+            
+            <Label Content="Normal Wave Pack 2:" />
+            <TextBox Text="{Binding NormalWavePack2}" />
+            
+            <Label Content="Normal Wave Pack 3:" />
+            <TextBox Text="{Binding NormalWavePack3}" />
+            
+            <Label Content="Normal Wave Pack 4:" />
+            <TextBox Text="{Binding NormalWavePack4}" />
+            
+            <Label Content="Looped Wave Pack 1:" />
+            <TextBox Text="{Binding LoopedWavePack1}" />
+            
+            <Label Content="Looped Wave Pack 2:" />
+            <TextBox Text="{Binding LoopedWavePack2}" />
+            
+            <Label Content="Looped Wave Pack 3:" />
+            <TextBox Text="{Binding LoopedWavePack3}" />
+            
+            <Label Content="Looped Wave Pack 4:" />
+            <TextBox Text="{Binding LoopedWavePack4}" />
+            
+            <!-- Z Entity -->
+            <Label Content="Required Research:" />
+            <ItemsControl ItemsSource="{Binding RequiredResearch}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBox Text="{Binding}" Margin="2" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,41 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:EarthTool.PAR.Models"
+             x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.ResearchTemplate"
+             x:DataType="local:Research">
+    <StackPanel>
+        <Label Content="Research Details:" FontWeight="Bold" />
+        <Label Content="Id:" />
+        <TextBox Text="{Binding Id}" />
+        <Label Content="Name:" />
+        <TextBox Text="{Binding Name}" />
+        <Label Content="Type:" />
+        <TextBox Text="{Binding Type}" />
+        <Label Content="Campaign Cost:" />
+        <TextBox Text="{Binding CampaignCost}" />
+        <Label Content="Campaign Time:" />
+        <TextBox Text="{Binding CampaignTime}" />
+        <Label Content="Skirmish Cost:" />
+        <TextBox Text="{Binding SkirmishCost}" />
+        <Label Content="Skirmish Time:" />
+        <TextBox Text="{Binding SkirmishTime}" />
+        <Label Content="Video:" />
+        <TextBox Text="{Binding Video}" />
+        <Label Content="Mesh:" />
+        <TextBox Text="{Binding Mesh}" />
+        <Label Content="Mesh Params Index:" />
+        <TextBox Text="{Binding MeshParamsIndex}" />
+        
+        <Label Content="Faction:" />
+        <TextBox Text="{Binding Faction}" />
+
+        <Label Content="Required Research:" />
+        <ItemsControl ItemsSource="{Binding RequiredResearch}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <TextBox Text="{Binding}" Margin="2" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

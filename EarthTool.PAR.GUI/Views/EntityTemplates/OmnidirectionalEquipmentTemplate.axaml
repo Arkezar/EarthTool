@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:EarthTool.PAR.Models"
+             x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.OmnidirectionalEquipmentTemplate"
+             x:DataType="local:OmnidirectionalEquipment">
+    <ScrollViewer>
+        <StackPanel Margin="10">
+            <Label Content="Omnidirectional Equipment Details:" FontWeight="Bold" FontSize="16" />
+            
+            <Label Content="Name:" />
+            <TextBox Text="{Binding Name}" />
+            
+            <Label Content="Range Of Sight:" />
+            <TextBox Text="{Binding RangeOfSight}" />
+            
+            <Label Content="Plug Type:" />
+            <TextBox Text="{Binding PlugType}" />
+            
+            <Label Content="Slot Type:" />
+            <TextBox Text="{Binding SlotType}" />
+            
+            <Label Content="Max Alpha Per Tick:" />
+            <TextBox Text="{Binding MaxAlphaPerTick}" />
+            
+            <Label Content="Max Beta Per Tick:" />
+            <TextBox Text="{Binding MaxBetaPerTick}" />
+            
+            <Label Content="Look Round Type Mask:" />
+            <TextBox Text="{Binding LookRoundTypeMask}" />
+            
+            <Label Content="Look Round Range:" />
+            <TextBox Text="{Binding LookRoundRange}" />
+            
+            <Label Content="Turn Speed:" />
+            <TextBox Text="{Binding TurnSpeed}" />
+            
+            <Label Content="Banner Add Experience Level:" />
+            <TextBox Text="{Binding BannerAddExperienceLevel}" />
+            
+            <Label Content="Regeneration HP Multiple:" />
+            <TextBox Text="{Binding RegenerationHPMultiple}" />
+            
+            <Label Content="Shield Reload Add:" />
+            <TextBox Text="{Binding ShieldReloadAdd}" />
+            
+            <!-- From InteractableEntity -->
+            <Label Content="Mesh:" />
+            <TextBox Text="{Binding Mesh}" />
+
+            <Label Content="Shadow Type:" />
+            <TextBox Text="{Binding ShadowType}" />
+
+            <Label Content="View Params Index:" />
+            <TextBox Text="{Binding ViewParamsIndex}" />
+
+            <Label Content="Cost:" />
+            <TextBox Text="{Binding Cost}" />
+
+            <Label Content="Time Of Build:" />
+            <TextBox Text="{Binding TimeOfBuild}" />
+
+            <Label Content="Sound Pack Id:" />
+            <TextBox Text="{Binding SoundPackId}" />
+
+            <Label Content="Smoke Id:" />
+            <TextBox Text="{Binding SmokeId}" />
+
+            <Label Content="Kill Explosion Id:" />
+            <TextBox Text="{Binding KillExplosionId}" />
+
+            <Label Content="Destructed Id:" />
+            <TextBox Text="{Binding DestructedId}" />
+
+            <!-- From Entity -->
+            <Label Content="Class Id:" />
+            <TextBox Text="{Binding ClassId}" />
+
+            <Label Content="Required Research:" />
+            <ItemsControl ItemsSource="{Binding RequiredResearch}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBox Text="{Binding}" Margin="2" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

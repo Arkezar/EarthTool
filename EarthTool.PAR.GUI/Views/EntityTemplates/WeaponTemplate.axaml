@@ -1,0 +1,113 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:EarthTool.PAR.Models"
+             x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.WeaponTemplate"
+             x:DataType="local:Weapon">
+    <ScrollViewer>
+        <StackPanel Margin="10">
+            <Label Content="Weapon Details:" FontWeight="Bold" FontSize="16" />
+            
+            <Label Content="Name:" />
+            <TextBox Text="{Binding Name}" />
+            
+            <Label Content="Range Of Sight:" />
+            <TextBox Text="{Binding RangeOfSight}" />
+            
+            <Label Content="Plug Type:" />
+            <TextBox Text="{Binding PlugType}" />
+            
+            <Label Content="Slot Type:" />
+            <TextBox Text="{Binding SlotType}" />
+            
+            <Label Content="Max Alpha Per Tick:" />
+            <TextBox Text="{Binding MaxAlphaPerTick}" />
+            
+            <Label Content="Max Beta Per Tick:" />
+            <TextBox Text="{Binding MaxBetaPerTick}" />
+            
+            <Label Content="Alpha Margin:" />
+            <TextBox Text="{Binding AlphaMargin}" />
+            
+            <Label Content="Beta Margin:" />
+            <TextBox Text="{Binding BetaMargin}" />
+            
+            <Label Content="Barrel Beta Type:" />
+            <TextBox Text="{Binding BarrelBetaType}" />
+            
+            <Label Content="Barrel Beta Angle:" />
+            <TextBox Text="{Binding BarrelBetaAngle}" />
+            
+            <Label Content="Barrel Count:" />
+            <TextBox Text="{Binding BarrelCount}" />
+            
+            <Label Content="Ammo Id:" />
+            <TextBox Text="{Binding AmmoId}" />
+            
+            <Label Content="Ammo Type:" />
+            <TextBox Text="{Binding AmmoType}" />
+            
+            <Label Content="Target Type:" />
+            <TextBox Text="{Binding TargetType}" />
+            
+            <Label Content="Range Of Fire:" />
+            <TextBox Text="{Binding RangeOfFire}" />
+            
+            <Label Content="Plus Damage:" />
+            <TextBox Text="{Binding PlusDamage}" />
+            
+            <Label Content="Fire Type:" />
+            <TextBox Text="{Binding FireType}" />
+            
+            <Label Content="Shoot Delay:" />
+            <TextBox Text="{Binding ShootDelay}" />
+            
+            <Label Content="Need External:" />
+            <TextBox Text="{Binding NeedExternal}" />
+            
+            <Label Content="Reload Delay:" />
+            <TextBox Text="{Binding ReloadDelay}" />
+            
+            <Label Content="Max Ammo:" />
+            <TextBox Text="{Binding MaxAmmo}" />
+            
+            <Label Content="Barrel Explosion Id:" />
+            <TextBox Text="{Binding BarrelExplosionId}" />
+            
+            <!-- Z InteractableEntity -->
+            <Label Content="Mesh:" />
+            <TextBox Text="{Binding Mesh}" />
+            
+            <Label Content="Shadow Type:" />
+            <TextBox Text="{Binding ShadowType}" />
+            
+            <Label Content="View Params Index:" />
+            <TextBox Text="{Binding ViewParamsIndex}" />
+            
+            <Label Content="Cost:" />
+            <TextBox Text="{Binding Cost}" />
+            
+            <Label Content="Time Of Build:" />
+            <TextBox Text="{Binding TimeOfBuild}" />
+            
+            <Label Content="Sound Pack Id:" />
+            <TextBox Text="{Binding SoundPackId}" />
+            
+            <Label Content="Smoke Id:" />
+            <TextBox Text="{Binding SmokeId}" />
+            
+            <Label Content="Kill Explosion Id:" />
+            <TextBox Text="{Binding KillExplosionId}" />
+            
+            <Label Content="Destructed Id:" />
+            <TextBox Text="{Binding DestructedId}" />
+            
+            <!-- Z TypedEntity -->
+            <Label Content="Class Id:" />
+            <TextBox Text="{Binding ClassId}" />
+            
+            <!-- Z Entity -->
+            <Label Content="Required Research:" />
+            <TextBox Text="{Binding RequiredResearch}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

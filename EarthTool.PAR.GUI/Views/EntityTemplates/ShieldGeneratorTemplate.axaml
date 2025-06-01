@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:EarthTool.PAR.Models"
+             x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.ShieldGeneratorTemplate"
+             x:DataType="local:ShieldGenerator">
+    <ScrollViewer>
+        <StackPanel Margin="10">
+            <Label Content="Shield Generator Details:" FontWeight="Bold" FontSize="16" />
+            
+            <Label Content="Name:" />
+            <TextBox Text="{Binding Name}" />
+            
+            <Label Content="Shield Cost:" />
+            <TextBox Text="{Binding ShieldCost}" />
+            
+            <Label Content="Shield Value:" />
+            <TextBox Text="{Binding ShieldValue}" />
+            
+            <Label Content="Reload Time:" />
+            <TextBox Text="{Binding ReloadTime}" />
+            
+            <Label Content="Shield Mesh Name:" />
+            <TextBox Text="{Binding ShieldMeshName}" />
+            
+            <Label Content="Shield Mesh View Index:" />
+            <TextBox Text="{Binding ShieldMeshViewIndex}" />
+            
+            <!-- Z Entity -->
+            <Label Content="Required Research:" />
+            <TextBox Text="{Binding RequiredResearch}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

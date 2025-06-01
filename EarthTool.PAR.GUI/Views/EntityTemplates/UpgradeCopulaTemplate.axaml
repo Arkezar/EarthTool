@@ -1,0 +1,65 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:EarthTool.PAR.Models"
+             x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.UpgradeCopulaTemplate"
+             x:DataType="local:UpgradeCopula">
+    <ScrollViewer>
+        <StackPanel Margin="10">
+            <Label Content="Upgrade Copula Details:" FontWeight="Bold" FontSize="16" />
+            
+            <Label Content="Name:" />
+            <TextBox Text="{Binding Name}" />
+            
+            <Label Content="Range Of Sight:" />
+            <TextBox Text="{Binding RangeOfSight}" />
+            
+            <Label Content="Plug Type:" />
+            <TextBox Text="{Binding PlugType}" />
+            
+            <Label Content="Slot Type:" />
+            <TextBox Text="{Binding SlotType}" />
+            
+            <Label Content="Max Alpha Per Tick:" />
+            <TextBox Text="{Binding MaxAlphaPerTick}" />
+            
+            <Label Content="Max Beta Per Tick:" />
+            <TextBox Text="{Binding MaxBetaPerTick}" />
+            
+            <!-- Z InteractableEntity -->
+            <Label Content="Mesh:" />
+            <TextBox Text="{Binding Mesh}" />
+            
+            <Label Content="Shadow Type:" />
+            <TextBox Text="{Binding ShadowType}" />
+            
+            <Label Content="View Params Index:" />
+            <TextBox Text="{Binding ViewParamsIndex}" />
+            
+            <Label Content="Cost:" />
+            <TextBox Text="{Binding Cost}" />
+            
+            <Label Content="Time Of Build:" />
+            <TextBox Text="{Binding TimeOfBuild}" />
+            
+            <Label Content="Sound Pack Id:" />
+            <TextBox Text="{Binding SoundPackId}" />
+            
+            <Label Content="Smoke Id:" />
+            <TextBox Text="{Binding SmokeId}" />
+            
+            <Label Content="Kill Explosion Id:" />
+            <TextBox Text="{Binding KillExplosionId}" />
+            
+            <Label Content="Destructed Id:" />
+            <TextBox Text="{Binding DestructedId}" />
+            
+            <!-- Z TypedEntity -->
+            <Label Content="Class Id:" />
+            <TextBox Text="{Binding ClassId}" />
+            
+            <!-- Z Entity -->
+            <Label Content="Required Research:" />
+            <TextBox Text="{Binding RequiredResearch}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

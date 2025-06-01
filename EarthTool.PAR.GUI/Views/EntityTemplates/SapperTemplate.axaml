@@ -1,0 +1,162 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:EarthTool.PAR.Models"
+             x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.SapperTemplate"
+             x:DataType="local:Sapper">
+    <ScrollViewer>
+        <StackPanel Margin="10">
+            <Label Content="Sapper Details:" FontWeight="Bold" FontSize="16" />
+            
+            <Label Content="Name:" />
+            <TextBox Text="{Binding Name}" />
+            
+            <Label Content="Mines Look Range:" />
+            <TextBox Text="{Binding MinesLookRange}" />
+            
+            <Label Content="Mine Id:" />
+            <TextBox Text="{Binding MineId}" />
+            
+            <Label Content="Max Mines Count:" />
+            <TextBox Text="{Binding MaxMinesCount}" />
+            
+            <!-- Animations -->
+            <Label Content="Anim Down Start:" />
+            <TextBox Text="{Binding AnimDownStart}" />
+            
+            <Label Content="Anim Down End:" />
+            <TextBox Text="{Binding AnimDownEnd}" />
+            
+            <Label Content="Anim Up Start:" />
+            <TextBox Text="{Binding AnimUpStart}" />
+            
+            <Label Content="Anim Up End:" />
+            <TextBox Text="{Binding AnimUpEnd}" />
+            
+            <Label Content="Put Mine Smoke Id:" />
+            <TextBox Text="{Binding PutMineSmokeId}" />
+            
+            <!-- Z Vehicle -->
+            <Label Content="Soil Speed:" />
+            <TextBox Text="{Binding SoilSpeed}" />
+            
+            <Label Content="Road Speed:" />
+            <TextBox Text="{Binding RoadSpeed}" />
+            
+            <Label Content="Sand Speed:" />
+            <TextBox Text="{Binding SandSpeed}" />
+            
+            <Label Content="Bank Speed:" />
+            <TextBox Text="{Binding BankSpeed}" />
+            
+            <Label Content="Water Speed:" />
+            <TextBox Text="{Binding WaterSpeed}" />
+            
+            <Label Content="Deep Water Speed:" />
+            <TextBox Text="{Binding DeepWaterSpeed}" />
+            
+            <Label Content="Air Speed:" />
+            <TextBox Text="{Binding AirSpeed}" />
+            
+            <Label Content="Object Type:" />
+            <TextBox Text="{Binding ObjectType}" />
+            
+            <Label Content="Engine Smoke Id:" />
+            <TextBox Text="{Binding EngineSmokeId}" />
+            
+            <Label Content="Dust Id:" />
+            <TextBox Text="{Binding DustId}" />
+            
+            <Label Content="Billow Id:" />
+            <TextBox Text="{Binding BillowId}" />
+            
+            <Label Content="Stand Billow Id:" />
+            <TextBox Text="{Binding StandBillowId}" />
+            
+            <Label Content="Track Id:" />
+            <TextBox Text="{Binding TrackId}" />
+            
+            <!-- Z EquipableEntity -->
+            <Label Content="Sight Range:" />
+            <TextBox Text="{Binding SightRange}" />
+            
+            <Label Content="Talk Pack Id:" />
+            <TextBox Text="{Binding TalkPackId}" />
+            
+            <Label Content="Shield Generator Id:" />
+            <TextBox Text="{Binding ShieldGeneratorId}" />
+            
+            <Label Content="Max Shield Update:" />
+            <TextBox Text="{Binding MaxShieldUpdate}" />
+            
+            <Label Content="Slot 1 Type:" />
+            <TextBox Text="{Binding Slot1Type}" />
+            
+            <Label Content="Slot 2 Type:" />
+            <TextBox Text="{Binding Slot2Type}" />
+            
+            <Label Content="Slot 3 Type:" />
+            <TextBox Text="{Binding Slot3Type}" />
+            
+            <Label Content="Slot 4 Type:" />
+            <TextBox Text="{Binding Slot4Type}" />
+            
+            <!-- Z DestructibleEntity -->
+            <Label Content="HP:" />
+            <TextBox Text="{Binding HP}" />
+            
+            <Label Content="HP Regeneration:" />
+            <TextBox Text="{Binding HpRegeneration}" />
+            
+            <Label Content="Armor:" />
+            <TextBox Text="{Binding Armor}" />
+            
+            <Label Content="Calorific Capacity:" />
+            <TextBox Text="{Binding CalorificCapacity}" />
+            
+            <Label Content="Disable Resist:" />
+            <TextBox Text="{Binding DisableResist}" />
+            
+            <Label Content="Storeable Flags:" />
+            <TextBox Text="{Binding StoreableFlags}" />
+            
+            <Label Content="Stand Type:" />
+            <TextBox Text="{Binding StandType}" />
+            
+            <!-- Z InteractableEntity -->
+            <Label Content="Mesh:" />
+            <TextBox Text="{Binding Mesh}" />
+            
+            <Label Content="Shadow Type:" />
+            <TextBox Text="{Binding ShadowType}" />
+            
+            <Label Content="View Params Index:" />
+            <TextBox Text="{Binding ViewParamsIndex}" />
+            
+            <Label Content="Cost:" />
+            <TextBox Text="{Binding Cost}" />
+            
+            <Label Content="Time Of Build:" />
+            <TextBox Text="{Binding TimeOfBuild}" />
+            
+            <Label Content="Sound Pack Id:" />
+            <TextBox Text="{Binding SoundPackId}" />
+            
+            <Label Content="Smoke Id:" />
+            <TextBox Text="{Binding SmokeId}" />
+            
+            <Label Content="Kill Explosion Id:" />
+            <TextBox Text="{Binding KillExplosionId}" />
+            
+            <Label Content="Destructed Id:" />
+            <TextBox Text="{Binding DestructedId}" />
+            
+            <!-- Z TypedEntity -->
+            <Label Content="Class Id:" />
+            <TextBox Text="{Binding ClassId}" />
+            
+            <!-- Z Entity -->
+            <Label Content="Required Research:" />
+            <TextBox Text="{Binding RequiredResearch}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

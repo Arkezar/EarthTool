@@ -1,0 +1,138 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:EarthTool.PAR.Models"
+             x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.MultiExplosionTemplate"
+             x:DataType="local:MultiExplosion">
+    <ScrollViewer>
+        <StackPanel Margin="10">
+            <Label Content="Multi Explosion Details:" FontWeight="Bold" FontSize="16" />
+            
+            <Label Content="Name:" />
+            <TextBox Text="{Binding Name}" />
+            
+            <Label Content="Use Down Building:" />
+            <TextBox Text="{Binding UseDownBuilding}" />
+            
+            <Label Content="Down Building Start:" />
+            <TextBox Text="{Binding DownBuildingStart}" />
+            
+            <Label Content="Down Building Time:" />
+            <TextBox Text="{Binding DownBuildingTime}" />
+            
+            <!-- Sub Objects 1-4 -->
+            <Label Content="Sub Object 1:" />
+            <TextBox Text="{Binding SubObject1}" />
+            <Label Content="Time 1:" />
+            <TextBox Text="{Binding Time1}" />
+            <Label Content="Angle 1:" />
+            <TextBox Text="{Binding Angle1}" />
+            <Label Content="Dist 4X 1:" />
+            <TextBox Text="{Binding Dist4X1}" />
+            
+            <Label Content="Sub Object 2:" />
+            <TextBox Text="{Binding SubObject2}" />
+            <Label Content="Time 2:" />
+            <TextBox Text="{Binding Time2}" />
+            <Label Content="Angle 2:" />
+            <TextBox Text="{Binding Angle2}" />
+            <Label Content="Dist 4X 2:" />
+            <TextBox Text="{Binding Dist4X2}" />
+            
+            <Label Content="Sub Object 3:" />
+            <TextBox Text="{Binding SubObject3}" />
+            <Label Content="Time 3:" />
+            <TextBox Text="{Binding Time3}" />
+            <Label Content="Angle 3:" />
+            <TextBox Text="{Binding Angle3}" />
+            <Label Content="Dist 4X 3:" />
+            <TextBox Text="{Binding Dist4X3}" />
+            
+            <Label Content="Sub Object 4:" />
+            <TextBox Text="{Binding SubObject4}" />
+            <Label Content="Time 4:" />
+            <TextBox Text="{Binding Time4}" />
+            <Label Content="Angle 4:" />
+            <TextBox Text="{Binding Angle4}" />
+            <Label Content="Dist 4X 4:" />
+            <TextBox Text="{Binding Dist4X4}" />
+            
+            <!-- Sub Objects 5-8 -->
+            <Label Content="Sub Object 5:" />
+            <TextBox Text="{Binding SubObject5}" />
+            <Label Content="Time 5:" />
+            <TextBox Text="{Binding Time5}" />
+            <Label Content="Angle 5:" />
+            <TextBox Text="{Binding Angle5}" />
+            <Label Content="Dist 4X 5:" />
+            <TextBox Text="{Binding Dist4X5}" />
+            
+            <Label Content="Sub Object 6:" />
+            <TextBox Text="{Binding SubObject6}" />
+            <Label Content="Time 6:" />
+            <TextBox Text="{Binding Time6}" />
+            <Label Content="Angle 6:" />
+            <TextBox Text="{Binding Angle6}" />
+            <Label Content="Dist 4X 6:" />
+            <TextBox Text="{Binding Dist4X6}" />
+            
+            <Label Content="Sub Object 7:" />
+            <TextBox Text="{Binding SubObject7}" />
+            <Label Content="Time 7:" />
+            <TextBox Text="{Binding Time7}" />
+            <Label Content="Angle 7:" />
+            <TextBox Text="{Binding Angle7}" />
+            <Label Content="Dist 4X 7:" />
+            <TextBox Text="{Binding Dist4X7}" />
+            
+            <Label Content="Sub Object 8:" />
+            <TextBox Text="{Binding SubObject8}" />
+            <Label Content="Time 8:" />
+            <TextBox Text="{Binding Time8}" />
+            <Label Content="Angle 8:" />
+            <TextBox Text="{Binding Angle8}" />
+            <Label Content="Dist 4X 8:" />
+            <TextBox Text="{Binding Dist4X8}" />
+            
+            <!-- From InteractableEntity -->
+            <Label Content="Mesh:" />
+            <TextBox Text="{Binding Mesh}" />
+
+            <Label Content="Shadow Type:" />
+            <TextBox Text="{Binding ShadowType}" />
+
+            <Label Content="View Params Index:" />
+            <TextBox Text="{Binding ViewParamsIndex}" />
+
+            <Label Content="Cost:" />
+            <TextBox Text="{Binding Cost}" />
+
+            <Label Content="Time Of Build:" />
+            <TextBox Text="{Binding TimeOfBuild}" />
+
+            <Label Content="Sound Pack Id:" />
+            <TextBox Text="{Binding SoundPackId}" />
+
+            <Label Content="Smoke Id:" />
+            <TextBox Text="{Binding SmokeId}" />
+
+            <Label Content="Kill Explosion Id:" />
+            <TextBox Text="{Binding KillExplosionId}" />
+
+            <Label Content="Destructed Id:" />
+            <TextBox Text="{Binding DestructedId}" />
+
+            <!-- From Entity -->
+            <Label Content="Class Id:" />
+            <TextBox Text="{Binding ClassId}" />
+
+            <Label Content="Required Research:" />
+            <ItemsControl ItemsSource="{Binding RequiredResearch}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBox Text="{Binding}" Margin="2" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

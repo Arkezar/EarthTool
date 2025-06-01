@@ -1,0 +1,93 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:EarthTool.PAR.Models"
+             x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.ArtifactTemplate"
+             x:DataType="local:Artifact">
+    <ScrollViewer>
+        <StackPanel Margin="10">
+            <Label Content="Artifact Details:" FontWeight="Bold" FontSize="16" />
+            
+            <Label Content="Name:" />
+            <TextBox Text="{Binding Name}" />
+            
+            <Label Content="Artefact Mask:" />
+            <TextBox Text="{Binding ArtefactMask}" />
+            
+            <Label Content="Artefact Param:" />
+            <TextBox Text="{Binding ArtefactParam}" />
+            
+            <Label Content="Respawn Time:" />
+            <TextBox Text="{Binding RespawnTime}" />
+            
+            <!-- From PassiveEntity -->
+            <Label Content="Passive Mask:" />
+            <TextBox Text="{Binding PassiveMask}" />
+
+            <Label Content="Wall Copula Id:" />
+            <TextBox Text="{Binding WallCopulaId}" />
+
+            <!-- From DestructibleEntity -->
+            <Label Content="HP:" />
+            <TextBox Text="{Binding HP}" />
+
+            <Label Content="Hp Regeneration:" />
+            <TextBox Text="{Binding HpRegeneration}" />
+
+            <Label Content="Armor:" />
+            <TextBox Text="{Binding Armor}" />
+
+            <Label Content="Calorific Capacity:" />
+            <TextBox Text="{Binding CalorificCapacity}" />
+
+            <Label Content="Disable Resist:" />
+            <TextBox Text="{Binding DisableResist}" />
+
+            <Label Content="Storeable Flags:" />
+            <TextBox Text="{Binding StoreableFlags}" />
+
+            <Label Content="Stand Type:" />
+            <TextBox Text="{Binding StandType}" />
+
+            <!-- From InteractableEntity -->
+            <Label Content="Mesh:" />
+            <TextBox Text="{Binding Mesh}" />
+
+            <Label Content="Shadow Type:" />
+            <TextBox Text="{Binding ShadowType}" />
+
+            <Label Content="View Params Index:" />
+            <TextBox Text="{Binding ViewParamsIndex}" />
+
+            <Label Content="Cost:" />
+            <TextBox Text="{Binding Cost}" />
+
+            <Label Content="Time Of Build:" />
+            <TextBox Text="{Binding TimeOfBuild}" />
+
+            <Label Content="Sound Pack Id:" />
+            <TextBox Text="{Binding SoundPackId}" />
+
+            <Label Content="Smoke Id:" />
+            <TextBox Text="{Binding SmokeId}" />
+
+            <Label Content="Kill Explosion Id:" />
+            <TextBox Text="{Binding KillExplosionId}" />
+
+            <Label Content="Destructed Id:" />
+            <TextBox Text="{Binding DestructedId}" />
+
+            <!-- From Entity -->
+            <Label Content="Class Id:" />
+            <TextBox Text="{Binding ClassId}" />
+
+            <Label Content="Required Research:" />
+            <ItemsControl ItemsSource="{Binding RequiredResearch}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBox Text="{Binding}" Margin="2" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

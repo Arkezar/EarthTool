@@ -1,0 +1,39 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:EarthTool.PAR.Models"
+             x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.TalkPackTemplate"
+             x:DataType="local:TalkPack">
+    <ScrollViewer>
+        <StackPanel Margin="10">
+            <Label Content="Talk Pack Details:" FontWeight="Bold" FontSize="16" />
+            
+            <Label Content="Name:" />
+            <TextBox Text="{Binding Name}" />
+            
+            <Label Content="Selected:" />
+            <TextBox Text="{Binding Selected}" />
+            
+            <Label Content="Move:" />
+            <TextBox Text="{Binding Move}" />
+            
+            <Label Content="Attack:" />
+            <TextBox Text="{Binding Attack}" />
+            
+            <Label Content="Command:" />
+            <TextBox Text="{Binding Command}" />
+            
+            <Label Content="Enemy:" />
+            <TextBox Text="{Binding Enemy}" />
+            
+            <Label Content="Help:" />
+            <TextBox Text="{Binding Help}" />
+            
+            <Label Content="Free Way:" />
+            <TextBox Text="{Binding FreeWay}" />
+            
+            <!-- Z Entity -->
+            <Label Content="Required Research:" />
+            <TextBox Text="{Binding RequiredResearch}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

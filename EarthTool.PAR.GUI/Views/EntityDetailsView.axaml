@@ -1,36 +1,14 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="using:EarthTool.PAR.Models"
+             xmlns:selectors="using:EarthTool.PAR.GUI.Selectors"
              xmlns:models="clr-namespace:EarthTool.PAR.GUI.Models"
              x:Class="EarthTool.PAR.GUI.Views.EntityDetailsView"
              x:DataType="models:ParameterTreeNode">
-    <ContentControl Content="{Binding Entity}">
-        <ContentControl.DataTemplates>
-            <DataTemplate DataType="{x:Type local:Research}">
-                <StackPanel>
-                    <Label Content="Research Details:" FontWeight="Bold" />
-                    <Label Content="Id:" />
-                    <TextBox Text="{Binding Id}" />
-                    <Label Content="Name:" />
-                    <TextBox Text="{Binding Name}" />
-                    <Label Content="Type:" />
-                    <TextBox Text="{Binding Type}" />
-                    <Label Content="Campaign Cost:" />
-                    <TextBox Text="{Binding CampaignCost}" />
-                    <Label Content="Campaign Time:" />
-                    <TextBox Text="{Binding CampaignTime}" />
-                    <Label Content="Skirmish Cost:" />
-                    <TextBox Text="{Binding SkirmishCost}" />
-                    <Label Content="Skirmish Time:" />
-                    <TextBox Text="{Binding SkirmishTime}" />
-                    <Label Content="Video:" />
-                    <TextBox Text="{Binding Video}" />
-                    <Label Content="Mesh:" />
-                    <TextBox Text="{Binding Mesh}" />
-                    <Label Content="Mesh Params Index:" />
-                    <TextBox Text="{Binding MeshParamsIndex}" />
-                </StackPanel>
-            </DataTemplate>
-        </ContentControl.DataTemplates>
-    </ContentControl>
+    
+    <UserControl.Resources>
+        <selectors:EntityTemplateSelector x:Key="EntityTemplateSelector" />
+    </UserControl.Resources>
+    
+    <ContentControl Content="{Binding Entity}" 
+                    ContentTemplate="{StaticResource EntityTemplateSelector}" />
 </UserControl>

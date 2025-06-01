@@ -1,0 +1,99 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:EarthTool.PAR.Models"
+             x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.PlayerTalkPackTemplate"
+             x:DataType="local:PlayerTalkPack">
+    <ScrollViewer>
+        <StackPanel Margin="10">
+            <Label Content="Player Talk Pack Details:" FontWeight="Bold" FontSize="16" />
+            
+            <Label Content="Name:" />
+            <TextBox Text="{Binding Name}" />
+            
+            <Label Content="Base Under Attack:" />
+            <TextBox Text="{Binding BaseUnderAttack}" />
+            
+            <Label Content="Building Under Attack:" />
+            <TextBox Text="{Binding BuildingUnderAttack}" />
+            
+            <Label Content="Space Port Under Attack:" />
+            <TextBox Text="{Binding SpacePortUnderAttack}" />
+            
+            <Label Content="Enemy Land In Base:" />
+            <TextBox Text="{Binding EnemyLandInBase}" />
+            
+            <Label Content="Low Materials:" />
+            <TextBox Text="{Binding LowMaterials}" />
+            
+            <Label Content="Low Materials In Base:" />
+            <TextBox Text="{Binding LowMaterialsInBase}" />
+            
+            <Label Content="Low Power:" />
+            <TextBox Text="{Binding LowPower}" />
+            
+            <Label Content="Low Power In Base:" />
+            <TextBox Text="{Binding LowPowerInBase}" />
+            
+            <Label Content="Research Complete:" />
+            <TextBox Text="{Binding ResearchComplete}" />
+            
+            <Label Content="Production Started:" />
+            <TextBox Text="{Binding ProductionStarted}" />
+            
+            <Label Content="Production Completed:" />
+            <TextBox Text="{Binding ProductionCompleted}" />
+            
+            <Label Content="Production Canceled:" />
+            <TextBox Text="{Binding ProductionCanceled}" />
+            
+            <Label Content="Platoon Lost:" />
+            <TextBox Text="{Binding PlatoonLost}" />
+            
+            <Label Content="Platoon Created:" />
+            <TextBox Text="{Binding PlatoonCreated}" />
+            
+            <Label Content="Platoon Disbanded:" />
+            <TextBox Text="{Binding PlatoonDisbanded}" />
+            
+            <Label Content="Unit Lost:" />
+            <TextBox Text="{Binding UnitLost}" />
+            
+            <Label Content="Transporter Arrived:" />
+            <TextBox Text="{Binding TransporterArrived}" />
+            
+            <Label Content="Artefact Located:" />
+            <TextBox Text="{Binding ArtefactLocated}" />
+            
+            <Label Content="Artefact Recovered:" />
+            <TextBox Text="{Binding ArtefactRecovered}" />
+            
+            <Label Content="New Area Location Found:" />
+            <TextBox Text="{Binding NewAreaLocationFound}" />
+            
+            <Label Content="Enemy Main Base Located:" />
+            <TextBox Text="{Binding EnemyMainBaseLocated}" />
+            
+            <Label Content="New Source Field Located:" />
+            <TextBox Text="{Binding NewSourceFieldLocated}" />
+            
+            <Label Content="Source Field Exploited:" />
+            <TextBox Text="{Binding SourceFieldExploited}" />
+            
+            <Label Content="Building Lost:" />
+            <TextBox Text="{Binding BuildingLost}" />
+            
+            <!-- From Entity -->
+            <Label Content="Class Id:" />
+            <TextBox Text="{Binding ClassId}" />
+
+            <Label Content="Required Research:" />
+            <ItemsControl ItemsSource="{Binding RequiredResearch}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBox Text="{Binding}" Margin="2" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

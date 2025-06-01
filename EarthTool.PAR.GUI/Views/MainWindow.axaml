@@ -27,7 +27,7 @@
             <ColumnDefinition Width="Auto"></ColumnDefinition>
             <ColumnDefinition Width="*"></ColumnDefinition>
         </Grid.ColumnDefinitions>
-
+    
         <DockPanel Grid.Row="0" DockPanel.Dock="Top">
             <Menu>
                 <MenuItem Header="_File">
@@ -37,12 +37,12 @@
                 </MenuItem>
             </Menu>
         </DockPanel>
-
+    
         <TreeDataGrid Grid.Row="1" Grid.Column="0" Source="{Binding ParameterTree}" Margin="10" />
-        <StackPanel Grid.Row="1" Grid.Column="1" Margin="10">
-            <views:EntityDetailsView Grid.Row="1" Grid.Column="1" DataContext="{Binding SelectedItem}" />
-        </StackPanel>
-
+        <!-- <StackPanel Grid.Row="1" Grid.Column="1" Margin="10"> -->
+        <views:EntityDetailsView Grid.Row="1" Grid.Column="1" DataContext="{Binding SelectedItem}" />
+        <!-- </StackPanel> -->
+    
         <DockPanel Grid.Row="2" Dock="Bottom">
             <Label Content="{Binding TotalEntities}"></Label>
         </DockPanel>

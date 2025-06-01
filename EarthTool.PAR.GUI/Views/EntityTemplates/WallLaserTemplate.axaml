@@ -1,0 +1,78 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:EarthTool.PAR.Models"
+             x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.WallLaserTemplate"
+             x:DataType="local:WallLaser">
+    <ScrollViewer>
+        <StackPanel Margin="10">
+            <Label Content="Wall Laser Details:" FontWeight="Bold" FontSize="16" />
+            
+            <Label Content="Name:" />
+            <TextBox Text="{Binding Name}" />
+            
+            <!-- Z DestructibleEntity -->
+            <Label Content="HP:" />
+            <TextBox Text="{Binding HP}" />
+            
+            <Label Content="Hp Regeneration:" />
+            <TextBox Text="{Binding HpRegeneration}" />
+            
+            <Label Content="Armor:" />
+            <TextBox Text="{Binding Armor}" />
+            
+            <Label Content="Calorific Capacity:" />
+            <TextBox Text="{Binding CalorificCapacity}" />
+            
+            <Label Content="Disable Resist:" />
+            <TextBox Text="{Binding DisableResist}" />
+            
+            <Label Content="Storeable Flags:" />
+            <TextBox Text="{Binding StoreableFlags}" />
+            
+            <Label Content="Stand Type:" />
+            <TextBox Text="{Binding StandType}" />
+            
+            <!-- Z InteractableEntity -->
+            <Label Content="Mesh:" />
+            <TextBox Text="{Binding Mesh}" />
+            
+            <Label Content="Shadow Type:" />
+            <TextBox Text="{Binding ShadowType}" />
+            
+            <Label Content="View Params Index:" />
+            <TextBox Text="{Binding ViewParamsIndex}" />
+            
+            <Label Content="Cost:" />
+            <TextBox Text="{Binding Cost}" />
+            
+            <Label Content="Time Of Build:" />
+            <TextBox Text="{Binding TimeOfBuild}" />
+            
+            <Label Content="Sound Pack Id:" />
+            <TextBox Text="{Binding SoundPackId}" />
+            
+            <Label Content="Smoke Id:" />
+            <TextBox Text="{Binding SmokeId}" />
+            
+            <Label Content="Kill Explosion Id:" />
+            <TextBox Text="{Binding KillExplosionId}" />
+            
+            <Label Content="Destructed Id:" />
+            <TextBox Text="{Binding DestructedId}" />
+            
+            <!-- Z TypedEntity -->
+            <Label Content="Class Id:" />
+            <TextBox Text="{Binding ClassId}" />
+            
+            <!-- Z Entity -->
+            <Label Content="Required Research:" />
+            <ItemsControl ItemsSource="{Binding RequiredResearch}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBox Text="{Binding}" Margin="2" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
