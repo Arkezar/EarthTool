@@ -6,11 +6,14 @@
     <StackPanel>
         <Label Content="Research Details:" FontWeight="Bold" />
         <Label Content="Id:" />
-        <TextBox Text="{Binding Id}" />
+        <TextBox Text="{Binding Id}" IsReadOnly="True"/>
+        <Label Content="Faction:" />
+        <TextBox Text="{Binding Faction}" IsReadOnly="True"/>
+        <Label Content="Type:" />
+        <TextBox Text="{Binding Type}" IsReadOnly="True"/>
+        
         <Label Content="Name:" />
         <TextBox Text="{Binding Name}" />
-        <Label Content="Type:" />
-        <TextBox Text="{Binding Type}" />
         <Label Content="Campaign Cost:" />
         <TextBox Text="{Binding CampaignCost}" />
         <Label Content="Campaign Time:" />
@@ -26,8 +29,6 @@
         <Label Content="Mesh Params Index:" />
         <TextBox Text="{Binding MeshParamsIndex}" />
         
-        <Label Content="Faction:" />
-        <TextBox Text="{Binding Faction}" />
 
         <Label Content="Required Research:" />
         <ItemsControl ItemsSource="{Binding RequiredResearch}">
