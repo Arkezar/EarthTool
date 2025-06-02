@@ -15,6 +15,7 @@ namespace EarthTool.PAR.GUI.TemplateSelectors
         public IDataTemplate? MissileTemplate { get; set; }
         public IDataTemplate? MineTemplate { get; set; }
         public IDataTemplate? ParameterTemplate { get; set; }
+        public IDataTemplate? ResearchTemplate { get; set; }
         public IDataTemplate? DefaultTemplate { get; set; }
 
         public Control? Build(object? param)
@@ -31,12 +32,13 @@ namespace EarthTool.PAR.GUI.TemplateSelectors
                 Missile => MissileTemplate,
                 Mine => MineTemplate,
                 Parameter => ParameterTemplate,
+                Research => ResearchTemplate,
                 _ => DefaultTemplate
             };
 
             return template?.Build(param);
         }
 
-        public bool Match(object? data) => data is Entity;
+        public bool Match(object? data) => data is Entity || data is Research;
     }
 }

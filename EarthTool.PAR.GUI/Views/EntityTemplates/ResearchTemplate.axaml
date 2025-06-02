@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="using:EarthTool.PAR.Models"
+             xmlns:vm="using:EarthTool.PAR.GUI.ViewModels"
              x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.ResearchTemplate"
-             x:DataType="local:Research">
+             x:DataType="vm:ResearchViewModel">
     <StackPanel>
         <Label Content="Research Details:" FontWeight="Bold" />
         <Label Content="Id:" />
