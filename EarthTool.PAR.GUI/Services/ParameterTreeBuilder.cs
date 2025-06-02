@@ -1,4 +1,5 @@
 using EarthTool.PAR.GUI.Models;
+using EarthTool.PAR.GUI.ViewModels;
 using EarthTool.PAR.Models;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,12 +9,12 @@ namespace EarthTool.PAR.GUI.Services;
 public class ParameterTreeBuilder
 {
   private IEnumerable<EntityGroup> EntityGroups { get; set; }
-  private IEnumerable<Research> Research { get; set; }
+  private IEnumerable<ResearchViewModel> Research { get; set; }
 
   public ParameterTreeBuilder()
   {
     EntityGroups = Enumerable.Empty<EntityGroup>();
-    Research = Enumerable.Empty<Research>();
+    Research = Enumerable.Empty<ResearchViewModel>();
   }
 
   public ParameterTreeBuilder WithEntityGroups(IEnumerable<EntityGroup> entities)
@@ -22,7 +23,7 @@ public class ParameterTreeBuilder
     return this;
   }
 
-  public ParameterTreeBuilder WithResearch(IEnumerable<Research> research)
+  public ParameterTreeBuilder WithResearch(IEnumerable<ResearchViewModel> research)
   {
     Research = research;
     return this;
@@ -61,7 +62,7 @@ public class ParameterTreeBuilder
             children: g.Select(r => new ParameterTreeNode(r.Name, r))))));
   }
 
-  private static ParameterTreeNode BuildResearchHierarchy(Research research, IEnumerable<Research> allResearch)
+  private static ParameterTreeNode BuildResearchHierarchy(ResearchViewModel research, IEnumerable<ResearchViewModel> allResearch)
   {
     var children = allResearch
       .Where(r => r.RequiredResearch.Contains(research.Id))

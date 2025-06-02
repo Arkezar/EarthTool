@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using EarthTool.PAR.GUI.ViewModels;
 using EarthTool.PAR.GUI.Views.EntityTemplates;
 using EarthTool.PAR.Models;
 using EarthTool.PAR.Models.Abstracts;
@@ -14,7 +15,7 @@ namespace EarthTool.PAR.GUI.Selectors
 
     public EntityTemplateSelector()
     {
-      RegisterTemplate<Research, ResearchTemplate>();
+      RegisterTemplate<ResearchViewModel, ResearchTemplate>();
       RegisterTemplate<Building, BuildingTemplate>();
       RegisterTemplate<Vehicle, VehicleTemplate>();
       RegisterTemplate<Weapon, WeaponTemplate>();
@@ -73,7 +74,7 @@ namespace EarthTool.PAR.GUI.Selectors
 
     public bool Match(object data)
     {
-      return data is ParameterEntry;
+      return data is ParameterEntry || data is ResearchViewModel;
     }
   }
 }

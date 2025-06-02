@@ -3,6 +3,7 @@ using Avalonia.Controls.Models.TreeDataGrid;
 using Avalonia.Controls.Selection;
 using DynamicData;
 using EarthTool.Common.Interfaces;
+using EarthTool.PAR.GUI.Extensions;
 using EarthTool.PAR.GUI.Models;
 using EarthTool.PAR.GUI.Services;
 using EarthTool.PAR.Models;
@@ -87,7 +88,7 @@ public class MainWindowViewModel : ViewModelBase
         var parameters = _reader.Read(FilePath);
 
         Parameters.Clear();
-        Parameters.AddRange(_treeBuilder.WithResearch(parameters.Research).WithEntityGroups(parameters.Groups)
+        Parameters.AddRange(_treeBuilder.WithResearch(parameters.Research.Select(r => r.ToViewModel())).WithEntityGroups(parameters.Groups)
           .Build(true));
         _totalEntries = parameters.Research.Count() + parameters.Groups.Sum(g => g.Entities.Count());
         this.RaisePropertyChanged(nameof(TotalEntities));

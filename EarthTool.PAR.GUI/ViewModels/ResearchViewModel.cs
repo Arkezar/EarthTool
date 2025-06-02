@@ -1,92 +1,111 @@
 using ReactiveUI;
-using EarthTool.PAR.Models;
 using EarthTool.PAR.Enums;
+using EarthTool.PAR.Models;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace EarthTool.PAR.GUI.ViewModels
 {
-    public class ResearchViewModel : ReactiveObject
+  public class ResearchViewModel : ReactiveObject
+  {
+    private int              _id;
+    private Faction          _faction;
+    private string           _name;
+    private int              _campaignCost;
+    private int              _campaignTime;
+    private int              _skirmishCost;
+    private int              _skirmishTime;
+    private string           _video;
+    private ResearchType     _type;
+    private string           _mesh;
+    private int              _meshParamsIndex;
+    private IEnumerable<int> _requiredResearch;
+
+    public ResearchViewModel(Research research)
     {
-        private Research _research;
-
-        public ResearchViewModel(Research research)
-        {
-            _research = research;
-        }
-
-        public Research Model => _research;
-
-        public int Id
-        {
-            get => _research.Id;
-            set => this.RaiseAndSetIfChanged(ref _research.Id, value);
-        }
-
-        public Faction Faction
-        {
-            get => _research.Faction;
-            set => this.RaiseAndSetIfChanged(ref _research.Faction, value);
-        }
-
-        public string Name
-        {
-            get => _research.Name;
-            set => this.RaiseAndSetIfChanged(ref _research.Name, value);
-        }
-
-        public int CampaignCost
-        {
-            get => _research.CampaignCost;
-            set => this.RaiseAndSetIfChanged(ref _research.CampaignCost, value);
-        }
-
-        public int CampaignTime
-        {
-            get => _research.CampaignTime;
-            set => this.RaiseAndSetIfChanged(ref _research.CampaignTime, value);
-        }
-
-        public int SkirmishCost
-        {
-            get => _research.SkirmishCost;
-            set => this.RaiseAndSetIfChanged(ref _research.SkirmishCost, value);
-        }
-
-        public int SkirmishTime
-        {
-            get => _research.SkirmishTime;
-            set => this.RaiseAndSetIfChanged(ref _research.SkirmishTime, value);
-        }
-
-        public string Video
-        {
-            get => _research.Video;
-            set => this.RaiseAndSetIfChanged(ref _research.Video, value);
-        }
-
-        public ResearchType Type
-        {
-            get => _research.Type;
-            set => this.RaiseAndSetIfChanged(ref _research.Type, value);
-        }
-
-        public string Mesh
-        {
-            get => _research.Mesh;
-            set => this.RaiseAndSetIfChanged(ref _research.Mesh, value);
-        }
-
-        public int MeshParamsIndex
-        {
-            get => _research.MeshParamsIndex;
-            set => this.RaiseAndSetIfChanged(ref _research.MeshParamsIndex, value);
-        }
-
-        public IEnumerable<int> RequiredResearch
-        {
-            get => _research.RequiredResearch;
-            set => this.RaiseAndSetIfChanged(ref _research.RequiredResearch, value);
-        }
+      _id = research.Id;
+      _faction = research.Faction;
+      _name = research.Name;
+      _campaignCost = research.CampaignCost;
+      _campaignTime = research.CampaignTime;
+      _skirmishCost = research.SkirmishCost;
+      _skirmishTime = research.SkirmishTime;
+      _video = research.Video;
+      _type = research.Type;
+      _mesh = research.Mesh;
+      _meshParamsIndex = research.MeshParamsIndex;
+      _requiredResearch = research.RequiredResearch;
     }
+
+    public int Id
+    {
+      get => _id;
+      set => this.RaiseAndSetIfChanged(ref _id, value);
+    }
+
+    public Faction Faction
+    {
+      get => _faction;
+      set => this.RaiseAndSetIfChanged(ref _faction, value);
+    }
+
+    public string Name
+    {
+      get => _name;
+      set => this.RaiseAndSetIfChanged(ref _name, value);
+    }
+
+    public int CampaignCost
+    {
+      get => _campaignCost;
+      set => this.RaiseAndSetIfChanged(ref _campaignCost, value);
+    }
+
+    public int CampaignTime
+    {
+      get => _campaignTime;
+      set => this.RaiseAndSetIfChanged(ref _campaignTime, value);
+    }
+
+    public int SkirmishCost
+    {
+      get => _skirmishCost;
+      set => this.RaiseAndSetIfChanged(ref _skirmishCost, value);
+    }
+
+    public int SkirmishTime
+    {
+      get => _skirmishTime;
+      set => this.RaiseAndSetIfChanged(ref _skirmishTime, value);
+    }
+
+    public string Video
+    {
+      get => _video;
+      set => this.RaiseAndSetIfChanged(ref _video, value);
+    }
+
+    public ResearchType Type
+    {
+      get => _type;
+      set => this.RaiseAndSetIfChanged(ref _type, value);
+    }
+
+    public string Mesh
+    {
+      get => _mesh;
+      set => this.RaiseAndSetIfChanged(ref _mesh, value);
+    }
+
+    public int MeshParamsIndex
+    {
+      get => _meshParamsIndex;
+      set => this.RaiseAndSetIfChanged(ref _meshParamsIndex, value);
+    }
+
+    public IEnumerable<int> RequiredResearch
+    {
+      get => _requiredResearch;
+      set => this.RaiseAndSetIfChanged(ref _requiredResearch, value);
+    }
+  }
 }
