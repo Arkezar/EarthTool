@@ -1,4 +1,5 @@
 using EarthTool.PAR.GUI.ViewModels;
+using EarthTool.PAR.GUI.ViewModels.Details;
 using EarthTool.PAR.Models;
 
 namespace EarthTool.PAR.GUI.Extensions;

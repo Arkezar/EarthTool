@@ -1,5 +1,6 @@
 using EarthTool.PAR.GUI.Models;
 using EarthTool.PAR.GUI.ViewModels;
+using EarthTool.PAR.GUI.ViewModels.Details;
 using EarthTool.PAR.Models;
 using System.Collections.Generic;
 using System.Linq;

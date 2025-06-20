@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using EarthTool.PAR.GUI.ViewModels;
+using EarthTool.PAR.GUI.ViewModels.Details;
 using EarthTool.PAR.GUI.Views.EntityTemplates;
 using EarthTool.PAR.Models;
 using EarthTool.PAR.Models.Abstracts;

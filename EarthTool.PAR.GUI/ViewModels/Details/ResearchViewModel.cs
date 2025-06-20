@@ -1,15 +1,15 @@
-using ReactiveUI;
 using EarthTool.PAR.Enums;
+using EarthTool.PAR.GUI.ViewModels.Details.Abstracts;
 using EarthTool.PAR.Models;
+using ReactiveUI;
 using System.Collections.Generic;
 
-namespace EarthTool.PAR.GUI.ViewModels
+namespace EarthTool.PAR.GUI.ViewModels.Details
 {
-  public class ResearchViewModel : ReactiveObject
+  public class ResearchViewModel : ParameterEntryViewModel
   {
     private int              _id;
     private Faction          _faction;
-    private string           _name;
     private int              _campaignCost;
     private int              _campaignTime;
     private int              _skirmishCost;
@@ -21,10 +21,10 @@ namespace EarthTool.PAR.GUI.ViewModels
     private IEnumerable<int> _requiredResearch;
 
     public ResearchViewModel(Research research)
+      : base(research.Name)
     {
       _id = research.Id;
       _faction = research.Faction;
-      _name = research.Name;
       _campaignCost = research.CampaignCost;
       _campaignTime = research.CampaignTime;
       _skirmishCost = research.SkirmishCost;
@@ -46,12 +46,6 @@ namespace EarthTool.PAR.GUI.ViewModels
     {
       get => _faction;
       set => this.RaiseAndSetIfChanged(ref _faction, value);
-    }
-
-    public string Name
-    {
-      get => _name;
-      set => this.RaiseAndSetIfChanged(ref _name, value);
     }
 
     public int CampaignCost
