@@ -10,7 +10,7 @@ public class SpecialUpdateLinkViewModel : EntityViewModel
   private string _value;
 
   public SpecialUpdateLinkViewModel(SpecialUpdateLink entry)
-    : base(entry.Name, entry.RequiredResearch, entry.ClassId)
+    : base(entry)
   {
     _value = entry.Value;
   }

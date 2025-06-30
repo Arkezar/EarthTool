@@ -13,7 +13,7 @@ public class ShieldGeneratorViewModel : EntityViewModel
   private int    _shieldMeshViewIndex;
 
   public ShieldGeneratorViewModel(ShieldGenerator entry)
-    : base(entry.Name, entry.RequiredResearch, entry.ClassId)
+    : base(entry)
   {
     _shieldCost = entry.ShieldCost;
     _shieldValue = entry.ShieldValue;

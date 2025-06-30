@@ -1,3 +1,4 @@
+using EarthTool.PAR.Models.Abstracts;
 using ReactiveUI;
 
 namespace EarthTool.PAR.GUI.ViewModels.Details.Abstracts;
@@ -6,9 +7,9 @@ public abstract class ParameterEntryViewModel : ViewModelBase
 {
   private string _name;
 
-  protected ParameterEntryViewModel(string name)
+  protected ParameterEntryViewModel(ParameterEntry entry)
   {
-    _name = name;
+    _name = entry.Name;
   }
 
   public string Name

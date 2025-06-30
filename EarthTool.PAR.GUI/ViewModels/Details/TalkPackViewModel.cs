@@ -4,7 +4,7 @@ using ReactiveUI;
 
 namespace EarthTool.PAR.GUI.ViewModels.Details;
 
-public class TalkPackViewModel : EntityViewModel
+public class TalkPackViewModel : TypelessEntityViewModel
 {
   private string _selected;
   private string _move;
@@ -15,7 +15,7 @@ public class TalkPackViewModel : EntityViewModel
   private string _freeWay;
 
   public TalkPackViewModel(TalkPack entry)
-    : base(entry.Name, entry.RequiredResearch, entry.ClassId)
+    : base(entry)
   {
     _selected = entry.Selected;
     _move = entry.Move;

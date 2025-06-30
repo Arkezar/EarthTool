@@ -30,6 +30,7 @@ namespace EarthTool.PAR.Models.Abstracts
     }
 
     public int SightRange { get; set; }
+    
 
     public string TalkPackId { get; set; }
 

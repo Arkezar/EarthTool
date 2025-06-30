@@ -4,7 +4,7 @@ using ReactiveUI;
 
 namespace EarthTool.PAR.GUI.ViewModels.Details;
 
-public class SoundPackViewModel : EntityViewModel
+public class SoundPackViewModel : TypelessEntityViewModel
 {
   private string _normalWavePack1;
   private string _normalWavePack2;
@@ -16,7 +16,7 @@ public class SoundPackViewModel : EntityViewModel
   private string _loopedWavePack4;
 
   public SoundPackViewModel(SoundPack entry)
-    : base(entry.Name, entry.RequiredResearch, entry.ClassId)
+    : base(entry)
   {
     _normalWavePack1 = entry.NormalWavePack1;
     _normalWavePack2 = entry.NormalWavePack2;

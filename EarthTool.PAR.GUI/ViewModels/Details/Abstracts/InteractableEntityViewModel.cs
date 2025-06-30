@@ -1,4 +1,5 @@
 using EarthTool.PAR.Enums;
+using EarthTool.PAR.Models.Abstracts;
 using ReactiveUI;
 using System.Collections.Generic;
 
@@ -17,29 +18,18 @@ public abstract class InteractableEntityViewModel : EntityViewModel
   private string _destructedId;
 
   public InteractableEntityViewModel(
-    string name,
-    IEnumerable<int> requiredResearch,
-    EntityClassType classId,
-    string mesh,
-    int shadowType,
-    int viewParamsIndex,
-    int cost,
-    int timeOfBuild,
-    string soundPackId,
-    string smokeId,
-    string killExplosionId,
-    string destructedId)
-    : base(name, requiredResearch, classId)
+    InteractableEntity entity)
+    : base(entity)
   {
-    _mesh = mesh;
-    _shadowType = shadowType;
-    _viewParamsIndex = viewParamsIndex;
-    _cost = cost;
-    _timeOfBuild = timeOfBuild;
-    _soundPackId = soundPackId;
-    _smokeId = smokeId;
-    _killExplosionId = killExplosionId;
-    _destructedId = destructedId;
+    _mesh = entity.Mesh;
+    _shadowType = entity.ShadowType;
+    _viewParamsIndex = entity.ViewParamsIndex;
+    _cost = entity.Cost;
+    _timeOfBuild = entity.TimeOfBuild;
+    _soundPackId = entity.SoundPackId;
+    _smokeId = entity.SmokeId;
+    _killExplosionId = entity.KillExplosionId;
+    _destructedId = entity.DestructedId;
   }
 
   public string Mesh

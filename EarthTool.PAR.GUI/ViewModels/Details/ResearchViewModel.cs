@@ -21,7 +21,7 @@ namespace EarthTool.PAR.GUI.ViewModels.Details
     private IEnumerable<int> _requiredResearch;
 
     public ResearchViewModel(Research research)
-      : base(research.Name)
+      : base(research)
     {
       _id = research.Id;
       _faction = research.Faction;

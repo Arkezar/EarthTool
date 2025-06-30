@@ -32,7 +32,7 @@ public class PlayerTalkPackViewModel : EntityViewModel
   private string _buildingLost;
 
   public PlayerTalkPackViewModel(PlayerTalkPack entry)
-    : base(entry.Name, entry.RequiredResearch, entry.ClassId)
+    : base(entry)
   {
     _baseUnderAttack = entry.BaseUnderAttack;
     _buildingUnderAttack = entry.BuildingUnderAttack;

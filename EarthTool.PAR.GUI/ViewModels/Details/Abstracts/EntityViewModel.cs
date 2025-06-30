@@ -1,4 +1,5 @@
 using EarthTool.PAR.Enums;
+using EarthTool.PAR.Models.Abstracts;
 using ReactiveUI;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -9,11 +10,11 @@ public abstract class EntityViewModel : ParameterEntryViewModel
 {
   private EntityClassType _classId;
 
-  protected EntityViewModel(string name, IEnumerable<int> requiredResearch, EntityClassType classId)
-    : base(name)
+  protected EntityViewModel(Entity entity)
+    : base(entity)
   {
-    RequiredResearch = new ObservableCollection<int>(requiredResearch);
-    _classId = classId;
+    RequiredResearch = new ObservableCollection<int>(entity.RequiredResearch);
+    _classId = entity.ClassId;
   }
 
   public ObservableCollection<int> RequiredResearch { get; }
