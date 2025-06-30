@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="using:EarthTool.PAR.Models"
+             xmlns:vm="using:EarthTool.PAR.GUI.ViewModels.Details"
              x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.ContainerTransporterTemplate"
-             x:DataType="local:ContainerTransporter">
+             x:DataType="vm:ContainerTransporterViewModel">
     <ScrollViewer>
         <StackPanel Margin="10">
             <Label Content="Container Transporter Details:" FontWeight="Bold" FontSize="16" />

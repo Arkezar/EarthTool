@@ -1,36 +1,14 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:EarthTool.PAR.GUI.ViewModels.Details"
-             x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.BuilderLineTemplate"
-             x:DataType="vm:BuilderLineViewModel">
+             x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.SpecialTemplate"
+             x:DataType="vm:SpecialViewModel">
     <ScrollViewer>
         <StackPanel Margin="10">
-            <Label Content="Builder Line Details:" FontWeight="Bold" FontSize="16" />
-            
+            <Label Content="Special Entity Details:" FontWeight="Bold" FontSize="16" />
+
             <Label Content="Name:" />
             <TextBox Text="{Binding Name}" />
-            
-            <!-- From DestructibleEntity -->
-            <Label Content="HP:" />
-            <TextBox Text="{Binding HP}" />
-
-            <Label Content="Hp Regeneration:" />
-            <TextBox Text="{Binding HpRegeneration}" />
-
-            <Label Content="Armor:" />
-            <TextBox Text="{Binding Armor}" />
-
-            <Label Content="Calorific Capacity:" />
-            <TextBox Text="{Binding CalorificCapacity}" />
-
-            <Label Content="Disable Resist:" />
-            <TextBox Text="{Binding DisableResist}" />
-
-            <Label Content="Storeable Flags:" />
-            <TextBox Text="{Binding StoreableFlags}" />
-
-            <Label Content="Stand Type:" />
-            <TextBox Text="{Binding StandType}" />
 
             <!-- From InteractableEntity -->
             <Label Content="Mesh:" />

@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="using:EarthTool.PAR.Models"
+             xmlns:vm="using:EarthTool.PAR.GUI.ViewModels.Details"
              x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.EquipmentTemplate"
-             x:DataType="local:Equipment">
+             x:DataType="vm:EquipmentViewModel">
     <ScrollViewer>
         <StackPanel Margin="10">
             <Label Content="Equipment Details:" FontWeight="Bold" FontSize="16" />

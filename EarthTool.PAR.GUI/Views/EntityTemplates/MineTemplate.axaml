@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="using:EarthTool.PAR.Models"
+             xmlns:vm="using:EarthTool.PAR.GUI.ViewModels.Details"
              x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.MineTemplate"
-             x:DataType="local:Mine">
+             x:DataType="vm:MineViewModel">
     <ScrollViewer>
         <StackPanel Margin="10">
             <Label Content="Mine Details:" FontWeight="Bold" FontSize="16" />

@@ -17,40 +17,41 @@ namespace EarthTool.PAR.GUI.Selectors
     public EntityTemplateSelector()
     {
       RegisterTemplate<ResearchViewModel, ResearchTemplate>();
-      RegisterTemplate<Building, BuildingTemplate>();
-      RegisterTemplate<Vehicle, VehicleTemplate>();
-      RegisterTemplate<Weapon, WeaponTemplate>();
-      RegisterTemplate<Builder, BuilderTemplate>();
-      RegisterTemplate<Harvester, HarvesterTemplate>();
-      RegisterTemplate<Sapper, SapperTemplate>();
-      RegisterTemplate<SupplyTransporter, SupplyTransporterTemplate>();
-      RegisterTemplate<Equipment, EquipmentTemplate>();
-      RegisterTemplate<Mine, MineTemplate>();
-      RegisterTemplate<Missile, MissileTemplate>();
-      RegisterTemplate<Explosion, ExplosionTemplate>();
-      RegisterTemplate<Artifact, ArtifactTemplate>();
-      RegisterTemplate<BuilderLine, BuilderLineTemplate>();
-      RegisterTemplate<BuildingTransporter, BuildingTransporterTemplate>();
-      RegisterTemplate<ContainerTransporter, ContainerTransporterTemplate>();
-      RegisterTemplate<FlyingWaste, FlyingWasteTemplate>();
-      RegisterTemplate<MultiExplosion, MultiExplosionTemplate>();
-      RegisterTemplate<OmnidirectionalEquipment, OmnidirectionalEquipmentTemplate>();
-      RegisterTemplate<Parameter, ParameterTemplate>();
-      RegisterTemplate<Passive, PassiveTemplate>();
-      RegisterTemplate<Platoon, PlatoonTemplate>();
-      RegisterTemplate<PlayerTalkPack, PlayerTalkPackTemplate>();
-      RegisterTemplate<Repairer, RepairerTemplate>();
-      RegisterTemplate<ResourceTransporter, ResourceTransporterTemplate>();
-      RegisterTemplate<ShieldGenerator, ShieldGeneratorTemplate>();
-      RegisterTemplate<Smoke, SmokeTemplate>();
-      RegisterTemplate<SoundPack, SoundPackTemplate>();
-      RegisterTemplate<SpecialUpdateLink, SpecialUpdateLinkTemplate>();
-      RegisterTemplate<StartingPosition, StartingPositionTemplate>();
-      RegisterTemplate<TalkPack, TalkPackTemplate>();
-      RegisterTemplate<TransporterHook, TransporterHookTemplate>();
-      RegisterTemplate<UnitTransporter, UnitTransporterTemplate>();
-      RegisterTemplate<UpgradeCopula, UpgradeCopulaTemplate>();
-      RegisterTemplate<WallLaser, WallLaserTemplate>();
+      RegisterTemplate<BuildingViewModel, BuildingTemplate>();
+      RegisterTemplate<VehicleViewModel, VehicleTemplate>();
+      RegisterTemplate<WeaponViewModel, WeaponTemplate>();
+      RegisterTemplate<BuilderViewModel, BuilderTemplate>();
+      RegisterTemplate<HarvesterViewModel, HarvesterTemplate>();
+      RegisterTemplate<SapperViewModel, SapperTemplate>();
+      RegisterTemplate<SupplyTransporterViewModel, SupplyTransporterTemplate>();
+      RegisterTemplate<EquipmentViewModel, EquipmentTemplate>();
+      RegisterTemplate<MineViewModel, MineTemplate>();
+      RegisterTemplate<MissileViewModel, MissileTemplate>();
+      RegisterTemplate<ExplosionViewModel, ExplosionTemplate>();
+      RegisterTemplate<ArtifactViewModel, ArtifactTemplate>();
+      RegisterTemplate<BuilderLineViewModel, BuilderLineTemplate>();
+      RegisterTemplate<BuildingTransporterViewModel, BuildingTransporterTemplate>();
+      RegisterTemplate<ContainerTransporterViewModel, ContainerTransporterTemplate>();
+      RegisterTemplate<FlyingWasteViewModel, FlyingWasteTemplate>();
+      RegisterTemplate<MultiExplosionViewModel, MultiExplosionTemplate>();
+      RegisterTemplate<OmnidirectionalEquipmentViewModel, OmnidirectionalEquipmentTemplate>();
+      RegisterTemplate<ParameterViewModel, ParameterTemplate>();
+      RegisterTemplate<PassiveViewModel, PassiveTemplate>();
+      RegisterTemplate<PlatoonViewModel, PlatoonTemplate>();
+      RegisterTemplate<PlayerTalkPackViewModel, PlayerTalkPackTemplate>();
+      RegisterTemplate<RepairerViewModel, RepairerTemplate>();
+      RegisterTemplate<ResourceTransporterViewModel, ResourceTransporterTemplate>();
+      RegisterTemplate<ShieldGeneratorViewModel, ShieldGeneratorTemplate>();
+      RegisterTemplate<SmokeViewModel, SmokeTemplate>();
+      RegisterTemplate<SoundPackViewModel, SoundPackTemplate>();
+      RegisterTemplate<SpecialUpdateLinkViewModel, SpecialUpdateLinkTemplate>();
+      RegisterTemplate<StartingPositionViewModel, StartingPositionTemplate>();
+      RegisterTemplate<TalkPackViewModel, TalkPackTemplate>();
+      RegisterTemplate<TransporterHookViewModel, TransporterHookTemplate>();
+      RegisterTemplate<UnitTransporterViewModel, UnitTransporterTemplate>();
+      RegisterTemplate<UpgradeCopulaViewModel, UpgradeCopulaTemplate>();
+      RegisterTemplate<WallLaserViewModel, WallLaserTemplate>();
+      RegisterTemplate<SpecialViewModel, SpecialTemplate>();
     }
 
     private void RegisterTemplate<TModel, TTemplate>()
@@ -74,8 +75,6 @@ namespace EarthTool.PAR.GUI.Selectors
     }
 
     public bool Match(object data)
-    {
-      return data is ParameterEntry || data is ResearchViewModel;
-    }
+      => data is ViewModelBase;
   }
 }

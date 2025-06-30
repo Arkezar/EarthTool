@@ -88,7 +88,8 @@ public class MainWindowViewModel : ViewModelBase
         var parameters = _reader.Read(FilePath);
 
         Parameters.Clear();
-        Parameters.AddRange(_treeBuilder.WithResearch(parameters.Research.Select(r => r.ToViewModel())).WithEntityGroups(parameters.Groups)
+        Parameters.AddRange(_treeBuilder.WithResearch(parameters.Research.Select(r => r.ToViewModel()))
+          .WithEntityGroups(parameters.Groups.Select(g => g.ToViewModel()))
           .Build(true));
         _totalEntries = parameters.Research.Count() + parameters.Groups.Sum(g => g.Entities.Count());
         this.RaisePropertyChanged(nameof(TotalEntities));

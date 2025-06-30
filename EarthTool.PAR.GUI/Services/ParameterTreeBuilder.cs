@@ -9,16 +9,16 @@ namespace EarthTool.PAR.GUI.Services;
 
 public class ParameterTreeBuilder
 {
-  private IEnumerable<EntityGroup> EntityGroups { get; set; }
+  private IEnumerable<EntityGroupViewModel> EntityGroups { get; set; }
   private IEnumerable<ResearchViewModel> Research { get; set; }
 
   public ParameterTreeBuilder()
   {
-    EntityGroups = Enumerable.Empty<EntityGroup>();
+    EntityGroups = Enumerable.Empty<EntityGroupViewModel>();
     Research = Enumerable.Empty<ResearchViewModel>();
   }
 
-  public ParameterTreeBuilder WithEntityGroups(IEnumerable<EntityGroup> entities)
+  public ParameterTreeBuilder WithEntityGroups(IEnumerable<EntityGroupViewModel> entities)
   {
     EntityGroups = entities;
     return this;

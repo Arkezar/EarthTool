@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="using:EarthTool.PAR.Models"
+             xmlns:vm="using:EarthTool.PAR.GUI.ViewModels.Details"
              x:Class="EarthTool.PAR.GUI.Views.EntityTemplates.WeaponTemplate"
-             x:DataType="local:Weapon">
+             x:DataType="vm:WeaponViewModel">
     <ScrollViewer>
         <StackPanel Margin="10">
             <Label Content="Weapon Details:" FontWeight="Bold" FontSize="16" />
@@ -107,7 +107,13 @@
             
             <!-- Z Entity -->
             <Label Content="Required Research:" />
-            <TextBox Text="{Binding RequiredResearch}" />
+            <ItemsControl ItemsSource="{Binding RequiredResearch}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBox Text="{Binding}" Margin="2" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
