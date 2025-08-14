@@ -15,10 +15,13 @@ public partial class MainWindow : ReactiveWindow<MainWindowViewModel>
   {
     InitializeComponent();
     this.WhenActivated(action => 
-      action(ViewModel!.FileDialog.RegisterHandler(DoShowFileDialogAsync)));
+    {
+      action(ViewModel!.OpenFileDialog.RegisterHandler(DoShowOpenFileDialogAsync));
+      action(ViewModel!.SaveFileDialog.RegisterHandler(DoShowSaveFileDialogAsync));
+    });
   }
   
-  private async Task DoShowFileDialogAsync(IInteractionContext<Unit, string?> interaction)
+  private async Task DoShowOpenFileDialogAsync(IInteractionContext<Unit, string?> interaction)
   {
     var file = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions()
     {
@@ -34,5 +37,23 @@ public partial class MainWindow : ReactiveWindow<MainWindowViewModel>
     });
     
     interaction.SetOutput(file.SingleOrDefault()?.Path.AbsolutePath);
+  }
+
+  private async Task DoShowSaveFileDialogAsync(IInteractionContext<Unit, string?> interaction)
+  {
+    var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions()
+    {
+      Title = "Save PAR File",
+      DefaultExtension = "par",
+      FileTypeChoices = new List<FilePickerFileType>
+      {
+        new FilePickerFileType("PAR Files")
+        {
+          Patterns = new [] { "*.par" }
+        }
+      }
+    });
+    
+    interaction.SetOutput(file?.Path.AbsolutePath);
   }
 }

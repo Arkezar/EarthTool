@@ -20,6 +20,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"></RowDefinition>
+            <RowDefinition Height="Auto"></RowDefinition>
             <RowDefinition Height="*"></RowDefinition>
             <RowDefinition Height="Auto"></RowDefinition>
         </Grid.RowDefinitions>
@@ -33,17 +34,33 @@
                 <MenuItem Header="_File">
                     <MenuItem Header="_Open..." Command="{Binding OpenFileCommand}" />
                     <Separator />
+                    <MenuItem Header="_Save" Command="{Binding SaveFileCommand}" IsEnabled="{Binding CanSave}" />
+                    <MenuItem Header="Save _As..." Command="{Binding SaveAsFileCommand}" IsEnabled="{Binding CanSave}" />
+                    <Separator />
                     <MenuItem Header="_Exit" />
+                </MenuItem>
+                <MenuItem Header="_Edit">
+                    <MenuItem Header="_Add Entity..." Command="{Binding AddEntityCommand}" IsEnabled="{Binding CanSave}" />
+                    <MenuItem Header="_Delete Entity" Command="{Binding DeleteEntityCommand}" IsEnabled="{Binding CanDeleteEntity}" />
                 </MenuItem>
             </Menu>
         </DockPanel>
+        
+        <!-- Search Bar -->
+        <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="10,5">
+            <Label Content="Search:" VerticalAlignment="Center" />
+            <TextBox Text="{Binding SearchText}" Width="200" Margin="5,0" />
+            <Button Content="Clear" Command="{Binding ClearSearchCommand}" Margin="5,0" />
+            <Label Content="(Search Active)" FontStyle="Italic" 
+                   IsVisible="{Binding IsSearchActive}" Margin="10,0" />
+        </StackPanel>
     
-        <TreeDataGrid Grid.Row="1" Grid.Column="0" Source="{Binding ParameterTree}" Margin="10" />
-        <!-- <StackPanel Grid.Row="1" Grid.Column="1" Margin="10"> -->
-        <views:EntityDetailsView Grid.Row="1" Grid.Column="1" DataContext="{Binding SelectedItem}" />
+        <TreeDataGrid Grid.Row="2" Grid.Column="0" Source="{Binding ParameterTree}" Margin="10" />
+        <!-- <StackPanel Grid.Row="2" Grid.Column="1" Margin="10"> -->
+        <views:EntityDetailsView Grid.Row="2" Grid.Column="1" DataContext="{Binding SelectedItem}" />
         <!-- </StackPanel> -->
     
-        <DockPanel Grid.Row="2" Dock="Bottom">
+        <DockPanel Grid.Row="3" Dock="Bottom">
             <Label Content="{Binding TotalEntities}"></Label>
         </DockPanel>
     </Grid>

@@ -3,6 +3,7 @@ using EarthTool.PAR.GUI.ViewModels.Details.Abstracts;
 using EarthTool.PAR.Models;
 using ReactiveUI;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 
 namespace EarthTool.PAR.GUI.ViewModels.Details
 {
@@ -48,10 +49,11 @@ namespace EarthTool.PAR.GUI.ViewModels.Details
       set => this.RaiseAndSetIfChanged(ref _faction, value);
     }
 
+    [Range(0, int.MaxValue, ErrorMessage = "Campaign cost must be non-negative")]
     public int CampaignCost
     {
       get => _campaignCost;
-      set => this.RaiseAndSetIfChanged(ref _campaignCost, value);
+      set => this.RaiseAndSetIfChangedWithValidation(ref _campaignCost, value);
     }
 
     public int CampaignTime
@@ -72,10 +74,11 @@ namespace EarthTool.PAR.GUI.ViewModels.Details
       set => this.RaiseAndSetIfChanged(ref _skirmishTime, value);
     }
 
+    [StringLength(100, ErrorMessage = "Video path cannot exceed 100 characters")]
     public string Video
     {
       get => _video;
-      set => this.RaiseAndSetIfChanged(ref _video, value);
+      set => this.RaiseAndSetIfChangedWithValidation(ref _video, value);
     }
 
     public ResearchType Type
