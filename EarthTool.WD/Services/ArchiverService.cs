@@ -1,10 +1,12 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using EarthTool.Common.Interfaces;
+using EarthTool.Common.Validation;
 using Microsoft.Extensions.Logging;
 using System.IO;
 using System.Linq;
 using System.Text;
 using EarthTool.Common.Enums;
+using System;
 
 namespace EarthTool.WD.Services
 {
@@ -33,17 +35,13 @@ namespace EarthTool.WD.Services
 
         public void Extract(IArchiveItem resource, string outputPath)
         {
-            var outputFilePath = Path.Combine(outputPath, resource.FileName)
-                .Replace('\\', Path.DirectorySeparatorChar);
-
-            if (!Directory.Exists(Path.GetDirectoryName(outputFilePath)))
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(outputFilePath));
-            }
+            ArgumentNullException.ThrowIfNull(resource);
+            
+            var outputFilePath = PathValidator.GetSafeOutputPath(outputPath, resource.FileName);
 
             var data = Extract(resource);
             File.WriteAllBytes(outputFilePath, data);
-            _logger.LogInformation("Extracted file {FileName}", resource.FileName);
+            _logger.LogInformation("Extracted file {FileName} to {OutputPath}", resource.FileName, outputFilePath);
         }
 
         private byte[] Extract(IArchiveItem item)
@@ -64,6 +62,10 @@ namespace EarthTool.WD.Services
 
         public void ExtractAll(IArchive archive, string outputPath)
         {
+            ArgumentNullException.ThrowIfNull(archive);
+            
+            PathValidator.EnsureDirectoryExists(outputPath);
+            
             foreach (var resource in archive.Items)
             {
                 Extract(resource, outputPath);

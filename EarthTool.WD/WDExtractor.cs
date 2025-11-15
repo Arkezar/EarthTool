@@ -1,5 +1,7 @@
-﻿using EarthTool.Common.Interfaces;
+using EarthTool.Common.Interfaces;
+using EarthTool.Common.Validation;
 using Microsoft.Extensions.Logging;
+using System;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -18,8 +20,12 @@ namespace EarthTool.WD
 
     public Task Extract(string filePath, string outputPath = null)
     {
-      outputPath ??= Path.GetDirectoryName(filePath);
-      var archive = _archiverService.OpenArchive(filePath);
+      var validatedPath = PathValidator.ValidateFileExists(filePath);
+      
+      outputPath ??= Path.GetDirectoryName(validatedPath) 
+        ?? throw new InvalidOperationException($"Cannot determine output path for: {validatedPath}");
+      
+      var archive = _archiverService.OpenArchive(validatedPath);
       _archiverService.ExtractAll(archive, outputPath);
       return Task.CompletedTask;
     }

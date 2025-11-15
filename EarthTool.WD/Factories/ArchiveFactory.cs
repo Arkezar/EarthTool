@@ -1,5 +1,6 @@
-﻿using EarthTool.Common.Enums;
+using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
+using EarthTool.Common.Validation;
 using EarthTool.WD.Models;
 using System;
 using System.Collections.Generic;
@@ -23,13 +24,15 @@ namespace EarthTool.WD.Factories
 
         public IArchive OpenArchive(string path)
         {
-            var header = GetArchiveHeader(path);
+            var validatedPath = PathValidator.ValidateFileExists(path);
+            
+            var header = GetArchiveHeader(validatedPath);
             if (header.ResourceType != ResourceType.WdArchive)
             {
-                throw new NotSupportedException("Unsupported archive type");
+                throw new NotSupportedException($"Unsupported archive type: {header.ResourceType}");
             }
 
-            var data = File.ReadAllBytes(path);
+            var data = File.ReadAllBytes(validatedPath);
 
             using var reader = GetDescriptorReader(data);
             var lastModified = DateTime.FromFileTimeUtc(reader.ReadInt64());
