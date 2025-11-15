@@ -8,19 +8,19 @@ namespace EarthTool.WD
   public class WDExtractor : IWDExtractor
   {
     private readonly ILogger<WDExtractor> _logger;
-    private readonly IArchiver _archivizerService;
+    private readonly IArchiver _archiverService;
 
-    public WDExtractor(ILogger<WDExtractor> logger, IArchiver archivizerService)
+    public WDExtractor(ILogger<WDExtractor> logger, IArchiver archiverService)
     {
       _logger = logger;
-      _archivizerService = archivizerService;
+      _archiverService = archiverService;
     }
 
     public Task Extract(string filePath, string outputPath = null)
     {
       outputPath ??= Path.GetDirectoryName(filePath);
-      var archive = _archivizerService.OpenArchive(filePath);
-      _archivizerService.ExtractAll(outputPath);
+      var archive = _archiverService.OpenArchive(filePath);
+      _archiverService.ExtractAll(archive, outputPath);
       return Task.CompletedTask;
     }
   }

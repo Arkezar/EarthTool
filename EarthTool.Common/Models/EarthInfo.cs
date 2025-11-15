@@ -6,7 +6,7 @@ using System.Text;
 
 namespace EarthTool.Common.Models
 {
-    public class EarthInfo : IEarthInfo
+    internal class EarthInfo : IEarthInfo
     {
         public FileFlags Flags { get; set; }
 

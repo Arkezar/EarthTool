@@ -7,7 +7,7 @@ namespace EarthTool.Common.Interfaces
   public interface IArchive
   {
     IEarthInfo Header { get; }
-    DateTime LastModified { get; }
+    DateTime LastModification { get; }
     IReadOnlyCollection<IArchiveItem> Items { get; }
     void AddItem(IArchiveItem item);
     void RemoveItem(IArchiveItem item);

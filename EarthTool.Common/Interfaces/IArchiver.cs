@@ -4,6 +4,6 @@
   {
     IArchive OpenArchive(string filePath);
     void Extract(IArchiveItem resource, string outputFilePath);
-    void ExtractAll(string outputPath);
+    void ExtractAll(IArchive archive, string outputPath);
   }
 }

@@ -17,7 +17,7 @@ namespace EarthTool.Common.Factories
     }
 
     public IEarthInfo Get(
-      FileFlags flags,
+      FileFlags flags = FileFlags.None,
       Guid? guid = null,
       ResourceType? resourceType = null,
       string translationId = null)

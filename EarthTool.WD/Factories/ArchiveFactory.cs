@@ -1,6 +1,5 @@
 ﻿using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
-using EarthTool.Common.Models;
 using EarthTool.WD.Models;
 using System;
 using System.Collections.Generic;
@@ -18,7 +17,8 @@ namespace EarthTool.WD.Factories
     {
         public IArchive NewArchive()
         {
-            return new Archive();
+            var header = earthInfoFactory.Get(FileFlags.Compressed | FileFlags.Resource | FileFlags.Guid);
+            return new Archive(header);
         }
 
         public IArchive OpenArchive(string path)
@@ -55,17 +55,13 @@ namespace EarthTool.WD.Factories
                 var flags = (FileFlags)reader.ReadByte();
                 var offset = reader.ReadInt32();
                 var length = reader.ReadInt32();
-                var decompressedLength = reader.ReadInt32();
-
-                var info = new EarthInfo()
-                {
-                    Flags = flags,
-                    TranslationId = flags.HasFlag(FileFlags.Named) ? reader.ReadString() : null,
-                    ResourceType = flags.HasFlag(FileFlags.Resource) ? (ResourceType)(byte)reader.ReadInt32() : null,
-                    Guid = flags.HasFlag(FileFlags.Guid) ? new Guid(reader.ReadBytes(16)) : null,
-                };
+                var decompressedSize = reader.ReadInt32();
+                var translationId = flags.HasFlag(FileFlags.Named) ? reader.ReadString() : null;
+                var resourceType = flags.HasFlag(FileFlags.Resource) ? (ResourceType?)(byte)reader.ReadInt32() : null;
+                var guid = flags.HasFlag(FileFlags.Guid) ? (Guid?)new Guid(reader.ReadBytes(16)) : null;
+                var header = earthInfoFactory.Get(flags, guid, resourceType, translationId);
                 var itemData = new ReadOnlyMemory<byte>(data, offset, length);
-                return new ArchiveItem(filePath, info, itemData, decompressedLength);
+                return new ArchiveItem(filePath, header, itemData, decompressedSize);
             }));
         }
         

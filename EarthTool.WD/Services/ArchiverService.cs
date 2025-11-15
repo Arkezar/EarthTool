@@ -1,7 +1,10 @@
-﻿using EarthTool.Common.Interfaces;
+﻿using System.Collections.Generic;
+using EarthTool.Common.Interfaces;
 using Microsoft.Extensions.Logging;
 using System.IO;
+using System.Linq;
 using System.Text;
+using EarthTool.Common.Enums;
 
 namespace EarthTool.WD.Services
 {
@@ -12,7 +15,6 @@ namespace EarthTool.WD.Services
         private readonly IDecompressor _decompressor;
         private readonly ICompressor _compressor;
         private readonly Encoding _encoding;
-        private IArchive _archive;
 
         public ArchiverService(ILogger<ArchiverService> logger, IArchiveFactory archiveFactory,
             IDecompressor decompressor, ICompressor compressor, Encoding encoding)
@@ -26,32 +28,45 @@ namespace EarthTool.WD.Services
 
         public IArchive OpenArchive(string filePath)
         {
-            return _archive = _archiveFactory.OpenArchive(filePath);
+            return _archiveFactory.OpenArchive(filePath);
         }
 
-        public void Extract(IArchiveItem resource, string outputFilePath)
+        public void Extract(IArchiveItem resource, string outputPath)
         {
-            outputFilePath = outputFilePath.Replace('\\', Path.DirectorySeparatorChar);
+            var outputFilePath = Path.Combine(outputPath, resource.FileName)
+                .Replace('\\', Path.DirectorySeparatorChar);
 
             if (!Directory.Exists(Path.GetDirectoryName(outputFilePath)))
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(outputFilePath));
             }
 
-            var data = resource.Extract(_decompressor, _encoding);
+            var data = Extract(resource);
             File.WriteAllBytes(outputFilePath, data);
+            _logger.LogInformation("Extracted file {FileName}", resource.FileName);
         }
 
-        public void ExtractAll(string outputPath)
+        private byte[] Extract(IArchiveItem item)
         {
-            foreach (var resource in _archive.Items)
+            if (!item.IsCompressed)
             {
-                var outputFilePath = Path.Combine(outputPath, resource.FileName)
-                    .Replace('\\', Path.DirectorySeparatorChar);
+                var header = item.Header.ToByteArray(_encoding);
+                return header.Concat(item.Data.ToArray()).ToArray();
+            }
+            else
+            {
+                var extractHeader = (IEarthInfo)item.Header.Clone();
+                extractHeader.RemoveFlag(FileFlags.Compressed);
+                var header = extractHeader.ToByteArray(_encoding);
+                return header.Concat(_decompressor.Decompress(item.Data.ToArray())).ToArray();
+            }
+        }
 
-                Extract(resource, outputFilePath);
-
-                _logger.LogInformation("Extracted file {FileName}", resource.FileName);
+        public void ExtractAll(IArchive archive, string outputPath)
+        {
+            foreach (var resource in archive.Items)
+            {
+                Extract(resource, outputPath);
             }
         }
     }

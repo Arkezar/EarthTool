@@ -109,7 +109,7 @@ namespace EarthTool.MSH.Services
 
     private IMesh LoadMesh(BinaryReader reader)
     {
-      var mesh = new EarthMesh { FileHeader = new EarthInfo() };
+      var mesh = new EarthMesh { FileHeader = _earthInfoFactory.Get() };
       IsValidModel(reader);
       mesh.Descriptor = LoadMeshDescriptor(reader);
       mesh.RootDynamic = LoadEffect(reader);
