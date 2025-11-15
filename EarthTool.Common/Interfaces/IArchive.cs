@@ -4,7 +4,7 @@ using System.Text;
 
 namespace EarthTool.Common.Interfaces
 {
-  public interface IArchive
+  public interface IArchive : IDisposable
   {
     IEarthInfo Header { get; }
     DateTime LastModification { get; }

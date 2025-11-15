@@ -142,7 +142,7 @@ namespace EarthTool.WD.Services
       var archiveHeader = (IEarthInfo)header.Clone();
       if (compress) archiveHeader.SetFlag(FileFlags.Compressed);
 
-      return new ArchiveItem(fileName, header, archiveData, decompressedSize);
+      return new ArchiveItem(fileName, header, new InMemoryArchiveDataSource(archiveData), decompressedSize);
     }
   }
 }

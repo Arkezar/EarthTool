@@ -5,6 +5,7 @@ using EarthTool.WD.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.MemoryMappedFiles;
 using System.Linq;
 using System.Text;
 
@@ -32,12 +33,13 @@ namespace EarthTool.WD.Factories
                 throw new NotSupportedException($"Unsupported archive type: {header.ResourceType}");
             }
 
+            var memoryMappedFile = MemoryMappedFile.CreateFromFile(validatedPath, FileMode.Open, null, 0, MemoryMappedFileAccess.Read);
             var data = File.ReadAllBytes(validatedPath);
 
             using var reader = GetDescriptorReader(data);
             var lastModified = DateTime.FromFileTimeUtc(reader.ReadInt64());
-            var items = GetItems(data, reader);
-            return new Archive(header, lastModified, items);
+            var items = GetItems(data, reader, memoryMappedFile);
+            return new Archive(header, lastModified, items, memoryMappedFile);
         }
 
         private BinaryReader GetDescriptorReader(byte[] data)
@@ -49,7 +51,7 @@ namespace EarthTool.WD.Factories
             return new BinaryReader(new MemoryStream(centralDirectory), encoding);
         }
 
-        private SortedSet<IArchiveItem> GetItems(byte[] data, BinaryReader reader)
+        private SortedSet<IArchiveItem> GetItems(byte[] data, BinaryReader reader, MemoryMappedFile memoryMappedFile)
         {
             var itemCount = reader.ReadInt16();
             return new SortedSet<IArchiveItem>(Enumerable.Range(0, itemCount).Select(_ =>
@@ -63,8 +65,9 @@ namespace EarthTool.WD.Factories
                 var resourceType = flags.HasFlag(FileFlags.Resource) ? (ResourceType?)(byte)reader.ReadInt32() : null;
                 var guid = flags.HasFlag(FileFlags.Guid) ? (Guid?)new Guid(reader.ReadBytes(16)) : null;
                 var header = earthInfoFactory.Get(flags, guid, resourceType, translationId);
-                var itemData = new ReadOnlyMemory<byte>(data, offset, length);
-                return new ArchiveItem(filePath, header, itemData, decompressedSize);
+                
+                var dataSource = new MappedArchiveDataSource(memoryMappedFile, offset, length);
+                return new ArchiveItem(filePath, header, dataSource, decompressedSize);
             }));
         }
         
