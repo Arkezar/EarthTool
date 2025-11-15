@@ -1,46 +1,79 @@
-﻿using EarthTool.Common.Interfaces;
-using EarthTool.WD.Resources;
+﻿using EarthTool.Common.Enums;
+using EarthTool.Common.Interfaces;
+using EarthTool.Common.Models;
+using EarthTool.WD.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace EarthTool.WD.Factories
 {
-  public class ArchiveFactory : IArchiveFactory
-  {
-    private readonly IDecompressor _decompressor;
-    private readonly ICompressor _compressor;
-    private readonly Encoding _encoding;
-
-    public ArchiveFactory(IDecompressor decompressor, ICompressor compressor, Encoding encoding)
+    public class ArchiveFactory(
+        IDecompressor decompressor,
+        IEarthInfoFactory earthInfoFactory,
+        Encoding encoding)
+        : IArchiveFactory
     {
-      _decompressor = decompressor;
-      _compressor = compressor;
-      _encoding = encoding;
-    }
+        public IArchive NewArchive()
+        {
+            return new Archive();
+        }
 
-    public IArchive NewArchive()
-    {
-      throw new NotImplementedException();
-    }
+        public IArchive OpenArchive(string path)
+        {
+            var header = GetArchiveHeader(path);
+            if (header.ResourceType != ResourceType.WdArchive)
+            {
+                throw new NotSupportedException("Unsupported archive type");
+            }
 
-    public IArchive OpenArchive(string path)
-    {
-      using (var stream = new FileStream(path, FileMode.Open))
-      {
-        return new Archive(path, stream, _decompressor, _compressor, _encoding);
-      }
-    }
+            var data = File.ReadAllBytes(path);
 
-    public IArchive OpenArchive(byte[] data)
-    {
-      using (var stream = new MemoryStream(data))
-      {
-        return new Archive(null, stream, _decompressor, _compressor, _encoding);
-      }
+            using var reader = GetDescriptorReader(data);
+            var lastModified = DateTime.FromFileTimeUtc(reader.ReadInt64());
+            var items = GetItems(data, reader);
+            return new Archive(header, lastModified, items);
+        }
+
+        private BinaryReader GetDescriptorReader(byte[] data)
+        {
+            var descriptorLength = BitConverter.ToInt32(new ReadOnlySpan<byte>(data, data.Length - 4, 4));
+            var centralDirectory =
+                decompressor.Decompress(new ReadOnlySpan<byte>(data, data.Length - descriptorLength,
+                    descriptorLength - 4));
+            return new BinaryReader(new MemoryStream(centralDirectory), encoding);
+        }
+
+        private SortedSet<IArchiveItem> GetItems(byte[] data, BinaryReader reader)
+        {
+            var itemCount = reader.ReadInt16();
+            return new SortedSet<IArchiveItem>(Enumerable.Range(0, itemCount).Select(_ =>
+            {
+                var filePath = reader.ReadString();
+                var flags = (FileFlags)reader.ReadByte();
+                var offset = reader.ReadInt32();
+                var length = reader.ReadInt32();
+                var decompressedLength = reader.ReadInt32();
+
+                var info = new EarthInfo()
+                {
+                    Flags = flags,
+                    TranslationId = flags.HasFlag(FileFlags.Named) ? reader.ReadString() : null,
+                    ResourceType = flags.HasFlag(FileFlags.Resource) ? (ResourceType)(byte)reader.ReadInt32() : null,
+                    Guid = flags.HasFlag(FileFlags.Guid) ? new Guid(reader.ReadBytes(16)) : null,
+                };
+                var itemData = new ReadOnlyMemory<byte>(data, offset, length);
+                return new ArchiveItem(filePath, info, itemData, decompressedLength);
+            }));
+        }
+        
+        private IEarthInfo GetArchiveHeader(string path)
+        {
+            using var stream = File.OpenRead(path);
+            using var decompressedStream = new MemoryStream(decompressor.Decompress(stream));
+            return earthInfoFactory.Get(decompressedStream);
+        }
     }
-  }
 }

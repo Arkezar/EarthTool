@@ -3,7 +3,6 @@
   public interface IArchiveFactory
   {
     IArchive OpenArchive(string path);
-    IArchive OpenArchive(byte[] data);
     IArchive NewArchive();
   }
 }

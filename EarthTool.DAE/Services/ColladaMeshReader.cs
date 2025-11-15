@@ -47,7 +47,7 @@ namespace EarthTool.DAE.Services
     private IMesh Read(COLLADA model)
     {
       var modelName = model.Library_Visual_Scenes.First().Visual_Scene.First().Node.First().Id;
-      var earthInfo = _earthInfoFactory.Get(modelName, Common.Enums.FileFlags.None, Guid.NewGuid());
+      var earthInfo = _earthInfoFactory.Get(FileFlags.None, Guid.NewGuid());
       var geometries = LoadGeometries(model).ToArray();
       var descriptor = LoadDescriptor(model, geometries);
 

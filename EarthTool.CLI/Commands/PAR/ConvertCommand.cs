@@ -78,7 +78,6 @@ public class ConvertCommand : CommonCommand<CommonSettings>
     var parameters = JsonSerializer.Deserialize<ParFile>(File.ReadAllText(filePath), opts);
     parameters.FileHeader = new EarthInfo()
     {
-      FilePath = outputFilePath,
       Flags = FileFlags.Resource | FileFlags.Guid,
       Guid = Guid.NewGuid(),
       ResourceType = ResourceType.Parameters

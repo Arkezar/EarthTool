@@ -1,5 +1,6 @@
 ﻿using EarthTool.Common.Interfaces;
 using Microsoft.Extensions.Logging;
+using System;
 using System.IO;
 using System.IO.Compression;
 
@@ -13,6 +14,9 @@ namespace EarthTool.WD.Services
     {
       _logger = logger;
     }
+
+    public byte[] Decompress(ReadOnlySpan<byte> data)
+      => Decompress(data.ToArray());
 
     public byte[] Decompress(byte[] data)
     {
@@ -30,6 +34,7 @@ namespace EarthTool.WD.Services
         {
           decompressedData.CopyTo(output);
         }
+
         return output.ToArray();
       }
     }

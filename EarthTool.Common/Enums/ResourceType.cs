@@ -24,6 +24,8 @@
     CampaignScript    = 0x0c,
     PlayerScript      = 0x0d,
     MissionScript     = 0x0e,
-    TransporterScript = 0x10
+    TransporterScript = 0x10,
+
+    WdArchive = 0x2004457
   }
 }

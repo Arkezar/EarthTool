@@ -3,9 +3,8 @@ using System;
 
 namespace EarthTool.Common.Interfaces
 {
-  public interface IEarthInfo : IBinarySerializable
+  public interface IEarthInfo : IBinarySerializable, ICloneable
   {
-    string FilePath { get; }
     FileFlags Flags { get; }
     Guid? Guid { get; }
     ResourceType? ResourceType { get; }

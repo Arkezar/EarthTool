@@ -1,15 +1,16 @@
-﻿namespace EarthTool.Common.Interfaces
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace EarthTool.Common.Interfaces
 {
   public interface IArchive
   {
-    string FilePath { get; }
-
-    IArchiveHeader Header { get; }
-
-    IArchiveCentralDirectory CentralDirectory { get; }
-
-    byte[] ExtractResource(IArchiveFileHeader resourceHeader);
-
-    byte[] ToByteArray();
+    IEarthInfo Header { get; }
+    DateTime LastModified { get; }
+    IReadOnlyCollection<IArchiveItem> Items { get; }
+    void AddItem(IArchiveItem item);
+    void RemoveItem(IArchiveItem item);
+    byte[] ToByteArray(ICompressor compressor, Encoding encoding);
   }
 }

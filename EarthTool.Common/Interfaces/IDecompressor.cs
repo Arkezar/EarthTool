@@ -1,9 +1,11 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 
 namespace EarthTool.Common.Interfaces
 {
   public interface IDecompressor
   {
+    byte[] Decompress(ReadOnlySpan<byte> data);
     byte[] Decompress(byte[] data);
     byte[] Decompress(Stream stream);
   }
