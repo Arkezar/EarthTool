@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using EarthTool.Common.Interfaces;
 using EarthTool.Common.Validation;
 using Microsoft.Extensions.Logging;
@@ -6,70 +5,144 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using EarthTool.Common.Enums;
+using EarthTool.WD.Models;
 using System;
 
 namespace EarthTool.WD.Services
 {
-    public class ArchiverService : IArchiver
+  public class ArchiverService : IArchiver
+  {
+    private readonly ILogger<ArchiverService> _logger;
+    private readonly IEarthInfoFactory        _earthInfoFactory;
+    private readonly IArchiveFactory          _archiveFactory;
+    private readonly IDecompressor            _decompressor;
+    private readonly ICompressor              _compressor;
+    private readonly Encoding                 _encoding;
+
+    public ArchiverService(
+      ILogger<ArchiverService> logger,
+      IEarthInfoFactory earthInfoFactory,
+      IArchiveFactory archiveFactory,
+      IDecompressor decompressor,
+      ICompressor compressor,
+      Encoding encoding)
     {
-        private readonly ILogger<ArchiverService> _logger;
-        private readonly IArchiveFactory _archiveFactory;
-        private readonly IDecompressor _decompressor;
-        private readonly ICompressor _compressor;
-        private readonly Encoding _encoding;
-
-        public ArchiverService(ILogger<ArchiverService> logger, IArchiveFactory archiveFactory,
-            IDecompressor decompressor, ICompressor compressor, Encoding encoding)
-        {
-            _logger = logger;
-            _archiveFactory = archiveFactory;
-            _decompressor = decompressor;
-            _compressor = compressor;
-            _encoding = encoding;
-        }
-
-        public IArchive OpenArchive(string filePath)
-        {
-            return _archiveFactory.OpenArchive(filePath);
-        }
-
-        public void Extract(IArchiveItem resource, string outputPath)
-        {
-            ArgumentNullException.ThrowIfNull(resource);
-            
-            var outputFilePath = PathValidator.GetSafeOutputPath(outputPath, resource.FileName);
-
-            var data = Extract(resource);
-            File.WriteAllBytes(outputFilePath, data);
-            _logger.LogInformation("Extracted file {FileName} to {OutputPath}", resource.FileName, outputFilePath);
-        }
-
-        private byte[] Extract(IArchiveItem item)
-        {
-            if (!item.IsCompressed)
-            {
-                var header = item.Header.ToByteArray(_encoding);
-                return header.Concat(item.Data.ToArray()).ToArray();
-            }
-            else
-            {
-                var extractHeader = (IEarthInfo)item.Header.Clone();
-                extractHeader.RemoveFlag(FileFlags.Compressed);
-                var header = extractHeader.ToByteArray(_encoding);
-                return header.Concat(_decompressor.Decompress(item.Data.ToArray())).ToArray();
-            }
-        }
-
-        public void ExtractAll(IArchive archive, string outputPath)
-        {
-            ArgumentNullException.ThrowIfNull(archive);
-            
-            PathValidator.EnsureDirectoryExists(outputPath);
-            
-            foreach (var resource in archive.Items)
-            {
-                Extract(resource, outputPath);
-            }
-        }
+      _logger = logger;
+      _earthInfoFactory = earthInfoFactory;
+      _archiveFactory = archiveFactory;
+      _decompressor = decompressor;
+      _compressor = compressor;
+      _encoding = encoding;
     }
+
+    public IArchive OpenArchive(string filePath)
+    {
+      return _archiveFactory.OpenArchive(filePath);
+    }
+
+    public IArchive CreateArchive()
+    {
+      return _archiveFactory.NewArchive();
+    }
+
+    public void AddFile(IArchive archive, string filePath, bool compress = true)
+    {
+      ArgumentNullException.ThrowIfNull(archive);
+
+      var validatedPath = PathValidator.ValidateFileExists(filePath);
+
+      var item = CreateArchiveItemFromFile(
+        validatedPath,
+        _earthInfoFactory,
+        _compressor,
+        compress);
+
+      archive.AddItem(item);
+      _logger.LogInformation("Added file {FileName} to archive (compressed: {Compressed})",
+        item.FileName, compress);
+    }
+
+    public void SaveArchive(IArchive archive, string outputFilePath)
+    {
+      ArgumentNullException.ThrowIfNull(archive);
+
+      var directory = Path.GetDirectoryName(outputFilePath);
+      if (!string.IsNullOrEmpty(directory))
+      {
+        PathValidator.EnsureDirectoryExists(directory);
+      }
+
+      var archiveData = archive.ToByteArray(_compressor, _encoding);
+      File.WriteAllBytes(outputFilePath, archiveData);
+
+      _logger.LogInformation("Saved archive to {OutputPath} ({Size} bytes, {ItemCount} items)",
+        outputFilePath, archiveData.Length, archive.Items.Count);
+    }
+
+    public void Extract(IArchiveItem resource, string outputPath)
+    {
+      ArgumentNullException.ThrowIfNull(resource);
+
+      var outputFilePath = PathValidator.GetSafeOutputPath(outputPath, resource.FileName);
+
+      var data = Extract(resource);
+      File.WriteAllBytes(outputFilePath, data);
+      _logger.LogInformation("Extracted file {FileName} to {OutputPath}", resource.FileName, outputFilePath);
+    }
+
+    private byte[] Extract(IArchiveItem item)
+    {
+      if (!item.IsCompressed)
+      {
+        var header = item.Header.ToByteArray(_encoding);
+        return header.Concat(item.Data.ToArray()).ToArray();
+      }
+      else
+      {
+        var extractHeader = (IEarthInfo)item.Header.Clone();
+        extractHeader.RemoveFlag(FileFlags.Compressed);
+        var header = extractHeader.ToByteArray(_encoding);
+        return header.Concat(_decompressor.Decompress(item.Data.ToArray())).ToArray();
+      }
+    }
+
+    public void ExtractAll(IArchive archive, string outputPath)
+    {
+      ArgumentNullException.ThrowIfNull(archive);
+
+      PathValidator.EnsureDirectoryExists(outputPath);
+
+      foreach (var resource in archive.Items)
+      {
+        Extract(resource, outputPath);
+      }
+    }
+
+    /// <summary>
+    /// Creates an ArchiveItem from a file on disk
+    /// </summary>
+    private ArchiveItem CreateArchiveItemFromFile(
+      string filePath,
+      IEarthInfoFactory earthInfoFactory,
+      ICompressor compressor,
+      bool compress = true)
+    {
+      var fileData = File.ReadAllBytes(filePath);
+      var fileName = Path.GetFileName(filePath);
+
+      // Read existing header from file if it has EarthInfo
+      using var ms = new MemoryStream(fileData);
+      var header = earthInfoFactory.Get(ms) ?? earthInfoFactory.Get();
+      var headerSize = (int)ms.Position;
+      var contentData = new byte[fileData.Length - headerSize];
+      Array.Copy(fileData, headerSize, contentData, 0, contentData.Length);
+
+      var decompressedSize = contentData.Length;
+      var archiveData = compress ? compressor.Compress(contentData) : contentData;
+      var archiveHeader = (IEarthInfo)header.Clone();
+      if (compress) archiveHeader.SetFlag(FileFlags.Compressed);
+
+      return new ArchiveItem(fileName, header, archiveData, decompressedSize);
+    }
+  }
 }

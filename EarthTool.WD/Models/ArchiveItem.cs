@@ -4,15 +4,24 @@ using System;
 
 namespace EarthTool.WD.Models;
 
-public class ArchiveItem(string fileName, IEarthInfo header, ReadOnlyMemory<byte> data, int decompressedSize)
-    : IArchiveItem
+public class ArchiveItem : IArchiveItem
 {
-    public string FileName { get; } = fileName;
-    public IEarthInfo Header { get; } = header;
-    public int CompressedSize => data.Length;
-    public int DecompressedSize { get; } = decompressedSize;
+    private readonly ReadOnlyMemory<byte> _data;
+
+    public ArchiveItem(string fileName, IEarthInfo header, ReadOnlyMemory<byte> data, int decompressedSize)
+    {
+        FileName = fileName;
+        Header = header;
+        _data = data;
+        DecompressedSize = decompressedSize;
+    }
+    
+    public string FileName { get; }
+    public IEarthInfo Header { get; }
+    public int CompressedSize => _data.Length;
+    public int DecompressedSize { get; }
     public bool IsCompressed => Header.Flags.HasFlag(FileFlags.Compressed);
-    public ReadOnlyMemory<byte> Data => data;
+    public ReadOnlyMemory<byte> Data => _data;
 
     public int CompareTo(IArchiveItem other)
     {
