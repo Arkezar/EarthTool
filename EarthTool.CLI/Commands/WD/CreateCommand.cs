@@ -66,14 +66,24 @@ public sealed class CreateCommand : WdCommandBase<CreateSettings>
       AnsiConsole.MarkupLine($"[green]Creating archive: {settings.ArchivePath}[/]");
       AnsiConsole.MarkupLine($"[dim]Compression: {(compress ? "enabled" : "disabled")}[/]");
 
+      // Determine base directory for preserving structure
+      var baseDir = Directory.Exists(settings.InputPath) 
+        ? settings.InputPath 
+        : Path.GetDirectoryName(settings.InputPath);
+
       var added = 0;
       foreach (var file in filesToAdd)
       {
         try
         {
-          _archiver.AddFile(archive, file, compress);
+          _archiver.AddFile(archive, file, baseDir, compress);
           added++;
-          AnsiConsole.MarkupLine($"[dim]  Added: {Path.GetFileName(file)}[/]");
+          
+          // Show relative path for better visibility
+          var displayName = baseDir != null 
+            ? Path.GetRelativePath(baseDir, file) 
+            : Path.GetFileName(file);
+          AnsiConsole.MarkupLine($"[dim]  Added: {displayName}[/]");
         }
         catch (Exception ex)
         {

@@ -19,7 +19,7 @@ namespace EarthTool.WD.Factories
   {
     public IArchive NewArchive()
     {
-      var header = earthInfoFactory.Get(FileFlags.Compressed | FileFlags.Resource | FileFlags.Guid);
+      var header = earthInfoFactory.Get(FileFlags.Compressed | FileFlags.Resource | FileFlags.Guid, Guid.NewGuid(), ResourceType.WdArchive);
       return new Archive(header);
     }
 

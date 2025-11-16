@@ -67,7 +67,9 @@ public sealed class AddCommand : WdCommandBase<AddSettings>
 
       try
       {
-        _archiver.AddFile(archive, filePath, compress);
+        // Use parent directory as base to preserve relative paths
+        var baseDir = Path.GetDirectoryName(filePath);
+        _archiver.AddFile(archive, filePath, baseDir, compress);
         added++;
         AnsiConsole.MarkupLine($"[dim]  Added: {fileName}[/]");
       }

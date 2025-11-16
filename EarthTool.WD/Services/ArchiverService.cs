@@ -45,14 +45,18 @@ namespace EarthTool.WD.Services
       return _archiveFactory.NewArchive();
     }
 
-    public void AddFile(IArchive archive, string filePath, bool compress = true)
+    public void AddFile(IArchive archive, string filePath, string baseDirectory = null, bool compress = true)
     {
       ArgumentNullException.ThrowIfNull(archive);
 
       var validatedPath = PathValidator.ValidateFileExists(filePath);
 
+      // If baseDirectory not provided, use parent directory of the file
+      var baseDir = baseDirectory ?? Path.GetDirectoryName(validatedPath);
+
       var item = CreateArchiveItemFromFile(
         validatedPath,
+        baseDir,
         _earthInfoFactory,
         _compressor,
         compress);
@@ -123,12 +127,26 @@ namespace EarthTool.WD.Services
     /// </summary>
     private ArchiveItem CreateArchiveItemFromFile(
       string filePath,
+      string baseDirectory,
       IEarthInfoFactory earthInfoFactory,
       ICompressor compressor,
       bool compress = true)
     {
       var fileData = File.ReadAllBytes(filePath);
-      var fileName = Path.GetFileName(filePath);
+      
+      // Calculate relative path from baseDirectory and normalize to forward slashes
+      string fileName;
+      if (!string.IsNullOrEmpty(baseDirectory))
+      {
+        fileName = Path.GetRelativePath(baseDirectory, filePath);
+        // ALWAYS use forward slashes in archive (game requirement!)
+        fileName = fileName.Replace('\\', '/');
+      }
+      else
+      {
+        // Fallback - use only file name
+        fileName = Path.GetFileName(filePath);
+      }
 
       // Read existing header from file if it has EarthInfo
       using var ms = new MemoryStream(fileData);
