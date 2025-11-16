@@ -343,3 +343,8 @@ ASALocalRun/
 
 # BeatPulse healthcheck temp database
 healthchecksdb
+
+# Test files and archives
+test_*/
+*.wd
+!docs/*.wd
