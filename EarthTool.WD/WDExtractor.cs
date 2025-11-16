@@ -25,8 +25,20 @@ namespace EarthTool.WD
       outputPath ??= Path.GetDirectoryName(validatedPath) 
         ?? throw new InvalidOperationException($"Cannot determine output path for: {validatedPath}");
       
-      using var archive = _archiverService.OpenArchive(validatedPath);
-      _archiverService.ExtractAll(archive, outputPath);
+      try
+      {
+        using var archive = _archiverService.OpenArchive(validatedPath);
+        _logger.LogInformation("Extracting archive {FilePath} to {OutputPath}", validatedPath, outputPath);
+        _archiverService.ExtractAll(archive, outputPath);
+        _logger.LogInformation("Successfully extracted {ItemCount} items from {FilePath}", 
+          archive.Items.Count, validatedPath);
+      }
+      catch (Exception ex)
+      {
+        _logger.LogError(ex, "Failed to extract archive {FilePath}", validatedPath);
+        throw;
+      }
+      
       return Task.CompletedTask;
     }
   }

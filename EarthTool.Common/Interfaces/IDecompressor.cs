@@ -8,5 +8,7 @@ namespace EarthTool.Common.Interfaces
     byte[] Decompress(ReadOnlySpan<byte> data);
     byte[] Decompress(byte[] data);
     byte[] Decompress(Stream stream);
+    Stream OpenDecompressionStream(Stream stream, bool leaveOpen = false);
+    
   }
 }

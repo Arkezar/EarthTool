@@ -2,7 +2,7 @@ using System;
 
 namespace EarthTool.Common.Interfaces
 {
-    public interface IArchiveItem : IComparable<IArchiveItem>
+    public interface IArchiveItem : IComparable<IArchiveItem>, IDisposable
     {
         string FileName { get; }
         IEarthInfo Header { get; }

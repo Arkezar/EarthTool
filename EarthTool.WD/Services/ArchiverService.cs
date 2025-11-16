@@ -139,10 +139,11 @@ namespace EarthTool.WD.Services
 
       var decompressedSize = contentData.Length;
       var archiveData = compress ? compressor.Compress(contentData) : contentData;
+      var compressedSize = archiveData.Length;
       var archiveHeader = (IEarthInfo)header.Clone();
       if (compress) archiveHeader.SetFlag(FileFlags.Compressed);
 
-      return new ArchiveItem(fileName, header, new InMemoryArchiveDataSource(archiveData), decompressedSize);
+      return new ArchiveItem(fileName, archiveHeader, new InMemoryArchiveDataSource(archiveData), compressedSize, decompressedSize);
     }
   }
 }

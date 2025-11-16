@@ -46,6 +46,13 @@ namespace EarthTool.Common.Factories
       };
     }
 
+    public IEarthInfo Get(byte[] data)
+    {
+      using var stream = new MemoryStream(data);
+      return Get(stream);
+    }
+    
+    
     public IEarthInfo Get(Stream stream)
     {
       if (HasEarthInfo(stream))

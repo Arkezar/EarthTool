@@ -2,7 +2,11 @@ using System;
 
 namespace EarthTool.WD.Interfaces;
 
-public interface IArchiveDataSource
+/// <summary>
+/// Provides access to archive item data.
+/// Implementations may use different strategies (in-memory, memory-mapped).
+/// </summary>
+public interface IArchiveDataSource : IDisposable
 {
   ReadOnlyMemory<byte> Data { get; }
 }

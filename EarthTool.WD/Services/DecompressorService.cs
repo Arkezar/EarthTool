@@ -20,23 +20,19 @@ namespace EarthTool.WD.Services
 
     public byte[] Decompress(byte[] data)
     {
-      using (var compressedStream = new MemoryStream(data))
-      {
-        return Decompress(compressedStream);
-      }
+      using var compressedStream = new MemoryStream(data);
+      return Decompress(compressedStream);
     }
 
     public byte[] Decompress(Stream stream)
     {
-      using (var output = new MemoryStream())
-      {
-        using (var decompressedData = new ZLibStream(stream, CompressionMode.Decompress, true))
-        {
-          decompressedData.CopyTo(output);
-        }
-
-        return output.ToArray();
-      }
+      using var output = new MemoryStream();
+      using var decompressedData = OpenDecompressionStream(stream, true);
+      decompressedData.CopyTo(output);
+      return output.ToArray();
     }
+
+    public Stream OpenDecompressionStream(Stream stream, bool leaveOpen = false)
+      => new ZLibStream(stream, CompressionMode.Decompress, leaveOpen);
   }
 }

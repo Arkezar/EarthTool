@@ -11,6 +11,7 @@ namespace EarthTool.WD.Models
   public class Archive : SortedSet<IArchiveItem>, IArchive
   {
     private readonly MemoryMappedFile _memoryMappedFile;
+    private bool _disposed;
 
     public Archive(IEarthInfo header)
       : this(header, DateTime.Now)
@@ -126,7 +127,27 @@ namespace EarthTool.WD.Models
       return archiveStream.ToArray();
     }
 
+    /// <summary>
+    /// Disposes the memory-mapped file and all archive items.
+    /// </summary>
     public void Dispose()
-      => _memoryMappedFile?.Dispose();
+    {
+      if (_disposed)
+      {
+        return;
+      }
+
+      // Dispose all items first (they may reference the MMF)
+      foreach (var item in this)
+      {
+        item?.Dispose();
+      }
+
+      // Then dispose the shared MMF
+      _memoryMappedFile?.Dispose();
+      _disposed = true;
+      
+      GC.SuppressFinalize(this);
+    }
   }
 }
