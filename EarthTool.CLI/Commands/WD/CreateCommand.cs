@@ -67,8 +67,9 @@ public sealed class CreateCommand : WdCommandBase<CreateSettings>
       AnsiConsole.MarkupLine($"[dim]Compression: {(compress ? "enabled" : "disabled")}[/]");
 
       // Determine base directory for preserving structure
+      // Use parent directory of InputPath to include the folder name in archive paths
       var baseDir = Directory.Exists(settings.InputPath) 
-        ? settings.InputPath 
+        ? Path.GetDirectoryName(Path.GetFullPath(settings.InputPath))
         : Path.GetDirectoryName(settings.InputPath);
 
       var added = 0;

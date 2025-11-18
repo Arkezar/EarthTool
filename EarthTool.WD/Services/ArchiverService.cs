@@ -134,13 +134,13 @@ namespace EarthTool.WD.Services
     {
       var fileData = File.ReadAllBytes(filePath);
       
-      // Calculate relative path from baseDirectory and normalize to forward slashes
+      // Calculate relative path from baseDirectory and normalize to backslashes
       string fileName;
       if (!string.IsNullOrEmpty(baseDirectory))
       {
         fileName = Path.GetRelativePath(baseDirectory, filePath);
-        // ALWAYS use forward slashes in archive (game requirement!)
-        fileName = fileName.Replace('\\', '/');
+        // ALWAYS use backslashes in archive (game requirement!)
+        fileName = fileName.Replace('/', '\\');
       }
       else
       {
@@ -156,7 +156,7 @@ namespace EarthTool.WD.Services
       Array.Copy(fileData, headerSize, contentData, 0, contentData.Length);
 
       var decompressedSize = contentData.Length;
-      var archiveData = compress ? compressor.Compress(contentData) : contentData;
+      var archiveData = compress && !header.Flags.HasFlag(FileFlags.Compressed) ? compressor.Compress(contentData) : contentData;
       var compressedSize = archiveData.Length;
       var archiveHeader = (IEarthInfo)header.Clone();
       if (compress) archiveHeader.SetFlag(FileFlags.Compressed);
