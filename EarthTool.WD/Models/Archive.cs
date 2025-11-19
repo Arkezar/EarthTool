@@ -51,6 +51,11 @@ namespace EarthTool.WD.Models
     public DateTime LastModification { get; private set; }
     public IReadOnlyCollection<IArchiveItem> Items => this;
 
+    public void SetTimestamp(DateTime timestamp)
+    {
+      LastModification = timestamp;
+    }
+
     public void AddItem(IArchiveItem item)
     {
       Add(item);

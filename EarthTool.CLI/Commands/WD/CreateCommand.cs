@@ -133,10 +133,13 @@ public sealed class CreateCommand : WdCommandBase<CreateSettings>
       AnsiConsole.MarkupLine($"[dim]Compression: {(compress ? "enabled" : "disabled")}[/]");
 
       // Determine base directory for preserving structure
-      // Special case: if InputPath is "." (current dir), use current directory as base
-      // Otherwise: use parent directory of InputPath to include the folder name in archive paths
       string baseDir;
-      if (settings.InputPath == ".")
+      if (!string.IsNullOrEmpty(settings.BaseDir))
+      {
+        // Use explicitly provided base directory
+        baseDir = Path.GetFullPath(settings.BaseDir);
+      }
+      else if (settings.InputPath == ".")
       {
         // Use current directory itself as base (files will be at root of archive)
         baseDir = Path.GetFullPath(settings.InputPath);

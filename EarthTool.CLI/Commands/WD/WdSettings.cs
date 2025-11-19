@@ -70,6 +70,11 @@ public class ListSettings : WdSettings
   [CommandOption("-f|--filter <Pattern>")]
   [Description("File pattern filter (e.g., '*.msh', '*.tex')")]
   public string Filter { get; set; }
+
+  [CommandOption("--names-only")]
+  [Description("Output only file names, one per line")]
+  [DefaultValue(false)]
+  public bool NamesOnly { get; set; }
 }
 
 /// <summary>
@@ -98,6 +103,10 @@ public class CreateSettings : WdSettings
   [CommandOption("--guid <Guid>")]
   [Description("Set archive GUID identifier (format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX)")]
   public string Guid { get; set; }
+
+  [CommandOption("-b|--base-dir <BaseDir>")]
+  [Description("Base directory for relative paths (overrides default behavior)")]
+  public string BaseDir { get; set; }
 }
 
 /// <summary>
@@ -117,6 +126,15 @@ public class AddSettings : WdSettings
   [CommandOption("-o|--output <OutputPath>")]
   [Description("Output path for modified archive (default: overwrites original)")]
   public string OutputPath { get; set; }
+
+  [CommandOption("-b|--base-dir <BaseDir>")]
+  [Description("Base directory for relative paths (default: parent directory of each file)")]
+  public string BaseDir { get; set; }
+
+  [CommandOption("--preserve-timestamp")]
+  [Description("Preserve the original archive timestamp (don't update to current time)")]
+  [DefaultValue(false)]
+  public bool PreserveTimestamp { get; set; }
 }
 
 /// <summary>

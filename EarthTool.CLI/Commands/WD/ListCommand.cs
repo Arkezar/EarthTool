@@ -26,8 +26,8 @@ public sealed class ListCommand : WdCommandBase<ListSettings>
     {
       var pattern = settings.Filter.Replace("*", ".*").Replace("?", ".");
       items = items.Where(i => System.Text.RegularExpressions.Regex.IsMatch(
-        i.FileName, 
-        pattern, 
+        i.FileName,
+        pattern,
         System.Text.RegularExpressions.RegexOptions.IgnoreCase));
     }
 
@@ -35,7 +35,19 @@ public sealed class ListCommand : WdCommandBase<ListSettings>
 
     if (!itemsList.Any())
     {
-      AnsiConsole.MarkupLine("[yellow]No files found in archive[/]");
+      if (!settings.NamesOnly)
+      {
+        AnsiConsole.MarkupLine("[yellow]No files found in archive[/]");
+      }
+      return 0;
+    }
+
+    if (settings.NamesOnly)
+    {
+      foreach (var item in itemsList)
+      {
+        Console.WriteLine(item.FileName);
+      }
       return 0;
     }
 
@@ -43,7 +55,7 @@ public sealed class ListCommand : WdCommandBase<ListSettings>
     var info = tree.AddNode($"[bold]Archive Information[/]");
     info.AddNode($"Total files: {archive.Items.Count}");
     info.AddNode($"Last modified: {archive.LastModification:yyyy-MM-dd HH:mm:ss}");
-    
+
     if (!string.IsNullOrEmpty(settings.Filter))
     {
       info.AddNode($"Filtered files: {itemsList.Count}");
@@ -63,12 +75,12 @@ public sealed class ListCommand : WdCommandBase<ListSettings>
 
       foreach (var item in itemsList)
       {
-        var ratio = item.DecompressedSize > 0 
-          ? (1.0 - (double)item.CompressedSize / item.DecompressedSize) * 100 
+        var ratio = item.DecompressedSize > 0
+          ? (1.0 - (double)item.CompressedSize / item.DecompressedSize) * 100
           : 0;
-        
+
         var flags = item.Header.Flags.ToString();
-        
+
         table.AddRow(
           item.FileName,
           FormatBytes(item.CompressedSize),

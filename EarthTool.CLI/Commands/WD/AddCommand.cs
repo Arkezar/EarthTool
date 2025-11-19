@@ -34,8 +34,15 @@ public sealed class AddCommand : WdCommandBase<AddSettings>
     var compress = !settings.NoCompress;
     var outputPath = settings.OutputPath ?? settings.ArchivePath;
 
+    // Save original timestamp if preserving
+    var originalTimestamp = settings.PreserveTimestamp ? archive.LastModification : DateTime.MinValue;
+
     AnsiConsole.MarkupLine($"[green]Adding files to archive: {settings.ArchivePath}[/]");
     AnsiConsole.MarkupLine($"[dim]Compression: {(compress ? "enabled" : "disabled")}[/]");
+    if (settings.PreserveTimestamp)
+    {
+      AnsiConsole.MarkupLine($"[dim]Preserving timestamp: {originalTimestamp:yyyy-MM-dd HH:mm:ss}[/]");
+    }
 
     var added = 0;
     var skipped = 0;
@@ -67,8 +74,10 @@ public sealed class AddCommand : WdCommandBase<AddSettings>
 
       try
       {
-        // Use parent directory as base to preserve relative paths
-        var baseDir = Path.GetDirectoryName(filePath);
+        // Use provided base directory or parent directory of file
+        var baseDir = !string.IsNullOrEmpty(settings.BaseDir) 
+          ? settings.BaseDir 
+          : Path.GetDirectoryName(filePath);
         _archiver.AddFile(archive, filePath, baseDir, compress);
         added++;
         AnsiConsole.MarkupLine($"[dim]  Added: {fileName}[/]");
@@ -87,6 +96,12 @@ public sealed class AddCommand : WdCommandBase<AddSettings>
 
     try
     {
+      // Restore original timestamp if preserving
+      if (settings.PreserveTimestamp && originalTimestamp != DateTime.MinValue)
+      {
+        ((EarthTool.WD.Models.Archive)archive).SetTimestamp(originalTimestamp);
+      }
+
       _archiver.SaveArchive(archive, outputPath);
       AnsiConsole.MarkupLine($"[green]Successfully added {added} file(s) to archive[/]");
       

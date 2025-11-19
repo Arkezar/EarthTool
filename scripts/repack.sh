@@ -25,7 +25,7 @@ fi
 
 CLI_COMMAND="$1"
 WD_FOLDER="$2"
-COMPRESS_FLAG="--no-compress"
+COMPRESS_FLAG=""
 PRESERVE_TIMESTAMPS=false
 TEMP_DIR="$(pwd)/temp_repack"
 REPACK_DIR="$(pwd)/REPACK"
@@ -78,8 +78,8 @@ run_cli() {
         # Handle dotnet run command
         eval "$CLI_COMMAND $@"
     else
-        # Handle direct executable path
-        "$CLI_COMMAND" "$@"
+        # Handle direct executable path or dotnet with DLL
+        eval "$CLI_COMMAND $@"
     fi
 }
 
@@ -142,9 +142,8 @@ for archive_path in "$WD_FOLDER"/*.wd; do
     fi
     
     # Check if extraction created any files or folders
-    # Note: Some archives extract to subfolder, others extract files directly
     extracted_content=$(find "$TEMP_DIR" -mindepth 1 | head -1)
-    
+
     if [ -z "$extracted_content" ]; then
         # Archive might be empty or extraction failed
         echo "  -> WARNING: No files extracted (empty archive?), copying original..."
@@ -152,90 +151,77 @@ for archive_path in "$WD_FOLDER"/*.wd; do
         success_count=$((success_count + 1))
         continue
     fi
-    
+
     # Count extracted files
     file_count=$(find "$TEMP_DIR" -type f | wc -l)
     echo "  -> Extracted $file_count file(s)"
-    
-    # Determine what to pack
-    # Strategy: Pack all items in TEMP_DIR separately to preserve structure
-    # This avoids needing to cd into TEMP_DIR
-    subdirs=$(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)
-    files_in_root=$(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 -type f | wc -l)
-    
-    # Collect all items (files and directories) to pack
-    pack_items=()
-    while IFS= read -r -d '' item; do
-        pack_items+=("$item")
-    done < <(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 -print0)
-    
-    if [ ${#pack_items[@]} -eq 0 ]; then
-        echo "  -> WARNING: No files extracted (empty archive?), copying original..."
-        cp "$archive_path" "$REPACK_DIR/$archive_name"
-        success_count=$((success_count + 1))
-        continue
-    elif [ ${#pack_items[@]} -eq 1 ] && [ -d "${pack_items[0]}" ]; then
-        # Single subdirectory - pack it directly
-        echo "  -> Structure: Single folder ($(basename "${pack_items[0]}"))"
-    elif [ $files_in_root -gt 0 ]; then
-        echo "  -> Structure: Files at root ($files_in_root files, $subdirs dirs)"
+
+    # Get original archive internal timestamp (always preserve for byte-by-byte recreation)
+    orig_timestamp=$(run_cli wd info "$archive_path" --timestamp-only 2>/dev/null | grep -v "^Using launch settings" | tail -1)
+    if [ -z "$orig_timestamp" ]; then
+        echo "  -> WARNING: Could not read archive timestamp"
+        timestamp_arg=""
     else
-        echo "  -> Structure: Multiple folders ($subdirs dirs)"
-    fi
-    
-    # Get original archive internal timestamp if preserving timestamps
-    timestamp_arg=""
-    if [ "$PRESERVE_TIMESTAMPS" = true ]; then
-        # Extract timestamp from original archive metadata (Archive.LastModification)
-        # Use 'wd info --timestamp-only' to get internal archive timestamp, not file timestamp
-        orig_timestamp=$(run_cli wd info "$archive_path" --timestamp-only 2>/dev/null | tail -1)
-        if [ -z "$orig_timestamp" ]; then
-            echo "  -> WARNING: Could not read archive timestamp, using file timestamp"
-            orig_timestamp=$(stat -c %Y "$archive_path")
-        fi
         timestamp_arg="--timestamp $orig_timestamp"
-        # FileTime values are too large for date command, so just show the raw value
         echo "  -> Using original timestamp: $orig_timestamp"
     fi
-    
+
     # Get original archive GUID
     guid_arg=""
-    orig_guid=$(run_cli wd info "$archive_path" --guid-only 2>/dev/null | tail -1)
+    orig_guid=$(run_cli wd info "$archive_path" --guid-only 2>/dev/null | grep -v "^Using launch settings" | tail -1)
     if [ -n "$orig_guid" ]; then
         guid_arg="--guid $orig_guid"
         echo "  -> Using original GUID: $orig_guid"
     fi
-    
-    # Create new archive from extracted files
+
+    # Get list of files in archive order
+    # Filter out dotnet diagnostic messages and convert backslashes to forward slashes
+    file_list=$(run_cli wd list "$archive_path" --names-only 2>/dev/null | grep -v "^Using launch settings" | tr '\\' '/')
+    echo "  -> File list obtained: $(echo "$file_list" | wc -l) files"
+
+    # Create new archive
     echo "  -> Creating new archive..."
-    
-    if [ ${#pack_items[@]} -eq 1 ] && [ -d "${pack_items[0]}" ]; then
-        # Single directory - pack it directly (e.g., temp_repack/Parameters)
-        # BaseDir will be temp_repack, so paths will be Parameters/...
-        if ! run_cli wd create "$REPACK_DIR/$archive_name" -i "${pack_items[0]}" -r $COMPRESS_FLAG $timestamp_arg $guid_arg > /dev/null 2>&1; then
-            echo "  -> ERROR: Failed to create $archive_name"
-            failed_count=$((failed_count + 1))
-            continue
-        fi
-    else
-        # Multiple items or files at root - need to pack from inside TEMP_DIR
-        # cd to TEMP_DIR and use "." as input (our CreateCommand fix handles this)
-        save_dir="$(pwd)"
-        cd "$TEMP_DIR" || {
-            echo "  -> ERROR: Failed to cd to $TEMP_DIR"
-            failed_count=$((failed_count + 1))
-            continue
-        }
+
+    # Create temporary file list with files in order
+    temp_file_list="$TEMP_DIR/.file_order.txt"
+    echo "$file_list" > "$temp_file_list"
+
+    # Read files one by one and build the archive
+    first_file=true
+    failed_creation=false
+    while IFS= read -r file; do
+        # Skip empty lines
+        [ -z "$file" ] && continue
         
-        # Now we're in TEMP_DIR, use "." which will set baseDir to TEMP_DIR
-        # This gives us paths like "Folder1/...", "Folder2/..." without "temp_repack"
-        if ! run_cli wd create "$REPACK_DIR/$archive_name" -i . -r $COMPRESS_FLAG $timestamp_arg $guid_arg > /dev/null 2>&1; then
-            cd "$save_dir"
-            echo "  -> ERROR: Failed to create $archive_name"
-            failed_count=$((failed_count + 1))
+        # Check if file exists
+        if [ ! -f "$TEMP_DIR/$file" ]; then
+            echo "  -> WARNING: File not found: $file"
             continue
         fi
-        cd "$save_dir"
+        
+        if [ "$first_file" = true ]; then
+            # Create archive with first file, using TEMP_DIR as base directory
+            if ! run_cli wd create "$REPACK_DIR/$archive_name" -i "$TEMP_DIR/$file" --base-dir "$TEMP_DIR" $COMPRESS_FLAG $timestamp_arg $guid_arg > /dev/null 2>&1; then
+                echo "  -> ERROR: Failed to create $archive_name"
+                failed_count=$((failed_count + 1))
+                failed_creation=true
+                break
+            fi
+            first_file=false
+        else
+            # Add subsequent files with TEMP_DIR as base directory and preserve timestamp
+            if ! run_cli wd add "$REPACK_DIR/$archive_name" "$TEMP_DIR/$file" --base-dir "$TEMP_DIR" --preserve-timestamp $COMPRESS_FLAG > /dev/null 2>&1; then
+                echo "  -> ERROR: Failed to add file $file to $archive_name"
+                failed_count=$((failed_count + 1))
+                failed_creation=true
+                break
+            fi
+        fi
+    done < "$temp_file_list"
+    
+    # Check if creation failed
+    if [ "$failed_creation" = true ] || [ ! -f "$REPACK_DIR/$archive_name" ]; then
+        continue
     fi
     
     # Also set file system timestamp if preserving timestamps
