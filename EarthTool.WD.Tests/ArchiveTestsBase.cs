@@ -19,6 +19,8 @@ namespace EarthTool.WD.Tests
     protected IDecompressor Decompressor { get; }
     
     protected Encoding Encoding { get; }
+    
+    protected IEarthInfoFactory EarthInfoFactory { get; }
 
     public ArchiveTestsBase()
     {
@@ -38,6 +40,7 @@ namespace EarthTool.WD.Tests
       Compressor = container.GetRequiredService<ICompressor>();
       Decompressor = container.GetRequiredService<IDecompressor>();
       Encoding = container.GetRequiredService<Encoding>();
+      EarthInfoFactory = container.GetRequiredService<IEarthInfoFactory>();
     }
   }
 }

@@ -2,6 +2,7 @@ using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
 using EarthTool.Common.Validation;
 using EarthTool.WD.Models;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,15 +13,30 @@ using System.Text;
 namespace EarthTool.WD.Factories
 {
   public class ArchiveFactory(
+    ILogger<ArchiveFactory> logger,
     IDecompressor decompressor,
     IEarthInfoFactory earthInfoFactory,
     Encoding encoding)
     : IArchiveFactory
   {
+    private readonly ILogger<ArchiveFactory> _logger = logger;
+
     public IArchive NewArchive()
     {
       var header = earthInfoFactory.Get(FileFlags.Compressed | FileFlags.Resource | FileFlags.Guid, Guid.NewGuid(), ResourceType.WdArchive);
       return new Archive(header);
+    }
+
+    public IArchive NewArchive(DateTime lastModification)
+    {
+      var header = earthInfoFactory.Get(FileFlags.Compressed | FileFlags.Resource | FileFlags.Guid, Guid.NewGuid(), ResourceType.WdArchive);
+      return new Archive(header, lastModification, [], lockTimestamp: true);
+    }
+
+    public IArchive NewArchive(DateTime lastModification, Guid guid)
+    {
+      var header = earthInfoFactory.Get(FileFlags.Compressed | FileFlags.Resource | FileFlags.Guid, guid, ResourceType.WdArchive);
+      return new Archive(header, lastModification, [], lockTimestamp: true);
     }
 
     public IArchive OpenArchive(string path)
@@ -57,7 +73,8 @@ namespace EarthTool.WD.Factories
     private SortedSet<IArchiveItem> GetItemHandles(BinaryReader reader, MemoryMappedFile memoryMappedFile)
     {
       var itemCount = reader.ReadInt16();
-      return new SortedSet<IArchiveItem>(Enumerable.Range(0, itemCount).Select(_ =>
+
+      var items = Enumerable.Range(0, itemCount).Select(_ =>
       {
         var filePath = reader.ReadString();
         var flags = (FileFlags)reader.ReadByte();
@@ -71,7 +88,9 @@ namespace EarthTool.WD.Factories
 
         var dataSource = new MappedArchiveDataSource(memoryMappedFile, offset, compressedSize);
         return new ArchiveItem(filePath, header, dataSource, compressedSize, decompressedSize);
-      }));
+      });
+      
+      return new SortedSet<IArchiveItem>(items);
     }
     
     /// <summary>

@@ -45,6 +45,16 @@ namespace EarthTool.WD.Services
       return _archiveFactory.NewArchive();
     }
 
+    public IArchive CreateArchive(DateTime lastModification)
+    {
+      return _archiveFactory.NewArchive(lastModification);
+    }
+
+    public IArchive CreateArchive(DateTime lastModification, Guid guid)
+    {
+      return _archiveFactory.NewArchive(lastModification, guid);
+    }
+
     public void AddFile(IArchive archive, string filePath, string baseDirectory = null, bool compress = true)
     {
       ArgumentNullException.ThrowIfNull(archive);

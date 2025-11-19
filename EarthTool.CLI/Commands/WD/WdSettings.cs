@@ -14,6 +14,22 @@ public class WdSettings : CommandSettings
 }
 
 /// <summary>
+/// Settings for info command
+/// </summary>
+public class InfoSettings : WdSettings
+{
+  [CommandOption("--timestamp-only")]
+  [Description("Output only the archive LastModification timestamp (Windows FileTime)")]
+  [DefaultValue(false)]
+  public bool TimestampOnly { get; set; }
+  
+  [CommandOption("--guid-only")]
+  [Description("Output only the archive Guid identifier")]
+  [DefaultValue(false)]
+  public bool GuidOnly { get; set; }
+}
+
+/// <summary>
 /// Base settings for WD archive commands (multiple archives)
 /// </summary>
 public class WdMultiSettings : CommandSettings
@@ -74,6 +90,14 @@ public class CreateSettings : WdSettings
   [Description("Include subdirectories recursively")]
   [DefaultValue(false)]
   public bool Recursive { get; set; }
+
+  [CommandOption("--timestamp <Timestamp>")]
+  [Description("Set archive last modification timestamp (format: yyyy-MM-dd HH:mm:ss, unix epoch, or filetime)")]
+  public string Timestamp { get; set; }
+
+  [CommandOption("--guid <Guid>")]
+  [Description("Set archive GUID identifier (format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX)")]
+  public string Guid { get; set; }
 }
 
 /// <summary>

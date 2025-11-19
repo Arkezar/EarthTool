@@ -30,7 +30,7 @@ public class ArchiveItem : IArchiveItem
   {
     if (ReferenceEquals(this, other)) return 0;
     if (other is null) return 1;
-    return string.Compare(FileName, other.FileName, StringComparison.Ordinal);
+    return string.Compare(FileName, other.FileName, StringComparison.OrdinalIgnoreCase);
   }
 
   public void Dispose()

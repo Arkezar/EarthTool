@@ -12,22 +12,29 @@ namespace EarthTool.WD.Models
   {
     private readonly MemoryMappedFile _memoryMappedFile;
     private bool _disposed;
+    private readonly bool _timestampLocked;
 
     public Archive(IEarthInfo header)
-      : this(header, DateTime.Now)
+      : this(header, DateTime.Now, false)
     {
     }
 
-    private Archive(IEarthInfo header, DateTime lastModification)
-      : this(header, lastModification, [])
+    private Archive(IEarthInfo header, DateTime lastModification, bool lockTimestamp)
+      : this(header, lastModification, [], lockTimestamp)
     {
     }
 
     public Archive(IEarthInfo header, DateTime lastModification, IEnumerable<IArchiveItem> items)
+      : this(header, lastModification, items, false)
+    {
+    }
+
+    public Archive(IEarthInfo header, DateTime lastModification, IEnumerable<IArchiveItem> items, bool lockTimestamp)
       : base(items)
     {
       Header = header;
       LastModification = lastModification;
+      _timestampLocked = lockTimestamp;
     }
 
     public Archive(
@@ -35,7 +42,7 @@ namespace EarthTool.WD.Models
       DateTime lastModification,
       IEnumerable<IArchiveItem> items,
       MemoryMappedFile memoryMappedFile)
-      : this(header, lastModification, items)
+      : this(header, lastModification, items, false)
     {
       _memoryMappedFile = memoryMappedFile;
     }
@@ -47,13 +54,19 @@ namespace EarthTool.WD.Models
     public void AddItem(IArchiveItem item)
     {
       Add(item);
-      LastModification = DateTime.Now;
+      if (!_timestampLocked)
+      {
+        LastModification = DateTime.Now;
+      }
     }
 
     public void RemoveItem(IArchiveItem item)
     {
       Remove(item);
-      LastModification = DateTime.Now;
+      if (!_timestampLocked)
+      {
+        LastModification = DateTime.Now;
+      }
     }
 
     public byte[] ToByteArray(ICompressor compressor, Encoding encoding)

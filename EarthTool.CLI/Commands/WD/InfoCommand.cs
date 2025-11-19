@@ -1,12 +1,13 @@
 using EarthTool.Common.Interfaces;
 using Spectre.Console;
 using Spectre.Console.Cli;
+using System;
 using System.IO;
 using System.Linq;
 
 namespace EarthTool.CLI.Commands.WD;
 
-public sealed class InfoCommand : WdCommandBase<WdSettings>
+public sealed class InfoCommand : WdCommandBase<InfoSettings>
 {
   private readonly IArchiver _archiver;
 
@@ -15,7 +16,7 @@ public sealed class InfoCommand : WdCommandBase<WdSettings>
     _archiver = archiver;
   }
 
-  public override int Execute(CommandContext context, WdSettings settings)
+  public override int Execute(CommandContext context, InfoSettings settings)
   {
     if (!File.Exists(settings.ArchivePath))
     {
@@ -24,6 +25,23 @@ public sealed class InfoCommand : WdCommandBase<WdSettings>
     }
 
     using var archive = _archiver.OpenArchive(settings.ArchivePath);
+
+    // If timestamp-only mode, output just the FileTime timestamp
+    if (settings.TimestampOnly)
+    {
+      // Output Windows FileTime (100-nanosecond intervals since Jan 1, 1601 UTC)
+      // This preserves full precision including milliseconds
+      var fileTime = archive.LastModification.ToFileTimeUtc();
+      AnsiConsole.WriteLine(fileTime.ToString());
+      return 0;
+    }
+    
+    // If guid-only mode, output just the archive guid
+    if (settings.GuidOnly)
+    {
+      AnsiConsole.WriteLine(archive.Header.Guid.ToString());
+      return 0;
+    }
 
     var fileInfo = new FileInfo(settings.ArchivePath);
     var totalCompressed = archive.Items.Sum(i => (long)i.CompressedSize);

@@ -29,6 +29,18 @@ COMPRESS_FLAG="--no-compress"
 PRESERVE_TIMESTAMPS=false
 TEMP_DIR="$(pwd)/temp_repack"
 REPACK_DIR="$(pwd)/REPACK"
+SCRIPT_DIR="$(pwd)"
+
+# Convert CLI_COMMAND to use absolute paths if it contains relative paths
+if [[ "$CLI_COMMAND" == *"dotnet run"* ]] && [[ "$CLI_COMMAND" == *"--project "* ]]; then
+    # Extract project path and convert to absolute
+    # Pattern: --project <path>
+    if [[ "$CLI_COMMAND" =~ --project[[:space:]]+([^[:space:]]+) ]]; then
+        rel_project="${BASH_REMATCH[1]}"
+        abs_project="$(cd "$(dirname "$rel_project")" && pwd)/$(basename "$rel_project")"
+        CLI_COMMAND="${CLI_COMMAND//$rel_project/$abs_project}"
+    fi
+fi
 
 # Parse optional flags (starting from 3rd argument)
 shift 2
@@ -146,39 +158,89 @@ for archive_path in "$WD_FOLDER"/*.wd; do
     echo "  -> Extracted $file_count file(s)"
     
     # Determine what to pack
-    # Strategy: Preserve original structure
-    # - If archive had files in subfolder(s), extracted structure will have subdirs
-    # - If archive had files at root, extracted structure will have files in TEMP_DIR root
+    # Strategy: Pack all items in TEMP_DIR separately to preserve structure
+    # This avoids needing to cd into TEMP_DIR
     subdirs=$(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)
     files_in_root=$(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 -type f | wc -l)
     
-    if [ $subdirs -eq 1 ] && [ $files_in_root -eq 0 ]; then
-        # Single subdirectory with no files in root - pack the subdirectory
-        # This preserves folder structure like "Parameters/file.txt"
-        pack_source=$(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 -type d | head -1)
-        echo "  -> Structure: Single folder ($(basename "$pack_source"))"
+    # Collect all items (files and directories) to pack
+    pack_items=()
+    while IFS= read -r -d '' item; do
+        pack_items+=("$item")
+    done < <(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 -print0)
+    
+    if [ ${#pack_items[@]} -eq 0 ]; then
+        echo "  -> WARNING: No files extracted (empty archive?), copying original..."
+        cp "$archive_path" "$REPACK_DIR/$archive_name"
+        success_count=$((success_count + 1))
+        continue
+    elif [ ${#pack_items[@]} -eq 1 ] && [ -d "${pack_items[0]}" ]; then
+        # Single subdirectory - pack it directly
+        echo "  -> Structure: Single folder ($(basename "${pack_items[0]}"))"
+    elif [ $files_in_root -gt 0 ]; then
+        echo "  -> Structure: Files at root ($files_in_root files, $subdirs dirs)"
     else
-        # Files in root or multiple subdirectories - pack everything as-is
-        # This preserves flat structure or multi-folder structure
-        # Use a wrapper to pass multiple files/folders to CLI
-        pack_source="$TEMP_DIR"
-        echo "  -> Structure: Flat or multi-folder ($files_in_root files, $subdirs dirs)"
+        echo "  -> Structure: Multiple folders ($subdirs dirs)"
+    fi
+    
+    # Get original archive internal timestamp if preserving timestamps
+    timestamp_arg=""
+    if [ "$PRESERVE_TIMESTAMPS" = true ]; then
+        # Extract timestamp from original archive metadata (Archive.LastModification)
+        # Use 'wd info --timestamp-only' to get internal archive timestamp, not file timestamp
+        orig_timestamp=$(run_cli wd info "$archive_path" --timestamp-only 2>/dev/null | tail -1)
+        if [ -z "$orig_timestamp" ]; then
+            echo "  -> WARNING: Could not read archive timestamp, using file timestamp"
+            orig_timestamp=$(stat -c %Y "$archive_path")
+        fi
+        timestamp_arg="--timestamp $orig_timestamp"
+        # FileTime values are too large for date command, so just show the raw value
+        echo "  -> Using original timestamp: $orig_timestamp"
+    fi
+    
+    # Get original archive GUID
+    guid_arg=""
+    orig_guid=$(run_cli wd info "$archive_path" --guid-only 2>/dev/null | tail -1)
+    if [ -n "$orig_guid" ]; then
+        guid_arg="--guid $orig_guid"
+        echo "  -> Using original GUID: $orig_guid"
     fi
     
     # Create new archive from extracted files
     echo "  -> Creating new archive..."
-    if ! run_cli wd create "$REPACK_DIR/$archive_name" -i "$pack_source" -r $COMPRESS_FLAG > /dev/null 2>&1; then
-        echo "  -> ERROR: Failed to create $archive_name"
-        failed_count=$((failed_count + 1))
-        continue
+    
+    if [ ${#pack_items[@]} -eq 1 ] && [ -d "${pack_items[0]}" ]; then
+        # Single directory - pack it directly (e.g., temp_repack/Parameters)
+        # BaseDir will be temp_repack, so paths will be Parameters/...
+        if ! run_cli wd create "$REPACK_DIR/$archive_name" -i "${pack_items[0]}" -r $COMPRESS_FLAG $timestamp_arg $guid_arg > /dev/null 2>&1; then
+            echo "  -> ERROR: Failed to create $archive_name"
+            failed_count=$((failed_count + 1))
+            continue
+        fi
+    else
+        # Multiple items or files at root - need to pack from inside TEMP_DIR
+        # cd to TEMP_DIR and use "." as input (our CreateCommand fix handles this)
+        save_dir="$(pwd)"
+        cd "$TEMP_DIR" || {
+            echo "  -> ERROR: Failed to cd to $TEMP_DIR"
+            failed_count=$((failed_count + 1))
+            continue
+        }
+        
+        # Now we're in TEMP_DIR, use "." which will set baseDir to TEMP_DIR
+        # This gives us paths like "Folder1/...", "Folder2/..." without "temp_repack"
+        if ! run_cli wd create "$REPACK_DIR/$archive_name" -i . -r $COMPRESS_FLAG $timestamp_arg $guid_arg > /dev/null 2>&1; then
+            cd "$save_dir"
+            echo "  -> ERROR: Failed to create $archive_name"
+            failed_count=$((failed_count + 1))
+            continue
+        fi
+        cd "$save_dir"
     fi
     
-    # Preserve original timestamp if requested
-    if [ "$PRESERVE_TIMESTAMPS" = true ]; then
-        orig_timestamp=$(stat -c %Y "$archive_path")
-        touch -d "@$orig_timestamp" "$REPACK_DIR/$archive_name"
-        echo "  -> Preserved original timestamp: $(date -d "@$orig_timestamp" '+%Y-%m-%d %H:%M:%S')"
-    fi
+    # Also set file system timestamp if preserving timestamps
+    # Note: We don't touch the filesystem timestamp because FileTime values
+    # are not compatible with Unix timestamps used by touch command
     
     # Compare file sizes
     orig_size=$(stat -c %s "$archive_path")
