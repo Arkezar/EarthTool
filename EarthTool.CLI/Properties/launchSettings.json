@@ -23,14 +23,14 @@
     },
     "EarthTool - WD List Archive": {
       "commandName": "Project",
-      "commandLineArgs": "wd list %HOME%/earthwork/WDFiles/Meshes.wd --detailed",
+      "commandLineArgs": "wd list %HOME%/earthwork/WDFiles/Interface.wd --detailed",
       "environmentVariables": {
         "Logging:LogLevel:Default": "Information"
       }
     },
     "EarthTool - WD Info Archive": {
       "commandName": "Project",
-      "commandLineArgs": "wd info %HOME%/earthwork/WDFiles/Meshes.wd",
+      "commandLineArgs": "wd info %HOME%/earthwork/WDFiles/Interface.wd",
       "environmentVariables": {
         "Logging:LogLevel:Default": "Information"
       }

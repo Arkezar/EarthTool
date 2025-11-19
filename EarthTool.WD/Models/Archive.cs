@@ -8,7 +8,7 @@ using System.IO.MemoryMappedFiles;
 
 namespace EarthTool.WD.Models
 {
-  public class Archive : SortedSet<IArchiveItem>, IArchive
+  public class Archive : List<IArchiveItem>, IArchive
   {
     private readonly MemoryMappedFile _memoryMappedFile;
     private bool _disposed;

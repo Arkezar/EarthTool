@@ -61,7 +61,7 @@ public sealed class ListCommand : WdCommandBase<ListSettings>
       table.AddColumn(new TableColumn("Ratio").RightAligned());
       table.AddColumn("Flags");
 
-      foreach (var item in itemsList.OrderBy(i => i.FileName))
+      foreach (var item in itemsList)
       {
         var ratio = item.DecompressedSize > 0 
           ? (1.0 - (double)item.CompressedSize / item.DecompressedSize) * 100 
@@ -82,7 +82,7 @@ public sealed class ListCommand : WdCommandBase<ListSettings>
     }
     else
     {
-      foreach (var item in itemsList.OrderBy(i => i.FileName))
+      foreach (var item in itemsList)
       {
         var compressed = item.IsCompressed ? "[dim](compressed)[/]" : "";
         filesNode.AddNode($"{item.FileName} {compressed}");

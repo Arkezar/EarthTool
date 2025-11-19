@@ -70,7 +70,7 @@ namespace EarthTool.WD.Factories
       }
     }
 
-    private SortedSet<IArchiveItem> GetItemHandles(BinaryReader reader, MemoryMappedFile memoryMappedFile)
+    private List<IArchiveItem> GetItemHandles(BinaryReader reader, MemoryMappedFile memoryMappedFile)
     {
       var itemCount = reader.ReadInt16();
 
@@ -89,8 +89,8 @@ namespace EarthTool.WD.Factories
         var dataSource = new MappedArchiveDataSource(memoryMappedFile, offset, compressedSize);
         return new ArchiveItem(filePath, header, dataSource, compressedSize, decompressedSize);
       });
-      
-      return new SortedSet<IArchiveItem>(items);
+
+      return new List<IArchiveItem>(items);
     }
     
     /// <summary>
