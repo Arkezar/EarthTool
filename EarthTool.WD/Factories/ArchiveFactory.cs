@@ -5,6 +5,7 @@ using EarthTool.WD.Models;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Linq;
@@ -70,11 +71,11 @@ namespace EarthTool.WD.Factories
       }
     }
 
-    private List<IArchiveItem> GetItemHandles(BinaryReader reader, MemoryMappedFile memoryMappedFile)
+    private IEnumerable<IArchiveItem> GetItemHandles(BinaryReader reader, MemoryMappedFile memoryMappedFile)
     {
       var itemCount = reader.ReadInt16();
 
-      var items = Enumerable.Range(0, itemCount).Select(_ =>
+      return Enumerable.Range(0, itemCount).Select(_ =>
       {
         var filePath = reader.ReadString();
         var flags = (FileFlags)reader.ReadByte();
@@ -82,15 +83,13 @@ namespace EarthTool.WD.Factories
         var compressedSize = reader.ReadInt32();
         var decompressedSize = reader.ReadInt32();
         var translationId = flags.HasFlag(FileFlags.Named) ? reader.ReadString() : null;
-        var resourceType = flags.HasFlag(FileFlags.Resource) ? (ResourceType?)(byte)reader.ReadInt32() : null;
+        var resourceType = flags.HasFlag(FileFlags.Resource) ? (ResourceType?)reader.ReadInt32() : null;
         var guid = flags.HasFlag(FileFlags.Guid) ? (Guid?)new Guid(reader.ReadBytes(16)) : null;
         var header = earthInfoFactory.Get(flags, guid, resourceType, translationId);
 
         var dataSource = new MappedArchiveDataSource(memoryMappedFile, offset, compressedSize);
         return new ArchiveItem(filePath, header, dataSource, compressedSize, decompressedSize);
-      });
-
-      return new List<IArchiveItem>(items);
+      }).ToImmutableArray();
     }
     
     /// <summary>
