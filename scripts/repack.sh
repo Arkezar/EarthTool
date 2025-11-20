@@ -83,6 +83,17 @@ run_cli() {
     fi
 }
 
+# Function to convert Windows FileTime to Unix timestamp
+# FileTime: 100-nanosecond intervals since January 1, 1601
+# Unix timestamp: seconds since January 1, 1970
+filetime_to_unix() {
+    local filetime=$1
+    # Difference between 1601 and 1970 in 100-nanosecond intervals
+    local epoch_diff=116444736000000000
+    # Convert to Unix timestamp (seconds)
+    echo $(( (filetime - epoch_diff) / 10000000 ))
+}
+
 # Validate inputs
 # Check if CLI_COMMAND is a file, a .dll, or a command (like "dotnet run...")
 if [[ "$CLI_COMMAND" != *"dotnet"* ]] && [ ! -f "$CLI_COMMAND" ] && [ ! -f "${CLI_COMMAND}.dll" ]; then
@@ -174,59 +185,30 @@ for archive_path in "$WD_FOLDER"/*.wd; do
         echo "  -> Using original GUID: $orig_guid"
     fi
 
-    # Get list of files in archive order
-    # Filter out dotnet diagnostic messages and convert backslashes to forward slashes
-    file_list=$(run_cli wd list "$archive_path" --names-only 2>/dev/null | grep -v "^Using launch settings" | tr '\\' '/')
-    echo "  -> File list obtained: $(echo "$file_list" | wc -l) files"
-
-    # Create new archive
+    # Create new archive from extracted directory
     echo "  -> Creating new archive..."
-
-    # Create temporary file list with files in order
-    temp_file_list="$TEMP_DIR/.file_order.txt"
-    echo "$file_list" > "$temp_file_list"
-
-    # Read files one by one and build the archive
-    first_file=true
-    failed_creation=false
-    while IFS= read -r file; do
-        # Skip empty lines
-        [ -z "$file" ] && continue
-        
-        # Check if file exists
-        if [ ! -f "$TEMP_DIR/$file" ]; then
-            echo "  -> WARNING: File not found: $file"
-            continue
-        fi
-        
-        if [ "$first_file" = true ]; then
-            # Create archive with first file, using TEMP_DIR as base directory
-            if ! run_cli wd create "$REPACK_DIR/$archive_name" -i "$TEMP_DIR/$file" --base-dir "$TEMP_DIR" $COMPRESS_FLAG $timestamp_arg $guid_arg > /dev/null 2>&1; then
-                echo "  -> ERROR: Failed to create $archive_name"
-                failed_count=$((failed_count + 1))
-                failed_creation=true
-                break
-            fi
-            first_file=false
-        else
-            # Add subsequent files with TEMP_DIR as base directory and preserve timestamp
-            if ! run_cli wd add "$REPACK_DIR/$archive_name" "$TEMP_DIR/$file" --base-dir "$TEMP_DIR" --preserve-timestamp $COMPRESS_FLAG > /dev/null 2>&1; then
-                echo "  -> ERROR: Failed to add file $file to $archive_name"
-                failed_count=$((failed_count + 1))
-                failed_creation=true
-                break
-            fi
-        fi
-    done < "$temp_file_list"
-    
-    # Check if creation failed
-    if [ "$failed_creation" = true ] || [ ! -f "$REPACK_DIR/$archive_name" ]; then
+    if ! run_cli wd create "$REPACK_DIR/$archive_name" -i "$TEMP_DIR" --recursive --base-dir "$TEMP_DIR" $COMPRESS_FLAG $timestamp_arg $guid_arg > /dev/null 2>&1; then
+        echo "  -> ERROR: Failed to create $archive_name"
+        failed_count=$((failed_count + 1))
         continue
     fi
     
-    # Also set file system timestamp if preserving timestamps
-    # Note: We don't touch the filesystem timestamp because FileTime values
-    # are not compatible with Unix timestamps used by touch command
+    # Set file system timestamp if preserving timestamps
+    if [ "$PRESERVE_TIMESTAMPS" = true ]; then
+        if [ -n "$orig_timestamp" ]; then
+            # Convert FileTime to Unix timestamp
+            unix_timestamp=$(filetime_to_unix "$orig_timestamp")
+            # Set the timestamp on the repacked file
+            touch -d "@$unix_timestamp" "$REPACK_DIR/$archive_name" 2>/dev/null
+            if [ $? -eq 0 ]; then
+                echo "  -> Set filesystem timestamp from archive: $(date -d "@$unix_timestamp" '+%Y-%m-%d %H:%M:%S')"
+            else
+                echo "  -> WARNING: Failed to set filesystem timestamp"
+            fi
+        else
+            echo "  -> WARNING: Cannot preserve timestamp (not available from archive)"
+        fi
+    fi
     
     # Compare file sizes
     orig_size=$(stat -c %s "$archive_path")
