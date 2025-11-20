@@ -7,7 +7,7 @@ Comprehensive unit test suite for the EarthTool.WD module (WD Archive handling).
 - **Total Tests:** 118
 - **Line Coverage:** 92.89%
 - **Branch Coverage:** 73.68%
-- **Test Framework:** xUnit with FluentAssertions
+- **Test Framework:** xUnit with AwesomeAssertions
 
 ## Test Structure
 
