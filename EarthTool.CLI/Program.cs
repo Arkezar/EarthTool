@@ -40,14 +40,18 @@ namespace EarthTool.CLI
             .WithDescription("Remove files from archive");
           wd.AddCommand<Commands.WD.InfoCommand>("info")
             .WithDescription("Display archive information");
+#if DEBUG
+          wd.AddCommand<Commands.WD.DebugCommand>("debug")
+            .WithDescription("Debug archive information");
+#endif
         });
-        
+
         // Other format converters
         config.AddCommand<Commands.MSH.ConvertCommand>("msh");
         config.AddCommand<Commands.DAE.ConvertCommand>("dae");
         config.AddCommand<Commands.TEX.ConvertCommand>("tex");
         config.AddCommand<Commands.PAR.ConvertCommand>("par");
-        
+
         config.SetExceptionHandler((ex, _) =>
         {
           AnsiConsole.WriteException(ex, ExceptionFormats.ShortenEverything);
