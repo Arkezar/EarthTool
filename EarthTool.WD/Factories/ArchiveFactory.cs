@@ -49,14 +49,14 @@ namespace EarthTool.WD.Factories
       // Create single memory-mapped file for entire archive
       var memoryMappedFile = OpenMemoryMappedFile(validatedPath);
 
-      var header = GetArchiveHeader(memoryMappedFile);
-      if (header.ResourceType != ResourceType.WdArchive)
-      {
-        throw new NotSupportedException($"Unsupported archive type: {header.ResourceType}");
-      }
-
       try
       {
+        var header = GetArchiveHeader(memoryMappedFile);
+        if (header.ResourceType != ResourceType.WdArchive)
+        {
+          throw new NotSupportedException($"Unsupported archive type: {header.ResourceType}");
+        }
+
         // Read central directory from MMF (not entire file!)
         using var centralDirectoryReader = OpenCentralDirectoryReader(memoryMappedFile, fileSize);
         var lastModified = DateTime.FromFileTimeUtc(centralDirectoryReader.ReadInt64());
@@ -144,8 +144,9 @@ namespace EarthTool.WD.Factories
 
     private IEarthInfo GetArchiveHeader(MemoryMappedFile mmf)
     {
-      var stream = mmf.CreateViewStream(0, 0, MemoryMappedFileAccess.Read);
-      return earthInfoFactory.Get(decompressor.OpenDecompressionStream(stream));
+      using var stream = mmf.CreateViewStream(0, 0, MemoryMappedFileAccess.Read);
+      using var decompressedStream = decompressor.OpenDecompressionStream(stream);
+      return earthInfoFactory.Get(decompressedStream);
     }
     
     private static MemoryMappedFile OpenMemoryMappedFile(string validatedPath)
