@@ -28,6 +28,12 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
 
+    - name: Build
+      run: dotnet build --no-restore
+
+    - name: Test
+      run: dotnet test --no-build --verbosity normal
+
     - name: Publish
       run: dotnet publish EarthTool.CLI -c Release --no-restore -o dist -r win-x64
 

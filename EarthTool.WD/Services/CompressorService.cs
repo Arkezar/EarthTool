@@ -1,4 +1,4 @@
-﻿using EarthTool.Common.Interfaces;
+using EarthTool.Common.Interfaces;
 using Microsoft.Extensions.Logging;
 using System.IO;
 using System.IO.Compression;
@@ -16,22 +16,22 @@ namespace EarthTool.WD.Services
 
     public byte[] Compress(byte[] data)
     {
-      using (var compressedStream = new MemoryStream(data))
-      {
-        return Compress(compressedStream);
-      }
+      using var inputStream = new MemoryStream(data);
+      return Compress(inputStream);
     }
 
     public byte[] Compress(Stream stream)
     {
-      using (var output = new MemoryStream())
+      using var output = new MemoryStream();
+      using (var compressionStream = OpenCompressionStream(output, true))
       {
-        using (var compressionStream = new ZLibStream(output, CompressionMode.Compress))
-        {
-          stream.CopyTo(compressionStream);
-        }
-        return output.ToArray();
+        stream.CopyTo(compressionStream);
+        // CRITICAL: Flush and close compression stream before reading output!
       }
+      return output.ToArray();
     }
+
+    public Stream OpenCompressionStream(Stream stream, bool leaveOpen = false)
+      => new ZLibStream(stream, CompressionMode.Compress, leaveOpen);
   }
 }

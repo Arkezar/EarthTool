@@ -1,8 +1,57 @@
 {
   "profiles": {
-    "EarthTool - Extract All WD": {
+    "EarthTool - WD Extract All": {
       "commandName": "Project",
-      "commandLineArgs": "wd -o %HOME%/earthwork/WDFiles_extracted %HOME%/earthwork/WDFiles/*.wd",
+      "commandLineArgs": "wd extract -o %HOME%/earthwork/WDFiles_extracted %HOME%/earthwork/WDFiles/*.wd",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - WD Extract Filtered (Meshes)": {
+      "commandName": "Project",
+      "commandLineArgs": "wd extract --filter \"*.msh\" -o %HOME%/earthwork/Meshes_only %HOME%/earthwork/WDFiles/*.wd",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - WD Extract Filtered (Textures)": {
+      "commandName": "Project",
+      "commandLineArgs": "wd extract --filter \"*.tex\" -o %HOME%/earthwork/Textures_only %HOME%/earthwork/WDFiles/*.wd",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - WD List Archive": {
+      "commandName": "Project",
+      "commandLineArgs": "wd list %HOME%/earthwork/WDFiles/Interface.wd --detailed",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - WD Info Archive": {
+      "commandName": "Project",
+      "commandLineArgs": "wd info %HOME%/earthwork/WDFiles/Interface.wd",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - WD Create Archive": {
+      "commandName": "Project",
+      "commandLineArgs": "wd create %HOME%/earthwork/CustomMod.wd --input %HOME%/earthwork/ModFiles --recursive",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - WD Add Files": {
+      "commandName": "Project",
+      "commandLineArgs": "wd add %HOME%/earthwork/CustomMod.wd %HOME%/earthwork/NewFile.msh",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
+    "EarthTool - WD Remove Files": {
+      "commandName": "Project",
+      "commandLineArgs": "wd remove %HOME%/earthwork/CustomMod.wd --filter \"*.tmp\"",
       "environmentVariables": {
         "Logging:LogLevel:Default": "Information"
       }

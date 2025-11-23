@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 
 namespace EarthTool.Common.Interfaces
 {
@@ -6,5 +6,6 @@ namespace EarthTool.Common.Interfaces
   {
     byte[] Compress(byte[] data);
     byte[] Compress(Stream stream);
+    Stream OpenCompressionStream(Stream stream, bool leaveOpen = false);
   }
 }

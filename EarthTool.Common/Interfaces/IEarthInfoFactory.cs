@@ -6,11 +6,12 @@ namespace EarthTool.Common.Interfaces
 {
   public interface IEarthInfoFactory
   {
-    IEarthInfo Get(FileStream stream);
+    IEarthInfo Get(byte[] data);
+    
+    IEarthInfo Get(Stream stream);
 
     IEarthInfo Get(
-      string filePath,
-      FileFlags flags,
+      FileFlags flags = FileFlags.None,
       Guid? guid = null,
       ResourceType? resourceType = null,
       string translationId = null);

@@ -1,4 +1,4 @@
-﻿using EarthTool.CLI.Commands;
+using EarthTool.CLI.Commands;
 using EarthTool.Common;
 using EarthTool.MSH;
 using EarthTool.DAE;
@@ -24,11 +24,34 @@ namespace EarthTool.CLI
       var app = new CommandApp(new CommandTypeRegistrar(hostBuilder));
       app.Configure(config =>
       {
-        config.AddCommand<Commands.WD.ExtractCommand>("wd");
+        // WD Archive commands
+        config.AddBranch("wd", wd =>
+        {
+          wd.SetDescription("WD archive management commands");
+          wd.AddCommand<Commands.WD.ListCommand>("list")
+            .WithDescription("List archive contents");
+          wd.AddCommand<Commands.WD.ExtractCommand>("extract")
+            .WithDescription("Extract files from archive");
+          wd.AddCommand<Commands.WD.CreateCommand>("create")
+            .WithDescription("Create new archive");
+          wd.AddCommand<Commands.WD.AddCommand>("add")
+            .WithDescription("Add files to archive");
+          wd.AddCommand<Commands.WD.RemoveCommand>("remove")
+            .WithDescription("Remove files from archive");
+          wd.AddCommand<Commands.WD.InfoCommand>("info")
+            .WithDescription("Display archive information");
+#if DEBUG
+          wd.AddCommand<Commands.WD.DebugCommand>("debug")
+            .WithDescription("Debug archive information");
+#endif
+        });
+
+        // Other format converters
         config.AddCommand<Commands.MSH.ConvertCommand>("msh");
         config.AddCommand<Commands.DAE.ConvertCommand>("dae");
         config.AddCommand<Commands.TEX.ConvertCommand>("tex");
         config.AddCommand<Commands.PAR.ConvertCommand>("par");
+
         config.SetExceptionHandler((ex, _) =>
         {
           AnsiConsole.WriteException(ex, ExceptionFormats.ShortenEverything);

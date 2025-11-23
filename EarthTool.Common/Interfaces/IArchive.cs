@@ -1,15 +1,20 @@
-﻿namespace EarthTool.Common.Interfaces
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace EarthTool.Common.Interfaces
 {
-  public interface IArchive
+  /// <summary>
+  /// Represents an archive file container.
+  /// Implements IDisposable to properly release memory-mapped file resources.
+  /// </summary>
+  public interface IArchive : IDisposable
   {
-    string FilePath { get; }
-
-    IArchiveHeader Header { get; }
-
-    IArchiveCentralDirectory CentralDirectory { get; }
-
-    byte[] ExtractResource(IArchiveFileHeader resourceHeader);
-
-    byte[] ToByteArray();
+    IEarthInfo Header { get; }
+    DateTime LastModification { get; }
+    IReadOnlyCollection<IArchiveItem> Items { get; }
+    void AddItem(IArchiveItem item);
+    void RemoveItem(IArchiveItem item);
+    byte[] ToByteArray(ICompressor compressor, Encoding encoding);
   }
 }

@@ -17,8 +17,7 @@ namespace EarthTool.Common.Factories
     }
 
     public IEarthInfo Get(
-      string filePath,
-      FileFlags flags,
+      FileFlags flags = FileFlags.None,
       Guid? guid = null,
       ResourceType? resourceType = null,
       string translationId = null)
@@ -40,7 +39,6 @@ namespace EarthTool.Common.Factories
 
       return new EarthInfo
       {
-        FilePath = filePath,
         Flags = flags,
         TranslationId = translationId,
         ResourceType = resourceType,
@@ -48,7 +46,14 @@ namespace EarthTool.Common.Factories
       };
     }
 
-    public IEarthInfo Get(FileStream stream)
+    public IEarthInfo Get(byte[] data)
+    {
+      using var stream = new MemoryStream(data);
+      return Get(stream);
+    }
+    
+    
+    public IEarthInfo Get(Stream stream)
     {
       if (HasEarthInfo(stream))
       {
@@ -57,7 +62,6 @@ namespace EarthTool.Common.Factories
           var flags = (FileFlags)br.ReadByte();
           return new EarthInfo
           {
-            FilePath = stream.Name,
             Flags = flags,
             TranslationId = flags.HasFlag(FileFlags.Named) ? br.ReadString() : null,
             ResourceType = flags.HasFlag(FileFlags.Resource) ? (ResourceType)br.ReadInt32() : null,

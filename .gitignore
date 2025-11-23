@@ -1,3 +1,4 @@
+.opencode/
 [Dd]ist/
 
 ## Ignore Visual Studio temporary files, build results, and
@@ -343,3 +344,8 @@ ASALocalRun/
 
 # BeatPulse healthcheck temp database
 healthchecksdb
+
+# Test files and archives
+test_*/
+*.wd
+!docs/*.wd

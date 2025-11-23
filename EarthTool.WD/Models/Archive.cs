@@ -1,76 +1,171 @@
-﻿using EarthTool.Common.Enums;
-using EarthTool.Common.Extensions;
-using EarthTool.Common.Interfaces;
-using EarthTool.WD.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
+using EarthTool.Common.Enums;
+using EarthTool.Common.Interfaces;
+using System.IO.MemoryMappedFiles;
 
-namespace EarthTool.WD.Resources
+namespace EarthTool.WD.Models
 {
-  public class Archive : IArchive
+  public class Archive : SortedSet<IArchiveItem>, IArchive
   {
-    private const int CompressedHeaderLength = 33;
+    private readonly MemoryMappedFile _memoryMappedFile;
+    private bool _disposed;
+    private readonly bool _timestampLocked;
 
-    private readonly IDecompressor _decompressor;
-    private readonly ICompressor _compressor;
-
-    public IArchiveHeader Header { get; }
-
-    public IArchiveCentralDirectory CentralDirectory { get; }
-
-    public string FilePath { get; }
-
-    private Archive(IDecompressor decompressor, ICompressor compressor)
+    public Archive(IEarthInfo header)
+      : this(header, DateTime.Now, false)
     {
-      _decompressor = decompressor;
-      _compressor = compressor;
     }
 
-    public Archive(string filePath, Stream stream, IDecompressor decompressor, ICompressor compressor, Encoding encoding) : this(decompressor, compressor)
+    private Archive(IEarthInfo header, DateTime lastModification, bool lockTimestamp)
+      : this(header, lastModification, [], lockTimestamp)
     {
-      FilePath = filePath;
+    }
 
-      Header = GetHeader(stream);
-      if (Header.IsValid())
+    public Archive(IEarthInfo header, DateTime lastModification, IEnumerable<IArchiveItem> items)
+      : this(header, lastModification, items, false)
+    {
+    }
+
+    public Archive(IEarthInfo header, DateTime lastModification, IEnumerable<IArchiveItem> items, bool lockTimestamp)
+      : base(items)
+    {
+      Header = header;
+      LastModification = lastModification;
+      _timestampLocked = lockTimestamp;
+    }
+
+    public Archive(
+      IEarthInfo header,
+      DateTime lastModification,
+      IEnumerable<IArchiveItem> items,
+      MemoryMappedFile memoryMappedFile)
+      : this(header, lastModification, items, false)
+    {
+      _memoryMappedFile = memoryMappedFile;
+    }
+
+    public IEarthInfo Header { get; }
+    public DateTime LastModification { get; private set; }
+    public IReadOnlyCollection<IArchiveItem> Items => this;
+
+    public void SetTimestamp(DateTime timestamp)
+    {
+      LastModification = timestamp;
+    }
+
+    public void AddItem(IArchiveItem item)
+    {
+      Add(item);
+      if (!_timestampLocked)
       {
-        CentralDirectory = GetCentralDirectory(stream, encoding);
+        LastModification = DateTime.Now;
       }
     }
 
-    private IArchiveCentralDirectory GetCentralDirectory(Stream stream, Encoding encoding)
+    public void RemoveItem(IArchiveItem item)
     {
-      stream.Seek(-4, SeekOrigin.End);
-      var descriptorLength = BitConverter.ToInt32(stream.ReadBytes(4));
-      stream.Seek(-descriptorLength, SeekOrigin.End);
-      using (var decompressedStream = new MemoryStream(_decompressor.Decompress(stream)))
+      Remove(item);
+      if (!_timestampLocked)
       {
-        return new ArchiveCentralDirectory(decompressedStream, encoding);
+        LastModification = DateTime.Now;
       }
     }
 
-    private IArchiveHeader GetHeader(Stream stream)
+    public byte[] ToByteArray(ICompressor compressor, Encoding encoding)
     {
-      using (var decompressedStream = new MemoryStream(_decompressor.Decompress(stream.ReadBytes(CompressedHeaderLength))))
+      using var archiveStream = new MemoryStream();
+      using var writer = new BinaryWriter(archiveStream, encoding, leaveOpen: true);
+
+      // 1. Write compressed header
+      var headerBytes = Header.ToByteArray(encoding);
+      var compressedHeader = compressor.Compress(headerBytes);
+      writer.Write(compressedHeader);
+
+      // 2. Write all item data and track their positions
+      var itemMetadata = new List<(IArchiveItem Item, int Offset, int Length)>();
+
+      foreach (var item in Items)
       {
-        return new ArchiveHeader(decompressedStream);
+        var offset = (int)archiveStream.Position;
+        var itemData = item.Data.ToArray();
+        writer.Write(itemData);
+        var length = itemData.Length;
+
+        itemMetadata.Add((item, offset, length));
       }
+
+      // 3. Build central directory
+      using var centralDirStream = new MemoryStream();
+      using var centralDirWriter = new BinaryWriter(centralDirStream, encoding);
+
+      // Write last modification time
+      centralDirWriter.Write(LastModification.ToFileTimeUtc());
+
+      // Write item count
+      centralDirWriter.Write((short)Items.Count);
+
+      // Write each item's metadata
+      foreach (var (item, offset, length) in itemMetadata)
+      {
+        centralDirWriter.Write(item.FileName);
+        centralDirWriter.Write((byte)item.Header.Flags);
+        centralDirWriter.Write(offset);
+        centralDirWriter.Write(length);
+        centralDirWriter.Write(item.DecompressedSize);
+
+        // Optional fields based on flags
+        if (item.Header.Flags.HasFlag(FileFlags.Named) && !string.IsNullOrEmpty(item.Header.TranslationId))
+        {
+          centralDirWriter.Write(item.Header.TranslationId);
+        }
+
+        if (item.Header.Flags.HasFlag(FileFlags.Resource) && item.Header.ResourceType.HasValue)
+        {
+          centralDirWriter.Write((int)item.Header.ResourceType.Value);
+        }
+
+        if (item.Header.Flags.HasFlag(FileFlags.Guid) && item.Header.Guid.HasValue)
+        {
+          centralDirWriter.Write(item.Header.Guid.Value.ToByteArray());
+        }
+      }
+
+      // 4. Compress and write central directory
+      var centralDirBytes = centralDirStream.ToArray();
+      var compressedCentralDir = compressor.Compress(centralDirBytes);
+      writer.Write(compressedCentralDir);
+
+      // 5. Write descriptor length (compressed central directory size + 4 bytes for the length itself)
+      var descriptorLength = compressedCentralDir.Length + 4;
+      writer.Write(descriptorLength);
+
+      return archiveStream.ToArray();
     }
 
-    public byte[] ExtractResource(IArchiveFileHeader resourceHeader)
+    /// <summary>
+    /// Disposes the memory-mapped file and all archive items.
+    /// </summary>
+    public void Dispose()
     {
-      using (var stream = File.OpenRead(FilePath))
+      if (_disposed)
       {
-        var rawData = resourceHeader.GetData(stream);
-        return resourceHeader.Flags.HasFlag(FileFlags.Compressed) ? _decompressor.Decompress(rawData.ToArray()) : rawData.ToArray();
+        return;
       }
-    }
 
-    public byte[] ToByteArray()
-    {
-      throw new NotImplementedException();
+      // Dispose all items first (they may reference the MMF)
+      foreach (var item in this)
+      {
+        item?.Dispose();
+      }
+
+      // Then dispose the shared MMF
+      _memoryMappedFile?.Dispose();
+      _disposed = true;
+      
+      GC.SuppressFinalize(this);
     }
   }
 }
