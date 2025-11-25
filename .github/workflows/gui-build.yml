@@ -1,0 +1,201 @@
+name: GUI Build and Test
+
+on:
+  push:
+    branches: [ main, master, dev, 'feature/**' ]
+    paths:
+      - 'EarthTool.WD.GUI/**'
+      - 'EarthTool.WD/**'
+      - 'EarthTool.Common/**'
+      - '.github/workflows/gui-build.yml'
+  pull_request:
+    branches: [ main, master, dev ]
+    paths:
+      - 'EarthTool.WD.GUI/**'
+      - 'EarthTool.WD/**'
+      - 'EarthTool.Common/**'
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  build-gui:
+    name: Build GUI (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - os: windows-latest
+            runtime: win-x64
+            artifact: EarthTool.WD.GUI-win-x64
+          - os: ubuntu-latest
+            runtime: linux-x64
+            artifact: EarthTool.WD.GUI-linux-x64
+          - os: macos-latest
+            runtime: osx-x64
+            artifact: EarthTool.WD.GUI-osx-x64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Restore dependencies
+      run: dotnet restore EarthTool.sln
+
+    - name: Build GUI project
+      run: dotnet build EarthTool.WD.GUI/EarthTool.WD.GUI.csproj --configuration Release --no-restore
+
+    - name: Run GUI tests
+      run: dotnet test EarthTool.WD.GUI.Tests/EarthTool.WD.GUI.Tests.csproj --configuration Release --no-build --verbosity normal --logger "console;verbosity=detailed"
+      continue-on-error: true
+
+    - name: Publish GUI for current platform
+      run: |
+        dotnet publish EarthTool.WD.GUI/EarthTool.WD.GUI.csproj \
+          --configuration Release \
+          --runtime ${{ matrix.runtime }} \
+          --self-contained true \
+          --output ./artifacts/${{ matrix.runtime }} \
+          -p:PublishSingleFile=true \
+          -p:IncludeNativeLibrariesForSelfExtract=true \
+          -p:EnableCompressionInSingleFile=true \
+          -p:DebugType=none \
+          -p:DebugSymbols=false
+
+    - name: Prepare artifacts
+      shell: bash
+      run: |
+        cd artifacts/${{ matrix.runtime }}
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          7z a -tzip "../../${{ matrix.artifact }}.zip" .
+        else
+          tar -czf "../../${{ matrix.artifact }}.tar.gz" .
+        fi
+        cd ../..
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.artifact }}
+        path: ${{ matrix.artifact }}${{ matrix.os == 'windows-latest' && '.zip' || '.tar.gz' }}
+        retention-days: 7
+
+  code-analysis:
+    name: Code Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore EarthTool.sln
+
+    - name: Build with analysis
+      run: dotnet build EarthTool.WD.GUI/EarthTool.WD.GUI.csproj --configuration Release --verbosity normal
+
+    - name: Check for build warnings
+      run: |
+        dotnet build EarthTool.WD.GUI/EarthTool.WD.GUI.csproj --configuration Release --verbosity normal -warnaserror
+      continue-on-error: true
+
+  security-check:
+    name: Security Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore EarthTool.sln
+
+    - name: Check for vulnerable packages
+      run: dotnet list EarthTool.WD.GUI/EarthTool.WD.GUI.csproj package --vulnerable --include-transitive
+      continue-on-error: true
+
+    - name: Run security audit
+      run: dotnet list EarthTool.WD.GUI/EarthTool.WD.GUI.csproj package --outdated
+      continue-on-error: true
+
+  publish-preview:
+    name: Publish Preview
+    needs: [build-gui, code-analysis]
+    runs-on: windows-latest
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore EarthTool.sln
+
+    - name: Build and publish preview
+      run: |
+        dotnet publish EarthTool.WD.GUI/EarthTool.WD.GUI.csproj \
+          --configuration Release \
+          --runtime win-x64 \
+          --self-contained true \
+          --output ./preview \
+          -p:PublishSingleFile=true \
+          -p:IncludeNativeLibrariesForSelfExtract=true \
+          -p:VersionSuffix=preview-${{ github.run_number }}
+
+    - name: Create preview artifact
+      run: |
+        cd preview
+        7z a -tzip "../EarthTool.WD.GUI-Preview.zip" .
+        cd ..
+
+    - name: Upload preview artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: EarthTool.WD.GUI-Preview
+        path: EarthTool.WD.GUI-Preview.zip
+        retention-days: 30
+
+    - name: Comment on commit
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.repos.createCommitComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            commit_sha: context.sha,
+            body: `🚀 Preview build completed successfully!
+            
+            📦 **Download**: [EarthTool.WD.GUI-Preview.zip](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            
+            ✅ This is a preview build from the dev branch. Test it out and report any issues!`
+          })
