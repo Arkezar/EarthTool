@@ -13,7 +13,7 @@
         MinWidth="800" MinHeight="600">
 
     <Design.DataContext>
-        <vm:MainWindowViewModel/>
+        <vm:MainWindowViewModel />
     </Design.DataContext>
 
     <Window.Resources>
@@ -28,55 +28,62 @@
         <x:Double x:Key="CompactSpacing">4</x:Double>
         <Thickness x:Key="CompactThickness">4</Thickness>
         <x:Double x:Key="TightSpacing">2</x:Double>
-        
+
         <!-- Converters -->
-        <converters:BytesToHumanReadableConverter x:Key="BytesToHumanReadable"/>
-        <converters:FileFlagsToStringConverter x:Key="FileFlagsToString"/>
-        
+        <converters:BytesToHumanReadableConverter x:Key="BytesToHumanReadable" />
+        <converters:FileFlagsToStringConverter x:Key="FileFlagsToString" />
+
         <!-- Shared Icon Templates -->
         <DataTemplate x:Key="OpenIcon">
-            <TextBlock Text="📂" FontSize="{StaticResource IconFontSize}"/>
+            <TextBlock Text="📂" FontSize="{StaticResource IconFontSize}" />
         </DataTemplate>
         <DataTemplate x:Key="NewIcon">
-            <TextBlock Text="📄" FontSize="{StaticResource IconFontSize}"/>
+            <TextBlock Text="📄" FontSize="{StaticResource IconFontSize}" />
         </DataTemplate>
         <DataTemplate x:Key="SaveIcon">
-            <TextBlock Text="💾" FontSize="{StaticResource IconFontSize}"/>
+            <TextBlock Text="💾" FontSize="{StaticResource IconFontSize}" />
         </DataTemplate>
         <DataTemplate x:Key="ExtractIcon">
-            <TextBlock Text="📤" FontSize="{StaticResource IconFontSize}"/>
+            <TextBlock Text="📤" FontSize="{StaticResource IconFontSize}" />
         </DataTemplate>
         <DataTemplate x:Key="ExtractAllIcon">
-            <TextBlock Text="📦" FontSize="{StaticResource IconFontSize}"/>
+            <TextBlock Text="📦" FontSize="{StaticResource IconFontSize}" />
         </DataTemplate>
         <DataTemplate x:Key="AddIcon">
-            <TextBlock Text="➕" FontSize="{StaticResource IconFontSize}"/>
+            <TextBlock Text="➕" FontSize="{StaticResource IconFontSize}" />
         </DataTemplate>
         <DataTemplate x:Key="RemoveIcon">
-            <TextBlock Text="🗑️" FontSize="{StaticResource IconFontSize}"/>
+            <TextBlock Text="🗑️" FontSize="{StaticResource IconFontSize}" />
         </DataTemplate>
         <DataTemplate x:Key="InfoIcon">
-            <TextBlock Text="ℹ️" FontSize="{StaticResource IconFontSize}"/>
+            <TextBlock Text="ℹ️" FontSize="{StaticResource IconFontSize}" />
         </DataTemplate>
         <DataTemplate x:Key="SmallExtractIcon">
-            <TextBlock Text="📤" FontSize="{StaticResource SmallIconFontSize}"/>
+            <TextBlock Text="📤" FontSize="{StaticResource SmallIconFontSize}" />
         </DataTemplate>
         <DataTemplate x:Key="SmallRemoveIcon">
-            <TextBlock Text="🗑️" FontSize="{StaticResource SmallIconFontSize}"/>
+            <TextBlock Text="🗑️" FontSize="{StaticResource SmallIconFontSize}" />
         </DataTemplate>
     </Window.Resources>
-    
+
     <Window.Styles>
+        <!-- Toolbar Button Style -->
+        <Style Selector="Button.ToolbarButton">
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
         <!-- Info Panel Styles -->
         <Style Selector="TextBlock.InfoLabel">
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="{StaticResource LabelFontSize}"/>
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="{StaticResource LabelFontSize}" />
         </Style>
-        
+
         <Style Selector="TextBlock.InfoValue">
-            <Setter Property="FontSize" Value="{StaticResource ValueFontSize}"/>
-            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="FontSize" Value="{StaticResource ValueFontSize}" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
     </Window.Styles>
 
@@ -86,131 +93,137 @@
             <MenuItem Header="_File">
                 <MenuItem Header="_Open Archive..." Command="{Binding OpenArchiveCommand}" HotKey="Ctrl+O">
                     <MenuItem.Icon>
-                        <ContentControl ContentTemplate="{StaticResource OpenIcon}"/>
+                        <ContentControl ContentTemplate="{StaticResource OpenIcon}" />
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="_New Archive" Command="{Binding CreateArchiveCommand}" HotKey="Ctrl+N">
                     <MenuItem.Icon>
-                        <ContentControl ContentTemplate="{StaticResource NewIcon}"/>
+                        <ContentControl ContentTemplate="{StaticResource NewIcon}" />
                     </MenuItem.Icon>
                 </MenuItem>
-                <Separator/>
+                <Separator />
                 <MenuItem Header="_Save Archive" Command="{Binding SaveArchiveCommand}" HotKey="Ctrl+S">
                     <MenuItem.Icon>
-                        <ContentControl ContentTemplate="{StaticResource SaveIcon}"/>
+                        <ContentControl ContentTemplate="{StaticResource SaveIcon}" />
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Save Archive _As..." Command="{Binding SaveArchiveAsCommand}" HotKey="Ctrl+Shift+S">
                     <MenuItem.Icon>
-                        <ContentControl ContentTemplate="{StaticResource SaveIcon}"/>
+                        <ContentControl ContentTemplate="{StaticResource SaveIcon}" />
                     </MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="_Close Archive" Command="{Binding CloseArchiveCommand}"/>
-                <Separator/>
-                <MenuItem Header="E_xit" Command="{Binding ExitCommand}"/>
+                <MenuItem Header="_Close Archive" Command="{Binding CloseArchiveCommand}" />
+                <Separator />
+                <MenuItem Header="E_xit" Command="{Binding ExitCommand}" />
             </MenuItem>
-            
+
             <MenuItem Header="_Archive">
                 <MenuItem Header="Extract _Selected..." Command="{Binding ExtractSelectedCommand}">
                     <MenuItem.Icon>
-                        <ContentControl ContentTemplate="{StaticResource ExtractIcon}"/>
+                        <ContentControl ContentTemplate="{StaticResource ExtractIcon}" />
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="Extract _All..." Command="{Binding ExtractAllCommand}" HotKey="Ctrl+E">
                     <MenuItem.Icon>
-                        <ContentControl ContentTemplate="{StaticResource ExtractAllIcon}"/>
+                        <ContentControl ContentTemplate="{StaticResource ExtractAllIcon}" />
                     </MenuItem.Icon>
                 </MenuItem>
-                <Separator/>
+                <Separator />
                 <MenuItem Header="_Add Files..." Command="{Binding AddFilesCommand}" HotKey="Ctrl+A">
                     <MenuItem.Icon>
-                        <ContentControl ContentTemplate="{StaticResource AddIcon}"/>
+                        <ContentControl ContentTemplate="{StaticResource AddIcon}" />
                     </MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="_Remove Selected" Command="{Binding RemoveSelectedCommand}" HotKey="Delete">
                     <MenuItem.Icon>
-                        <ContentControl ContentTemplate="{StaticResource RemoveIcon}"/>
+                        <ContentControl ContentTemplate="{StaticResource RemoveIcon}" />
                     </MenuItem.Icon>
                 </MenuItem>
             </MenuItem>
-            
+
             <MenuItem Header="_Help">
                 <MenuItem Header="_About">
                     <MenuItem.Icon>
-                        <ContentControl ContentTemplate="{StaticResource InfoIcon}"/>
+                        <ContentControl ContentTemplate="{StaticResource InfoIcon}" />
                     </MenuItem.Icon>
                 </MenuItem>
             </MenuItem>
         </Menu>
 
         <!-- Toolbar -->
-        <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" 
+        <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
                 BorderThickness="0,0,0,1" Padding="8,4">
             <StackPanel Orientation="Horizontal" Spacing="{StaticResource StandardSpacing}">
-                <Button Command="{Binding OpenArchiveCommand}" ToolTip.Tip="Open Archive (Ctrl+O)">
+                <Button Classes="ToolbarButton" Command="{Binding OpenArchiveCommand}"
+                        ToolTip.Tip="Open Archive (Ctrl+O)">
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
-                        <ContentControl ContentTemplate="{StaticResource OpenIcon}"/>
-                        <TextBlock Text="Open" VerticalAlignment="Center"/>
+                        <ContentControl ContentTemplate="{StaticResource OpenIcon}" />
+                        <TextBlock Text="Open" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                
-                <Button Command="{Binding SaveArchiveCommand}" ToolTip.Tip="Save Archive (Ctrl+S)">
+
+                <Button Classes="ToolbarButton" Command="{Binding SaveArchiveCommand}"
+                        ToolTip.Tip="Save Archive (Ctrl+S)">
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
-                        <ContentControl ContentTemplate="{StaticResource SaveIcon}"/>
-                        <TextBlock Text="Save" VerticalAlignment="Center"/>
+                        <ContentControl ContentTemplate="{StaticResource SaveIcon}" />
+                        <TextBlock Text="Save" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                
-                <Separator Margin="{StaticResource CompactThickness}"/>
-                
-                <Button Command="{Binding ExtractSelectedCommand}" ToolTip.Tip="Extract Selected Files">
+
+                <Separator Margin="{StaticResource CompactThickness}" />
+
+                <Button Classes="ToolbarButton" Command="{Binding ExtractSelectedCommand}"
+                        ToolTip.Tip="Extract Selected Files">
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
-                        <ContentControl ContentTemplate="{StaticResource ExtractIcon}"/>
-                        <TextBlock Text="Extract" VerticalAlignment="Center"/>
+                        <ContentControl ContentTemplate="{StaticResource ExtractIcon}" />
+                        <TextBlock Text="Extract" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                
-                <Button Command="{Binding ExtractAllCommand}" ToolTip.Tip="Extract All Files (Ctrl+E)">
+
+                <Button Classes="ToolbarButton" Command="{Binding ExtractAllCommand}"
+                        ToolTip.Tip="Extract All Files (Ctrl+E)">
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
-                        <ContentControl ContentTemplate="{StaticResource ExtractAllIcon}"/>
-                        <TextBlock Text="Extract All" VerticalAlignment="Center"/>
+                        <ContentControl ContentTemplate="{StaticResource ExtractAllIcon}" />
+                        <TextBlock Text="Extract All" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                
-                <Separator Margin="{StaticResource CompactThickness}"/>
-                
-                <Button Command="{Binding AddFilesCommand}" ToolTip.Tip="Add Files (Ctrl+A)">
+
+                <Separator Margin="{StaticResource CompactThickness}" />
+
+                <Button Classes="ToolbarButton" Command="{Binding AddFilesCommand}" ToolTip.Tip="Add Files (Ctrl+A)">
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
-                        <ContentControl ContentTemplate="{StaticResource AddIcon}"/>
-                        <TextBlock Text="Add" VerticalAlignment="Center"/>
+                        <ContentControl ContentTemplate="{StaticResource AddIcon}" />
+                        <TextBlock Text="Add" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                
-                <Button Command="{Binding RemoveSelectedCommand}" ToolTip.Tip="Remove Selected (Del)">
+
+                <Button Classes="ToolbarButton" Command="{Binding RemoveSelectedCommand}"
+                        ToolTip.Tip="Remove Selected (Del)">
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
-                        <ContentControl ContentTemplate="{StaticResource RemoveIcon}"/>
-                        <TextBlock Text="Remove" VerticalAlignment="Center"/>
+                        <ContentControl ContentTemplate="{StaticResource RemoveIcon}" />
+                        <TextBlock Text="Remove" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
             </StackPanel>
         </Border>
 
         <!-- Status Bar -->
-        <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" 
-                BorderThickness="0,1,0,0" Padding="8,4" Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+        <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,1,0,0" Padding="8,4"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
             <Grid ColumnDefinitions="*,Auto,Auto">
                 <!-- Status Message -->
-                <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" VerticalAlignment="Center"/>
-                
+                <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" VerticalAlignment="Center" />
+
                 <!-- Progress Indicator -->
-                <ProgressBar Grid.Column="1" Width="150" Height="16" Margin="8,0" 
-                             IsIndeterminate="{Binding IsBusy}" 
-                             IsVisible="{Binding IsBusy}"/>
-                
+                <ProgressBar Grid.Column="1" Width="150" Height="16" Margin="8,0"
+                             IsIndeterminate="{Binding IsBusy}"
+                             IsVisible="{Binding IsBusy}" />
+
                 <!-- Item Count -->
                 <TextBlock Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0">
-                    <Run Text="Items: "/>
-                    <Run Text="{Binding ArchiveItems.Count}"/>
+                    <Run Text="Items: " />
+                    <Run Text="{Binding ArchiveItems.Count}" />
                 </TextBlock>
             </Grid>
         </Border>
@@ -218,128 +231,103 @@
         <!-- Main Content -->
         <Grid ColumnDefinitions="*,Auto,280">
             <!-- Left Panel: File List -->
-            <Grid Grid.Column="0" RowDefinitions="Auto,*" Margin="{StaticResource CompactThickness}">
-                <TextBlock Grid.Row="0" 
-                           Text="Archive Contents" 
-                           FontSize="{StaticResource TitleFontSize}" 
-                           FontWeight="Bold" 
-                           Margin="0,0,0,8"/>
-                    
-                    <DataGrid Grid.Row="1"
-                              ItemsSource="{Binding ArchiveItems}"
-                              SelectedItem="{Binding SelectedItem}"
-                              SelectionMode="Single"
-                              IsReadOnly="True"
-                              BorderThickness="1"
-                              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                              CanUserResizeColumns="True"
-                              CanUserReorderColumns="True"
-                              CanUserSortColumns="True"
-                              GridLinesVisibility="Horizontal"
-                              HeadersVisibility="Column"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Auto">
-                        
-                        <DataGrid.ContextMenu>
-                            <ContextMenu x:CompileBindings="False">
-                                <MenuItem Header="Extract Selected..." 
-                                          Command="{Binding $parent[Window].DataContext.ExtractSelectedCommand}">
-                                    <MenuItem.Icon>
-                                        <ContentControl ContentTemplate="{StaticResource SmallExtractIcon}"/>
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                                <Separator/>
-                                <MenuItem Header="Remove from Archive" 
-                                          Command="{Binding $parent[Window].DataContext.RemoveSelectedCommand}">
-                                    <MenuItem.Icon>
-                                        <ContentControl ContentTemplate="{StaticResource SmallRemoveIcon}"/>
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                            </ContextMenu>
-                        </DataGrid.ContextMenu>
-                        
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="File Name" 
-                                                Binding="{Binding FileName}" 
-                                                Width="*"
-                                                MinWidth="150"/>
-                            <DataGridTextColumn Header="Compressed" 
-                                                Binding="{Binding FormattedCompressedSize}" 
-                                                Width="100"/>
-                            <DataGridTextColumn Header="Decompressed" 
-                                                Binding="{Binding FormattedDecompressedSize}" 
-                                                Width="110"/>
-                            <DataGridTextColumn Header="Ratio" 
-                                                Binding="{Binding FormattedCompressionRatio}" 
-                                                Width="70"/>
-                            <DataGridTextColumn Header="Flags" 
-                                                Binding="{Binding Flags, Converter={StaticResource FileFlagsToString}}" 
-                                                Width="140"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
+            <Grid Grid.Column="0" RowDefinitions="*" Margin="{StaticResource CompactThickness}">
+                <DataGrid Grid.Row="0"
+                          ItemsSource="{Binding ArchiveItems}"
+                          SelectedItem="{Binding SelectedItem}"
+                          SelectionMode="Single"
+                          IsReadOnly="True"
+                          BorderThickness="1"
+                          BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                          CanUserResizeColumns="True"
+                          CanUserReorderColumns="True"
+                          CanUserSortColumns="True"
+                          GridLinesVisibility="Horizontal"
+                          HeadersVisibility="Column"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Auto">
+
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="File Name"
+                                            Binding="{Binding FileName}"
+                                            Width="*"
+                                            MinWidth="150" />
+                        <DataGridTextColumn Header="Compressed"
+                                            Binding="{Binding FormattedCompressedSize}"
+                                            Width="100" />
+                        <DataGridTextColumn Header="Decompressed"
+                                            Binding="{Binding FormattedDecompressedSize}"
+                                            Width="110" />
+                        <DataGridTextColumn Header="Ratio"
+                                            Binding="{Binding FormattedCompressionRatio}"
+                                            Width="70" />
+                        <DataGridTextColumn Header="Flags"
+                                            Binding="{Binding Flags, Converter={StaticResource FileFlagsToString}}"
+                                            Width="140" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
 
             <!-- Splitter -->
-            <GridSplitter Grid.Column="1" Width="4" Background="Transparent" 
-                          ResizeDirection="Columns"/>
+            <GridSplitter Grid.Column="1" Width="4" Background="Transparent"
+                          ResizeDirection="Columns" />
 
             <!-- Right Panel: Archive Info -->
-            <Border Grid.Column="2" 
-                    Padding="{StaticResource StandardThickness}" 
+            <Border Grid.Column="2"
+                    Padding="{StaticResource StandardThickness}"
                     Background="{DynamicResource SystemControlBackgroundAltMediumBrush}">
                 <ScrollViewer>
                     <StackPanel Spacing="{StaticResource StandardSpacing}">
-                        <TextBlock Text="Archive Information" 
-                                   FontSize="{StaticResource TitleFontSize}" 
-                                   FontWeight="Bold"/>
-                        
-                        <StackPanel Spacing="{StaticResource StandardSpacing}" 
-                                    DataContext="{Binding ArchiveInfo}"
-                                    x:DataType="vm:ArchiveInfoViewModel">
+                        <TextBlock Text="Archive Information"
+                                   FontSize="{StaticResource TitleFontSize}"
+                                   FontWeight="Bold" />
+
+                        <StackPanel Spacing="{StaticResource StandardSpacing}"
+                                    DataContext="{Binding ArchiveInfo}">
                             <!-- File Path -->
                             <StackPanel Spacing="{StaticResource TightSpacing}">
-                                <TextBlock Text="File:" Classes="InfoLabel"/>
-                                <TextBlock Text="{Binding FormattedFilePath}" Classes="InfoValue"/>
+                                <TextBlock Text="File:" Classes="InfoLabel" />
+                                <TextBlock Text="{Binding FormattedFilePath}" Classes="InfoValue" />
                             </StackPanel>
-                            
+
                             <!-- Last Modified -->
                             <StackPanel Spacing="{StaticResource TightSpacing}">
-                                <TextBlock Text="Last Modified:" Classes="InfoLabel"/>
-                                <TextBlock Text="{Binding FormattedLastModification}" Classes="InfoValue"/>
+                                <TextBlock Text="Last Modified:" Classes="InfoLabel" />
+                                <TextBlock Text="{Binding FormattedLastModification}" Classes="InfoValue" />
                             </StackPanel>
-                            
+
                             <!-- File Count -->
                             <StackPanel Spacing="{StaticResource TightSpacing}">
-                                <TextBlock Text="Files:" Classes="InfoLabel"/>
-                                <TextBlock Text="{Binding FormattedItemCount}" Classes="InfoValue"/>
+                                <TextBlock Text="Files:" Classes="InfoLabel" />
+                                <TextBlock Text="{Binding FormattedItemCount}" Classes="InfoValue" />
                             </StackPanel>
-                            
-                            <Separator/>
-                            
+
+                            <Separator />
+
                             <!-- Total Size -->
                             <StackPanel Spacing="{StaticResource TightSpacing}">
-                                <TextBlock Text="Total Compressed Size:" Classes="InfoLabel"/>
-                                <TextBlock Text="{Binding FormattedTotalSize}" Classes="InfoValue"/>
+                                <TextBlock Text="Total Compressed Size:" Classes="InfoLabel" />
+                                <TextBlock Text="{Binding FormattedTotalSize}" Classes="InfoValue" />
                             </StackPanel>
-                            
+
                             <!-- Decompressed Size -->
                             <StackPanel Spacing="{StaticResource TightSpacing}">
-                                <TextBlock Text="Total Decompressed Size:" Classes="InfoLabel"/>
-                                <TextBlock Text="{Binding FormattedDecompressedSize}" Classes="InfoValue"/>
+                                <TextBlock Text="Total Decompressed Size:" Classes="InfoLabel" />
+                                <TextBlock Text="{Binding FormattedDecompressedSize}" Classes="InfoValue" />
                             </StackPanel>
-                            
+
                             <!-- Compression Ratio -->
                             <StackPanel Spacing="{StaticResource TightSpacing}">
-                                <TextBlock Text="Overall Compression:" Classes="InfoLabel"/>
-                                <TextBlock Text="{Binding FormattedCompressionRatio}" Classes="InfoValue"/>
+                                <TextBlock Text="Overall Compression:" Classes="InfoLabel" />
+                                <TextBlock Text="{Binding FormattedCompressionRatio}" Classes="InfoValue" />
                             </StackPanel>
                         </StackPanel>
-                        
+
                         <!-- No Archive Loaded Message -->
-                        <TextBlock Text="No archive loaded" 
+                        <TextBlock Text="No archive loaded"
                                    IsVisible="{Binding !IsArchiveOpen}"
                                    FontStyle="Italic"
-                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
                     </StackPanel>
                 </ScrollViewer>
             </Border>
