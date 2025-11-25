@@ -41,6 +41,15 @@ public interface IDialogService
   /// <param name="messageBoxType">Type of message box (OK, YesNo, etc.).</param>
   /// <returns>The result of the message box interaction.</returns>
   Task<MessageBoxResult> ShowMessageBoxAsync(string message, string title, MessageBoxType messageBoxType = MessageBoxType.Ok);
+
+  /// <summary>
+  /// Shows an input dialog for entering text.
+  /// </summary>
+  /// <param name="message">The message to display.</param>
+  /// <param name="title">The title of the dialog.</param>
+  /// <param name="defaultValue">Default value for the input.</param>
+  /// <returns>The entered text, or null if cancelled.</returns>
+  Task<string?> ShowInputDialogAsync(string message, string title, string? defaultValue = null);
 }
 
 /// <summary>

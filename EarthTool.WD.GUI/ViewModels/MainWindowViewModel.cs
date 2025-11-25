@@ -43,6 +43,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     _logger = logger                           ?? throw new ArgumentNullException(nameof(logger));
 
     ArchiveItems = new ObservableCollection<ArchiveItemViewModel>();
+    TreeItems = new ObservableCollection<TreeItemViewModel>();
     ArchiveInfo = new ArchiveInfoViewModel();
 
     // Subscribe to notification service
@@ -54,23 +55,27 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   #region Properties
 
   public ObservableCollection<ArchiveItemViewModel> ArchiveItems { get; }
+  public ObservableCollection<TreeItemViewModel> TreeItems { get; }
   public ArchiveInfoViewModel ArchiveInfo { get; }
 
   // For single selection scenarios
-  private ArchiveItemViewModel? _selectedItem;
+  private object? _selectedItem;
 
-  public ArchiveItemViewModel? SelectedItem
+  public object? SelectedItem
   {
     get => _selectedItem;
     set
     {
       this.RaiseAndSetIfChanged(ref _selectedItem, value);
       this.RaisePropertyChanged(nameof(HasSelection));
+      this.RaisePropertyChanged(nameof(SelectedTreeItem));
     }
   }
 
+  public TreeItemViewModel? SelectedTreeItem => _selectedItem as TreeItemViewModel;
+
   // Track whether we have a selection (for command CanExecute)
-  public bool HasSelection => SelectedItem != null;
+  public bool HasSelection => SelectedTreeItem?.Item != null;
 
   public bool IsArchiveOpen => _currentArchive != null;
 
@@ -119,6 +124,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   public ReactiveCommand<Unit, Unit> ExtractSelectedCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> ExtractAllCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> AddFilesCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> AddFolderCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> CreateFolderCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> RemoveSelectedCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> ExitCommand { get; private set; } = null!;
 
@@ -156,6 +163,12 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
     // AddFilesCommand - enabled when archive is open
     AddFilesCommand = ReactiveCommand.CreateFromTask(AddFilesAsync, canSaveAs);
+
+    // AddFolderCommand - enabled when archive is open
+    AddFolderCommand = ReactiveCommand.CreateFromTask(AddFolderAsync, canSaveAs);
+
+    // CreateFolderCommand - enabled when archive is open
+    CreateFolderCommand = ReactiveCommand.CreateFromTask(CreateFolderAsync, canSaveAs);
 
     // RemoveSelectedCommand - enabled when items are selected
     RemoveSelectedCommand = ReactiveCommand.CreateFromTask(RemoveSelectedAsync, canExtractSelected);
@@ -353,6 +366,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       _currentFilePath = null;
 
       ArchiveItems.Clear();
+      TreeItems.Clear();
       SelectedItem = null;
       ArchiveInfo.Clear();
       HasUnsavedChanges = false;
@@ -373,7 +387,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
   private async Task ExtractSelectedAsync()
   {
-    if (_currentArchive == null || SelectedItem == null)
+    if (_currentArchive == null || SelectedTreeItem?.Item == null)
       return;
 
     try
@@ -385,12 +399,12 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       IsBusy = true;
       StatusMessage = "Extracting file...";
 
-      var item = SelectedItem;
-      await Task.Run(() => _archiver.Extract(item.Item, outputPath));
+      var item = SelectedTreeItem;
+      await Task.Run(() => _archiver.Extract(item.Item!, outputPath));
 
-      _notificationService.ShowSuccess($"Extracted {item.FileName} to {outputPath}");
+      _notificationService.ShowSuccess($"Extracted {item.Name} to {outputPath}");
       StatusMessage = "File extracted";
-      _logger.LogInformation("Extracted file {FileName} to {OutputPath}", item.FileName, outputPath);
+      _logger.LogInformation("Extracted file {FileName} to {OutputPath}", item.Name, outputPath);
     }
     catch (Exception ex)
     {
@@ -446,25 +460,83 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         return;
 
       IsBusy = true;
-      StatusMessage = $"Adding {files.Count} file(s)...";
-
-      // Determine base directory (use parent of first file)
-      var baseDirectory = Path.GetDirectoryName(files[0]);
-
-      await Task.Run(() =>
+      
+      // Determine target folder in archive
+      var targetFolder = "";
+      if (SelectedTreeItem != null)
       {
+        // If folder is selected, use it as target
+        // If file is selected, use its parent folder
+        targetFolder = SelectedTreeItem.IsFolder 
+          ? SelectedTreeItem.FullPath 
+          : Path.GetDirectoryName(SelectedTreeItem.FullPath)?.Replace("\\", "/") ?? "";
+      }
+
+      var targetMessage = string.IsNullOrEmpty(targetFolder) 
+        ? "to archive root" 
+        : $"to folder '{targetFolder}'";
+      
+      StatusMessage = $"Adding {files.Count} file(s) {targetMessage}...";
+
+      // To add files to specific folder in archive, we need to create a temporary directory structure
+      // that mirrors the desired archive structure
+      string tempBaseDir = null;
+      
+      if (!string.IsNullOrEmpty(targetFolder))
+      {
+        // Create temp directory with target folder structure
+        tempBaseDir = Path.Combine(Path.GetTempPath(), $"EarthToolTemp_{Guid.NewGuid()}");
+        var targetPath = Path.Combine(tempBaseDir, targetFolder.Replace("/", Path.DirectorySeparatorChar.ToString()));
+        Directory.CreateDirectory(targetPath);
+        
+        // Copy files to temp location
+        var tempFiles = new List<string>();
         foreach (var file in files)
         {
-          _archiver.AddFile(_currentArchive, file, baseDirectory, compress: true);
+          var fileName = Path.GetFileName(file);
+          var tempFile = Path.Combine(targetPath, fileName);
+          File.Copy(file, tempFile);
+          tempFiles.Add(tempFile);
         }
-      });
+        
+        // Add files from temp location with proper base directory
+        await Task.Run(() =>
+        {
+          foreach (var tempFile in tempFiles)
+          {
+            _archiver.AddFile(_currentArchive, tempFile, tempBaseDir, compress: true);
+          }
+        });
+        
+        // Cleanup temp directory
+        try
+        {
+          Directory.Delete(tempBaseDir, true);
+        }
+        catch (Exception ex)
+        {
+          _logger.LogWarning(ex, "Failed to cleanup temp directory {TempDir}", tempBaseDir);
+        }
+      }
+      else
+      {
+        // Add to root - use original method
+        var baseDirectory = Path.GetDirectoryName(files[0]);
+        await Task.Run(() =>
+        {
+          foreach (var file in files)
+          {
+            _archiver.AddFile(_currentArchive, file, baseDirectory, compress: true);
+          }
+        });
+      }
 
       LoadArchiveItems();
       HasUnsavedChanges = true;
 
-      _notificationService.ShowSuccess($"Added {files.Count} file(s) to archive");
+      _notificationService.ShowSuccess($"Added {files.Count} file(s) {targetMessage}");
       StatusMessage = $"Added {files.Count} file(s)";
-      _logger.LogInformation("Added {Count} files to archive", files.Count);
+      _logger.LogInformation("Added {Count} files to archive at path '{TargetFolder}'", files.Count, targetFolder);
     }
     catch (Exception ex)
     {
@@ -477,16 +549,268 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     }
   }
 
+  private async Task AddFolderAsync()
+  {
+    if (_currentArchive == null)
+      return;
+
+    try
+    {
+      var folderPath = await _dialogService.ShowFolderBrowserDialogAsync();
+      if (string.IsNullOrEmpty(folderPath))
+        return;
+
+      IsBusy = true;
+      
+      // Determine target folder in archive
+      var targetFolder = "";
+      if (SelectedTreeItem != null)
+      {
+        // If folder is selected, use it as target
+        // If file is selected, use its parent folder
+        targetFolder = SelectedTreeItem.IsFolder 
+          ? SelectedTreeItem.FullPath 
+          : Path.GetDirectoryName(SelectedTreeItem.FullPath)?.Replace("\\", "/") ?? "";
+      }
+
+      var folderName = Path.GetFileName(folderPath);
+      var targetMessage = string.IsNullOrEmpty(targetFolder) 
+        ? $"to archive root" 
+        : $"to folder '{targetFolder}'";
+      
+      StatusMessage = $"Adding folder '{folderName}' {targetMessage}...";
+
+      // Get all files in the folder recursively
+      var allFiles = Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories);
+      
+      if (allFiles.Length == 0)
+      {
+        _notificationService.ShowWarning($"Folder '{folderName}' is empty - no files to add");
+        return;
+      }
+
+      // To add folder to specific location in archive, we need to create a temporary directory structure
+      string tempBaseDir = null;
+      
+      if (!string.IsNullOrEmpty(targetFolder))
+      {
+        // Create temp directory with target folder structure
+        tempBaseDir = Path.Combine(Path.GetTempPath(), $"EarthToolTemp_{Guid.NewGuid()}");
+        var targetPath = Path.Combine(tempBaseDir, targetFolder.Replace("/", Path.DirectorySeparatorChar.ToString()));
+        Directory.CreateDirectory(targetPath);
+        
+        // Copy entire folder structure to temp location
+        var destFolderPath = Path.Combine(targetPath, folderName);
+        CopyDirectory(folderPath, destFolderPath);
+        
+        // Add all files from temp location with proper base directory
+        var tempFiles = Directory.GetFiles(destFolderPath, "*", SearchOption.AllDirectories);
+        await Task.Run(() =>
+        {
+          foreach (var tempFile in tempFiles)
+          {
+            _archiver.AddFile(_currentArchive, tempFile, tempBaseDir, compress: true);
+          }
+        });
+        
+        // Cleanup temp directory
+        try
+        {
+          Directory.Delete(tempBaseDir, true);
+        }
+        catch (Exception ex)
+        {
+          _logger.LogWarning(ex, "Failed to cleanup temp directory {TempDir}", tempBaseDir);
+        }
+      }
+      else
+      {
+        // Add to root - use the parent directory as base
+        var baseDirectory = Path.GetDirectoryName(folderPath);
+        await Task.Run(() =>
+        {
+          foreach (var file in allFiles)
+          {
+            _archiver.AddFile(_currentArchive, file, baseDirectory, compress: true);
+          }
+        });
+      }
+
+      LoadArchiveItems();
+      HasUnsavedChanges = true;
+
+      _notificationService.ShowSuccess($"Added folder '{folderName}' with {allFiles.Length} file(s) {targetMessage}");
+      StatusMessage = $"Added {allFiles.Length} file(s)";
+      _logger.LogInformation("Added folder '{FolderName}' with {Count} files to archive at path '{TargetFolder}'", 
+        folderName, allFiles.Length, targetFolder);
+    }
+    catch (Exception ex)
+    {
+      _notificationService.ShowError("Failed to add folder", ex);
+      StatusMessage = "Failed to add folder";
+    }
+    finally
+    {
+      IsBusy = false;
+    }
+  }
+
+  private async Task CreateFolderAsync()
+  {
+    if (_currentArchive == null)
+      return;
+
+    try
+    {
+      // Ask user for folder name
+      var folderName = await _dialogService.ShowInputDialogAsync(
+        "Enter the name for the new folder:",
+        "Create Folder",
+        "NewFolder");
+
+      if (string.IsNullOrWhiteSpace(folderName))
+        return;
+
+      // Sanitize folder name (remove invalid characters)
+      var invalidChars = Path.GetInvalidFileNameChars();
+      folderName = string.Join("_", folderName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
+
+      if (string.IsNullOrWhiteSpace(folderName))
+      {
+        _notificationService.ShowWarning("Invalid folder name");
+        return;
+      }
+
+      // Determine target folder in archive
+      var targetFolder = "";
+      if (SelectedTreeItem != null)
+      {
+        // If folder is selected, create inside it
+        // If file is selected, create in its parent folder
+        targetFolder = SelectedTreeItem.IsFolder 
+          ? SelectedTreeItem.FullPath 
+          : Path.GetDirectoryName(SelectedTreeItem.FullPath)?.Replace("\\", "/") ?? "";
+      }
+
+      var fullPath = string.IsNullOrEmpty(targetFolder) 
+        ? folderName 
+        : $"{targetFolder}/{folderName}";
+
+      // Check if folder already exists
+      if (FolderExistsInTree(fullPath))
+      {
+        _notificationService.ShowWarning($"Folder '{folderName}' already exists in this location");
+        return;
+      }
+
+      // Create virtual folder by adding it to the tree
+      // We need to add a placeholder file to actually create the folder in the archive
+      // since WD archives don't support empty folders
+      var placeholderFileName = $"{fullPath}/.placeholder";
+      
+      // Create a temporary placeholder file
+      var tempFile = Path.Combine(Path.GetTempPath(), $"placeholder_{Guid.NewGuid()}.tmp");
+      File.WriteAllText(tempFile, "This is a placeholder file to maintain folder structure.");
+
+      try
+      {
+        // Create temp directory structure
+        var tempBaseDir = Path.Combine(Path.GetTempPath(), $"EarthToolTemp_{Guid.NewGuid()}");
+        var placeholderPath = Path.Combine(tempBaseDir, placeholderFileName.Replace("/", Path.DirectorySeparatorChar.ToString()));
+        var placeholderDir = Path.GetDirectoryName(placeholderPath);
+        
+        if (!string.IsNullOrEmpty(placeholderDir))
+        {
+          Directory.CreateDirectory(placeholderDir);
+          File.Copy(tempFile, placeholderPath);
+
+          await Task.Run(() =>
+          {
+            _archiver.AddFile(_currentArchive, placeholderPath, tempBaseDir, compress: true);
+          });
+
+          // Cleanup
+          try
+          {
+            Directory.Delete(tempBaseDir, true);
+          }
+          catch (Exception ex)
+          {
+            _logger.LogWarning(ex, "Failed to cleanup temp directory {TempDir}", tempBaseDir);
+          }
+        }
+      }
+      finally
+      {
+        // Cleanup temp file
+        try
+        {
+          File.Delete(tempFile);
+        }
+        catch (Exception ex)
+        {
+          _logger.LogWarning(ex, "Failed to delete temp file {TempFile}", tempFile);
+        }
+      }
+
+      LoadArchiveItems();
+      HasUnsavedChanges = true;
+
+      _notificationService.ShowSuccess($"Created folder '{folderName}' at {(string.IsNullOrEmpty(targetFolder) ? "root" : targetFolder)}");
+      StatusMessage = $"Created folder '{folderName}'";
+      _logger.LogInformation("Created folder '{FolderName}' at path '{TargetFolder}'", folderName, targetFolder);
+    }
+    catch (Exception ex)
+    {
+      _notificationService.ShowError("Failed to create folder", ex);
+      StatusMessage = "Failed to create folder";
+    }
+  }
+
+  private bool FolderExistsInTree(string fullPath)
+  {
+    return TreeItems.Any(item => CheckFolderExists(item, fullPath));
+  }
+
+  private bool CheckFolderExists(TreeItemViewModel item, string fullPath)
+  {
+    if (item.IsFolder && item.FullPath.Equals(fullPath, StringComparison.OrdinalIgnoreCase))
+      return true;
+
+    return item.Children.Any(child => CheckFolderExists(child, fullPath));
+  }
+
+  private void CopyDirectory(string sourceDir, string destDir)
+  {
+    Directory.CreateDirectory(destDir);
+
+    // Copy all files
+    foreach (var file in Directory.GetFiles(sourceDir))
+    {
+      var fileName = Path.GetFileName(file);
+      var destFile = Path.Combine(destDir, fileName);
+      File.Copy(file, destFile);
+    }
+
+    // Recursively copy subdirectories
+    foreach (var directory in Directory.GetDirectories(sourceDir))
+    {
+      var dirName = Path.GetFileName(directory);
+      var destSubDir = Path.Combine(destDir, dirName);
+      CopyDirectory(directory, destSubDir);
+    }
+  }
+
   private async Task RemoveSelectedAsync()
   {
-    if (_currentArchive == null || SelectedItem == null)
+    if (_currentArchive == null || SelectedTreeItem?.Item == null)
       return;
 
     try
     {
       // Confirm deletion
       var result = await _dialogService.ShowMessageBoxAsync(
-        $"Are you sure you want to remove '{SelectedItem.FileName}' from the archive?",
+        $"Are you sure you want to remove '{SelectedTreeItem.Name}' from the archive?",
         "Confirm Removal",
         MessageBoxType.YesNo);
 
@@ -496,10 +820,10 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       IsBusy = true;
       StatusMessage = "Removing file...";
 
-      var item = SelectedItem.Item;
-      var fileName = SelectedItem.FileName;
+      var item = SelectedTreeItem.Item;
+      var fileName = SelectedTreeItem.Name;
 
-      await Task.Run(() => _currentArchive.RemoveItem(item));
+      await Task.Run(() => _currentArchive.RemoveItem(item!));
 
       LoadArchiveItems();
       HasUnsavedChanges = true;
@@ -533,6 +857,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   private void LoadArchiveItems()
   {
     ArchiveItems.Clear();
+    TreeItems.Clear();
     SelectedItem = null;
 
     if (_currentArchive != null)
@@ -542,11 +867,74 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         ArchiveItems.Add(new ArchiveItemViewModel(item));
       }
 
+      BuildTreeStructure();
       ArchiveInfo.UpdateFromArchive(_currentArchive, _currentFilePath);
     }
     else
     {
       ArchiveInfo.Clear();
+    }
+  }
+
+  private void BuildTreeStructure()
+  {
+    var root = new Dictionary<string, TreeItemViewModel>();
+
+    foreach (var archiveItem in ArchiveItems)
+    {
+      var fileName = archiveItem.FileName;
+      var parts = fileName.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+
+      TreeItemViewModel currentParent = null;
+      string currentPath = "";
+
+      for (int i = 0; i < parts.Length; i++)
+      {
+        var part = parts[i];
+        var isFile = i == parts.Length - 1;
+        currentPath = string.IsNullOrEmpty(currentPath) ? part : $"{currentPath}/{part}";
+
+        TreeItemViewModel node;
+
+        if (currentParent == null)
+        {
+          // Root level
+          if (!root.ContainsKey(part))
+          {
+            node = new TreeItemViewModel(part, !isFile)
+            {
+              FullPath = currentPath,
+              Item = isFile ? archiveItem.Item : null
+            };
+            root[part] = node;
+            TreeItems.Add(node);
+          }
+          else
+          {
+            node = root[part];
+          }
+        }
+        else
+        {
+          // Child level
+          var existingChild = currentParent.Children.FirstOrDefault(c => c.Name == part);
+          if (existingChild == null)
+          {
+            node = new TreeItemViewModel(part, !isFile)
+            {
+              FullPath = currentPath,
+              Item = isFile ? archiveItem.Item : null
+            };
+            currentParent.Children.Add(node);
+          }
+          else
+          {
+            node = existingChild;
+          }
+        }
+
+        currentParent = node;
+      }
     }
   }
 

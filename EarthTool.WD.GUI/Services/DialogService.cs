@@ -198,4 +198,85 @@ public class DialogService : IDialogService
 
     return button;
   }
+
+  public async Task<string?> ShowInputDialogAsync(string message, string title, string? defaultValue = null)
+  {
+    var window = GetMainWindow();
+    if (window == null)
+      return null;
+
+    var dialog = new Window
+    {
+      Title = title,
+      Width = 400,
+      Height = 180,
+      CanResize = false,
+      WindowStartupLocation = WindowStartupLocation.CenterOwner
+    };
+
+    var textBlock = new TextBlock
+    {
+      Text = message,
+      TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+      Margin = new Avalonia.Thickness(0, 0, 0, 10)
+    };
+
+    var textBox = new TextBox
+    {
+      Text = defaultValue ?? "",
+      Watermark = "Enter folder name...",
+      Margin = new Avalonia.Thickness(0, 0, 0, 15)
+    };
+
+    var okButton = new Button
+    {
+      Content = "OK",
+      Width = 80,
+      IsDefault = true,
+      Margin = new Avalonia.Thickness(0, 0, 10, 0)
+    };
+    okButton.Click += (_, _) =>
+    {
+      dialog.Tag = textBox.Text;
+      dialog.Close();
+    };
+
+    var cancelButton = new Button
+    {
+      Content = "Cancel",
+      Width = 80,
+      IsCancel = true
+    };
+    cancelButton.Click += (_, _) =>
+    {
+      dialog.Tag = null;
+      dialog.Close();
+    };
+
+    var buttonPanel = new StackPanel
+    {
+      Orientation = Avalonia.Layout.Orientation.Horizontal,
+      HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+      Spacing = 10
+    };
+    buttonPanel.Children.Add(okButton);
+    buttonPanel.Children.Add(cancelButton);
+
+    var stackPanel = new StackPanel
+    {
+      Margin = new Avalonia.Thickness(20),
+      Spacing = 10
+    };
+    stackPanel.Children.Add(textBlock);
+    stackPanel.Children.Add(textBox);
+    stackPanel.Children.Add(buttonPanel);
+
+    dialog.Content = stackPanel;
+
+    // Focus the textbox when dialog opens
+    dialog.Opened += (_, _) => textBox.Focus();
+
+    await dialog.ShowDialog(window);
+    return dialog.Tag as string;
+  }
 }

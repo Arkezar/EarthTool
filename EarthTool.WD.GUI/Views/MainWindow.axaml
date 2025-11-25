@@ -52,6 +52,9 @@
         <DataTemplate x:Key="AddIcon">
             <TextBlock Text="➕" FontSize="{StaticResource IconFontSize}" />
         </DataTemplate>
+        <DataTemplate x:Key="AddFolderIcon">
+            <TextBlock Text="📁" FontSize="{StaticResource IconFontSize}" />
+        </DataTemplate>
         <DataTemplate x:Key="RemoveIcon">
             <TextBlock Text="🗑️" FontSize="{StaticResource IconFontSize}" />
         </DataTemplate>
@@ -131,11 +134,22 @@
                     </MenuItem.Icon>
                 </MenuItem>
                 <Separator />
-                <MenuItem Header="_Add Files..." Command="{Binding AddFilesCommand}" HotKey="Ctrl+A">
+                <MenuItem Header="Add _Files..." Command="{Binding AddFilesCommand}" HotKey="Ctrl+A">
                     <MenuItem.Icon>
                         <ContentControl ContentTemplate="{StaticResource AddIcon}" />
                     </MenuItem.Icon>
                 </MenuItem>
+                <MenuItem Header="Add F_older..." Command="{Binding AddFolderCommand}" HotKey="Ctrl+Shift+A">
+                    <MenuItem.Icon>
+                        <ContentControl ContentTemplate="{StaticResource AddIcon}" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="_Create Folder..." Command="{Binding CreateFolderCommand}" HotKey="Ctrl+Shift+N">
+                    <MenuItem.Icon>
+                        <ContentControl ContentTemplate="{StaticResource AddFolderIcon}" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator />
                 <MenuItem Header="_Remove Selected" Command="{Binding RemoveSelectedCommand}" HotKey="Delete">
                     <MenuItem.Icon>
                         <ContentControl ContentTemplate="{StaticResource RemoveIcon}" />
@@ -195,9 +209,25 @@
                 <Button Classes="ToolbarButton" Command="{Binding AddFilesCommand}" ToolTip.Tip="Add Files (Ctrl+A)">
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
                         <ContentControl ContentTemplate="{StaticResource AddIcon}" />
-                        <TextBlock Text="Add" VerticalAlignment="Center" />
+                        <TextBlock Text="Add Files" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
+
+                <Button Classes="ToolbarButton" Command="{Binding AddFolderCommand}" ToolTip.Tip="Add Folder (Ctrl+Shift+A)">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
+                        <ContentControl ContentTemplate="{StaticResource AddFolderIcon}" />
+                        <TextBlock Text="Add Folder" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Button Classes="ToolbarButton" Command="{Binding CreateFolderCommand}" ToolTip.Tip="Create Folder (Ctrl+Shift+N)">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
+                        <ContentControl ContentTemplate="{StaticResource AddFolderIcon}" />
+                        <TextBlock Text="New Folder" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Separator Margin="{StaticResource CompactThickness}" />
 
                 <Button Classes="ToolbarButton" Command="{Binding RemoveSelectedCommand}"
                         ToolTip.Tip="Remove Selected (Del)">
@@ -234,40 +264,25 @@
         <Grid ColumnDefinitions="*,Auto,280">
             <!-- Left Panel: File List -->
             <Grid Grid.Column="0" RowDefinitions="*" Margin="{StaticResource CompactThickness}">
-                <DataGrid Grid.Row="0"
-                          ItemsSource="{Binding ArchiveItems}"
+                <TreeView Grid.Row="0"
+                          x:Name="ArchiveTreeView"
+                          ItemsSource="{Binding TreeItems}"
                           SelectedItem="{Binding SelectedItem}"
-                          SelectionMode="Single"
-                          IsReadOnly="True"
                           BorderThickness="1"
                           BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                          CanUserResizeColumns="True"
-                          CanUserReorderColumns="True"
-                          CanUserSortColumns="True"
-                          GridLinesVisibility="Horizontal"
-                          HeadersVisibility="Column"
-                          VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Auto">
-
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="File Name"
-                                            Binding="{Binding FileName}"
-                                            Width="*"
-                                            MinWidth="150" />
-                        <DataGridTextColumn Header="Compressed"
-                                            Binding="{Binding FormattedCompressedSize}"
-                                            Width="100" />
-                        <DataGridTextColumn Header="Decompressed"
-                                            Binding="{Binding FormattedDecompressedSize}"
-                                            Width="110" />
-                        <DataGridTextColumn Header="Ratio"
-                                            Binding="{Binding FormattedCompressionRatio}"
-                                            Width="70" />
-                        <DataGridTextColumn Header="Flags"
-                                            Binding="{Binding Flags, Converter={StaticResource FileFlagsToString}}"
-                                            Width="140" />
-                    </DataGrid.Columns>
-                </DataGrid>
+                          PointerPressed="TreeView_PointerPressed">
+                    <TreeView.ItemTemplate>
+                        <TreeDataTemplate ItemsSource="{Binding Children}">
+                            <Grid ColumnDefinitions="*,100,110,70,140">
+                                <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="{Binding FormattedCompressedSize}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="{Binding FormattedDecompressedSize}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="{Binding FormattedCompressionRatio}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="4" Text="{Binding Flags, Converter={StaticResource FileFlagsToString}}" VerticalAlignment="Center"/>
+                            </Grid>
+                        </TreeDataTemplate>
+                    </TreeView.ItemTemplate>
+                </TreeView>
             </Grid>
 
             <!-- Splitter -->
