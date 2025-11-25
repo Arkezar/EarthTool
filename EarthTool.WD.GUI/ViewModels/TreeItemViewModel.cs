@@ -51,7 +51,11 @@ public class TreeItemViewModel : ViewModelBase
   public bool IsExpanded
   {
     get => _isExpanded;
-    set => this.RaiseAndSetIfChanged(ref _isExpanded, value);
+    set
+    {
+      this.RaiseAndSetIfChanged(ref _isExpanded, value);
+      System.Diagnostics.Debug.WriteLine($"TreeItem '{Name}' expanded state changed to: {value}");
+    }
   }
 
   /// <summary>
