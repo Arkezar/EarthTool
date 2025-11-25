@@ -180,7 +180,7 @@
             </MenuItem>
 
             <MenuItem Header="_Help">
-                <MenuItem Header="_About">
+                <MenuItem Header="_About" Command="{Binding AboutCommand}">
                     <MenuItem.Icon>
                         <ContentControl ContentTemplate="{StaticResource InfoIcon}" />
                     </MenuItem.Icon>

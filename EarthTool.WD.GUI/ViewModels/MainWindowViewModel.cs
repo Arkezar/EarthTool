@@ -132,6 +132,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   public ReactiveCommand<Unit, Unit> SetTextFlagCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> ClearTextFlagCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> ToggleTextFlagCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> AboutCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> ExitCommand { get; private set; } = null!;
 
   private void InitializeCommands()
@@ -182,6 +183,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     SetTextFlagCommand = ReactiveCommand.CreateFromTask(SetTextFlagAsync, canExtractSelected);
     ClearTextFlagCommand = ReactiveCommand.CreateFromTask(ClearTextFlagAsync, canExtractSelected);
     ToggleTextFlagCommand = ReactiveCommand.CreateFromTask(ToggleTextFlagAsync, canExtractSelected);
+
+    // AboutCommand - always enabled
+    AboutCommand = ReactiveCommand.CreateFromTask(ShowAboutAsync);
 
     // ExitCommand - always enabled
     ExitCommand = ReactiveCommand.Create(Exit);
@@ -927,6 +931,24 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       HasUnsavedChanges = true;
       _notificationService.ShowSuccess($"Text flag set for '{item.Name}'");
       _logger.LogInformation("Text flag set for file {FileName}", item.Name);
+    }
+  }
+
+  private async Task ShowAboutAsync()
+  {
+    try
+    {
+      var aboutViewModel = new AboutViewModel();
+      var result = await _dialogService.ShowMessageBoxAsync(
+        aboutViewModel.FullAboutText,
+        "About EarthTool WD Archive Manager",
+        MessageBoxType.Ok);
+      
+      _logger.LogInformation("About dialog shown");
+    }
+    catch (Exception ex)
+    {
+      _logger.LogError(ex, "Failed to show About dialog");
     }
   }
 
