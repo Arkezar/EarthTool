@@ -247,22 +247,20 @@
                 <!-- Status Message -->
                 <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" VerticalAlignment="Center" />
 
+                <!-- Archive Info (GUID, Items, Size) -->
+                <TextBlock Grid.Column="1" Text="{Binding ArchiveInfoText}" VerticalAlignment="Center" 
+                          Margin="8,0,0,0" IsVisible="{Binding IsArchiveOpen}" />
+
                 <!-- Progress Indicator -->
-                <ProgressBar Grid.Column="1" Width="150" Height="16" Margin="8,0"
+                <ProgressBar Grid.Column="2" Width="150" Height="16" Margin="8,0"
                              IsIndeterminate="{Binding IsBusy}"
                              IsVisible="{Binding IsBusy}" />
-
-                <!-- Item Count -->
-                <TextBlock Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0">
-                    <Run Text="Items: " />
-                    <Run Text="{Binding ArchiveItems.Count}" />
-                </TextBlock>
             </Grid>
         </Border>
 
         <!-- Main Content -->
-        <Grid ColumnDefinitions="*,Auto,280">
-            <!-- Left Panel: File List -->
+        <Grid ColumnDefinitions="*">
+            <!-- File List -->
             <Grid Grid.Column="0" RowDefinitions="*" Margin="{StaticResource CompactThickness}">
                 <TreeView Grid.Row="0"
                           x:Name="ArchiveTreeView"
@@ -284,70 +282,6 @@
                     </TreeView.ItemTemplate>
                 </TreeView>
             </Grid>
-
-            <!-- Splitter -->
-            <GridSplitter Grid.Column="1" Width="4" Background="Transparent"
-                          ResizeDirection="Columns" />
-
-            <!-- Right Panel: Archive Info -->
-            <Border Grid.Column="2"
-                    Padding="{StaticResource StandardThickness}"
-                    Background="{DynamicResource SystemControlBackgroundAltMediumBrush}">
-                <ScrollViewer>
-                    <StackPanel Spacing="{StaticResource StandardSpacing}">
-                        <TextBlock Text="Archive Information"
-                                   FontSize="{StaticResource TitleFontSize}"
-                                   FontWeight="Bold" />
-
-                        <StackPanel Spacing="{StaticResource StandardSpacing}"
-                                    DataContext="{Binding ArchiveInfo}">
-                            <!-- File Path -->
-                            <StackPanel Spacing="{StaticResource TightSpacing}">
-                                <TextBlock Text="File:" Classes="InfoLabel" />
-                                <TextBlock Text="{Binding FormattedFilePath}" Classes="InfoValue" />
-                            </StackPanel>
-
-                            <!-- Last Modified -->
-                            <StackPanel Spacing="{StaticResource TightSpacing}">
-                                <TextBlock Text="Last Modified:" Classes="InfoLabel" />
-                                <TextBlock Text="{Binding FormattedLastModification}" Classes="InfoValue" />
-                            </StackPanel>
-
-                            <!-- File Count -->
-                            <StackPanel Spacing="{StaticResource TightSpacing}">
-                                <TextBlock Text="Files:" Classes="InfoLabel" />
-                                <TextBlock Text="{Binding FormattedItemCount}" Classes="InfoValue" />
-                            </StackPanel>
-
-                            <Separator />
-
-                            <!-- Total Size -->
-                            <StackPanel Spacing="{StaticResource TightSpacing}">
-                                <TextBlock Text="Total Compressed Size:" Classes="InfoLabel" />
-                                <TextBlock Text="{Binding FormattedTotalSize}" Classes="InfoValue" />
-                            </StackPanel>
-
-                            <!-- Decompressed Size -->
-                            <StackPanel Spacing="{StaticResource TightSpacing}">
-                                <TextBlock Text="Total Decompressed Size:" Classes="InfoLabel" />
-                                <TextBlock Text="{Binding FormattedDecompressedSize}" Classes="InfoValue" />
-                            </StackPanel>
-
-                            <!-- Compression Ratio -->
-                            <StackPanel Spacing="{StaticResource TightSpacing}">
-                                <TextBlock Text="Overall Compression:" Classes="InfoLabel" />
-                                <TextBlock Text="{Binding FormattedCompressionRatio}" Classes="InfoValue" />
-                            </StackPanel>
-                        </StackPanel>
-
-                        <!-- No Archive Loaded Message -->
-                        <TextBlock Text="No archive loaded"
-                                   IsVisible="{Binding !IsArchiveOpen}"
-                                   FontStyle="Italic"
-                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-                    </StackPanel>
-                </ScrollViewer>
-            </Border>
         </Grid>
     </DockPanel>
 

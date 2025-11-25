@@ -97,6 +97,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     set => this.RaiseAndSetIfChanged(ref _statusMessage, value);
   }
 
+  public string ArchiveInfoText => IsArchiveOpen ? $"{ArchiveInfo.FormattedArchiveGuid} | {ArchiveInfo.FormattedItemCount} | {ArchiveInfo.FormattedTotalSize}" : "";
+
   public string WindowTitle
   {
     get
@@ -869,10 +871,12 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
       BuildTreeStructure();
       ArchiveInfo.UpdateFromArchive(_currentArchive, _currentFilePath);
+      this.RaisePropertyChanged(nameof(ArchiveInfoText));
     }
     else
     {
       ArchiveInfo.Clear();
+      this.RaisePropertyChanged(nameof(ArchiveInfoText));
     }
   }
 

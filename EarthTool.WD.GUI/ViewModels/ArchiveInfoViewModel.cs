@@ -15,6 +15,7 @@ public class ArchiveInfoViewModel : ViewModelBase
   private long _totalCompressedSize;
   private long _totalDecompressedSize;
   private IEarthInfo? _header;
+  private string? _archiveGuid;
 
   public string? FilePath
   {
@@ -74,6 +75,16 @@ public class ArchiveInfoViewModel : ViewModelBase
     set => this.RaiseAndSetIfChanged(ref _header, value);
   }
 
+  public string? ArchiveGuid
+  {
+    get => _archiveGuid;
+    set
+    {
+      this.RaiseAndSetIfChanged(ref _archiveGuid, value);
+      this.RaisePropertyChanged(nameof(FormattedArchiveGuid));
+    }
+  }
+
   public string FormattedFilePath => FilePath ?? "No archive loaded";
 
   public string FormattedLastModification => LastModification?.ToString("G") ?? "N/A";
@@ -93,6 +104,8 @@ public class ArchiveInfoViewModel : ViewModelBase
       return $"{ratio:F1}%";
     }
   }
+
+  public string FormattedArchiveGuid => ArchiveGuid ?? "N/A";
 
   private static string FormatBytes(long bytes)
   {
@@ -122,6 +135,7 @@ public class ArchiveInfoViewModel : ViewModelBase
     LastModification = archive.LastModification;
     ItemCount = archive.Items.Count;
     Header = archive.Header;
+    ArchiveGuid = archive.Header?.Guid.ToString();
 
     TotalCompressedSize = 0;
     TotalDecompressedSize = 0;
@@ -143,5 +157,6 @@ public class ArchiveInfoViewModel : ViewModelBase
     TotalCompressedSize = 0;
     TotalDecompressedSize = 0;
     Header = null;
+    ArchiveGuid = null;
   }
 }
