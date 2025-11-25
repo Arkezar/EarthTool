@@ -1,20 +1,298 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:EarthTool.WD.GUI.ViewModels"
+        xmlns:converters="using:EarthTool.WD.GUI.Converters"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
         x:Class="EarthTool.WD.GUI.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="EarthTool.WD.GUI">
+        Title="{Binding WindowTitle}"
+        Width="1000" Height="700"
+        MinWidth="800" MinHeight="600">
 
     <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    <Window.Resources>
+        <converters:BytesToHumanReadableConverter x:Key="BytesToHumanReadable"/>
+        <converters:FileFlagsToStringConverter x:Key="FileFlagsToString"/>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- Menu Bar -->
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem Header="_Open Archive..." Command="{Binding OpenArchiveCommand}" HotKey="Ctrl+O">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📂" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="_New Archive" Command="{Binding CreateArchiveCommand}" HotKey="Ctrl+N">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📄" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="_Save Archive" Command="{Binding SaveArchiveCommand}" HotKey="Ctrl+S">
+                    <MenuItem.Icon>
+                        <TextBlock Text="💾" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Save Archive _As..." Command="{Binding SaveArchiveAsCommand}" HotKey="Ctrl+Shift+S">
+                    <MenuItem.Icon>
+                        <TextBlock Text="💾" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="_Close Archive" Command="{Binding CloseArchiveCommand}"/>
+                <Separator/>
+                <MenuItem Header="E_xit" Command="{Binding ExitCommand}"/>
+            </MenuItem>
+            
+            <MenuItem Header="_Archive">
+                <MenuItem Header="Extract _Selected..." Command="{Binding ExtractSelectedCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📤" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Extract _All..." Command="{Binding ExtractAllCommand}" HotKey="Ctrl+E">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📦" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="_Add Files..." Command="{Binding AddFilesCommand}" HotKey="Ctrl+A">
+                    <MenuItem.Icon>
+                        <TextBlock Text="➕" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="_Remove Selected" Command="{Binding RemoveSelectedCommand}" HotKey="Delete">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🗑️" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+            </MenuItem>
+            
+            <MenuItem Header="_Help">
+                <MenuItem Header="_About">
+                    <MenuItem.Icon>
+                        <TextBlock Text="ℹ️" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+            </MenuItem>
+        </Menu>
+
+        <!-- Toolbar -->
+        <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" 
+                BorderThickness="0,0,0,1" Padding="8,4">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Command="{Binding OpenArchiveCommand}" ToolTip.Tip="Open Archive (Ctrl+O)">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="📂" FontSize="16"/>
+                        <TextBlock Text="Open" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                
+                <Button Command="{Binding SaveArchiveCommand}" ToolTip.Tip="Save Archive (Ctrl+S)">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="💾" FontSize="16"/>
+                        <TextBlock Text="Save" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                
+                <Separator Width="1" Height="24"/>
+                
+                <Button Command="{Binding ExtractSelectedCommand}" ToolTip.Tip="Extract Selected Files">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="📤" FontSize="16"/>
+                        <TextBlock Text="Extract" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                
+                <Button Command="{Binding ExtractAllCommand}" ToolTip.Tip="Extract All Files (Ctrl+E)">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="📦" FontSize="16"/>
+                        <TextBlock Text="Extract All" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                
+                <Separator Width="1" Height="24"/>
+                
+                <Button Command="{Binding AddFilesCommand}" ToolTip.Tip="Add Files (Ctrl+A)">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="➕" FontSize="16"/>
+                        <TextBlock Text="Add" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                
+                <Button Command="{Binding RemoveSelectedCommand}" ToolTip.Tip="Remove Selected (Del)">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="🗑️" FontSize="16"/>
+                        <TextBlock Text="Remove" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <!-- Status Bar -->
+        <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" 
+                BorderThickness="0,1,0,0" Padding="8,4" Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <!-- Status Message -->
+                <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" VerticalAlignment="Center"/>
+                
+                <!-- Progress Indicator -->
+                <ProgressBar Grid.Column="1" Width="150" Height="16" Margin="8,0" 
+                             IsIndeterminate="{Binding IsBusy}" 
+                             IsVisible="{Binding IsBusy}"/>
+                
+                <!-- Item Count -->
+                <TextBlock Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <Run Text="Items: "/>
+                    <Run Text="{Binding ArchiveItems.Count}"/>
+                </TextBlock>
+            </Grid>
+        </Border>
+
+        <!-- Main Content -->
+        <Grid ColumnDefinitions="*,Auto,280">
+            <!-- Left Panel: File List -->
+            <Border Grid.Column="0" Padding="8">
+                <Grid RowDefinitions="Auto,*">
+                    <TextBlock Grid.Row="0" Text="Archive Contents" FontSize="16" FontWeight="Bold" Margin="0,0,0,8"/>
+                    
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding ArchiveItems}"
+                              SelectedItem="{Binding SelectedItem}"
+                              SelectionMode="Single"
+                              IsReadOnly="True"
+                              BorderThickness="1"
+                              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                              CanUserResizeColumns="True"
+                              CanUserReorderColumns="True"
+                              CanUserSortColumns="True"
+                              GridLinesVisibility="Horizontal"
+                              HeadersVisibility="Column"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Auto">
+                        
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Extract Selected..." 
+                                          Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ExtractSelectedCommand}">
+                                    <MenuItem.Icon>
+                                        <TextBlock Text="&#x1F4E4;" FontSize="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <Separator/>
+                                <MenuItem Header="Remove from Archive" 
+                                          Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RemoveSelectedCommand}">
+                                    <MenuItem.Icon>
+                                        <TextBlock Text="&#x1F5D1;" FontSize="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="File Name" 
+                                                Binding="{Binding FileName}" 
+                                                Width="*"
+                                                MinWidth="150"/>
+                            <DataGridTextColumn Header="Compressed" 
+                                                Binding="{Binding FormattedCompressedSize}" 
+                                                Width="100"/>
+                            <DataGridTextColumn Header="Decompressed" 
+                                                Binding="{Binding FormattedDecompressedSize}" 
+                                                Width="110"/>
+                            <DataGridTextColumn Header="Ratio" 
+                                                Binding="{Binding FormattedCompressionRatio}" 
+                                                Width="70"/>
+                            <DataGridTextColumn Header="Flags" 
+                                                Binding="{Binding Flags, Converter={StaticResource FileFlagsToString}}" 
+                                                Width="140"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="1" Width="4" Background="Transparent" 
+                          ResizeDirection="Columns"/>
+
+            <!-- Right Panel: Archive Info -->
+            <Border Grid.Column="2" Padding="8" Background="{DynamicResource SystemControlBackgroundAltMediumBrush}">
+                <ScrollViewer>
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Archive Information" FontSize="16" FontWeight="Bold"/>
+                        
+                        <StackPanel Spacing="8" IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsArchiveOpen}" 
+                                    DataContext="{Binding ArchiveInfo}"
+                                    x:DataType="vm:ArchiveInfoViewModel">
+                            <!-- File Path -->
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="File:" FontWeight="SemiBold" FontSize="12"/>
+                                <TextBlock Text="{Binding FormattedFilePath}" 
+                                           TextWrapping="Wrap" 
+                                           FontSize="11"
+                                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                            </StackPanel>
+                            
+                            <!-- Last Modified -->
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Last Modified:" FontWeight="SemiBold" FontSize="12"/>
+                                <TextBlock Text="{Binding FormattedLastModification}" 
+                                           FontSize="11"
+                                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                            </StackPanel>
+                            
+                            <!-- File Count -->
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Files:" FontWeight="SemiBold" FontSize="12"/>
+                                <TextBlock Text="{Binding FormattedItemCount}" 
+                                           FontSize="11"
+                                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                            </StackPanel>
+                            
+                            <Separator/>
+                            
+                            <!-- Total Size -->
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Total Compressed Size:" FontWeight="SemiBold" FontSize="12"/>
+                                <TextBlock Text="{Binding FormattedTotalSize}" 
+                                           FontSize="11"
+                                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                            </StackPanel>
+                            
+                            <!-- Decompressed Size -->
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Total Decompressed Size:" FontWeight="SemiBold" FontSize="12"/>
+                                <TextBlock Text="{Binding FormattedDecompressedSize}" 
+                                           FontSize="11"
+                                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                            </StackPanel>
+                            
+                            <!-- Compression Ratio -->
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Overall Compression:" FontWeight="SemiBold" FontSize="12"/>
+                                <TextBlock Text="{Binding FormattedCompressionRatio}" 
+                                           FontSize="11"
+                                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        
+                        <!-- No Archive Loaded Message -->
+                        <TextBlock Text="No archive loaded" 
+                                   IsVisible="{Binding !IsArchiveOpen}"
+                                   FontStyle="Italic"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+    </DockPanel>
 
 </Window>
