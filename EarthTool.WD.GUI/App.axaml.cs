@@ -58,6 +58,7 @@ public partial class App : Application
     // GUI services
     services.AddSingleton<IDialogService, DialogService>();
     services.AddSingleton<INotificationService, NotificationService>();
+    services.AddSingleton<ITextFlagService, TextFlagService>();
 
     // ViewModels
     services.AddTransient<MainWindowViewModel>();

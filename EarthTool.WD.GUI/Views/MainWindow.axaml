@@ -61,6 +61,12 @@
         <DataTemplate x:Key="InfoIcon">
             <TextBlock Text="ℹ️" FontSize="{StaticResource IconFontSize}" />
         </DataTemplate>
+        <DataTemplate x:Key="TextFlagIcon">
+            <TextBlock Text="📄" FontSize="{StaticResource IconFontSize}" />
+        </DataTemplate>
+        <DataTemplate x:Key="ClearTextFlagIcon">
+            <TextBlock Text="📝" FontSize="{StaticResource IconFontSize}" />
+        </DataTemplate>
         <DataTemplate x:Key="SmallExtractIcon">
             <TextBlock Text="📤" FontSize="{StaticResource SmallIconFontSize}" />
         </DataTemplate>
@@ -155,6 +161,17 @@
                         <ContentControl ContentTemplate="{StaticResource RemoveIcon}" />
                     </MenuItem.Icon>
                 </MenuItem>
+                <Separator />
+                <MenuItem Header="Set _Text Flag" Command="{Binding SetTextFlagCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📄" FontSize="14" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Clear Te_xt Flag" Command="{Binding ClearTextFlagCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📝" FontSize="14" />
+                    </MenuItem.Icon>
+                </MenuItem>
             </MenuItem>
 
             <MenuItem Header="_Help">
@@ -236,6 +253,16 @@
                         <TextBlock Text="Remove" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
+
+                <Separator Margin="{StaticResource CompactThickness}" />
+
+                <Button Classes="ToolbarButton" Command="{Binding SetTextFlagCommand}"
+                        ToolTip.Tip="Set Text Flag">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
+                        <ContentControl ContentTemplate="{StaticResource TextFlagIcon}" />
+                        <TextBlock Text="Text Flag" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </Border>
 
@@ -268,15 +295,16 @@
                         BorderThickness="0,0,0,1"
                         Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
                         Padding="4,2">
-                    <Grid ColumnDefinitions="*,350,150,330,300,120,120,80">
-                        <TextBlock Grid.Column="0" Text="Name" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="1" Text="Flags" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="2" Text="Resource" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="3" Text="GUID" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="4" Text="Translation Id" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="5" Text="Compressed" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="6" Text="Decompressed" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="7" Text="Ratio" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <Grid ColumnDefinitions="Auto,*,350,150,330,300,120,120,80">
+                        <TextBlock Grid.Column="0" Text="" FontWeight="Bold" VerticalAlignment="Center" Width="20"/>
+                        <TextBlock Grid.Column="1" Text="Name" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="2" Text="Flags" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="3" Text="Resource" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="4" Text="GUID" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="5" Text="Translation Id" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="6" Text="Compressed" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="7" Text="Decompressed" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="8" Text="Ratio" FontWeight="Bold" VerticalAlignment="Center"/>
                     </Grid>
                 </Border>
 
@@ -287,17 +315,37 @@
                           BorderThickness="1"
                           BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
                           PointerPressed="TreeView_PointerPressed">
+                    <TreeView.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Set Text Flag" Command="{Binding SetTextFlagCommand}">
+                                <MenuItem.Icon>
+                                    <ContentControl ContentTemplate="{StaticResource TextFlagIcon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Clear Text Flag" Command="{Binding ClearTextFlagCommand}">
+                                <MenuItem.Icon>
+                                    <ContentControl ContentTemplate="{StaticResource ClearTextFlagIcon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                        </ContextMenu>
+                    </TreeView.ContextMenu>
                     <TreeView.ItemTemplate>
                         <TreeDataTemplate ItemsSource="{Binding Children}">
-                            <Grid ColumnDefinitions="*,350,150,330,300,120,120,80">
-                                <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="1" Text="{Binding Flags, Converter={StaticResource FileFlagsToString}}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="2" Text="{Binding FormattedResourceType}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="3" Text="{Binding FormattedResourceGuid}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="4" Text="{Binding FormattedTranslationId}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="5" Text="{Binding FormattedCompressedSize}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="6" Text="{Binding FormattedDecompressedSize}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="7" Text="{Binding FormattedCompressionRatio}" VerticalAlignment="Center"/>
+                            <Grid ColumnDefinitions="Auto,*,350,150,330,300,120,120,80">
+                                <!-- Text Flag Indicator -->
+                                <TextBlock Grid.Column="0" Text="📄" FontSize="12" 
+                                          IsVisible="{Binding HasTextFlag}" 
+                                          VerticalAlignment="Center"
+                                          Margin="0,0,4,0"
+                                          ToolTip.Tip="Text File"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Flags, Converter={StaticResource FileFlagsToString}}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="{Binding FormattedResourceType}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="4" Text="{Binding FormattedResourceGuid}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="5" Text="{Binding FormattedTranslationId}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="6" Text="{Binding FormattedCompressedSize}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="7" Text="{Binding FormattedDecompressedSize}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="8" Text="{Binding FormattedCompressionRatio}" VerticalAlignment="Center"/>
                             </Grid>
                         </TreeDataTemplate>
                     </TreeView.ItemTemplate>

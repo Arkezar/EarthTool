@@ -75,6 +75,11 @@ public class TreeItemViewModel : ViewModelBase
   public FileFlags Flags => Item?.Header.Flags ?? FileFlags.None;
 
   /// <summary>
+  /// Gets whether this item has the Text flag set.
+  /// </summary>
+  public bool HasTextFlag => Item?.Header.Flags.HasFlag(FileFlags.Text) ?? false;
+
+  /// <summary>
   /// Gets the resource GUID (null for folders).
   /// </summary>
   public Guid? ResourceGuid => Item?.Header.Guid;

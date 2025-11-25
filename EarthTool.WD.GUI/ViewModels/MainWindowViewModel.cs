@@ -17,9 +17,10 @@ namespace EarthTool.WD.GUI.ViewModels;
 /// </summary>
 public class MainWindowViewModel : ViewModelBase, IDisposable
 {
-  private readonly IArchiver                    _archiver;
-  private readonly IDialogService               _dialogService;
-  private readonly INotificationService         _notificationService;
+  private readonly IArchiver           _archiver;
+  private readonly IDialogService      _dialogService;
+  private readonly INotificationService  _notificationService;
+  private readonly ITextFlagService    _textFlagService;
   private readonly ILogger<MainWindowViewModel> _logger;
 
   private IArchive? _currentArchive;
@@ -32,11 +33,13 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     IArchiver archiver,
     IDialogService dialogService,
     INotificationService notificationService,
+    ITextFlagService textFlagService,
     ILogger<MainWindowViewModel> logger)
   {
     _archiver = archiver                       ?? throw new ArgumentNullException(nameof(archiver));
     _dialogService = dialogService             ?? throw new ArgumentNullException(nameof(dialogService));
     _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
+    _textFlagService = textFlagService         ?? throw new ArgumentNullException(nameof(textFlagService));
     _logger = logger                           ?? throw new ArgumentNullException(nameof(logger));
 
     ArchiveItems = new ObservableCollection<ArchiveItemViewModel>();
@@ -126,6 +129,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   public ReactiveCommand<Unit, Unit> AddFolderCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> CreateFolderCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> RemoveSelectedCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> SetTextFlagCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> ClearTextFlagCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> ToggleTextFlagCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> ExitCommand { get; private set; } = null!;
 
   private void InitializeCommands()
@@ -171,6 +177,11 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
     // RemoveSelectedCommand - enabled when items are selected
     RemoveSelectedCommand = ReactiveCommand.CreateFromTask(RemoveSelectedAsync, canExtractSelected);
+
+    // Text flag commands - enabled when items are selected
+    SetTextFlagCommand = ReactiveCommand.CreateFromTask(SetTextFlagAsync, canExtractSelected);
+    ClearTextFlagCommand = ReactiveCommand.CreateFromTask(ClearTextFlagAsync, canExtractSelected);
+    ToggleTextFlagCommand = ReactiveCommand.CreateFromTask(ToggleTextFlagAsync, canExtractSelected);
 
     // ExitCommand - always enabled
     ExitCommand = ReactiveCommand.Create(Exit);
@@ -839,6 +850,64 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     finally
     {
       IsBusy = false;
+    }
+  }
+
+  private async Task SetTextFlagAsync()
+  {
+    if (_currentArchive == null || SelectedTreeItem?.Item == null)
+      return;
+
+    try
+    {
+      var item = SelectedTreeItem;
+      _textFlagService.SetTextFlag(item.Item!);
+      
+      HasUnsavedChanges = true;
+      _notificationService.ShowSuccess($"Text flag set for '{item.Name}'");
+      _logger.LogInformation("Text flag set for file {FileName}", item.Name);
+    }
+    catch (Exception ex)
+    {
+      _notificationService.ShowError("Failed to set Text flag", ex);
+      _logger.LogError(ex, "Failed to set Text flag");
+    }
+  }
+
+  private async Task ClearTextFlagAsync()
+  {
+    if (_currentArchive == null || SelectedTreeItem?.Item == null)
+      return;
+
+    try
+    {
+      var item = SelectedTreeItem;
+      _textFlagService.ClearTextFlag(item.Item!);
+      
+      HasUnsavedChanges = true;
+      _notificationService.ShowSuccess($"Text flag cleared for '{item.Name}'");
+      _logger.LogInformation("Text flag cleared for file {FileName}", item.Name);
+    }
+    catch (Exception ex)
+    {
+      _notificationService.ShowError("Failed to clear Text flag", ex);
+      _logger.LogError(ex, "Failed to clear Text flag");
+    }
+  }
+
+  private async Task ToggleTextFlagAsync()
+  {
+    if (_currentArchive == null || SelectedTreeItem?.Item == null)
+      return;
+
+    var item = SelectedTreeItem;
+    if (_textFlagService.HasTextFlag(item.Item!))
+    {
+      await ClearTextFlagAsync();
+    }
+    else
+    {
+      await SetTextFlagAsync();
     }
   }
 
