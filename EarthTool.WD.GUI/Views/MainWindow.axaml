@@ -389,6 +389,11 @@
                             </Grid>
                         </TreeDataTemplate>
                     </TreeView.ItemTemplate>
+                    <TreeView.Styles>
+                        <Style Selector="TreeViewItem" x:DataType="vm:TreeItemViewModel">
+                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                        </Style>
+                    </TreeView.Styles>
                 </TreeView>
             </Grid>
         </Grid>

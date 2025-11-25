@@ -1168,7 +1168,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
             node = new TreeItemViewModel(part, !isFile)
             {
               FullPath = currentPath,
-              Item = isFile ? archiveItem.Item : null
+              Item = isFile ? archiveItem.Item : null,
+              IsExpanded = !isFile // Auto-expand folders initially
             };
             root[part] = node;
             TreeItems.Add(node);
@@ -1187,7 +1188,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
             node = new TreeItemViewModel(part, !isFile)
             {
               FullPath = currentPath,
-              Item = isFile ? archiveItem.Item : null
+              Item = isFile ? archiveItem.Item : null,
+              IsExpanded = !isFile // Auto-expand folders initially
             };
             currentParent.Children.Add(node);
           }
