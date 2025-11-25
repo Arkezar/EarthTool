@@ -75,6 +75,26 @@ namespace EarthTool.WD.Services
       _logger.LogInformation("Added file {FileName} to archive (compressed: {Compressed})",
         item.FileName, compress);
     }
+    
+    public void AddFile(IArchive archive, byte[] data, string filePath, string baseDirectory = null, bool compress = true)
+    {
+      ArgumentNullException.ThrowIfNull(archive);
+
+      // If baseDirectory not provided, use parent directory of the file
+      var baseDir = baseDirectory ?? Path.GetDirectoryName(filePath);
+
+      var item = CreateArchiveItemFromFile(
+        data,
+        filePath,
+        baseDir,
+        _earthInfoFactory,
+        _compressor,
+        compress);
+
+      archive.AddItem(item);
+      _logger.LogInformation("Added file {FileName} to archive (compressed: {Compressed})",
+        item.FileName, compress);
+    }
 
     public void SaveArchive(IArchive archive, string outputFilePath)
     {
@@ -143,7 +163,18 @@ namespace EarthTool.WD.Services
       bool compress = true)
     {
       var fileData = File.ReadAllBytes(filePath);
-      
+
+      return CreateArchiveItemFromFile(fileData, filePath, baseDirectory, earthInfoFactory, compressor, compress);
+    }
+    
+    private ArchiveItem CreateArchiveItemFromFile(
+      byte[] fileData,
+      string filePath,
+      string baseDirectory,
+      IEarthInfoFactory earthInfoFactory,
+      ICompressor compressor,
+      bool compress = true)
+    {
       // Calculate relative path from baseDirectory and normalize to backslashes
       string fileName;
       if (!string.IsNullOrEmpty(baseDirectory))

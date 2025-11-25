@@ -332,7 +332,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     {
       var defaultFileName = !string.IsNullOrEmpty(_currentFilePath)
         ? Path.GetFileName(_currentFilePath)
-        : "archive.WD";
+        : "archive.wd";
 
       var filePath = await _dialogService.ShowSaveFileDialogAsync(defaultFileName);
       if (string.IsNullOrEmpty(filePath))
@@ -1031,11 +1031,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   /// </summary>
   private void CollectExpandedPaths(TreeItemViewModel item, HashSet<string> expandedPaths)
   {
-    System.Diagnostics.Debug.WriteLine($"Checking item: {item.Name}, IsExpanded: {item.IsExpanded}, IsFolder: {item.IsFolder}, FullPath: {item.FullPath}");
     if (item.IsExpanded && !string.IsNullOrEmpty(item.FullPath))
     {
       expandedPaths.Add(item.FullPath);
-      System.Diagnostics.Debug.WriteLine($"  Added to expanded paths: {item.FullPath}");
     }
     
     foreach (var child in item.Children)
@@ -1062,7 +1060,6 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   {
     if (expandedPaths.Contains(item.FullPath))
     {
-      System.Diagnostics.Debug.WriteLine($"Restoring expansion for: {item.FullPath}");
       item.IsExpanded = true;
     }
     
@@ -1169,7 +1166,6 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
             {
               FullPath = currentPath,
               Item = isFile ? archiveItem.Item : null,
-              IsExpanded = !isFile // Auto-expand folders initially
             };
             root[part] = node;
             TreeItems.Add(node);
@@ -1189,7 +1185,6 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
             {
               FullPath = currentPath,
               Item = isFile ? archiveItem.Item : null,
-              IsExpanded = !isFile // Auto-expand folders initially
             };
             currentParent.Children.Add(node);
           }
