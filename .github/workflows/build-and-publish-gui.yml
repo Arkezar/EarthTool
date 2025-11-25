@@ -80,14 +80,15 @@ jobs:
         reporter: dotnet-trx
 
     - name: Publish GUI application
+      shell: bash
       run: |
-        dotnet publish EarthTool.WD.GUI/EarthTool.WD.GUI.csproj `
-          --configuration Release `
-          --runtime ${{ matrix.runtime }} `
-          --self-contained true `
-          --output ./publish/${{ matrix.runtime }} `
-          -p:PublishSingleFile=true `
-          -p:IncludeNativeLibrariesForSelfExtract=true `
+        dotnet publish EarthTool.WD.GUI/EarthTool.WD.GUI.csproj \
+          --configuration Release \
+          --runtime ${{ matrix.runtime }} \
+          --self-contained true \
+          --output ./publish/${{ matrix.runtime }} \
+          -p:PublishSingleFile=true \
+          -p:IncludeNativeLibrariesForSelfExtract=true \
           -p:EnableCompressionInSingleFile=true
 
     - name: Create artifact archive

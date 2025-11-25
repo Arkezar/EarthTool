@@ -65,16 +65,17 @@ jobs:
       continue-on-error: true
 
     - name: Publish GUI for current platform
+      shell: bash
       run: |
-        dotnet publish EarthTool.WD.GUI/EarthTool.WD.GUI.csproj `
-          --configuration Release `
-          --runtime ${{ matrix.runtime }} `
-          --self-contained true `
-          --output ./artifacts/${{ matrix.runtime }} `
-          -p:PublishSingleFile=true `
-          -p:IncludeNativeLibrariesForSelfExtract=true `
-          -p:EnableCompressionInSingleFile=true `
-          -p:DebugType=none `
+        dotnet publish EarthTool.WD.GUI/EarthTool.WD.GUI.csproj \
+          --configuration Release \
+          --runtime ${{ matrix.runtime }} \
+          --self-contained true \
+          --output ./artifacts/${{ matrix.runtime }} \
+          -p:PublishSingleFile=true \
+          -p:IncludeNativeLibrariesForSelfExtract=true \
+          -p:EnableCompressionInSingleFile=true \
+          -p:DebugType=none \
           -p:DebugSymbols=false
 
     - name: Prepare artifacts
@@ -162,14 +163,15 @@ jobs:
       run: dotnet restore EarthTool.sln
 
     - name: Build and publish preview
+      shell: bash
       run: |
-        dotnet publish EarthTool.WD.GUI/EarthTool.WD.GUI.csproj `
-          --configuration Release `
-          --runtime win-x64 `
-          --self-contained true `
-          --output ./preview `
-          -p:PublishSingleFile=true `
-          -p:IncludeNativeLibrariesForSelfExtract=true `
+        dotnet publish EarthTool.WD.GUI/EarthTool.WD.GUI.csproj \
+          --configuration Release \
+          --runtime win-x64 \
+          --self-contained true \
+          --output ./preview \
+          -p:PublishSingleFile=true \
+          -p:IncludeNativeLibrariesForSelfExtract=true \
           -p:VersionSuffix=preview-${{ github.run_number }}
 
     - name: Create preview artifact
