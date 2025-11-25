@@ -261,8 +261,25 @@
         <!-- Main Content -->
         <Grid ColumnDefinitions="*">
             <!-- File List -->
-            <Grid Grid.Column="0" RowDefinitions="*" Margin="{StaticResource CompactThickness}">
-                <TreeView Grid.Row="0"
+            <Grid Grid.Column="0" RowDefinitions="Auto,*" Margin="{StaticResource CompactThickness}">
+                <!-- Column Headers -->
+                <Border Grid.Row="0" 
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                        BorderThickness="0,0,0,1"
+                        Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                        Padding="4,2">
+                    <Grid ColumnDefinitions="*,120,90,90,70,100,200">
+                        <TextBlock Grid.Column="0" Text="Name" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="1" Text="Named" FontWeight="Bold" VerticalAlignment="Center" FontSize="11"/>
+                        <TextBlock Grid.Column="2" Text="GUID" FontWeight="Bold" VerticalAlignment="Center" FontSize="10"/>
+                        <TextBlock Grid.Column="3" Text="Resource" FontWeight="Bold" VerticalAlignment="Center" FontSize="10"/>
+                        <TextBlock Grid.Column="4" Text="Compressed" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="5" Text="Decompressed" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="6" Text="Ratio" FontWeight="Bold" VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <TreeView Grid.Row="1"
                           x:Name="ArchiveTreeView"
                           ItemsSource="{Binding TreeItems}"
                           SelectedItem="{Binding SelectedItem}"
@@ -271,12 +288,14 @@
                           PointerPressed="TreeView_PointerPressed">
                     <TreeView.ItemTemplate>
                         <TreeDataTemplate ItemsSource="{Binding Children}">
-                            <Grid ColumnDefinitions="*,100,110,70,140">
+                            <Grid ColumnDefinitions="*,120,90,90,70,100,200">
                                 <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="1" Text="{Binding FormattedCompressedSize}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="2" Text="{Binding FormattedDecompressedSize}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="3" Text="{Binding FormattedCompressionRatio}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="4" Text="{Binding Flags, Converter={StaticResource FileFlagsToString}}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="{Binding FormattedTranslationId}" VerticalAlignment="Center" FontSize="11"/>
+                                <TextBlock Grid.Column="2" Text="{Binding FormattedResourceGuid}" VerticalAlignment="Center" FontSize="10"/>
+                                <TextBlock Grid.Column="3" Text="{Binding FormattedResourceType}" VerticalAlignment="Center" FontSize="10"/>
+                                <TextBlock Grid.Column="4" Text="{Binding FormattedCompressedSize}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="5" Text="{Binding FormattedDecompressedSize}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="6" Text="{Binding FormattedCompressionRatio}" VerticalAlignment="Center"/>
                             </Grid>
                         </TreeDataTemplate>
                     </TreeView.ItemTemplate>

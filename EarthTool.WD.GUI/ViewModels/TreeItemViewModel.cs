@@ -1,6 +1,7 @@
 using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
 using ReactiveUI;
+using System;
 using System.Collections.ObjectModel;
 
 namespace EarthTool.WD.GUI.ViewModels;
@@ -74,6 +75,21 @@ public class TreeItemViewModel : ViewModelBase
   public FileFlags Flags => Item?.Header.Flags ?? FileFlags.None;
 
   /// <summary>
+  /// Gets the resource GUID (null for folders).
+  /// </summary>
+  public Guid? ResourceGuid => Item?.Header.Guid;
+
+  /// <summary>
+  /// Gets the resource type (null for folders).
+  /// </summary>
+  public ResourceType? ResourceType => Item?.Header.ResourceType;
+
+  /// <summary>
+  /// Gets the translation ID/named resource identifier (empty for folders).
+  /// </summary>
+  public string TranslationId => Item?.Header.TranslationId ?? string.Empty;
+
+  /// <summary>
   /// Gets the compression ratio as a percentage.
   /// </summary>
   public double CompressionRatio
@@ -99,6 +115,21 @@ public class TreeItemViewModel : ViewModelBase
   /// Gets a formatted string for the compression ratio.
   /// </summary>
   public string FormattedCompressionRatio => IsFolder ? "-" : (IsCompressed ? $"{CompressionRatio:F1}%" : "N/A");
+
+  /// <summary>
+  /// Gets a formatted string for the resource GUID.
+  /// </summary>
+  public string FormattedResourceGuid => IsFolder ? "-" : (ResourceGuid?.ToString() ?? "N/A");
+
+  /// <summary>
+  /// Gets a formatted string for the resource type.
+  /// </summary>
+  public string FormattedResourceType => IsFolder ? "-" : (ResourceType?.ToString() ?? "N/A");
+
+  /// <summary>
+  /// Gets a formatted string for the translation ID.
+  /// </summary>
+  public string FormattedTranslationId => IsFolder ? "-" : (string.IsNullOrEmpty(TranslationId) ? "N/A" : TranslationId);
 
   private static string FormatBytes(int bytes)
   {

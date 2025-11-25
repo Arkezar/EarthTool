@@ -1,4 +1,3 @@
-using Avalonia.Threading;
 using EarthTool.Common.Interfaces;
 using EarthTool.WD.GUI.Services;
 using Microsoft.Extensions.Logging;
@@ -9,8 +8,6 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Reactive;
-using System.Reactive.Concurrency;
-using System.Reactive.Linq;
 using System.Threading.Tasks;
 
 namespace EarthTool.WD.GUI.ViewModels;
@@ -97,7 +94,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     set => this.RaiseAndSetIfChanged(ref _statusMessage, value);
   }
 
-  public string ArchiveInfoText => IsArchiveOpen ? $"{ArchiveInfo.FormattedArchiveGuid} | {ArchiveInfo.FormattedItemCount} | {ArchiveInfo.FormattedTotalSize}" : "";
+  public string ArchiveInfoText => IsArchiveOpen ? $"GUID: {ArchiveInfo.FormattedArchiveGuid} | Modified: {ArchiveInfo.LastModification:u} | Items: {ArchiveInfo.FormattedItemCount} | Total Size: {ArchiveInfo.FormattedTotalSize}" : "";
 
   public string WindowTitle
   {
