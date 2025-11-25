@@ -112,15 +112,15 @@ jobs:
           -p:EnableCompressionInSingleFile=true
 
     - name: Create artifact archive
-      shell: bash
+      shell: pwsh
       run: |
-        cd publish/${{ matrix.runtime }}
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          zip -r "../../${{ matrix.artifact_name }}.zip" .
-        else
+        Set-Location "publish/${{ matrix.runtime }}"
+        if ("${{ matrix.os }}" -eq "windows-latest") {
+          Compress-Archive -Path "." -DestinationPath "../../${{ matrix.artifact_name }}.zip" -Force
+        } else {
           tar -czf "../../${{ matrix.artifact_name }}.tar.gz" .
-        fi
-        cd ../..
+        }
+        Set-Location "../.."
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4

@@ -97,15 +97,15 @@ jobs:
           -p:DebugSymbols=false
 
     - name: Prepare artifacts
-      shell: bash
+      shell: pwsh
       run: |
-        cd artifacts/${{ matrix.runtime }}
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          7z a -tzip "../../${{ matrix.artifact }}.zip" .
-        else
+        Set-Location "artifacts/${{ matrix.runtime }}"
+        if ("${{ matrix.os }}" -eq "windows-latest") {
+          Compress-Archive -Path "." -DestinationPath "../../${{ matrix.artifact }}.zip" -Force
+        } else {
           tar -czf "../../${{ matrix.artifact }}.tar.gz" .
-        fi
-        cd ../..
+        }
+        Set-Location "../.."
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -193,10 +193,11 @@ jobs:
           -p:VersionSuffix=preview-${{ github.run_number }}
 
     - name: Create preview artifact
+      shell: pwsh
       run: |
-        cd preview
-        7z a -tzip "../EarthTool.WD.GUI-Preview.zip" .
-        cd ..
+        Set-Location "preview"
+        Compress-Archive -Path "." -DestinationPath "../EarthTool.WD.GUI-Preview.zip" -Force
+        Set-Location ".."
 
     - name: Upload preview artifact
       uses: actions/upload-artifact@v4
