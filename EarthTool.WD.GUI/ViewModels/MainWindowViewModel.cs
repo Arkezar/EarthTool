@@ -832,10 +832,13 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
       var item = SelectedTreeItem.Item;
       var fileName = SelectedTreeItem.Name;
+      var itemPath = SelectedTreeItem.FullPath;
 
       await Task.Run(() => _currentArchive.RemoveItem(item!));
 
-      LoadArchiveItems();
+      // Use preserving state method to maintain tree expansion and try to select parent
+      LoadArchiveItemsPreservingState(GetParentPath(itemPath));
+      
       HasUnsavedChanges = true;
 
       _notificationService.ShowSuccess($"Removed {fileName} from archive");
@@ -863,11 +866,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       var item = SelectedTreeItem;
       _textFlagService.SetTextFlag(item.Item!);
       
-      // Force refresh the TreeView by rebuilding the tree structure
-      // This ensures the UI updates properly and shows the Text flag icon
-      var currentSelection = SelectedItem;
-      BuildTreeStructure();
-      SelectedItem = currentSelection; // Restore selection
+      // Refresh TreeView while preserving expansion state and selection
+      LoadArchiveItemsPreservingState(item.FullPath);
       
       HasUnsavedChanges = true;
       _notificationService.ShowSuccess($"Text flag set for '{item.Name}'");
@@ -890,11 +890,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       var item = SelectedTreeItem;
       _textFlagService.ClearTextFlag(item.Item!);
       
-      // Force refresh the TreeView by rebuilding the tree structure
-      // This ensures the UI updates properly and removes the Text flag icon
-      var currentSelection = SelectedItem;
-      BuildTreeStructure();
-      SelectedItem = currentSelection; // Restore selection
+      // Refresh TreeView while preserving expansion state and selection
+      LoadArchiveItemsPreservingState(item.FullPath);
       
       HasUnsavedChanges = true;
       _notificationService.ShowSuccess($"Text flag cleared for '{item.Name}'");
@@ -915,11 +912,21 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     var item = SelectedTreeItem;
     if (_textFlagService.HasTextFlag(item.Item!))
     {
-      await ClearTextFlagAsync();
+      // Clear text flag while preserving tree state
+      _textFlagService.ClearTextFlag(item.Item!);
+      LoadArchiveItemsPreservingState(item.FullPath);
+      HasUnsavedChanges = true;
+      _notificationService.ShowSuccess($"Text flag cleared for '{item.Name}'");
+      _logger.LogInformation("Text flag cleared for file {FileName}", item.Name);
     }
     else
     {
-      await SetTextFlagAsync();
+      // Set text flag while preserving tree state
+      _textFlagService.SetTextFlag(item.Item!);
+      LoadArchiveItemsPreservingState(item.FullPath);
+      HasUnsavedChanges = true;
+      _notificationService.ShowSuccess($"Text flag set for '{item.Name}'");
+      _logger.LogInformation("Text flag set for file {FileName}", item.Name);
     }
   }
 
@@ -956,6 +963,174 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       ArchiveInfo.Clear();
       this.RaisePropertyChanged(nameof(ArchiveInfoText));
     }
+  }
+
+  /// <summary>
+  /// Loads archive items while preserving tree expansion state and selection.
+  /// </summary>
+  /// <param name="preserveSelectionPath">The path of the item to try to preserve selection for</param>
+  private void LoadArchiveItemsPreservingState(string? preserveSelectionPath = null)
+  {
+    // Store current expansion state
+    var expandedPaths = GetExpandedPaths();
+    
+    // Store current selection path
+    var selectedPath = SelectedTreeItem?.FullPath ?? preserveSelectionPath;
+    
+    // Clear and rebuild
+    ArchiveItems.Clear();
+    TreeItems.Clear();
+    SelectedItem = null;
+
+    if (_currentArchive != null)
+    {
+      foreach (var item in _currentArchive.Items)
+      {
+        ArchiveItems.Add(new ArchiveItemViewModel(item));
+      }
+
+      BuildTreeStructure();
+      
+      // Restore expansion state
+      RestoreExpandedPaths(expandedPaths);
+      
+      // Try to restore selection
+      if (!string.IsNullOrEmpty(selectedPath))
+      {
+        RestoreSelectionByPath(selectedPath);
+      }
+      
+      ArchiveInfo.UpdateFromArchive(_currentArchive, _currentFilePath);
+      this.RaisePropertyChanged(nameof(ArchiveInfoText));
+    }
+    else
+    {
+      ArchiveInfo.Clear();
+      this.RaisePropertyChanged(nameof(ArchiveInfoText));
+    }
+  }
+
+  /// <summary>
+  /// Gets the paths of all expanded items in the tree.
+  /// </summary>
+  private HashSet<string> GetExpandedPaths()
+  {
+    var expandedPaths = new HashSet<string>();
+    
+    foreach (var rootItem in TreeItems)
+    {
+      CollectExpandedPaths(rootItem, expandedPaths);
+    }
+    
+    return expandedPaths;
+  }
+
+  /// <summary>
+  /// Recursively collects expanded paths from the tree.
+  /// </summary>
+  private void CollectExpandedPaths(TreeItemViewModel item, HashSet<string> expandedPaths)
+  {
+    if (item.IsExpanded && !string.IsNullOrEmpty(item.FullPath))
+    {
+      expandedPaths.Add(item.FullPath);
+    }
+    
+    foreach (var child in item.Children)
+    {
+      CollectExpandedPaths(child, expandedPaths);
+    }
+  }
+
+  /// <summary>
+  /// Restores the expansion state of items in the tree.
+  /// </summary>
+  private void RestoreExpandedPaths(HashSet<string> expandedPaths)
+  {
+    foreach (var rootItem in TreeItems)
+    {
+      RestoreExpandedPathsRecursive(rootItem, expandedPaths);
+    }
+  }
+
+  /// <summary>
+  /// Recursively restores expansion state in the tree.
+  /// </summary>
+  private void RestoreExpandedPathsRecursive(TreeItemViewModel item, HashSet<string> expandedPaths)
+  {
+    if (expandedPaths.Contains(item.FullPath))
+    {
+      item.IsExpanded = true;
+    }
+    
+    foreach (var child in item.Children)
+    {
+      RestoreExpandedPathsRecursive(child, expandedPaths);
+    }
+  }
+
+  /// <summary>
+  /// Tries to restore selection by finding an item with the specified path.
+  /// </summary>
+  private void RestoreSelectionByPath(string path)
+  {
+    // Try to find the exact item first
+    var foundItem = FindItemByPath(TreeItems, path);
+    if (foundItem != null)
+    {
+      SelectedItem = foundItem;
+      return;
+    }
+    
+    // If not found, try to select the parent folder
+    var parentPath = GetParentPath(path);
+    if (!string.IsNullOrEmpty(parentPath))
+    {
+      var parentItem = FindItemByPath(TreeItems, parentPath);
+      if (parentItem != null)
+      {
+        SelectedItem = parentItem;
+        // Expand the parent to show its children
+        parentItem.IsExpanded = true;
+      }
+    }
+  }
+
+  /// <summary>
+  /// Finds an item in the tree by its full path.
+  /// </summary>
+  private TreeItemViewModel? FindItemByPath(ObservableCollection<TreeItemViewModel> items, string path)
+  {
+    foreach (var item in items)
+    {
+      if (item.FullPath.Equals(path, StringComparison.OrdinalIgnoreCase))
+      {
+        return item;
+      }
+      
+      var foundInChildren = FindItemByPath(item.Children, path);
+      if (foundInChildren != null)
+      {
+        return foundInChildren;
+      }
+    }
+    return null;
+  }
+
+  /// <summary>
+  /// Gets the parent path of a given path.
+  /// </summary>
+  private string? GetParentPath(string path)
+  {
+    var lastSlash = path.LastIndexOf('/');
+    if (lastSlash > 0)
+    {
+      return path.Substring(0, lastSlash);
+    }
+    else if (lastSlash == 0)
+    {
+      return "/"; // Root
+    }
+    return null;
   }
 
   private void BuildTreeStructure()
