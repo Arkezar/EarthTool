@@ -94,7 +94,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     set => this.RaiseAndSetIfChanged(ref _statusMessage, value);
   }
 
-  public string ArchiveInfoText => IsArchiveOpen ? $"GUID: {ArchiveInfo.FormattedArchiveGuid} | Modified: {ArchiveInfo.LastModification:u} | Items: {ArchiveInfo.FormattedItemCount} | Total Size: {ArchiveInfo.FormattedTotalSize}" : "";
+  public string ArchiveInfoText => IsArchiveOpen ? $"{ArchiveInfo.FilePath} | GUID: {ArchiveInfo.FormattedArchiveGuid} | Modified: {ArchiveInfo.LastModification:u} | Items: {ArchiveInfo.FormattedItemCount} | Total Size: {ArchiveInfo.FormattedTotalSize}" : "";
 
   public string WindowTitle
   {
