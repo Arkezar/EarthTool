@@ -863,6 +863,12 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       var item = SelectedTreeItem;
       _textFlagService.SetTextFlag(item.Item!);
       
+      // Force refresh the TreeView by rebuilding the tree structure
+      // This ensures the UI updates properly
+      var currentSelection = SelectedItem;
+      BuildTreeStructure();
+      SelectedItem = currentSelection; // Restore selection
+      
       HasUnsavedChanges = true;
       _notificationService.ShowSuccess($"Text flag set for '{item.Name}'");
       _logger.LogInformation("Text flag set for file {FileName}", item.Name);
@@ -883,6 +889,12 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     {
       var item = SelectedTreeItem;
       _textFlagService.ClearTextFlag(item.Item!);
+      
+      // Force refresh the TreeView by rebuilding the tree structure
+      // This ensures the UI updates properly
+      var currentSelection = SelectedItem;
+      BuildTreeStructure();
+      SelectedItem = currentSelection; // Restore selection
       
       HasUnsavedChanges = true;
       _notificationService.ShowSuccess($"Text flag cleared for '{item.Name}'");
