@@ -1,0 +1,402 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:EarthTool.WD.GUI.ViewModels"
+        xmlns:converters="using:EarthTool.WD.GUI.Converters"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
+        x:Class="EarthTool.WD.GUI.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="{Binding WindowTitle}"
+        Width="1000" Height="700"
+        MinWidth="800" MinHeight="600">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel />
+    </Design.DataContext>
+
+    <Window.Resources>
+        <!-- Theme Constants -->
+        <x:Double x:Key="IconFontSize">16</x:Double>
+        <x:Double x:Key="SmallIconFontSize">14</x:Double>
+        <x:Double x:Key="LabelFontSize">12</x:Double>
+        <x:Double x:Key="ValueFontSize">11</x:Double>
+        <x:Double x:Key="TitleFontSize">16</x:Double>
+        <x:Double x:Key="StandardSpacing">8</x:Double>
+        <Thickness x:Key="StandardThickness">8</Thickness>
+        <x:Double x:Key="CompactSpacing">4</x:Double>
+        <Thickness x:Key="CompactThickness">4</Thickness>
+        <x:Double x:Key="TightSpacing">2</x:Double>
+
+        <!-- Converters -->
+        <converters:BytesToHumanReadableConverter x:Key="BytesToHumanReadable" />
+        <converters:FileFlagsToStringConverter x:Key="FileFlagsToString" />
+
+        <!-- Shared Icon Templates -->
+        <DataTemplate x:Key="OpenIcon">
+            <TextBlock Text="📂" FontSize="{StaticResource IconFontSize}" />
+        </DataTemplate>
+        <DataTemplate x:Key="NewIcon">
+            <TextBlock Text="📄" FontSize="{StaticResource IconFontSize}" />
+        </DataTemplate>
+        <DataTemplate x:Key="SaveIcon">
+            <TextBlock Text="💾" FontSize="{StaticResource IconFontSize}" />
+        </DataTemplate>
+        <DataTemplate x:Key="ExtractIcon">
+            <TextBlock Text="📤" FontSize="{StaticResource IconFontSize}" />
+        </DataTemplate>
+        <DataTemplate x:Key="ExtractAllIcon">
+            <TextBlock Text="📦" FontSize="{StaticResource IconFontSize}" />
+        </DataTemplate>
+        <DataTemplate x:Key="AddIcon">
+            <TextBlock Text="➕" FontSize="{StaticResource IconFontSize}" />
+        </DataTemplate>
+        <DataTemplate x:Key="AddFolderIcon">
+            <TextBlock Text="📁" FontSize="{StaticResource IconFontSize}" />
+        </DataTemplate>
+        <DataTemplate x:Key="RemoveIcon">
+            <TextBlock Text="🗑️" FontSize="{StaticResource IconFontSize}" />
+        </DataTemplate>
+        <DataTemplate x:Key="InfoIcon">
+            <TextBlock Text="ℹ️" FontSize="{StaticResource IconFontSize}" />
+        </DataTemplate>
+        <DataTemplate x:Key="TextFlagIcon">
+            <TextBlock Text="📄" FontSize="{StaticResource IconFontSize}" />
+        </DataTemplate>
+        <DataTemplate x:Key="ClearTextFlagIcon">
+            <TextBlock Text="📝" FontSize="{StaticResource IconFontSize}" />
+        </DataTemplate>
+        <DataTemplate x:Key="SmallExtractIcon">
+            <TextBlock Text="📤" FontSize="{StaticResource SmallIconFontSize}" />
+        </DataTemplate>
+        <DataTemplate x:Key="SmallRemoveIcon">
+            <TextBlock Text="🗑️" FontSize="{StaticResource SmallIconFontSize}" />
+        </DataTemplate>
+    </Window.Resources>
+
+    <Window.Styles>
+        <!-- Toolbar Button Style -->
+        <Style Selector="Button.ToolbarButton">
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinWidth" Value="90" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <!-- Info Panel Styles -->
+        <Style Selector="TextBlock.InfoLabel">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="{StaticResource LabelFontSize}" />
+        </Style>
+
+        <Style Selector="TextBlock.InfoValue">
+            <Setter Property="FontSize" Value="{StaticResource ValueFontSize}" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <!-- Menu Bar -->
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem Header="_Open Archive..." Command="{Binding OpenArchiveCommand}" HotKey="Ctrl+O">
+                    <MenuItem.Icon>
+                        <ContentControl ContentTemplate="{StaticResource OpenIcon}" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="_New Archive" Command="{Binding CreateArchiveCommand}" HotKey="Ctrl+N">
+                    <MenuItem.Icon>
+                        <ContentControl ContentTemplate="{StaticResource NewIcon}" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator />
+                <MenuItem Header="_Save Archive" Command="{Binding SaveArchiveCommand}" HotKey="Ctrl+S">
+                    <MenuItem.Icon>
+                        <ContentControl ContentTemplate="{StaticResource SaveIcon}" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Save Archive _As..." Command="{Binding SaveArchiveAsCommand}" HotKey="Ctrl+Shift+S">
+                    <MenuItem.Icon>
+                        <ContentControl ContentTemplate="{StaticResource SaveIcon}" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="_Close Archive" Command="{Binding CloseArchiveCommand}" />
+                <Separator />
+                <MenuItem Header="E_xit" Command="{Binding ExitCommand}" />
+            </MenuItem>
+
+            <MenuItem Header="_Archive">
+                <MenuItem Header="Extract _Selected..." Command="{Binding ExtractSelectedCommand}">
+                    <MenuItem.Icon>
+                        <ContentControl ContentTemplate="{StaticResource ExtractIcon}" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Extract _All..." Command="{Binding ExtractAllCommand}" HotKey="Ctrl+E">
+                    <MenuItem.Icon>
+                        <ContentControl ContentTemplate="{StaticResource ExtractAllIcon}" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator />
+                <MenuItem Header="Add _Files..." Command="{Binding AddFilesCommand}" HotKey="Ctrl+A">
+                    <MenuItem.Icon>
+                        <ContentControl ContentTemplate="{StaticResource AddIcon}" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Add F_older..." Command="{Binding AddFolderCommand}" HotKey="Ctrl+Shift+A">
+                    <MenuItem.Icon>
+                        <ContentControl ContentTemplate="{StaticResource AddIcon}" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="_Create Folder..." Command="{Binding CreateFolderCommand}" HotKey="Ctrl+Shift+N">
+                    <MenuItem.Icon>
+                        <ContentControl ContentTemplate="{StaticResource AddFolderIcon}" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator />
+                <MenuItem Header="_Remove Selected" Command="{Binding RemoveSelectedCommand}" HotKey="Delete">
+                    <MenuItem.Icon>
+                        <ContentControl ContentTemplate="{StaticResource RemoveIcon}" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator />
+                <MenuItem Header="_Toggle Text Flag" Command="{Binding ToggleTextFlagCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📄" FontSize="14" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Set _Text Flag" Command="{Binding SetTextFlagCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📄" FontSize="14" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Clear Te_xt Flag" Command="{Binding ClearTextFlagCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="📝" FontSize="14" />
+                    </MenuItem.Icon>
+                </MenuItem>
+            </MenuItem>
+
+            <MenuItem Header="_Help">
+                <MenuItem Header="_About" Command="{Binding AboutCommand}">
+                    <MenuItem.Icon>
+                        <ContentControl ContentTemplate="{StaticResource InfoIcon}" />
+                    </MenuItem.Icon>
+                </MenuItem>
+            </MenuItem>
+        </Menu>
+
+        <!-- Toolbar -->
+        <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,0,0,1" Padding="8,4">
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource StandardSpacing}">
+                <Button Classes="ToolbarButton" Command="{Binding OpenArchiveCommand}"
+                        ToolTip.Tip="Open Archive (Ctrl+O)">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
+                        <ContentControl ContentTemplate="{StaticResource OpenIcon}" />
+                        <TextBlock Text="Open" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Button Classes="ToolbarButton" Command="{Binding SaveArchiveCommand}"
+                        ToolTip.Tip="Save Archive (Ctrl+S)">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
+                        <ContentControl ContentTemplate="{StaticResource SaveIcon}" />
+                        <TextBlock Text="Save" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Separator Margin="{StaticResource CompactThickness}" />
+
+                <Button Classes="ToolbarButton" Command="{Binding ExtractSelectedCommand}"
+                        ToolTip.Tip="Extract Selected Files">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
+                        <ContentControl ContentTemplate="{StaticResource ExtractIcon}" />
+                        <TextBlock Text="Extract" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Button Classes="ToolbarButton" Command="{Binding ExtractAllCommand}"
+                        ToolTip.Tip="Extract All Files (Ctrl+E)">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
+                        <ContentControl ContentTemplate="{StaticResource ExtractAllIcon}" />
+                        <TextBlock Text="Extract All" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Separator Margin="{StaticResource CompactThickness}" />
+
+                <Button Classes="ToolbarButton" Command="{Binding AddFilesCommand}" ToolTip.Tip="Add Files (Ctrl+A)">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
+                        <ContentControl ContentTemplate="{StaticResource AddIcon}" />
+                        <TextBlock Text="Add Files" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Button Classes="ToolbarButton" Command="{Binding AddFolderCommand}" ToolTip.Tip="Add Folder (Ctrl+Shift+A)">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
+                        <ContentControl ContentTemplate="{StaticResource AddFolderIcon}" />
+                        <TextBlock Text="Add Folder" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Button Classes="ToolbarButton" Command="{Binding CreateFolderCommand}" ToolTip.Tip="Create Folder (Ctrl+Shift+N)">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
+                        <ContentControl ContentTemplate="{StaticResource AddFolderIcon}" />
+                        <TextBlock Text="New Folder" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Separator Margin="{StaticResource CompactThickness}" />
+
+                <Button Classes="ToolbarButton" Command="{Binding RemoveSelectedCommand}"
+                        ToolTip.Tip="Remove Selected (Del)">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
+                        <ContentControl ContentTemplate="{StaticResource RemoveIcon}" />
+                        <TextBlock Text="Remove" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <Separator Margin="{StaticResource CompactThickness}" />
+
+                <Button Classes="ToolbarButton" Command="{Binding ToggleTextFlagCommand}"
+                        ToolTip.Tip="Toggle Text Flag (Toggles Text flag for selected file)">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource CompactSpacing}">
+                        <ContentControl ContentTemplate="{StaticResource TextFlagIcon}" />
+                        <TextBlock Text="Toggle Text" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <!-- Status Bar -->
+        <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="0,1,0,0" Padding="8,4"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <!-- Status Message -->
+                <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" VerticalAlignment="Center" />
+
+                <!-- Archive Info (GUID, Items, Size) -->
+                <TextBlock Grid.Column="1" Text="{Binding ArchiveInfoText}" VerticalAlignment="Center" 
+                          Margin="8,0,0,0" IsVisible="{Binding IsArchiveOpen}" />
+
+                <!-- Progress Indicator -->
+                <ProgressBar Grid.Column="2" Width="150" Height="16" Margin="8,0"
+                             IsIndeterminate="{Binding IsBusy}"
+                             IsVisible="{Binding IsBusy}" />
+            </Grid>
+        </Border>
+
+        <!-- Main Content -->
+        <Grid ColumnDefinitions="*">
+            <!-- File List -->
+            <Grid Grid.Column="0" RowDefinitions="Auto,*" Margin="{StaticResource CompactThickness}">
+                <!-- Column Headers -->
+                <Border Grid.Row="0" 
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                        BorderThickness="0,0,0,1"
+                        Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                        Padding="4,2">
+                    <Grid ColumnDefinitions="Auto,*,350,150,330,300,120,120,80">
+                        <TextBlock Grid.Column="0" Text="" FontWeight="Bold" VerticalAlignment="Center" Width="20"/>
+                        <TextBlock Grid.Column="1" Text="Name" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="2" Text="Flags" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="3" Text="Resource" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="4" Text="GUID" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="5" Text="Translation Id" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="6" Text="Compressed" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="7" Text="Decompressed" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="8" Text="Ratio" FontWeight="Bold" VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <TreeView Grid.Row="1"
+                          x:Name="ArchiveTreeView"
+                          ItemsSource="{Binding TreeItems}"
+                          SelectedItem="{Binding SelectedItem}"
+                          BorderThickness="1"
+                          BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                          PointerPressed="TreeView_PointerPressed">
+                    <TreeView.ContextMenu>
+                        <ContextMenu>
+                            <!-- Add Operations -->
+                            <MenuItem Header="Add _Files..." Command="{Binding AddFilesCommand}">
+                                <MenuItem.Icon>
+                                    <ContentControl ContentTemplate="{StaticResource AddIcon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Add F_older..." Command="{Binding AddFolderCommand}">
+                                <MenuItem.Icon>
+                                    <ContentControl ContentTemplate="{StaticResource AddFolderIcon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="_Create Folder..." Command="{Binding CreateFolderCommand}">
+                                <MenuItem.Icon>
+                                    <ContentControl ContentTemplate="{StaticResource AddFolderIcon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <Separator />
+                            <!-- File Operations -->
+                            <MenuItem Header="_Extract" Command="{Binding ExtractSelectedCommand}">
+                                <MenuItem.Icon>
+                                    <ContentControl ContentTemplate="{StaticResource ExtractIcon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="_Remove" Command="{Binding RemoveSelectedCommand}">
+                                <MenuItem.Icon>
+                                    <ContentControl ContentTemplate="{StaticResource RemoveIcon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <Separator />
+                            <!-- Text Flag Operations -->
+                            <MenuItem Header="_Toggle Text Flag" Command="{Binding ToggleTextFlagCommand}">
+                                <MenuItem.Icon>
+                                    <ContentControl ContentTemplate="{StaticResource TextFlagIcon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Set Text Flag" Command="{Binding SetTextFlagCommand}">
+                                <MenuItem.Icon>
+                                    <ContentControl ContentTemplate="{StaticResource TextFlagIcon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Clear Text Flag" Command="{Binding ClearTextFlagCommand}">
+                                <MenuItem.Icon>
+                                    <ContentControl ContentTemplate="{StaticResource ClearTextFlagIcon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                        </ContextMenu>
+                    </TreeView.ContextMenu>
+                    <TreeView.ItemTemplate>
+                        <TreeDataTemplate ItemsSource="{Binding Children}">
+                            <Grid ColumnDefinitions="Auto,*,350,150,330,300,120,120,80">
+                                <!-- Text Flag Indicator -->
+                                <TextBlock Grid.Column="0" Text="📄" FontSize="12" 
+                                          IsVisible="{Binding HasTextFlag}" 
+                                          VerticalAlignment="Center"
+                                          Margin="0,0,4,0"
+                                          ToolTip.Tip="Text File"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Flags, Converter={StaticResource FileFlagsToString}}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="{Binding FormattedResourceType}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="4" Text="{Binding FormattedResourceGuid}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="5" Text="{Binding FormattedTranslationId}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="6" Text="{Binding FormattedCompressedSize}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="7" Text="{Binding FormattedDecompressedSize}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="8" Text="{Binding FormattedCompressionRatio}" VerticalAlignment="Center"/>
+                            </Grid>
+                        </TreeDataTemplate>
+                    </TreeView.ItemTemplate>
+                    <TreeView.Styles>
+                        <Style Selector="TreeViewItem" x:DataType="vm:TreeItemViewModel">
+                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                        </Style>
+                    </TreeView.Styles>
+                </TreeView>
+            </Grid>
+        </Grid>
+    </DockPanel>
+
+</Window>

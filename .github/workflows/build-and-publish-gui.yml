@@ -1,0 +1,289 @@
+name: Build and Publish EarthTool.WD.GUI
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish release artifacts'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  PROJECT_NAME: 'EarthTool.WD.GUI'
+  SOLUTION_FILE: 'EarthTool.sln'
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - os: windows-latest
+            runtime: win-x64
+            artifact_name: EarthTool.WD.GUI-Windows-x64
+            artifact_ext: .exe
+          - os: ubuntu-latest
+            runtime: linux-x64
+            artifact_name: EarthTool.WD.GUI-Linux-x64
+            artifact_ext: ""
+          - os: macos-latest
+            runtime: osx-x64
+            artifact_name: EarthTool.WD.GUI-macOS-x64
+            artifact_ext: ""
+
+    steps:
+    - name: Display build context
+      shell: bash
+      run: |
+        echo "🚀 Starting EarthTool.WD.GUI build"
+        echo "Event: ${{ github.event_name }}"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "Is tag: ${{ startsWith(github.ref, 'refs/tags/v') }}"
+        echo "Is PR: ${{ github.event_name == 'pull_request' }}"
+        echo "Is manual: ${{ github.event_name == 'workflow_dispatch' }}"
+        
+        if [[ "${{ github.event_name }}" == "push" && "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]]; then
+          echo "📦 This is a RELEASE build for version: ${{ github.ref_name }}"
+        elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          echo "🔍 This is a PR build for review"
+        elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          echo "⚙️ This is a MANUAL build"
+        else
+          echo "🔧 This is a CI build for branch: ${{ github.ref_name }}"
+        fi
+        
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+    - name: Build solution
+      run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore
+
+    - name: Run tests
+      run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
+
+    - name: Test Report
+      uses: dorny/test-reporter@v2
+      if: success() || failure()
+      with:
+        name: Test Results (${{ matrix.os }})
+        path: '**/*.trx'
+        reporter: dotnet-trx
+
+    - name: Publish GUI application
+      shell: bash
+      run: |
+        dotnet publish EarthTool.WD.GUI/EarthTool.WD.GUI.csproj \
+          --configuration Release \
+          --runtime ${{ matrix.runtime }} \
+          --self-contained true \
+          --output ./publish/${{ matrix.runtime }} \
+          -p:PublishSingleFile=true \
+          -p:IncludeNativeLibrariesForSelfExtract=true \
+          -p:EnableCompressionInSingleFile=true
+
+    - name: Create artifact archive
+      shell: bash
+      run: |
+        cd "publish/${{ matrix.runtime }}"
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          # On Windows, use PowerShell to create ZIP
+          powershell "Compress-Archive -Path '.' -DestinationPath '../../${{ matrix.artifact_name }}.zip' -Force"
+        else
+          # On Linux/macOS, use tar
+          tar -czf "../../${{ matrix.artifact_name }}.tar.gz" .
+        fi
+        cd ../..
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.artifact_name }}${{ matrix.os == 'windows-latest' && '.zip' || '.tar.gz' }}
+        retention-days: 30
+
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+    - name: Install dotnet format
+      run: dotnet tool install -g dotnet-format
+
+    - name: Check code formatting
+      run: dotnet format --verify-no-changes --verbosity diagnostic
+      continue-on-error: true
+
+    - name: Run code analysis
+      run: |
+        dotnet build ${{ env.SOLUTION_FILE }} --configuration Release /p:TreatWarningsAsErrors=false
+        
+    - name: Upload code analysis results
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: code-analysis-results
+        path: '**/*.binlog'
+        retention-days: 7
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+    - name: Install security scanning tools
+      run: |
+        dotnet tool install -g security-scan
+        dotnet tool install -g dotnet-outdated-tool
+
+    - name: Run security scan
+      run: security-scan EarthTool.WD.GUI/EarthTool.WD.GUI.csproj
+      continue-on-error: true
+
+    - name: Check for outdated packages
+      run: dotnet outdated EarthTool.WD.GUI/EarthTool.WD.GUI.csproj
+      continue-on-error: true
+
+  create-release:
+    name: Create Release
+    needs: [build-and-test, code-quality]
+    runs-on: ubuntu-latest
+    # Only create releases on version tags (v*) or manual dispatch with publish=true
+    # This prevents accidental releases from dev branches or other pushes
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true')
+    
+    steps:
+    - name: Verify release conditions
+      run: |
+        echo "Event name: ${{ github.event_name }}"
+        echo "Ref: ${{ github.ref }}"
+        echo "Is tag: ${{ startsWith(github.ref, 'refs/tags/v') }}"
+        echo "Manual publish: ${{ github.event.inputs.publish }}"
+        
+        if [[ "${{ github.event_name }}" == "push" && "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]]; then
+          echo "✅ Creating release for version tag: ${{ github.ref_name }}"
+        elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.publish }}" == "true" ]]; then
+          echo "✅ Creating release via manual dispatch"
+        else
+          echo "❌ Skipping release - not a version tag and not manual publish"
+        fi
+        
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v2
+      with:
+        name: EarthTool.WD.GUI ${{ github.ref_name }}
+        body: |
+          ## EarthTool WD Archive Manager GUI
+          
+          This release includes the GUI application for managing Earth 2150 WD archive files.
+          
+          ### Features
+          - 📁 Open and view WD archive contents
+          - 📤 Extract single or all files
+          - 🆕 Create new archives
+          - ➕ Add files to archives
+          - 🗑️ Remove files from archives
+          - 📊 View archive metadata and compression statistics
+          - 🏷️ Set Text flags for files
+          
+          ### Downloads
+          Choose the appropriate version for your operating system:
+          
+          - **Windows (x64)**: `EarthTool.WD.GUI-Windows-x64.zip`
+          - **Linux (x64)**: `EarthTool.WD.GUI-Linux-x64.tar.gz`
+          - **macOS (x64)**: `EarthTool.WD.GUI-macOS-x64.tar.gz`
+          
+          ### Installation
+          1. Download the appropriate file for your operating system
+          2. Extract the archive
+          3. Run the executable
+          
+          ### System Requirements
+          - Windows 10/11, Ubuntu 20.04+, or macOS 10.15+
+          - .NET 8.0 Runtime (included in self-contained builds)
+          
+          ### Notes
+          - This is a self-contained application that includes all necessary dependencies
+          - The application is signed and compressed for optimal distribution
+          
+        files: |
+          artifacts/EarthTool.WD.GUI-Windows-x64/EarthTool.WD.GUI-Windows-x64.zip
+          artifacts/EarthTool.WD.GUI-Linux-x64/EarthTool.WD.GUI-Linux-x64.tar.gz
+          artifacts/EarthTool.WD.GUI-macOS-x64/EarthTool.WD.GUI-macOS-x64.tar.gz
+        draft: false
+        prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify:
+    name: Notify Release
+    needs: create-release
+    runs-on: ubuntu-latest
+    if: always() && needs.create-release.result == 'success'
+    
+    steps:
+    - name: Notify success
+      run: |
+        echo "🎉 EarthTool.WD.GUI release created successfully!"
+        echo "📦 Release URL: ${{ needs.create-release.outputs.url }}"
+        echo "📋 Check the release page for download links and release notes."

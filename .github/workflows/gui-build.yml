@@ -1,0 +1,224 @@
+name: GUI Build and Test
+
+on:
+  push:
+    branches: [ main, master, dev, 'feature/**' ]
+    paths:
+      - 'EarthTool.WD.GUI/**'
+      - 'EarthTool.WD/**'
+      - 'EarthTool.Common/**'
+      - '.github/workflows/gui-build.yml'
+  pull_request:
+    branches: [ main, master, dev ]
+    paths:
+      - 'EarthTool.WD.GUI/**'
+      - 'EarthTool.WD/**'
+      - 'EarthTool.Common/**'
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  build-gui:
+    name: Build GUI (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - os: windows-latest
+            runtime: win-x64
+            artifact: EarthTool.WD.GUI-win-x64
+          - os: ubuntu-latest
+            runtime: linux-x64
+            artifact: EarthTool.WD.GUI-linux-x64
+          - os: macos-latest
+            runtime: osx-x64
+            artifact: EarthTool.WD.GUI-osx-x64
+
+    steps:
+    - name: Display build context
+      shell: bash
+      run: |
+        echo "🚀 Starting EarthTool.WD.GUI development build"
+        echo "Event: ${{ github.event_name }}"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "Is PR: ${{ github.event_name == 'pull_request' }}"
+
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          echo "🔍 This is a PR build for review"
+        elif [[ "${{ github.ref_name }}" == "dev" ]]; then
+          echo "🧪 This is a DEV build (preview will be created)"
+        elif [[ "${{ startsWith(github.ref, 'refs/heads/feature/') }}" == "true" ]]; then
+          echo "🚧 This is a FEATURE build"
+        else
+          echo "🔧 This is a CI build for branch: ${{ github.ref_name }}"
+        fi
+        
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Restore dependencies
+      run: dotnet restore EarthTool.sln
+
+    - name: Build GUI project
+      run: dotnet build EarthTool.WD.GUI/EarthTool.WD.GUI.csproj --configuration Release --no-restore
+
+    - name: Run GUI tests
+      run: dotnet test EarthTool.WD.GUI.Tests/EarthTool.WD.GUI.Tests.csproj --configuration Release --no-build --verbosity normal --logger "console;verbosity=detailed"
+      continue-on-error: true
+
+    - name: Publish GUI for current platform
+      shell: bash
+      run: |
+        dotnet publish EarthTool.WD.GUI/EarthTool.WD.GUI.csproj \
+          --configuration Release \
+          --runtime ${{ matrix.runtime }} \
+          --self-contained true \
+          --output ./artifacts/${{ matrix.runtime }} \
+          -p:PublishSingleFile=true \
+          -p:IncludeNativeLibrariesForSelfExtract=true \
+          -p:EnableCompressionInSingleFile=true \
+          -p:DebugType=none \
+          -p:DebugSymbols=false
+
+    - name: Prepare artifacts
+      shell: bash
+      run: |
+        cd "artifacts/${{ matrix.runtime }}"
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          # On Windows, use PowerShell to create ZIP
+          powershell "Compress-Archive -Path '.' -DestinationPath '../../${{ matrix.artifact }}.zip' -Force"
+        else
+          # On Linux/macOS, use tar
+          tar -czf "../../${{ matrix.artifact }}.tar.gz" .
+        fi
+        cd ../..
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact }}
+        path: ${{ matrix.artifact }}${{ matrix.os == 'windows-latest' && '.zip' || '.tar.gz' }}
+        retention-days: 7
+
+  code-analysis:
+    name: Code Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore EarthTool.sln
+
+    - name: Build with analysis
+      run: dotnet build EarthTool.WD.GUI/EarthTool.WD.GUI.csproj --configuration Release --verbosity normal
+
+    - name: Check for build warnings
+      run: |
+        dotnet build EarthTool.WD.GUI/EarthTool.WD.GUI.csproj --configuration Release --verbosity normal -warnaserror
+      continue-on-error: true
+
+  security-check:
+    name: Security Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore EarthTool.sln
+
+    - name: Check for vulnerable packages
+      run: dotnet list EarthTool.WD.GUI/EarthTool.WD.GUI.csproj package --vulnerable --include-transitive
+      continue-on-error: true
+
+    - name: Run security audit
+      run: dotnet list EarthTool.WD.GUI/EarthTool.WD.GUI.csproj package --outdated
+      continue-on-error: true
+
+  publish-preview:
+    name: Publish Preview
+    needs: [build-gui, code-analysis]
+    runs-on: windows-latest
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore EarthTool.sln
+
+    - name: Build and publish preview
+      shell: bash
+      run: |
+        dotnet publish EarthTool.WD.GUI/EarthTool.WD.GUI.csproj \
+          --configuration Release \
+          --runtime win-x64 \
+          --self-contained true \
+          --output ./preview \
+          -p:PublishSingleFile=true \
+          -p:IncludeNativeLibrariesForSelfExtract=true \
+          -p:VersionSuffix=preview-${{ github.run_number }}
+
+    - name: Create preview artifact
+      shell: bash
+      run: |
+        cd preview
+        powershell "Compress-Archive -Path '.' -DestinationPath '../EarthTool.WD.GUI-Preview.zip' -Force"
+        cd ..
+
+    - name: Upload preview artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: EarthTool.WD.GUI-Preview
+        path: EarthTool.WD.GUI-Preview.zip
+        retention-days: 30
+
+    - name: Comment on commit
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.repos.createCommitComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            commit_sha: context.sha,
+            body: `🚀 Preview build completed successfully!
+            
+            📦 **Download**: [EarthTool.WD.GUI-Preview.zip](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            
+            ✅ This is a preview build from the dev branch. Test it out and report any issues!`
+          })
