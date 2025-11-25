@@ -39,12 +39,13 @@ jobs:
 
     steps:
     - name: Display build context
+      shell: bash
       run: |
         echo "🚀 Starting EarthTool.WD.GUI development build"
         echo "Event: ${{ github.event_name }}"
         echo "Branch: ${{ github.ref_name }}"
         echo "Is PR: ${{ github.event_name == 'pull_request' }}"
-        
+
         if [[ "${{ github.event_name }}" == "pull_request" ]]; then
           echo "🔍 This is a PR build for review"
         elif [[ "${{ github.ref_name }}" == "dev" ]]; then
