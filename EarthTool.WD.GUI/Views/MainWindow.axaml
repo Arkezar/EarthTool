@@ -317,6 +317,36 @@
                           PointerPressed="TreeView_PointerPressed">
                     <TreeView.ContextMenu>
                         <ContextMenu>
+                            <!-- Add Operations -->
+                            <MenuItem Header="Add _Files..." Command="{Binding AddFilesCommand}">
+                                <MenuItem.Icon>
+                                    <ContentControl ContentTemplate="{StaticResource AddIcon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Add F_older..." Command="{Binding AddFolderCommand}">
+                                <MenuItem.Icon>
+                                    <ContentControl ContentTemplate="{StaticResource AddFolderIcon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="_Create Folder..." Command="{Binding CreateFolderCommand}">
+                                <MenuItem.Icon>
+                                    <ContentControl ContentTemplate="{StaticResource AddFolderIcon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <Separator />
+                            <!-- File Operations -->
+                            <MenuItem Header="_Extract" Command="{Binding ExtractSelectedCommand}">
+                                <MenuItem.Icon>
+                                    <ContentControl ContentTemplate="{StaticResource ExtractIcon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="_Remove" Command="{Binding RemoveSelectedCommand}">
+                                <MenuItem.Icon>
+                                    <ContentControl ContentTemplate="{StaticResource RemoveIcon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <Separator />
+                            <!-- Text Flag Operations -->
                             <MenuItem Header="Set Text Flag" Command="{Binding SetTextFlagCommand}">
                                 <MenuItem.Icon>
                                     <ContentControl ContentTemplate="{StaticResource TextFlagIcon}" />
