@@ -45,6 +45,7 @@ jobs:
 
     steps:
     - name: Display build context
+      shell: bash
       run: |
         echo "🚀 Starting EarthTool.WD.GUI build"
         echo "Event: ${{ github.event_name }}"
@@ -53,7 +54,7 @@ jobs:
         echo "Is PR: ${{ github.event_name == 'pull_request' }}"
         echo "Is manual: ${{ github.event_name == 'workflow_dispatch' }}"
         
-        if [[ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]]; then
+        if [[ "${{ github.event_name }}" == "push" && "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]]; then
           echo "📦 This is a RELEASE build for version: ${{ github.ref_name }}"
         elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
           echo "🔍 This is a PR build for review"
