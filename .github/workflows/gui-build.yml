@@ -38,6 +38,23 @@ jobs:
             artifact: EarthTool.WD.GUI-osx-x64
 
     steps:
+    - name: Display build context
+      run: |
+        echo "🚀 Starting EarthTool.WD.GUI development build"
+        echo "Event: ${{ github.event_name }}"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "Is PR: ${{ github.event_name == 'pull_request' }}"
+        
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          echo "🔍 This is a PR build for review"
+        elif [[ "${{ github.ref_name }}" == "dev" ]]; then
+          echo "🧪 This is a DEV build (preview will be created)"
+        elif [[ "${{ startsWith(github.ref, 'refs/heads/feature/') }}" == "true" ]]; then
+          echo "🚧 This is a FEATURE build"
+        else
+          echo "🔧 This is a CI build for branch: ${{ github.ref_name }}"
+        fi
+        
     - name: Checkout code
       uses: actions/checkout@v4
 
