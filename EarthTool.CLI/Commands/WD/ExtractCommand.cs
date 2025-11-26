@@ -2,6 +2,7 @@ using EarthTool.Common.Interfaces;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -24,11 +25,20 @@ public sealed class ExtractCommand : Command<ExtractSettings>
       return 1;
     }
 
+    // Expand wildcards in archive paths
+    var expandedPaths = ExpandWildcards(settings.ArchivePaths);
+    
+    if (!expandedPaths.Any())
+    {
+      AnsiConsole.MarkupLine("[red]No archive files found matching the specified patterns[/]");
+      return 1;
+    }
+
     var totalExtracted = 0;
     var totalFailed = 0;
     var processedArchives = 0;
 
-    foreach (var archivePath in settings.ArchivePaths)
+    foreach (var archivePath in expandedPaths)
     {
       if (!File.Exists(archivePath))
       {
@@ -51,10 +61,10 @@ public sealed class ExtractCommand : Command<ExtractSettings>
       }
     }
 
-    if (settings.ArchivePaths.Length > 1)
+    if (expandedPaths.Count > 1)
     {
       AnsiConsole.MarkupLine($"\n[bold]Summary:[/]");
-      AnsiConsole.MarkupLine($"  Archives processed: {processedArchives}/{settings.ArchivePaths.Length}");
+      AnsiConsole.MarkupLine($"  Archives processed: {processedArchives}/{expandedPaths.Count}");
       AnsiConsole.MarkupLine($"  Files extracted: [green]{totalExtracted}[/]");
       if (totalFailed > 0)
       {
@@ -63,6 +73,60 @@ public sealed class ExtractCommand : Command<ExtractSettings>
     }
 
     return totalFailed == 0 ? 0 : 1;
+  }
+
+  private List<string> ExpandWildcards(string[] paths)
+  {
+    var result = new List<string>();
+
+    foreach (var path in paths)
+    {
+      // Check if path contains wildcard characters
+      if (path.Contains('*') || path.Contains('?'))
+      {
+        try
+        {
+          var directory = Path.GetDirectoryName(path);
+          var fileName = Path.GetFileName(path);
+
+          // If no directory specified, use current directory
+          if (string.IsNullOrEmpty(directory))
+          {
+            directory = Directory.GetCurrentDirectory();
+          }
+
+          // If directory doesn't exist, skip this pattern
+          if (!Directory.Exists(directory))
+          {
+            AnsiConsole.MarkupLine($"[yellow]Directory not found: {directory}[/]");
+            continue;
+          }
+
+          // Search for files matching the pattern
+          var matchingFiles = Directory.GetFiles(directory, fileName, SearchOption.TopDirectoryOnly);
+          
+          if (matchingFiles.Length == 0)
+          {
+            AnsiConsole.MarkupLine($"[yellow]No files found matching pattern: {path}[/]");
+          }
+          else
+          {
+            result.AddRange(matchingFiles);
+          }
+        }
+        catch (Exception ex)
+        {
+          AnsiConsole.MarkupLine($"[red]Error expanding wildcard pattern '{path}': {ex.Message}[/]");
+        }
+      }
+      else
+      {
+        // No wildcard, add path as-is
+        result.Add(path);
+      }
+    }
+
+    return result;
   }
 
   private (int extracted, int failed) ExtractArchive(string archivePath, ExtractSettings settings)
@@ -118,7 +182,7 @@ public sealed class ExtractCommand : Command<ExtractSettings>
       }
     }
 
-    if (settings.ArchivePaths.Length == 1)
+    if (itemsList.Count == extracted + failed)
     {
       AnsiConsole.MarkupLine($"[green]Successfully extracted {extracted}/{itemsList.Count} file(s)[/]");
     }
