@@ -1,4 +1,4 @@
-![](https://ci.appveyor.com/api/projects/status/github/Arkezar/EarthTool?svg=true)
+[![CI](https://github.com/Arkezar/EarthTool/actions/workflows/ci.yml/badge.svg)](https://github.com/Arkezar/EarthTool/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 # EarthTool
