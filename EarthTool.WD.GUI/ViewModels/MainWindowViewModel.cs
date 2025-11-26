@@ -320,7 +320,20 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         return;
       }
       
-      await Task.Run(() => _archiver.SaveArchive(_currentArchive, filePath));
+      // Save archive with closeArchiveBeforeSave=true to release file locks
+      // This is necessary on Windows 11 when saving to the same file
+      await Task.Run(() => _archiver.SaveArchive(_currentArchive, filePath, closeArchiveBeforeSave: true));
+      
+      // After save, the archive has been disposed (to release file locks)
+      // We need to reopen it to continue working
+      _logger.LogInformation("Reopening archive after save");
+      IArchive? reopenedArchive = null;
+      await Task.Run(() => reopenedArchive = _archiver.OpenArchive(filePath));
+      
+      _currentArchive = reopenedArchive;
+      
+      // Refresh UI to reflect the reopened archive
+      LoadArchiveItems();
 
       HasUnsavedChanges = false;
       _notificationService.ShowSuccess($"Archive saved: {Path.GetFileName(filePath)}");

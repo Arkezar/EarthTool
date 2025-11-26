@@ -98,6 +98,11 @@ namespace EarthTool.WD.Services
 
     public void SaveArchive(IArchive archive, string outputFilePath)
     {
+      SaveArchive(archive, outputFilePath, closeArchiveBeforeSave: false);
+    }
+    
+    public void SaveArchive(IArchive archive, string outputFilePath, bool closeArchiveBeforeSave)
+    {
       ArgumentNullException.ThrowIfNull(archive);
 
       var directory = Path.GetDirectoryName(outputFilePath);
@@ -106,7 +111,18 @@ namespace EarthTool.WD.Services
         PathValidator.EnsureDirectoryExists(directory);
       }
 
+      // First, materialize all archive data to memory
+      // This is crucial: ToByteArray() forces all lazy-loaded data from MemoryMappedFile
+      // to be read into memory before we close the archive
       var archiveData = archive.ToByteArray(_compressor, _encoding);
+      
+      // If requested, dispose the archive to release file locks
+      // This is necessary when saving to the same file that's currently open
+      if (closeArchiveBeforeSave)
+      {
+        _logger.LogInformation("Disposing archive to release file locks before save");
+        archive.Dispose();
+      }
       
       // Use safe file writing pattern for Windows 11 compatibility
       // Write to temporary file first, then replace original
