@@ -221,6 +221,9 @@ jobs:
         id: changelog
         shell: bash
         run: |
+          # Disable pipefail for this script to handle SIGPIPE gracefully
+          set +o pipefail
+          
           # Get current tag
           CURRENT_TAG="${{ github.ref_name }}"
           echo "Current tag: $CURRENT_TAG"
