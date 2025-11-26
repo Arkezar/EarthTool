@@ -3,6 +3,7 @@ using System.IO;
 using EarthTool.WD;
 using EarthTool.WD.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Threading.Tasks;
 
 namespace EarthTool.WD.Tests;
 
@@ -39,7 +40,7 @@ public class WDExtractorTests : ArchiveTestsBase, IDisposable
     }
 
     [Fact]
-    public async void Extract_ValidArchive_Succeeds()
+    public async Task Extract_ValidArchive_Succeeds()
     {
         // Arrange
         var archive = _archiverService.CreateArchive();
@@ -70,7 +71,7 @@ public class WDExtractorTests : ArchiveTestsBase, IDisposable
     }
 
     [Fact]
-    public async void Extract_WithoutOutputPath_ExtractsToSameDirectory()
+    public async Task Extract_WithoutOutputPath_ExtractsToSameDirectory()
     {
         // Arrange
         var archive = _archiverService.CreateArchive();
@@ -90,7 +91,7 @@ public class WDExtractorTests : ArchiveTestsBase, IDisposable
     }
 
     [Fact]
-    public async void Extract_NonExistentFile_ThrowsException()
+    public async Task Extract_NonExistentFile_ThrowsException()
     {
         // Arrange
         var nonExistentPath = Path.Combine(_tempDirectory, "nonexistent.wd");
@@ -103,7 +104,7 @@ public class WDExtractorTests : ArchiveTestsBase, IDisposable
     }
 
     [Fact]
-    public async void Extract_CreatesOutputDirectory()
+    public async Task Extract_CreatesOutputDirectory()
     {
         // Arrange
         var archive = _archiverService.CreateArchive();
@@ -126,7 +127,7 @@ public class WDExtractorTests : ArchiveTestsBase, IDisposable
     }
 
     [Fact]
-    public async void Extract_WithMultipleFiles_ExtractsAll()
+    public async Task Extract_WithMultipleFiles_ExtractsAll()
     {
         // Arrange
         var archive = _archiverService.CreateArchive();
@@ -155,7 +156,7 @@ public class WDExtractorTests : ArchiveTestsBase, IDisposable
     }
 
     [Fact]
-    public async void Extract_WithNestedPaths_PreservesStructure()
+    public async Task Extract_WithNestedPaths_PreservesStructure()
     {
         // Arrange
         var archive = _archiverService.CreateArchive();
@@ -186,7 +187,7 @@ public class WDExtractorTests : ArchiveTestsBase, IDisposable
     }
 
     [Fact]
-    public async void Extract_EmptyArchive_CompletesSuccessfully()
+    public async Task Extract_EmptyArchive_CompletesSuccessfully()
     {
         // Arrange
         var archive = _archiverService.CreateArchive();
@@ -204,7 +205,7 @@ public class WDExtractorTests : ArchiveTestsBase, IDisposable
     }
 
     [Fact]
-    public async void Extract_LargeArchive_ExtractsSuccessfully()
+    public async Task Extract_LargeArchive_ExtractsSuccessfully()
     {
         // Arrange
         var archive = _archiverService.CreateArchive();

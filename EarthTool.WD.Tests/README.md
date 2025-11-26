@@ -198,9 +198,8 @@ Tests cover:
 
 ## Known Limitations
 
-1. Async void warnings in WDExtractorTests (will be converted to async Task in future)
-2. Some integration tests require temporary file system operations
-3. Memory-mapped file tests may require elevated permissions on some systems
+1. Some integration tests require temporary file system operations
+2. Memory-mapped file tests may require elevated permissions on some systems
 
 ## CI/CD Integration
 

@@ -265,14 +265,11 @@ Wszystkie testy przeszły, co wskazuje na:
    - Memory profiling dla dużych archiwów
    - Testy obciążeniowe
 
-3. **Async void → async Task**
-   - Konwersja WDExtractorTests (8 warnings)
-
-4. **Integration tests z rzeczywistymi plikami gry**
+3. **Integration tests z rzeczywistymi plikami gry**
    - Testy na prawdziwych archiwach WD
    - Walidacja kompatybilności
 
-5. **Mutation testing**
+4. **Mutation testing**
    - Stryker.NET dla weryfikacji jakości testów
 
 ---

@@ -63,7 +63,7 @@ public class ArchiveFactoryTests : ArchiveTestsBase
         var archive2 = ArchiveFactory.NewArchive();
 
         // Assert
-        archive1.Header.Guid.Value.Should().NotBe(archive2.Header.Guid.Value);
+        archive1.Header.Guid!.Should().NotBe(archive2.Header.Guid!.Value);
     }
 
     [Fact]
