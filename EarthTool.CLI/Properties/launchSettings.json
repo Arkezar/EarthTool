@@ -91,6 +91,13 @@
         "Logging:LogLevel:Default": "Information"
       }
     },
+    "EarthTool - Analyze Parameters": {
+      "commandName": "Project",
+      "commandLineArgs": "par --analyze -o %HOME%/earthwork/Parameters_decoded %HOME%/earthwork/WDFiles_extracted/Parameters/EARTH2150.par",
+      "environmentVariables": {
+        "Logging:LogLevel:Default": "Information"
+      }
+    },
     "EarthTool - Decode Parameters": {
       "commandName": "Project",
       "commandLineArgs": "par -o %HOME%/earthwork/Parameters_decoded %HOME%/earthwork/WDFiles_extracted/Parameters/EARTH2150.par",

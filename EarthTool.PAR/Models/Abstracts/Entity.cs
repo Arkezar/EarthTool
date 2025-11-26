@@ -22,8 +22,6 @@ namespace EarthTool.PAR.Models.Abstracts
       ClassId = type;
     }
 
-    public string Name { get; set; }
-
     public IEnumerable<int> RequiredResearch { get; set; }
 
     [JsonIgnore]

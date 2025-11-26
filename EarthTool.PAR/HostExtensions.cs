@@ -1,3 +1,4 @@
+using EarthTool.Common;
 using EarthTool.Common.Interfaces;
 using EarthTool.PAR.Models;
 using EarthTool.PAR.Services;
@@ -9,6 +10,7 @@ namespace EarthTool.PAR
   {
     public static IServiceCollection AddParServices(this IServiceCollection services)
       => services
+        .AddCommonServices()
         .AddScoped<IReader<ParFile>, ParameterReader>()
         .AddScoped<IWriter<ParFile>, ParameterWriter>();
   }
