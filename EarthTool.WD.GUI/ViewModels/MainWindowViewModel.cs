@@ -310,15 +310,51 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       StatusMessage = "Saving archive...";
 
       var filePath = _currentFilePath;
-      await Task.Run(() => _archiver.SaveArchive(_currentArchive, filePath));
+      
+      // Validate file path is writable before attempting save
+      var directory = Path.GetDirectoryName(filePath);
+      if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+      {
+        _notificationService.ShowError($"Directory does not exist: {directory}");
+        StatusMessage = "Failed to save archive";
+        return;
+      }
+      
+      // Save archive with closeArchiveBeforeSave=true to release file locks
+      // This is necessary on Windows 11 when saving to the same file
+      await Task.Run(() => _archiver.SaveArchive(_currentArchive, filePath, closeArchiveBeforeSave: true));
+      
+      // After save, the archive has been disposed (to release file locks)
+      // We need to reopen it to continue working
+      _logger.LogInformation("Reopening archive after save");
+      IArchive? reopenedArchive = null;
+      await Task.Run(() => reopenedArchive = _archiver.OpenArchive(filePath));
+      
+      _currentArchive = reopenedArchive;
+      
+      // Refresh UI to reflect the reopened archive
+      LoadArchiveItems();
 
       HasUnsavedChanges = false;
       _notificationService.ShowSuccess($"Archive saved: {Path.GetFileName(filePath)}");
       StatusMessage = "Archive saved";
       _logger.LogInformation("Saved archive: {FilePath}", filePath);
     }
+    catch (UnauthorizedAccessException ex)
+    {
+      _logger.LogError(ex, "Access denied when saving archive to {FilePath}", _currentFilePath);
+      _notificationService.ShowError($"Access denied. Cannot save to: {_currentFilePath}\nTry saving to a different location or run as administrator.", ex);
+      StatusMessage = "Failed to save archive - Access denied";
+    }
+    catch (IOException ex)
+    {
+      _logger.LogError(ex, "IO error when saving archive to {FilePath}", _currentFilePath);
+      _notificationService.ShowError($"Cannot save archive. The file may be in use by another program.\n\n{ex.Message}", ex);
+      StatusMessage = "Failed to save archive - File in use";
+    }
     catch (Exception ex)
     {
+      _logger.LogError(ex, "Unexpected error when saving archive to {FilePath}", _currentFilePath);
       _notificationService.ShowError("Failed to save archive", ex);
       StatusMessage = "Failed to save archive";
     }
@@ -345,6 +381,15 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       IsBusy = true;
       StatusMessage = "Saving archive...";
 
+      // Validate file path is writable before attempting save
+      var directory = Path.GetDirectoryName(filePath);
+      if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+      {
+        _notificationService.ShowError($"Directory does not exist: {directory}");
+        StatusMessage = "Failed to save archive";
+        return;
+      }
+
       await Task.Run(() => _archiver.SaveArchive(_currentArchive, filePath));
 
       _currentFilePath = filePath;
@@ -355,8 +400,21 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       StatusMessage = "Archive saved";
       _logger.LogInformation("Saved archive as: {FilePath}", filePath);
     }
+    catch (UnauthorizedAccessException ex)
+    {
+      _logger.LogError(ex, "Access denied when saving archive to {FilePath}", _currentFilePath);
+      _notificationService.ShowError($"Access denied. Cannot save to this location.\nTry saving to a different location or run as administrator.", ex);
+      StatusMessage = "Failed to save archive - Access denied";
+    }
+    catch (IOException ex)
+    {
+      _logger.LogError(ex, "IO error when saving archive");
+      _notificationService.ShowError($"Cannot save archive. The file may be in use by another program.\n\n{ex.Message}", ex);
+      StatusMessage = "Failed to save archive - File in use";
+    }
     catch (Exception ex)
     {
+      _logger.LogError(ex, "Unexpected error when saving archive");
       _notificationService.ShowError("Failed to save archive", ex);
       StatusMessage = "Failed to save archive";
     }

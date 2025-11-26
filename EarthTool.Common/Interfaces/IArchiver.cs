@@ -11,6 +11,7 @@ namespace EarthTool.Common.Interfaces
     void AddFile(IArchive archive, string filePath, string baseDirectory = null, bool compress = true);
     void AddFile(IArchive archive, byte[] data, string filePath, string baseDirectory = null, bool compress = true);
     void SaveArchive(IArchive archive, string outputFilePath);
+    void SaveArchive(IArchive archive, string outputFilePath, bool closeArchiveBeforeSave);
     void Extract(IArchiveItem resource, string outputPath);
     void ExtractAll(IArchive archive, string outputPath);
   }
