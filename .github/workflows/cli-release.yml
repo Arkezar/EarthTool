@@ -296,7 +296,7 @@ jobs:
               while IFS='|||' read -r hash subject author stats; do
                 clean_subject=$(echo "$subject" | sed -E 's/^(feat|fix|docs|style|refactor|perf|test|chore|build|ci)(\([^)]+\))?:\s*//')
                 echo "- $clean_subject [\`$hash\`](https://github.com/${{ github.repository }}/commit/$hash)" >> CHANGELOG.md
-              done
+              done || true
             echo "" >> CHANGELOG.md
             
             # Check for breaking changes
