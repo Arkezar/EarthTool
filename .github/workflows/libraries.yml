@@ -79,7 +79,7 @@ jobs:
 
     - name: Test Report
       if: matrix.library.test != '' && (success() || failure())
-      uses: dorny/test-reporter@v1
+      uses: dorny/test-reporter@v2
       with:
         name: ${{ matrix.library.name }} Test Results
         path: 'TestResults/${{ matrix.library.name }}/**/*.trx'
