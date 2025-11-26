@@ -552,7 +552,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
       // To add files to specific folder in archive, we need to create a temporary directory structure
       // that mirrors the desired archive structure
-      string tempBaseDir = null;
+      string tempBaseDir;
       
       if (!string.IsNullOrEmpty(targetFolder))
       {
@@ -662,7 +662,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       }
 
       // To add folder to specific location in archive, we need to create a temporary directory structure
-      string tempBaseDir = null;
+      string tempBaseDir;
       
       if (!string.IsNullOrEmpty(targetFolder))
       {
@@ -918,10 +918,10 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     }
   }
 
-  private async Task SetTextFlagAsync()
+  private Task SetTextFlagAsync()
   {
     if (_currentArchive == null || SelectedTreeItem?.Item == null)
-      return;
+      return Task.CompletedTask;
 
     try
     {
@@ -940,12 +940,14 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       _notificationService.ShowError("Failed to set Text flag", ex);
       _logger.LogError(ex, "Failed to set Text flag");
     }
+
+    return Task.CompletedTask;
   }
 
-  private async Task ClearTextFlagAsync()
+  private Task ClearTextFlagAsync()
   {
     if (_currentArchive == null || SelectedTreeItem?.Item == null)
-      return;
+      return Task.CompletedTask;
 
     try
     {
@@ -964,12 +966,14 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       _notificationService.ShowError("Failed to clear Text flag", ex);
       _logger.LogError(ex, "Failed to clear Text flag");
     }
+
+    return Task.CompletedTask;
   }
 
-  private async Task ToggleTextFlagAsync()
+  private Task ToggleTextFlagAsync()
   {
     if (_currentArchive == null || SelectedTreeItem?.Item == null)
-      return;
+      return Task.CompletedTask;
 
     var item = SelectedTreeItem;
     if (_textFlagService.HasTextFlag(item.Item!))
@@ -990,6 +994,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       _notificationService.ShowSuccess($"Text flag set for '{item.Name}'");
       _logger.LogInformation("Text flag set for file {FileName}", item.Name);
     }
+
+    return Task.CompletedTask;
   }
 
   private async Task ShowAboutAsync()
@@ -1226,7 +1232,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       var fileName = archiveItem.FileName;
       var parts = fileName.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
 
-      TreeItemViewModel currentParent = null;
+      TreeItemViewModel? currentParent = null;
       string currentPath = "";
 
       for (int i = 0; i < parts.Length; i++)
