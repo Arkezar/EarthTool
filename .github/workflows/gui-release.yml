@@ -357,7 +357,7 @@ jobs:
                   fi
                   
                   echo "- $clean_subject [\`$hash\`](https://github.com/${{ github.repository }}/commit/$hash) - @$author" >> CHANGELOG.md
-                  ((count++))
+                  count=$((count + 1))
                 fi
               done < <(git log $PREVIOUS_TAG..HEAD --pretty=format:"%s|||%h|||%an|||%ad" --date=short --grep="$patterns" -E)
               
@@ -382,7 +382,7 @@ jobs:
             while IFS='|||' read -r subject hash author; do
               if [ ! -z "$subject" ]; then
                 echo "- $subject [\`$hash\`](https://github.com/${{ github.repository }}/commit/$hash) - @$author" >> CHANGELOG.md
-                ((other_count++))
+                other_count=$((other_count + 1))
               fi
             done < <(git log $PREVIOUS_TAG..HEAD --pretty=format:"%s|||%h|||%an" --invert-grep --extended-regexp --grep="^(feat|fix|docs|perf|refactor|test|build|ci|chore)")
             
