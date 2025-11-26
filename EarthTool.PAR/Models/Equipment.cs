@@ -18,17 +18,17 @@ namespace EarthTool.PAR.Models
       : base(name, requiredResearch, type, data)
     {
       RangeOfSight = GetInteger(data);
-      PlugType = GetInteger(data);
-      SlotType = GetInteger(data);
+      PlugType = (SlotType)GetUnsignedInteger(data);
+      SlotType = (SlotType)GetUnsignedInteger(data);
       MaxAlphaPerTick = GetInteger(data);
       MaxBetaPerTick = GetInteger(data);
     }
 
     public int RangeOfSight { get; set; }
 
-    public int PlugType { get; set; }
+    public SlotType PlugType { get; set; }
 
-    public int SlotType { get; set; }
+    public SlotType SlotType { get; set; }
 
     public int MaxAlphaPerTick { get; set; }
 
@@ -37,13 +37,14 @@ namespace EarthTool.PAR.Models
     [JsonIgnore]
     public override IEnumerable<bool> FieldTypes
     {
-      get => base.FieldTypes.Concat(IsStringMember(
-        () => RangeOfSight,
-        () => PlugType,
-        () => SlotType,
-        () => MaxAlphaPerTick,
-        () => MaxBetaPerTick
-      ));
+      get
+        => base.FieldTypes.Concat(IsStringMember(
+          () => RangeOfSight,
+          () => PlugType,
+          () => SlotType,
+          () => MaxAlphaPerTick,
+          () => MaxBetaPerTick
+        ));
       set => base.FieldTypes = value;
     }
 
@@ -55,8 +56,8 @@ namespace EarthTool.PAR.Models
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(RangeOfSight);
-          bw.Write(PlugType);
-          bw.Write(SlotType);
+          bw.Write((uint)PlugType);
+          bw.Write((uint)SlotType);
           bw.Write(MaxAlphaPerTick);
           bw.Write(MaxBetaPerTick);
         }

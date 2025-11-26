@@ -13,7 +13,8 @@ namespace EarthTool.PAR.Models.Abstracts
     {
     }
 
-    public EquipableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) :
+    public EquipableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
+      :
       base(name, requiredResearch, type, data)
     {
       SightRange = GetInteger(data);
@@ -22,13 +23,14 @@ namespace EarthTool.PAR.Models.Abstracts
       ShieldGeneratorId = GetString(data);
       data.ReadBytes(4);
       MaxShieldUpdate = GetInteger(data);
-      Slot1Type = GetInteger(data);
-      Slot2Type = GetInteger(data);
-      Slot3Type = GetInteger(data);
-      Slot4Type = GetInteger(data);
+      Slot1Type = (SlotType)GetUnsignedInteger(data);
+      Slot2Type = (SlotType)GetUnsignedInteger(data);
+      Slot3Type = (SlotType)GetUnsignedInteger(data);
+      Slot4Type = (SlotType)GetUnsignedInteger(data);
     }
 
     public int SightRange { get; set; }
+    
 
     public string TalkPackId { get; set; }
 
@@ -36,29 +38,30 @@ namespace EarthTool.PAR.Models.Abstracts
 
     public int MaxShieldUpdate { get; set; }
 
-    public int Slot1Type { get; set; }
+    public SlotType Slot1Type { get; set; }
 
-    public int Slot2Type { get; set; }
+    public SlotType Slot2Type { get; set; }
 
-    public int Slot3Type { get; set; }
+    public SlotType Slot3Type { get; set; }
 
-    public int Slot4Type { get; set; }
+    public SlotType Slot4Type { get; set; }
 
     [JsonIgnore]
     public override IEnumerable<bool> FieldTypes
     {
-      get => base.FieldTypes.Concat(IsStringMember(
-        () => SightRange,
-        () => TalkPackId,
-        () => 1,
-        () => ShieldGeneratorId,
-        () => 1,
-        () => MaxShieldUpdate,
-        () => Slot1Type,
-        () => Slot2Type,
-        () => Slot3Type,
-        () => Slot4Type
-      ));
+      get
+        => base.FieldTypes.Concat(IsStringMember(
+          () => SightRange,
+          () => TalkPackId,
+          () => 1,
+          () => ShieldGeneratorId,
+          () => 1,
+          () => MaxShieldUpdate,
+          () => Slot1Type,
+          () => Slot2Type,
+          () => Slot3Type,
+          () => Slot4Type
+        ));
       set => base.FieldTypes = value;
     }
 
@@ -77,10 +80,10 @@ namespace EarthTool.PAR.Models.Abstracts
           bw.Write(encoding.GetBytes(ShieldGeneratorId));
           bw.Write(-1);
           bw.Write(MaxShieldUpdate);
-          bw.Write(Slot1Type);
-          bw.Write(Slot2Type);
-          bw.Write(Slot3Type);
-          bw.Write(Slot4Type);
+          bw.Write((uint)Slot1Type);
+          bw.Write((uint)Slot2Type);
+          bw.Write((uint)Slot3Type);
+          bw.Write((uint)Slot4Type);
         }
 
         return output.ToArray();

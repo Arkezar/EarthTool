@@ -30,6 +30,32 @@ public class ConvertCommand : CommonCommand<CommonSettings>
     _earthInfoFactory = earthInfoFactory;
   }
 
+  protected override Task InternalAnalyzeAsync(string inputFilePath, CommonSettings settings)
+  {
+    var outputDirectory = settings.OutputFolderPath.Value ?? Path.GetDirectoryName(inputFilePath);
+    var extension = Path.GetExtension(inputFilePath);
+
+    if (extension == ".par")
+    {
+      var file = _reader.Read(inputFilePath);
+      if (file != null)
+      {
+        var resDist = file.Research.ToDictionary(r => r.Id, r => r.Name);
+        AnsiConsole.MarkupLine("[green]Parameters file loaded successfully.[/]");
+        file.Research.Where(r => r.RequiredResearch.Count() > 1)
+          .ToList()
+          .ForEach(r =>
+          {
+            var depRes = r.RequiredResearch.Select(id => resDist[id]);
+            AnsiConsole.MarkupLine(
+              $"[yellow]Research {r.Id} has multiple required researches ({string.Join(",", depRes)}).[/]");
+          });
+      }
+    }
+
+    return Task.CompletedTask;
+  }
+
   protected override Task InternalExecuteAsync(string filePath, CommonSettings settings)
   {
     var outputDirectory = settings.OutputFolderPath.Value ?? Path.GetDirectoryName(filePath);

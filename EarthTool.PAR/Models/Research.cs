@@ -43,8 +43,6 @@ namespace EarthTool.PAR.Models
 
     public int SkirmishTime { get; set; }
 
-    public string Name { get; set; }
-
     public string Video { get; set; }
 
     public ResearchType Type { get; set; }
