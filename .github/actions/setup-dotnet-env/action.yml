@@ -1,0 +1,37 @@
+name: 'Setup .NET Environment'
+description: 'Setup .NET SDK with caching and common dependencies'
+inputs:
+  dotnet-version:
+    description: '.NET SDK version'
+    required: false
+    default: '8.0.x'
+  cache-key-prefix:
+    description: 'Cache key prefix'
+    required: false
+    default: 'nuget'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.nuget/packages
+          ~/.local/share/NuGet
+          ${{ github.workspace }}/.nuget/packages
+        key: ${{ runner.os }}-${{ inputs.cache-key-prefix }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ inputs.cache-key-prefix }}-
+
+    - name: Display .NET info
+      shell: bash
+      run: |
+        dotnet --version
+        dotnet --list-sdks
+        echo "Cache restored for ${{ runner.os }}"
