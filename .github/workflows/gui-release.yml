@@ -1,15 +1,12 @@
-name: Build and Publish EarthTool.WD.GUI
+name: GUI Release
 
 on:
   push:
-    branches: [main, master]
-    tags: ["v*"]
-  pull_request:
-    branches: [main, master]
+    tags: ["v*", "gui-v*"]
   workflow_dispatch:
     inputs:
-      publish:
-        description: "Publish release artifacts"
+      create_release:
+        description: "Create a release"
         required: false
         default: "false"
         type: choice
@@ -19,50 +16,37 @@ on:
 
 env:
   DOTNET_VERSION: "8.0.x"
-  PROJECT_NAME: "EarthTool.WD.GUI"
+  PROJECT_PATH: "EarthTool.WD.GUI/EarthTool.WD.GUI.csproj"
   SOLUTION_FILE: "EarthTool.sln"
 
 jobs:
   build-and-test:
-    name: Build and Test
+    name: Build GUI (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
         include:
           - os: windows-latest
             runtime: win-x64
             artifact_name: EarthTool.WD.GUI-Windows-x64
-            artifact_ext: .exe
           - os: ubuntu-latest
             runtime: linux-x64
             artifact_name: EarthTool.WD.GUI-Linux-x64
-            artifact_ext: ""
           - os: macos-latest
             runtime: osx-x64
             artifact_name: EarthTool.WD.GUI-macOS-x64
-            artifact_ext: ""
 
     steps:
       - name: Display build context
         shell: bash
         run: |
-          echo "🚀 Starting EarthTool.WD.GUI build"
+          echo "🚀 Building EarthTool.WD.GUI for Release"
+          echo "Platform: ${{ matrix.os }}"
+          echo "Runtime: ${{ matrix.runtime }}"
           echo "Event: ${{ github.event_name }}"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Is tag: ${{ startsWith(github.ref, 'refs/tags/v') }}"
-          echo "Is PR: ${{ github.event_name == 'pull_request' }}"
-          echo "Is manual: ${{ github.event_name == 'workflow_dispatch' }}"
-
-          if [[ "${{ github.event_name }}" == "push" && "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]]; then
-            echo "📦 This is a RELEASE build for version: ${{ github.ref_name }}"
-          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "🔍 This is a PR build for review"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "⚙️ This is a MANUAL build"
-          else
-            echo "🔧 This is a CI build for branch: ${{ github.ref_name }}"
-          fi
+          echo "Ref: ${{ github.ref }}"
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -89,38 +73,40 @@ jobs:
         run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore
 
       - name: Run tests
-        run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
+        run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
+        continue-on-error: false
 
       - name: Test Report
-        uses: dorny/test-reporter@v2
+        uses: dorny/test-reporter@v1
         if: success() || failure()
         with:
           name: Test Results (${{ matrix.os }})
           path: "**/*.trx"
           reporter: dotnet-trx
+          fail-on-error: false
 
       - name: Publish GUI application
         shell: bash
         run: |
-          dotnet publish EarthTool.WD.GUI/EarthTool.WD.GUI.csproj \
+          dotnet publish ${{ env.PROJECT_PATH }} \
             --configuration Release \
             --runtime ${{ matrix.runtime }} \
             --self-contained true \
             --output ./publish/${{ matrix.runtime }} \
             -p:PublishSingleFile=true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
-            -p:EnableCompressionInSingleFile=true
+            -p:EnableCompressionInSingleFile=true \
+            -p:DebugType=none \
+            -p:DebugSymbols=false
 
       - name: Create artifact archive
         shell: bash
         run: |
           cd "publish/${{ matrix.runtime }}"
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            # On Windows, use PowerShell to create ZIP
-            powershell "Compress-Archive -Path '.' -DestinationPath '../../${{ matrix.artifact_name }}.zip' -Force"
+            7z a -tzip "../../${{ matrix.artifact_name }}.zip" *
           else
-            # On Linux/macOS, use tar
-            tar -czf "../../${{ matrix.artifact_name }}.tar.gz" .
+            tar -czf "../../${{ matrix.artifact_name }}.tar.gz" *
           fi
           cd ../..
 
@@ -144,27 +130,31 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ubuntu-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ubuntu-nuget-
+
       - name: Restore dependencies
         run: dotnet restore ${{ env.SOLUTION_FILE }}
 
       - name: Install dotnet format
-        run: dotnet tool install -g dotnet-format
+        run: dotnet tool install -g dotnet-format || dotnet tool update -g dotnet-format
 
       - name: Check code formatting
-        run: dotnet format --verify-no-changes --verbosity diagnostic
+        run: dotnet format ${{ env.SOLUTION_FILE }} --verify-no-changes --verbosity diagnostic
         continue-on-error: true
 
-      - name: Run code analysis
+      - name: Run code analysis with warnings
         run: |
-          dotnet build ${{ env.SOLUTION_FILE }} --configuration Release /p:TreatWarningsAsErrors=false
-
-      - name: Upload code analysis results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: code-analysis-results
-          path: "**/*.binlog"
-          retention-days: 7
+          dotnet build ${{ env.SOLUTION_FILE }} \
+            --configuration Release \
+            --no-restore \
+            /p:TreatWarningsAsErrors=false \
+            /p:WarningLevel=4
 
   security-scan:
     name: Security Scan
@@ -214,26 +204,9 @@ jobs:
     name: Create Release
     needs: [build-and-test, code-quality]
     runs-on: ubuntu-latest
-    # Only create releases on version tags (v*) or manual dispatch with publish=true
-    # This prevents accidental releases from dev branches or other pushes
-    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true')
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true')
 
     steps:
-      - name: Verify release conditions
-        run: |
-          echo "Event name: ${{ github.event_name }}"
-          echo "Ref: ${{ github.ref }}"
-          echo "Is tag: ${{ startsWith(github.ref, 'refs/tags/v') }}"
-          echo "Manual publish: ${{ github.event.inputs.publish }}"
-
-          if [[ "${{ github.event_name }}" == "push" && "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]]; then
-            echo "✅ Creating release for version tag: ${{ github.ref_name }}"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.publish }}" == "true" ]]; then
-            echo "✅ Creating release via manual dispatch"
-          else
-            echo "❌ Skipping release - not a version tag and not manual publish"
-          fi
-
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -334,7 +307,7 @@ jobs:
               echo "> **Warning**: This release contains breaking changes. Please review the migration guide below." >> CHANGELOG.md
               echo "" >> CHANGELOG.md
               
-              local has_breaking=false
+              has_breaking=false
               while IFS='|||' read -r subject body hash author; do
                 if [[ "$body" == *"BREAKING CHANGE"* ]]; then
                   # Extract the breaking change description
@@ -405,7 +378,7 @@ jobs:
             
             # Other changes (not matching above patterns)
             echo "### 🔧 Other Changes" >> CHANGELOG.md
-            local other_count=0
+            other_count=0
             while IFS='|||' read -r subject hash author; do
               if [ ! -z "$subject" ]; then
                 echo "- $subject [\`$hash\`](https://github.com/${{ github.repository }}/commit/$hash) - @$author" >> CHANGELOG.md
@@ -515,30 +488,16 @@ jobs:
           cat CHANGELOG.md
 
       - name: Create Release
-        id: create_release
         uses: softprops/action-gh-release@v2
         with:
           name: EarthTool.WD.GUI ${{ github.ref_name }}
           body_path: CHANGELOG.md
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+          generate_release_notes: false
           files: |
             artifacts/EarthTool.WD.GUI-Windows-x64/EarthTool.WD.GUI-Windows-x64.zip
             artifacts/EarthTool.WD.GUI-Linux-x64/EarthTool.WD.GUI-Linux-x64.tar.gz
             artifacts/EarthTool.WD.GUI-macOS-x64/EarthTool.WD.GUI-macOS-x64.tar.gz
-          draft: false
-          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
-          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  notify:
-    name: Notify Release
-    needs: create-release
-    runs-on: ubuntu-latest
-    if: always() && needs.create-release.result == 'success'
-
-    steps:
-      - name: Notify success
-        run: |
-          echo "🎉 EarthTool.WD.GUI release created successfully!"
-          echo "📦 Release URL: ${{ needs.create-release.outputs.url }}"
-          echo "📋 Check the release page for download links and release notes."
