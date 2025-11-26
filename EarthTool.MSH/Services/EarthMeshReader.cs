@@ -25,7 +25,7 @@ namespace EarthTool.MSH.Services
   {
     private readonly IEarthInfoFactory _earthInfoFactory;
     private readonly IHierarchyBuilder _hierarchyBuilder;
-    private readonly Encoding          _encoding;
+    private readonly Encoding _encoding;
 
     public EarthMeshReader(IEarthInfoFactory earthInfoFactory, IHierarchyBuilder hierarchyBuilder, Encoding encoding)
     {
@@ -76,12 +76,18 @@ namespace EarthTool.MSH.Services
         Size1 =
           new Size()
           {
-            X1 = reader.ReadSingle(), X2 = reader.ReadSingle(), Y1 = reader.ReadSingle(), Y2 = reader.ReadSingle()
+            X1 = reader.ReadSingle(),
+            X2 = reader.ReadSingle(),
+            Y1 = reader.ReadSingle(),
+            Y2 = reader.ReadSingle()
           },
         Size2 =
           new Size()
           {
-            X1 = reader.ReadSingle(), X2 = reader.ReadSingle(), Y1 = reader.ReadSingle(), Y2 = reader.ReadSingle()
+            X1 = reader.ReadSingle(),
+            X2 = reader.ReadSingle(),
+            Y1 = reader.ReadSingle(),
+            Y2 = reader.ReadSingle()
           },
         SizeZ = reader.ReadSingle(),
         Radius = reader.ReadSingle(),
@@ -159,9 +165,9 @@ namespace EarthTool.MSH.Services
 
     private ISlot LoadSlot(BinaryReader reader, int id)
     {
-      var x = reader.ReadInt16()  / 255f;
+      var x = reader.ReadInt16() / 255f;
       var y = -reader.ReadInt16() / 255f;
-      var z = reader.ReadInt16()  / 255f;
+      var z = reader.ReadInt16() / 255f;
       var result = new Slot()
       {
         Id = id,
@@ -202,7 +208,10 @@ namespace EarthTool.MSH.Services
     private IMeshBoundries LoadMeshBoundaries(BinaryReader reader)
       => new MeshBoundries
       {
-        MaxY = reader.ReadInt16(), MinY = reader.ReadInt16(), MaxX = reader.ReadInt16(), MinX = reader.ReadInt16()
+        MaxY = reader.ReadInt16(),
+        MinY = reader.ReadInt16(),
+        MaxX = reader.ReadInt16(),
+        MinX = reader.ReadInt16()
       };
 
     private ITemplateDetails LoadTemplateDetails(BinaryReader reader)
@@ -372,7 +381,10 @@ namespace EarthTool.MSH.Services
     private IFace LoadFace(BinaryReader reader)
       => new Face()
       {
-        V1 = reader.ReadInt16(), V2 = reader.ReadInt16(), V3 = reader.ReadInt16(), UNKNOWN = reader.ReadInt16(),
+        V1 = reader.ReadInt16(),
+        V2 = reader.ReadInt16(),
+        V3 = reader.ReadInt16(),
+        UNKNOWN = reader.ReadInt16(),
       };
 
     private ITextureInfo LoadTextureInfo(BinaryReader reader)

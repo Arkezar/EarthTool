@@ -81,7 +81,7 @@ namespace EarthTool.MSH.Models
         }
 
         return output.ToArray().ToArray();
-      } 
+      }
     }
   }
 }

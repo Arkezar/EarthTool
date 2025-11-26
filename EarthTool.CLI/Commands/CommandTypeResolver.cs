@@ -12,7 +12,7 @@ public class CommandTypeResolver : ITypeResolver, IDisposable
   {
     _provider = provider;
   }
-  
+
   public object Resolve(Type type)
   {
     return _provider.Services.GetService(type);

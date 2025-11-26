@@ -10,7 +10,7 @@ public partial class MainWindow : Window
   public MainWindow()
   {
     InitializeComponent();
-    
+
     // Add keyboard handler for ESC to clear selection
     this.AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
   }
@@ -31,11 +31,11 @@ public partial class MainWindow : Window
     {
       var point = e.GetCurrentPoint(treeView);
       var element = treeView.InputHitTest(point.Position);
-      
+
       // Walk up the visual tree to see if we hit a TreeViewItem
       var current = element as Control;
       bool hitTreeViewItem = false;
-      
+
       while (current != null && current != treeView)
       {
         if (current is TreeViewItem)
@@ -45,7 +45,7 @@ public partial class MainWindow : Window
         }
         current = current.Parent as Control;
       }
-      
+
       // If we didn't hit a TreeViewItem, clear selection
       if (!hitTreeViewItem)
       {

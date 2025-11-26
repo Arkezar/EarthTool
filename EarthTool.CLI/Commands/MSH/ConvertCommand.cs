@@ -24,7 +24,7 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
     [DefaultValue(FileType.DAE)]
     public FileType OutputFormat { get; set; }
   }
-  
+
   public ConvertCommand(IEnumerable<IReader<IMesh>> meshReaders, IEnumerable<IWriter<IMesh>> meshWriters)
   {
     _meshReader = meshReaders.Single(w => w.InputFileExtension == FileType.MSH);
@@ -42,7 +42,7 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
         AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, string.Join('|', model.RootDynamic.SubMeshes.Select(m => m.RootDynamic.Position2).Append(model.RootDynamic.Position2)));
         // AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, model.RootEffect.UnknownFloats1.Last());
       }
-      
+
       //Part Types
       // AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, string.Join('|', model.Geometries.Select(g => g.PartType)));
     }
@@ -56,12 +56,12 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
   protected override Task InternalExecuteAsync(string filePath, ConvertCommand.Settings settings)
   {
     var writer = _meshWriters[settings.OutputFormat];
-    
+
     var model = _meshReader.Read(filePath);
-    
+
     var outputFilePath =
       GetOutputFilePath(filePath, settings.OutputFolderPath.Value, writer.OutputFileExtension);
-    
+
     var outputFile = writer.Write(model, outputFilePath);
 
     PrintModelDetails(filePath, outputFile, model);

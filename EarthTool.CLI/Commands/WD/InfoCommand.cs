@@ -35,7 +35,7 @@ public sealed class InfoCommand : WdCommandBase<InfoSettings>
       AnsiConsole.WriteLine(fileTime.ToString());
       return 0;
     }
-    
+
     // If guid-only mode, output just the archive guid
     if (settings.GuidOnly)
     {
@@ -46,8 +46,8 @@ public sealed class InfoCommand : WdCommandBase<InfoSettings>
     var fileInfo = new FileInfo(settings.ArchivePath);
     var totalCompressed = archive.Items.Sum(i => (long)i.CompressedSize);
     var totalDecompressed = archive.Items.Sum(i => (long)i.DecompressedSize);
-    var compressionRatio = totalDecompressed > 0 
-      ? (1.0 - (double)totalCompressed / totalDecompressed) * 100 
+    var compressionRatio = totalDecompressed > 0
+      ? (1.0 - (double)totalCompressed / totalDecompressed) * 100
       : 0;
 
     var compressedCount = archive.Items.Count(i => i.IsCompressed);
@@ -113,8 +113,8 @@ public sealed class InfoCommand : WdCommandBase<InfoSettings>
       var largestNode = tree.AddNode("[bold]Largest Files (Top 5)[/]");
       foreach (var item in largestFiles)
       {
-        var ratio = item.DecompressedSize > 0 
-          ? (1.0 - (double)item.CompressedSize / item.DecompressedSize) * 100 
+        var ratio = item.DecompressedSize > 0
+          ? (1.0 - (double)item.CompressedSize / item.DecompressedSize) * 100
           : 0;
         largestNode.AddNode($"{item.FileName}: {FormatBytes(item.DecompressedSize)} (ratio: {ratio:F1}%)");
       }

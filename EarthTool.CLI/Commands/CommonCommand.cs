@@ -21,7 +21,7 @@ public abstract class CommonCommand<TSettings> : AsyncCommand<TSettings> where T
   {
     return outputPath ?? Path.GetDirectoryName(inputFilePath);
   }
-  
+
   protected string GetOutputFilePath(string inputFilePath, string outputPath, FileType outputFileType)
   {
     var outputDirectory = GetOutputDirectory(inputFilePath, outputPath);

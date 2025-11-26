@@ -63,7 +63,9 @@ namespace EarthTool.DAE.Elements
         new Instance_Material { Symbol = $"{id}-material", Target = $"#{id}-material", };
       instanceMaterial.Bind_Vertex_Input.Add(new Instance_MaterialBind_Vertex_Input
       {
-        Input_Set = 0, Input_Semantic = "TEXCOORD", Semantic = "UVMap"
+        Input_Set = 0,
+        Input_Semantic = "TEXCOORD",
+        Semantic = "UVMap"
       });
 
       instanceGeometry.Bind_Material.Technique_Common.Add(instanceMaterial);
@@ -73,22 +75,22 @@ namespace EarthTool.DAE.Elements
       {
         node.NodeProperty.Add(emitterNodes.ElementAt(0));
       }
-      
+
       if (part.PartType.HasFlag(PartType.Emitter2))
       {
         node.NodeProperty.Add(emitterNodes.ElementAt(1));
       }
-      
+
       if (part.PartType.HasFlag(PartType.Emitter3))
       {
         node.NodeProperty.Add(emitterNodes.ElementAt(2));
       }
-      
+
       if (part.PartType.HasFlag(PartType.Emitter4))
       {
         node.NodeProperty.Add(emitterNodes.ElementAt(3));
       }
-      
+
       return node;
     }
 

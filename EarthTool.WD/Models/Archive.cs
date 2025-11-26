@@ -1,10 +1,10 @@
+using EarthTool.Common.Enums;
+using EarthTool.Common.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
-using EarthTool.Common.Enums;
-using EarthTool.Common.Interfaces;
 using System.IO.MemoryMappedFiles;
+using System.Text;
 
 namespace EarthTool.WD.Models
 {
@@ -164,7 +164,7 @@ namespace EarthTool.WD.Models
       // Then dispose the shared MMF
       _memoryMappedFile?.Dispose();
       _disposed = true;
-      
+
       GC.SuppressFinalize(this);
     }
   }

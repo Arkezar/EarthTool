@@ -25,7 +25,7 @@ namespace EarthTool.DAE.Elements
 
     public IEnumerable<(Material Material, Effect Effect)> GetMaterials(IEnumerable<PartNode> parts, string modelName)
     {
-      return parts.SelectMany((p, i) => p.Parts.Select((sp, idx) => (GetMaterial(sp, i, idx, modelName), GetEffect(sp, i,idx, modelName))));
+      return parts.SelectMany((p, i) => p.Parts.Select((sp, idx) => (GetMaterial(sp, i, idx, modelName), GetEffect(sp, i, idx, modelName))));
     }
 
     private Effect GetEffect(IModelPart p, int i, int si, string modelName)
@@ -51,7 +51,8 @@ namespace EarthTool.DAE.Elements
             {
               Texture = new Common_Color_Or_Texture_TypeTexture
               {
-                Texcoord = "UVMap", Texture = $"{id}-sampler"
+                Texcoord = "UVMap",
+                Texture = $"{id}-sampler"
               }
             }
           }

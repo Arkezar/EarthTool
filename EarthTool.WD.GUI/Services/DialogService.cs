@@ -109,8 +109,8 @@ public class DialogService : IDialogService
   }
 
   public async Task<MessageBoxResult> ShowMessageBoxAsync(
-    string message, 
-    string title, 
+    string message,
+    string title,
     MessageBoxType messageBoxType = MessageBoxType.Ok)
   {
     var window = GetMainWindow();

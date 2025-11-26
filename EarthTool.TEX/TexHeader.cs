@@ -82,7 +82,7 @@ namespace EarthTool.TEX
           {
             writer.Write(GroupCount);
           }
-          
+
           if (TextureType.HasFlag(TextureType.Texture) && !SubType.HasFlag(TextureSubType.Collection))
           {
             writer.Write(Width);

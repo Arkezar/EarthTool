@@ -38,7 +38,7 @@ namespace EarthTool.MSH.Models
       {
         return false;
       }
-      
+
       if (_currentLevel.MoveNext())
       {
         Current = _currentLevel.Current;
@@ -53,7 +53,7 @@ namespace EarthTool.MSH.Models
         {
           return false;
         }
-        
+
         if (_currentLevel.MoveNext())
         {
           Current = _currentLevel.Current;

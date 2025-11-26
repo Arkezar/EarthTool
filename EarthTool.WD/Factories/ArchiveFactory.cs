@@ -91,7 +91,7 @@ namespace EarthTool.WD.Factories
         return new ArchiveItem(filePath, header, dataSource, compressedSize, decompressedSize);
       }).ToImmutableArray();
     }
-    
+
     /// <summary>
     /// Open central directory stream from memory-mapped file without loading entire archive.
     /// 
@@ -115,12 +115,12 @@ namespace EarthTool.WD.Factories
       // Calculate central directory location
       // Structure: [... items ...][compressed central dir][descriptor length]
       // descriptorLength = size of compressed central dir + 4 bytes for length itself
-      var centralDirOffset = fileSize       - descriptorLength;  // Skip back by full descriptor
+      var centralDirOffset = fileSize - descriptorLength;  // Skip back by full descriptor
       var centralDirSize = descriptorLength - sizeof(int);       // Exclude the 4-byte length field
 
       MemoryMappedViewStream centralDirStream = null;
       Stream decompressionStream = null;
-      
+
       try
       {
         centralDirStream = mmf.CreateViewStream(
@@ -130,7 +130,7 @@ namespace EarthTool.WD.Factories
 
         // Decompression stream will own centralDirStream (leaveOpen: false)
         decompressionStream = decompressor.OpenDecompressionStream(centralDirStream, leaveOpen: false);
-        
+
         // BinaryReader will own decompressionStream
         return new BinaryReader(decompressionStream, encoding, leaveOpen: false);
       }
@@ -148,7 +148,7 @@ namespace EarthTool.WD.Factories
       using var decompressedStream = decompressor.OpenDecompressionStream(stream);
       return earthInfoFactory.Get(decompressedStream);
     }
-    
+
     private static MemoryMappedFile OpenMemoryMappedFile(string validatedPath)
       => MemoryMappedFile.CreateFromFile(
         validatedPath,

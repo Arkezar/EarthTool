@@ -97,7 +97,7 @@ public sealed class RemoveCommand : WdCommandBase<RemoveSettings>
     {
       _archiver.SaveArchive(archive, outputPath);
       AnsiConsole.MarkupLine($"[green]Successfully removed {removed} file(s) from archive[/]");
-      
+
       if (!string.IsNullOrEmpty(settings.OutputPath))
       {
         AnsiConsole.MarkupLine($"[dim]Saved to: {outputPath}[/]");

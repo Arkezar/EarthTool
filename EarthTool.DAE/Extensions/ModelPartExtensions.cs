@@ -10,7 +10,7 @@ namespace EarthTool.DAE.Extensions
   {
     public static string EnrichPartName(this IModelPart part, string baseName)
       => $"{baseName}-{part.GetAnimationDetails()}";
-    
+
     public static string GetAnimationDetails(this IModelPart part)
     {
       var partType = part.PartType switch
@@ -70,7 +70,7 @@ namespace EarthTool.DAE.Extensions
         _ => PartType.Base
       };
     }
-    
+
     private static AnimationType GetAnimationType(string name)
     {
       return name switch

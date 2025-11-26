@@ -1,8 +1,8 @@
-using System;
-using System.Diagnostics.CodeAnalysis;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using EarthTool.WD.GUI.ViewModels;
+using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace EarthTool.WD.GUI;
 

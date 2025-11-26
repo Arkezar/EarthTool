@@ -20,7 +20,7 @@ namespace EarthTool.MSH.Models.Collections
     public IEnumerable<ISlot> UnloadPoints { get; set; }
 
     public IEnumerable<ISlot> HitSpots { get; set; }
-    
+
     public IEnumerable<ISlot> SmokeSpots { get; set; }
 
     public IEnumerable<ISlot> Unknown { get; set; }
@@ -34,11 +34,11 @@ namespace EarthTool.MSH.Models.Collections
     public IEnumerable<ISlot> KeelTraces { get; set; }
 
     public IEnumerable<ISlot> InterfacePivot { get; set; }
-    
+
     public IEnumerable<ISlot> CenterPivot { get; set; }
 
     public IEnumerable<ISlot> ProductionSpotStart { get; set; }
-    
+
     public IEnumerable<ISlot> ProductionSpotEnd { get; set; }
 
     public IEnumerable<ISlot> LandingSpot { get; set; }

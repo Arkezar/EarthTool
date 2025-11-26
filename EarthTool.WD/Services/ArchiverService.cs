@@ -1,23 +1,23 @@
+using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
 using EarthTool.Common.Validation;
+using EarthTool.WD.Models;
 using Microsoft.Extensions.Logging;
+using System;
 using System.IO;
 using System.Linq;
 using System.Text;
-using EarthTool.Common.Enums;
-using EarthTool.WD.Models;
-using System;
 
 namespace EarthTool.WD.Services
 {
   public class ArchiverService : IArchiver
   {
     private readonly ILogger<ArchiverService> _logger;
-    private readonly IEarthInfoFactory        _earthInfoFactory;
-    private readonly IArchiveFactory          _archiveFactory;
-    private readonly IDecompressor            _decompressor;
-    private readonly ICompressor              _compressor;
-    private readonly Encoding                 _encoding;
+    private readonly IEarthInfoFactory _earthInfoFactory;
+    private readonly IArchiveFactory _archiveFactory;
+    private readonly IDecompressor _decompressor;
+    private readonly ICompressor _compressor;
+    private readonly Encoding _encoding;
 
     public ArchiverService(
       ILogger<ArchiverService> logger,
@@ -75,7 +75,7 @@ namespace EarthTool.WD.Services
       _logger.LogInformation("Added file {FileName} to archive (compressed: {Compressed})",
         item.FileName, compress);
     }
-    
+
     public void AddFile(IArchive archive, byte[] data, string filePath, string baseDirectory = null, bool compress = true)
     {
       ArgumentNullException.ThrowIfNull(archive);
@@ -100,7 +100,7 @@ namespace EarthTool.WD.Services
     {
       SaveArchive(archive, outputFilePath, closeArchiveBeforeSave: false);
     }
-    
+
     public void SaveArchive(IArchive archive, string outputFilePath, bool closeArchiveBeforeSave)
     {
       ArgumentNullException.ThrowIfNull(archive);
@@ -115,7 +115,7 @@ namespace EarthTool.WD.Services
       // This is crucial: ToByteArray() forces all lazy-loaded data from MemoryMappedFile
       // to be read into memory before we close the archive
       var archiveData = archive.ToByteArray(_compressor, _encoding);
-      
+
       // If requested, dispose the archive to release file locks
       // This is necessary when saving to the same file that's currently open
       if (closeArchiveBeforeSave)
@@ -123,17 +123,17 @@ namespace EarthTool.WD.Services
         _logger.LogInformation("Disposing archive to release file locks before save");
         archive.Dispose();
       }
-      
+
       // Use safe file writing pattern for Windows 11 compatibility
       // Write to temporary file first, then replace original
       var tempFilePath = outputFilePath + ".tmp";
       var backupFilePath = outputFilePath + ".bak";
-      
+
       try
       {
         // Write to temporary file
         File.WriteAllBytes(tempFilePath, archiveData);
-        
+
         // If original file exists, create backup
         if (File.Exists(outputFilePath))
         {
@@ -142,20 +142,20 @@ namespace EarthTool.WD.Services
           {
             File.Delete(backupFilePath);
           }
-          
+
           // Move original to backup
           File.Move(outputFilePath, backupFilePath);
         }
-        
+
         // Move temp file to final location
         File.Move(tempFilePath, outputFilePath);
-        
+
         // Delete backup on successful write
         if (File.Exists(backupFilePath))
         {
           File.Delete(backupFilePath);
         }
-        
+
         _logger.LogInformation("Saved archive to {OutputPath} ({Size} bytes, {ItemCount} items)",
           outputFilePath, archiveData.Length, archive.Items.Count);
       }
@@ -166,7 +166,7 @@ namespace EarthTool.WD.Services
         {
           try { File.Delete(tempFilePath); } catch { }
         }
-        
+
         // Restore from backup if original was moved
         if (File.Exists(backupFilePath) && !File.Exists(outputFilePath))
         {
@@ -180,7 +180,7 @@ namespace EarthTool.WD.Services
             _logger.LogError(restoreEx, "Failed to restore backup file");
           }
         }
-        
+
         _logger.LogError(ex, "Failed to save archive to {OutputPath}", outputFilePath);
         throw new IOException($"Failed to save archive to {outputFilePath}. See inner exception for details.", ex);
       }
@@ -239,7 +239,7 @@ namespace EarthTool.WD.Services
 
       return CreateArchiveItemFromFile(fileData, filePath, baseDirectory, earthInfoFactory, compressor, compress);
     }
-    
+
     private ArchiveItem CreateArchiveItemFromFile(
       byte[] fileData,
       string filePath,

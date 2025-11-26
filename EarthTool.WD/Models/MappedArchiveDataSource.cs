@@ -12,9 +12,9 @@ namespace EarthTool.WD.Models;
 public class MappedArchiveDataSource : IArchiveDataSource
 {
   private readonly MemoryMappedFile _file;
-  private readonly int              _offset;
-  private readonly int              _length;
-  private readonly Lazy<byte[]>     _cachedData;
+  private readonly int _offset;
+  private readonly int _length;
+  private readonly Lazy<byte[]> _cachedData;
 
   public MappedArchiveDataSource(MemoryMappedFile file, int offset, int length)
   {

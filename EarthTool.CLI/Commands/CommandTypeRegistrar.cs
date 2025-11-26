@@ -13,7 +13,7 @@ public class CommandTypeRegistrar : ITypeRegistrar
   {
     _builder = builder;
   }
-  
+
   public void Register(Type service, Type implementation)
   {
     _builder.ConfigureServices((_, services) => services.AddSingleton(service, implementation));

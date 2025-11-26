@@ -22,7 +22,7 @@ public class InfoSettings : WdSettings
   [Description("Output only the archive LastModification timestamp (Windows FileTime)")]
   [DefaultValue(false)]
   public bool TimestampOnly { get; set; }
-  
+
   [CommandOption("--guid-only")]
   [Description("Output only the archive Guid identifier")]
   [DefaultValue(false)]

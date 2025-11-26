@@ -75,8 +75,8 @@ public sealed class AddCommand : WdCommandBase<AddSettings>
       try
       {
         // Use provided base directory or parent directory of file
-        var baseDir = !string.IsNullOrEmpty(settings.BaseDir) 
-          ? settings.BaseDir 
+        var baseDir = !string.IsNullOrEmpty(settings.BaseDir)
+          ? settings.BaseDir
           : Path.GetDirectoryName(filePath);
         _archiver.AddFile(archive, filePath, baseDir, compress);
         added++;
@@ -104,7 +104,7 @@ public sealed class AddCommand : WdCommandBase<AddSettings>
 
       _archiver.SaveArchive(archive, outputPath);
       AnsiConsole.MarkupLine($"[green]Successfully added {added} file(s) to archive[/]");
-      
+
       if (!string.IsNullOrEmpty(settings.OutputPath))
       {
         AnsiConsole.MarkupLine($"[dim]Saved to: {outputPath}[/]");

@@ -20,7 +20,7 @@ namespace EarthTool.MSH.Services
         {
           parent = parent.Parent;
         }
-    
+
         if (part.PartType == PartType.Base)
         {
           node = parent;

@@ -7,7 +7,7 @@ namespace EarthTool.Common.Interfaces
   public interface IEarthInfoFactory
   {
     IEarthInfo Get(byte[] data);
-    
+
     IEarthInfo Get(Stream stream);
 
     IEarthInfo Get(

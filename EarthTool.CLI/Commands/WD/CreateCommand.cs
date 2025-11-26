@@ -111,7 +111,7 @@ public sealed class CreateCommand : WdCommandBase<CreateSettings>
         // Add files from directory
         var searchOption = settings.Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
         filesToAdd = Directory.GetFiles(settings.InputPath, "*", searchOption);
-        
+
         if (!filesToAdd.Any())
         {
           AnsiConsole.MarkupLine($"[yellow]No files found in directory: {settings.InputPath}[/]");
@@ -161,10 +161,10 @@ public sealed class CreateCommand : WdCommandBase<CreateSettings>
         {
           _archiver.AddFile(archive, file, baseDir, compress);
           added++;
-          
+
           // Show relative path for better visibility
-          var displayName = baseDir != null 
-            ? Path.GetRelativePath(baseDir, file) 
+          var displayName = baseDir != null
+            ? Path.GetRelativePath(baseDir, file)
             : Path.GetFileName(file);
           AnsiConsole.MarkupLine($"[dim]  Added: {displayName}[/]");
         }

@@ -28,7 +28,7 @@ namespace EarthTool.DAE.Services
 
       return filePath;
     }
-    
+
     private void WriteColladaModel(IMesh model, string modelName, string outputFile)
     {
       if (model.Descriptor.MeshType == MeshType.Dynamic)

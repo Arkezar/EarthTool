@@ -194,10 +194,10 @@ namespace EarthTool.DAE.Services
 
       var faceValues = polys.Split(' ').Select(v => int.Parse(v));
       var faces = faceValues.Select((v, i) => new
-        {
-          Value = v,
-          Group = i / new[] { vertexInput.Offset, normalInput.Offset, uvMapInput.Offset }.Distinct().Count()
-        })
+      {
+        Value = v,
+        Group = i / new[] { vertexInput.Offset, normalInput.Offset, uvMapInput.Offset }.Distinct().Count()
+      })
         .GroupBy(v => v.Group)
         .Select((v, i) => new { Face = v.Select(x => x.Value).ToArray(), Group = i / vCount })
         .GroupBy(v => v.Group)
@@ -352,8 +352,8 @@ namespace EarthTool.DAE.Services
         .ToLookup(l => l.Name);
 
       var modelTree = new ModelTree(model);
-      var slotsPosition = modelTree.SelectMany(n => n.Node.NodeProperty).Where(n =>  slots.Contains(n.Name));
-      
+      var slotsPosition = modelTree.SelectMany(n => n.Node.NodeProperty).Where(n => slots.Contains(n.Name));
+
       var meshSlots = slotsPosition.Select((n, i) => GetSlot(n, i));
       return Fill(meshSlots, count, () => new Slot());
     }
@@ -446,7 +446,9 @@ namespace EarthTool.DAE.Services
 
       return new OmniLight()
       {
-        Value = matrix.Translation, Color = Color.FromArgb(color[0], color[1], color[2]), Radius = 0,
+        Value = matrix.Translation,
+        Color = Color.FromArgb(color[0], color[1], color[2]),
+        Radius = 0,
       };
     }
 
@@ -477,7 +479,7 @@ namespace EarthTool.DAE.Services
     private IMeshFrames LoadFrames(COLLADA model)
     {
       var modelTree = new ModelTree(model).ToArray();
-      
+
       return new MeshFrames()
       {
         LoopedFrames = GetFrameCount(modelTree, AnimationType.Looped),
@@ -486,7 +488,7 @@ namespace EarthTool.DAE.Services
         BuildingFrames = GetFrameCount(modelTree, AnimationType.Lift)
       };
     }
-    
+
     private byte GetFrameCount(IEnumerable<ModelTreeNode> modelTree, AnimationType type)
     {
       var frames = modelTree

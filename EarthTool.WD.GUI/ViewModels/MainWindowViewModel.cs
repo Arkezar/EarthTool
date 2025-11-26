@@ -17,17 +17,17 @@ namespace EarthTool.WD.GUI.ViewModels;
 /// </summary>
 public class MainWindowViewModel : ViewModelBase, IDisposable
 {
-  private readonly IArchiver           _archiver;
-  private readonly IDialogService      _dialogService;
-  private readonly INotificationService  _notificationService;
-  private readonly ITextFlagService    _textFlagService;
+  private readonly IArchiver _archiver;
+  private readonly IDialogService _dialogService;
+  private readonly INotificationService _notificationService;
+  private readonly ITextFlagService _textFlagService;
   private readonly ILogger<MainWindowViewModel> _logger;
 
   private IArchive? _currentArchive;
-  private string?   _currentFilePath;
-  private bool      _hasUnsavedChanges;
-  private bool      _isBusy;
-  private string    _statusMessage = "Ready";
+  private string? _currentFilePath;
+  private bool _hasUnsavedChanges;
+  private bool _isBusy;
+  private string _statusMessage = "Ready";
 
   public MainWindowViewModel(
     IArchiver archiver,
@@ -36,11 +36,11 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     ITextFlagService textFlagService,
     ILogger<MainWindowViewModel> logger)
   {
-    _archiver = archiver                       ?? throw new ArgumentNullException(nameof(archiver));
-    _dialogService = dialogService             ?? throw new ArgumentNullException(nameof(dialogService));
+    _archiver = archiver ?? throw new ArgumentNullException(nameof(archiver));
+    _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
     _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
-    _textFlagService = textFlagService         ?? throw new ArgumentNullException(nameof(textFlagService));
-    _logger = logger                           ?? throw new ArgumentNullException(nameof(logger));
+    _textFlagService = textFlagService ?? throw new ArgumentNullException(nameof(textFlagService));
+    _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     ArchiveItems = new ObservableCollection<ArchiveItemViewModel>();
     TreeItems = new ObservableCollection<TreeItemViewModel>();
@@ -310,7 +310,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       StatusMessage = "Saving archive...";
 
       var filePath = _currentFilePath;
-      
+
       // Validate file path is writable before attempting save
       var directory = Path.GetDirectoryName(filePath);
       if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -319,19 +319,19 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         StatusMessage = "Failed to save archive";
         return;
       }
-      
+
       // Save archive with closeArchiveBeforeSave=true to release file locks
       // This is necessary on Windows 11 when saving to the same file
       await Task.Run(() => _archiver.SaveArchive(_currentArchive, filePath, closeArchiveBeforeSave: true));
-      
+
       // After save, the archive has been disposed (to release file locks)
       // We need to reopen it to continue working
       _logger.LogInformation("Reopening archive after save");
       IArchive? reopenedArchive = null;
       await Task.Run(() => reopenedArchive = _archiver.OpenArchive(filePath));
-      
+
       _currentArchive = reopenedArchive;
-      
+
       // Refresh UI to reflect the reopened archive
       LoadArchiveItems();
 
@@ -532,35 +532,35 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         return;
 
       IsBusy = true;
-      
+
       // Determine target folder in archive
       var targetFolder = "";
       if (SelectedTreeItem != null)
       {
         // If folder is selected, use it as target
         // If file is selected, use its parent folder
-        targetFolder = SelectedTreeItem.IsFolder 
-          ? SelectedTreeItem.FullPath 
+        targetFolder = SelectedTreeItem.IsFolder
+          ? SelectedTreeItem.FullPath
           : Path.GetDirectoryName(SelectedTreeItem.FullPath)?.Replace("\\", "/") ?? "";
       }
 
-      var targetMessage = string.IsNullOrEmpty(targetFolder) 
-        ? "to archive root" 
+      var targetMessage = string.IsNullOrEmpty(targetFolder)
+        ? "to archive root"
         : $"to folder '{targetFolder}'";
-      
+
       StatusMessage = $"Adding {files.Count} file(s) {targetMessage}...";
 
       // To add files to specific folder in archive, we need to create a temporary directory structure
       // that mirrors the desired archive structure
       string tempBaseDir;
-      
+
       if (!string.IsNullOrEmpty(targetFolder))
       {
         // Create temp directory with target folder structure
         tempBaseDir = Path.Combine(Path.GetTempPath(), $"EarthToolTemp_{Guid.NewGuid()}");
         var targetPath = Path.Combine(tempBaseDir, targetFolder.Replace("/", Path.DirectorySeparatorChar.ToString()));
         Directory.CreateDirectory(targetPath);
-        
+
         // Copy files to temp location
         var tempFiles = new List<string>();
         foreach (var file in files)
@@ -570,7 +570,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
           File.Copy(file, tempFile);
           tempFiles.Add(tempFile);
         }
-        
+
         // Add files from temp location with proper base directory
         await Task.Run(() =>
         {
@@ -579,7 +579,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
             _archiver.AddFile(_currentArchive, tempFile, tempBaseDir, compress: true);
           }
         });
-        
+
         // Cleanup temp directory
         try
         {
@@ -633,28 +633,28 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         return;
 
       IsBusy = true;
-      
+
       // Determine target folder in archive
       var targetFolder = "";
       if (SelectedTreeItem != null)
       {
         // If folder is selected, use it as target
         // If file is selected, use its parent folder
-        targetFolder = SelectedTreeItem.IsFolder 
-          ? SelectedTreeItem.FullPath 
+        targetFolder = SelectedTreeItem.IsFolder
+          ? SelectedTreeItem.FullPath
           : Path.GetDirectoryName(SelectedTreeItem.FullPath)?.Replace("\\", "/") ?? "";
       }
 
       var folderName = Path.GetFileName(folderPath);
-      var targetMessage = string.IsNullOrEmpty(targetFolder) 
-        ? $"to archive root" 
+      var targetMessage = string.IsNullOrEmpty(targetFolder)
+        ? $"to archive root"
         : $"to folder '{targetFolder}'";
-      
+
       StatusMessage = $"Adding folder '{folderName}' {targetMessage}...";
 
       // Get all files in the folder recursively
       var allFiles = Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories);
-      
+
       if (allFiles.Length == 0)
       {
         _notificationService.ShowWarning($"Folder '{folderName}' is empty - no files to add");
@@ -663,18 +663,18 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
       // To add folder to specific location in archive, we need to create a temporary directory structure
       string tempBaseDir;
-      
+
       if (!string.IsNullOrEmpty(targetFolder))
       {
         // Create temp directory with target folder structure
         tempBaseDir = Path.Combine(Path.GetTempPath(), $"EarthToolTemp_{Guid.NewGuid()}");
         var targetPath = Path.Combine(tempBaseDir, targetFolder.Replace("/", Path.DirectorySeparatorChar.ToString()));
         Directory.CreateDirectory(targetPath);
-        
+
         // Copy entire folder structure to temp location
         var destFolderPath = Path.Combine(targetPath, folderName);
         CopyDirectory(folderPath, destFolderPath);
-        
+
         // Add all files from temp location with proper base directory
         var tempFiles = Directory.GetFiles(destFolderPath, "*", SearchOption.AllDirectories);
         await Task.Run(() =>
@@ -684,7 +684,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
             _archiver.AddFile(_currentArchive, tempFile, tempBaseDir, compress: true);
           }
         });
-        
+
         // Cleanup temp directory
         try
         {
@@ -713,7 +713,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
       _notificationService.ShowSuccess($"Added folder '{folderName}' with {allFiles.Length} file(s) {targetMessage}");
       StatusMessage = $"Added {allFiles.Length} file(s)";
-      _logger.LogInformation("Added folder '{FolderName}' with {Count} files to archive at path '{TargetFolder}'", 
+      _logger.LogInformation("Added folder '{FolderName}' with {Count} files to archive at path '{TargetFolder}'",
         folderName, allFiles.Length, targetFolder);
     }
     catch (Exception ex)
@@ -759,13 +759,13 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       {
         // If folder is selected, create inside it
         // If file is selected, create in its parent folder
-        targetFolder = SelectedTreeItem.IsFolder 
-          ? SelectedTreeItem.FullPath 
+        targetFolder = SelectedTreeItem.IsFolder
+          ? SelectedTreeItem.FullPath
           : Path.GetDirectoryName(SelectedTreeItem.FullPath)?.Replace("\\", "/") ?? "";
       }
 
-      var fullPath = string.IsNullOrEmpty(targetFolder) 
-        ? folderName 
+      var fullPath = string.IsNullOrEmpty(targetFolder)
+        ? folderName
         : $"{targetFolder}/{folderName}";
 
       // Check if folder already exists
@@ -779,7 +779,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       // We need to add a placeholder file to actually create the folder in the archive
       // since WD archives don't support empty folders
       var placeholderFileName = $"{fullPath}/.placeholder";
-      
+
       // Create a temporary placeholder file
       var tempFile = Path.Combine(Path.GetTempPath(), $"placeholder_{Guid.NewGuid()}.tmp");
       File.WriteAllText(tempFile, "This is a placeholder file to maintain folder structure.");
@@ -790,7 +790,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         var tempBaseDir = Path.Combine(Path.GetTempPath(), $"EarthToolTemp_{Guid.NewGuid()}");
         var placeholderPath = Path.Combine(tempBaseDir, placeholderFileName.Replace("/", Path.DirectorySeparatorChar.ToString()));
         var placeholderDir = Path.GetDirectoryName(placeholderPath);
-        
+
         if (!string.IsNullOrEmpty(placeholderDir))
         {
           Directory.CreateDirectory(placeholderDir);
@@ -900,7 +900,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
       // Use preserving state method to maintain tree expansion and try to select parent
       LoadArchiveItemsPreservingState(GetParentPath(itemPath));
-      
+
       HasUnsavedChanges = true;
 
       _notificationService.ShowSuccess($"Removed {fileName} from archive");
@@ -927,10 +927,10 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     {
       var item = SelectedTreeItem;
       _textFlagService.SetTextFlag(item.Item!);
-      
+
       // Refresh TreeView while preserving expansion state and selection
       LoadArchiveItemsPreservingState(item.FullPath);
-      
+
       HasUnsavedChanges = true;
       _notificationService.ShowSuccess($"Text flag set for '{item.Name}'");
       _logger.LogInformation("Text flag set for file {FileName}", item.Name);
@@ -953,10 +953,10 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     {
       var item = SelectedTreeItem;
       _textFlagService.ClearTextFlag(item.Item!);
-      
+
       // Refresh TreeView while preserving expansion state and selection
       LoadArchiveItemsPreservingState(item.FullPath);
-      
+
       HasUnsavedChanges = true;
       _notificationService.ShowSuccess($"Text flag cleared for '{item.Name}'");
       _logger.LogInformation("Text flag cleared for file {FileName}", item.Name);
@@ -1007,7 +1007,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         aboutViewModel.FullAboutText,
         "About EarthTool WD Archive Manager",
         MessageBoxType.Ok);
-      
+
       _logger.LogInformation("About dialog shown");
     }
     catch (Exception ex)
@@ -1059,10 +1059,10 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   {
     // Store current expansion state
     var expandedPaths = GetExpandedPaths();
-    
+
     // Store current selection path
     var selectedPath = SelectedTreeItem?.FullPath ?? preserveSelectionPath;
-    
+
     // Clear and rebuild
     ArchiveItems.Clear();
     TreeItems.Clear();
@@ -1076,16 +1076,16 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       }
 
       BuildTreeStructure();
-      
+
       // Restore expansion state
       RestoreExpandedPaths(expandedPaths);
-      
+
       // Try to restore selection
       if (!string.IsNullOrEmpty(selectedPath))
       {
         RestoreSelectionByPath(selectedPath);
       }
-      
+
       ArchiveInfo.UpdateFromArchive(_currentArchive, _currentFilePath);
       this.RaisePropertyChanged(nameof(ArchiveInfoText));
     }
@@ -1102,12 +1102,12 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   private HashSet<string> GetExpandedPaths()
   {
     var expandedPaths = new HashSet<string>();
-    
+
     foreach (var rootItem in TreeItems)
     {
       CollectExpandedPaths(rootItem, expandedPaths);
     }
-    
+
     System.Diagnostics.Debug.WriteLine($"Collected {expandedPaths.Count} expanded paths: {string.Join(", ", expandedPaths)}");
     return expandedPaths;
   }
@@ -1121,7 +1121,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     {
       expandedPaths.Add(item.FullPath);
     }
-    
+
     foreach (var child in item.Children)
     {
       CollectExpandedPaths(child, expandedPaths);
@@ -1148,7 +1148,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     {
       item.IsExpanded = true;
     }
-    
+
     foreach (var child in item.Children)
     {
       RestoreExpandedPathsRecursive(child, expandedPaths);
@@ -1167,7 +1167,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       SelectedItem = foundItem;
       return;
     }
-    
+
     // If not found, try to select the parent folder
     var parentPath = GetParentPath(path);
     if (!string.IsNullOrEmpty(parentPath))
@@ -1193,7 +1193,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       {
         return item;
       }
-      
+
       var foundInChildren = FindItemByPath(item.Children, path);
       if (foundInChildren != null)
       {
@@ -1224,7 +1224,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   {
     // Clear existing tree items to prevent duplication
     TreeItems.Clear();
-    
+
     var root = new Dictionary<string, TreeItemViewModel>();
 
     foreach (var archiveItem in ArchiveItems)
@@ -1313,11 +1313,11 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     // Update status message based on notification type
     StatusMessage = e.Type switch
     {
-      NotificationType.Error   => $"Error: {e.Message}",
+      NotificationType.Error => $"Error: {e.Message}",
       NotificationType.Warning => $"Warning: {e.Message}",
       NotificationType.Success => e.Message,
-      NotificationType.Info    => e.Message,
-      _                        => e.Message
+      NotificationType.Info => e.Message,
+      _ => e.Message
     };
   }
 

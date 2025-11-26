@@ -16,7 +16,7 @@ namespace EarthTool.DAE.Elements
 
     public IEnumerable<Animation> GetAnimations(IEnumerable<PartNode> parts, string modelName)
     {
-      return parts.SelectMany((p, i) => p.Parts.Select((sp, idx) => GetAnimation(sp, i, idx, modelName)) ).Where(a => a != null);
+      return parts.SelectMany((p, i) => p.Parts.Select((sp, idx) => GetAnimation(sp, i, idx, modelName))).Where(a => a != null);
     }
 
     private Animation GetAnimation(IModelPart part, int i, int idx, string modelName)

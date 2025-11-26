@@ -17,9 +17,9 @@ namespace EarthTool.WD.Tests
     protected ICompressor Compressor { get; }
 
     protected IDecompressor Decompressor { get; }
-    
+
     protected Encoding Encoding { get; }
-    
+
     protected IEarthInfoFactory EarthInfoFactory { get; }
 
     public ArchiveTestsBase()
