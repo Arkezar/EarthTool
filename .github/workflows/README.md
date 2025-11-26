@@ -16,8 +16,11 @@ This directory contains GitHub Actions workflows for building, testing, and publ
 - Comprehensive testing
 - Code quality analysis
 - Security scanning
-- Automated releases with artifacts
+- **Dynamic changelog generation** with smart categorization
+- Automated releases with beautiful release notes
 - Semantic versioning support
+- Breaking change detection
+- Contributor attribution
 
 ### 2. `gui-build.yml` - Quick Build and Test
 **Purpose**: Fast feedback for GUI development
@@ -79,9 +82,47 @@ Each workflow produces artifacts that can be downloaded:
 - `GITHUB_TOKEN`: Automatically provided by GitHub for releases
 - No additional secrets needed for basic functionality
 
+## Dynamic Changelog Generation 📝
+
+The `build-and-publish-gui.yml` workflow includes an advanced changelog generator that automatically creates comprehensive release notes.
+
+### Key Features
+
+- **🎯 Automatic Release Type Detection**: Major/Minor/Patch based on commits
+- **📋 Smart Categorization**: Groups commits by type (features, fixes, docs, etc.)
+- **⚠️ Breaking Change Detection**: Highlights breaking changes with migration guides
+- **🔗 GitHub Integration**: Links to commits, issues, and PRs
+- **👥 Contributor Attribution**: Automatically credits all contributors
+- **📊 Statistics**: Shows commits, files changed, and lines modified
+- **✨ Highlights**: Summarizes the most important changes
+
+### Quick Start
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) format:
+
+```bash
+# Feature
+git commit -m "feat: add dark mode support"
+
+# Bug fix with issue reference
+git commit -m "fix: resolve extraction error #123"
+
+# Breaking change
+git commit -m "feat!: update API to v2
+
+BREAKING CHANGE: API endpoints changed.
+Migration: Update to /api/v2/ prefix"
+```
+
+### Documentation
+
+- **[CHANGELOG_QUICKSTART.md](./CHANGELOG_QUICKSTART.md)** - Quick reference guide
+- **[CHANGELOG_FEATURES.md](./CHANGELOG_FEATURES.md)** - Complete feature documentation
+
 ## Monitoring
 
 - Check Actions tab in GitHub for workflow runs
 - Download artifacts from workflow run pages
 - Monitor release creation in Releases section
 - Review build logs for debugging
+- Check generated changelogs in release notes

@@ -79,6 +79,7 @@ jobs:
         run: dotnet build EarthTool.WD.GUI/EarthTool.WD.GUI.csproj --configuration Release --no-restore
 
       - name: Run tests
+        shell: bash
         run: |
           echo "Running all tests in solution..."
           dotnet test EarthTool.sln \
