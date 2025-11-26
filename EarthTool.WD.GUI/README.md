@@ -1,150 +1,150 @@
 # EarthTool.WD.GUI - WD Archive Manager
 
-Graficzny interfejs użytkownika do zarządzania archiwami WD z gry Earth 2150.
+Graphical user interface for managing WD archives from the Earth 2150 game.
 
-## Przegląd
+## Overview
 
-EarthTool.WD.GUI to aplikacja desktopowa zbudowana w Avalonia UI, która umożliwia łatwą pracę z plikami archiwów WD używanymi przez grę Earth 2150. Aplikacja oferuje intuicyjny interfejs do przeglądania, ekstraktowania i modyfikowania zawartości archiwów.
+EarthTool.WD.GUI is a desktop application built with Avalonia UI that enables easy work with WD archive files used by the Earth 2150 game. The application offers an intuitive interface for browsing, extracting, and modifying archive contents.
 
-## Funkcjonalności
+## Features
 
-### Podstawowe operacje
+### Basic Operations
 
-- **Otwieranie archiwów** - Wczytywanie istniejących plików .WD
-- **Tworzenie nowych archiwów** - Generowanie pustych archiwów WD
-- **Zapisywanie archiwów** - Zapis zmian do pliku (Save/Save As)
-- **Zamykanie archiwów** - Bezpieczne zamykanie z ostrzeżeniem o niezapisanych zmianach
+- **Open Archives** - Load existing .WD files
+- **Create New Archives** - Generate empty WD archives
+- **Save Archives** - Save changes to file (Save/Save As)
+- **Close Archives** - Safe closing with warning about unsaved changes
 
-### Zarządzanie plikami
+### File Management
 
-- **Przeglądanie zawartości** - Lista wszystkich plików w archiwum z szczegółowymi informacjami
-- **Ekstrakcja pojedynczego pliku** - Wyodrębnienie wybranego pliku do folderu
-- **Ekstrakcja wszystkich plików** - Wyodrębnienie całej zawartości archiwum
-- **Dodawanie plików** - Wstawianie nowych plików do archiwum z kompresją
-- **Usuwanie plików** - Usuwanie wybranych plików z archiwum
+- **Browse Contents** - List all files in the archive with detailed information
+- **Extract Single File** - Extract selected file to a folder
+- **Extract All Files** - Extract entire archive contents
+- **Add Files** - Insert new files into the archive with compression
+- **Remove Files** - Delete selected files from the archive
 
-### Informacje o archiwum
+### Archive Information
 
-- Nazwa i ścieżka pliku
-- Data ostatniej modyfikacji
-- Liczba plików
-- Całkowity rozmiar (skompresowany i nieskompresowany)
-- Współczynnik kompresji
-- Informacje o nagłówku archiwum
+- File name and path
+- Last modification date
+- Number of files
+- Total size (compressed and uncompressed)
+- Compression ratio
+- Archive header information
 
-### Szczegóły plików
+### File Details
 
-Dla każdego pliku w archiwum wyświetlane są:
-- Nazwa pliku
-- Rozmiar skompresowany
-- Rozmiar nieskompresowany
-- Współczynnik kompresji
-- Flagi pliku (Compressed, Archive, Text, Named, Resource, Guid)
+For each file in the archive, the following is displayed:
+- File name
+- Compressed size
+- Uncompressed size
+- Compression ratio
+- File flags (Compressed, Archive, Text, Named, Resource, Guid)
 
-## Architektura
+## Architecture
 
-### Wzorce projektowe
+### Design Patterns
 
-- **MVVM (Model-View-ViewModel)** - Separacja logiki biznesowej od interfejsu użytkownika
-- **Dependency Injection** - Użycie Microsoft.Extensions.DependencyInjection
-- **Command Pattern** - ReactiveCommand z ReactiveUI dla akcji użytkownika
-- **Observer Pattern** - ReactiveUI dla powiadomień o zmianach właściwości
+- **MVVM (Model-View-ViewModel)** - Separation of business logic from user interface
+- **Dependency Injection** - Using Microsoft.Extensions.DependencyInjection
+- **Command Pattern** - ReactiveCommand with ReactiveUI for user actions
+- **Observer Pattern** - ReactiveUI for property change notifications
 
-### Struktura projektu
+### Project Structure
 
 ```
 EarthTool.WD.GUI/
-├── ViewModels/              # Logika biznesowa
-│   ├── MainWindowViewModel.cs        # Główny ViewModel
-│   ├── ArchiveItemViewModel.cs       # Wrapper dla IArchiveItem
-│   ├── ArchiveInfoViewModel.cs       # Informacje o archiwum
-│   ├── AboutViewModel.cs             # Dialog "O programie"
-│   └── ViewModelBase.cs              # Bazowa klasa ViewModels
+├── ViewModels/              # Business logic
+│   ├── MainWindowViewModel.cs        # Main ViewModel
+│   ├── ArchiveItemViewModel.cs       # Wrapper for IArchiveItem
+│   ├── ArchiveInfoViewModel.cs       # Archive information
+│   ├── AboutViewModel.cs             # "About" dialog
+│   └── ViewModelBase.cs              # Base class for ViewModels
 │
-├── Views/                   # Interfejs użytkownika (XAML)
-│   ├── MainWindow.axaml              # Główne okno aplikacji
+├── Views/                   # User interface (XAML)
+│   ├── MainWindow.axaml              # Main application window
 │   └── MainWindow.axaml.cs           # Code-behind
 │
-├── Services/                # Serwisy UI
-│   ├── IDialogService.cs             # Interfejs dialogów
-│   ├── DialogService.cs              # Implementacja dialogów
-│   ├── INotificationService.cs       # Interfejs powiadomień
-│   └── NotificationService.cs        # Implementacja powiadomień
+├── Services/                # UI Services
+│   ├── IDialogService.cs             # Dialog interface
+│   ├── DialogService.cs              # Dialog implementation
+│   ├── INotificationService.cs       # Notification interface
+│   └── NotificationService.cs        # Notification implementation
 │
-├── Converters/              # Value Converters dla data binding
+├── Converters/              # Value Converters for data binding
 │   ├── BytesToHumanReadableConverter.cs
 │   ├── FileFlagsToStringConverter.cs
 │   └── BoolToVisibilityConverter.cs
 │
-├── App.axaml.cs             # Konfiguracja aplikacji i DI
+├── App.axaml.cs             # Application configuration and DI
 └── Program.cs               # Entry point
 ```
 
-### Zależności
+### Dependencies
 
 - **Avalonia 11.3.9** - Cross-platform UI framework
-- **ReactiveUI.Avalonia 11.3.8** - MVVM framework z Reactive Extensions
+- **ReactiveUI.Avalonia 11.3.8** - MVVM framework with Reactive Extensions
 - **Microsoft.Extensions.DependencyInjection 8.0.0** - Dependency Injection
 - **Microsoft.Extensions.Logging 8.0.0** - Logging abstractions
-- **EarthTool.WD** - Backend dla operacji na archiwach WD
-- **EarthTool.Common** - Wspólne interfejsy i narzędzia
+- **EarthTool.WD** - Backend for WD archive operations
+- **EarthTool.Common** - Common interfaces and utilities
 
-## Użycie
+## Usage
 
-### Uruchomienie aplikacji
+### Running the Application
 
 ```bash
 cd EarthTool.WD.GUI
 dotnet run
 ```
 
-### Otwieranie archiwum
+### Opening an Archive
 
-1. Kliknij **File → Open Archive** lub użyj **Ctrl+O**
-2. Wybierz plik .WD z dysku
-3. Zawartość archiwum zostanie wyświetlona w głównej tabeli
+1. Click **File → Open Archive** or use **Ctrl+O**
+2. Select a .WD file from disk
+3. Archive contents will be displayed in the main table
 
-### Ekstraktowanie plików
+### Extracting Files
 
-**Pojedynczy plik:**
-1. Zaznacz plik w tabeli
-2. Kliknij **Archive → Extract Selected** lub przycisk **Extract** na pasku narzędzi
-3. Wybierz folder docelowy
+**Single file:**
+1. Select a file in the table
+2. Click **Archive → Extract Selected** or the **Extract** button on the toolbar
+3. Select destination folder
 
-**Wszystkie pliki:**
-1. Kliknij **Archive → Extract All** lub **Ctrl+E**
-2. Wybierz folder docelowy
+**All files:**
+1. Click **Archive → Extract All** or **Ctrl+E**
+2. Select destination folder
 
-### Tworzenie nowego archiwum
+### Creating a New Archive
 
-1. Kliknij **File → New Archive** lub **Ctrl+N**
-2. Dodaj pliki używając **Archive → Add Files** lub **Ctrl+A**
-3. Zapisz archiwum używając **File → Save Archive As**
+1. Click **File → New Archive** or **Ctrl+N**
+2. Add files using **Archive → Add Files** or **Ctrl+A**
+3. Save the archive using **File → Save Archive As**
 
-### Modyfikowanie archiwum
+### Modifying an Archive
 
-1. Otwórz istniejące archiwum
-2. Dodaj nowe pliki: **Archive → Add Files**
-3. Usuń pliki: Zaznacz plik → **Archive → Remove Selected** lub **Del**
-4. Zapisz zmiany: **File → Save Archive** lub **Ctrl+S**
+1. Open an existing archive
+2. Add new files: **Archive → Add Files**
+3. Remove files: Select file → **Archive → Remove Selected** or **Del**
+4. Save changes: **File → Save Archive** or **Ctrl+S**
 
-## Skróty klawiszowe
+## Keyboard Shortcuts
 
-| Skrót | Akcja |
+| Shortcut | Action |
 |-------|-------|
-| `Ctrl+O` | Otwórz archiwum |
-| `Ctrl+N` | Nowe archiwum |
-| `Ctrl+S` | Zapisz archiwum |
-| `Ctrl+Shift+S` | Zapisz jako... |
-| `Ctrl+E` | Ekstraktuj wszystko |
-| `Ctrl+A` | Dodaj pliki |
-| `Del` | Usuń zaznaczony plik |
+| `Ctrl+O` | Open archive |
+| `Ctrl+N` | New archive |
+| `Ctrl+S` | Save archive |
+| `Ctrl+Shift+S` | Save as... |
+| `Ctrl+E` | Extract all |
+| `Ctrl+A` | Add files |
+| `Del` | Remove selected file |
 
 ## Dependency Injection
 
-Aplikacja używa Microsoft.Extensions.DependencyInjection do zarządzania zależnościami.
+The application uses Microsoft.Extensions.DependencyInjection for dependency management.
 
-### Konfiguracja serwisów (App.axaml.cs)
+### Service Configuration (App.axaml.cs)
 
 ```csharp
 private void ConfigureServices(IServiceCollection services)
@@ -170,30 +170,30 @@ private void ConfigureServices(IServiceCollection services)
 
 ### Lifetimes
 
-- **Singleton** - DialogService, NotificationService (współdzielone przez całą aplikację)
-- **Transient** - ViewModels (nowa instancja dla każdego okna)
-- **Scoped** - Services z EarthTool.WD (per operacja)
+- **Singleton** - DialogService, NotificationService (shared across the entire application)
+- **Transient** - ViewModels (new instance for each window)
+- **Scoped** - Services from EarthTool.WD (per operation)
 
-## Obsługa błędów
+## Error Handling
 
-Aplikacja implementuje kompleksową obsługę błędów:
+The application implements comprehensive error handling:
 
-### Centralna obsługa w ViewModels
+### Central Handling in ViewModels
 
-Wszystkie operacje asynchroniczne są opakowane w bloki try-catch:
+All asynchronous operations are wrapped in try-catch blocks:
 
 ```csharp
 try
 {
     IsBusy = true;
-    StatusMessage = "Operacja w toku...";
+    StatusMessage = "Operation in progress...";
     await PerformOperationAsync();
-    _notificationService.ShowSuccess("Operacja zakończona");
+    _notificationService.ShowSuccess("Operation completed");
 }
 catch (Exception ex)
 {
-    _notificationService.ShowError("Operacja nie powiodła się", ex);
-    StatusMessage = "Błąd";
+    _notificationService.ShowError("Operation failed", ex);
+    StatusMessage = "Error";
 }
 finally
 {
@@ -203,152 +203,152 @@ finally
 
 ### NotificationService
 
-Wszystkie błędy są logowane i wyświetlane użytkownikowi przez `INotificationService`:
+All errors are logged and displayed to the user through `INotificationService`:
 
-- **ShowError** - Wyświetla błąd i loguje exception
-- **ShowWarning** - Ostrzeżenie dla użytkownika
-- **ShowSuccess** - Potwierdzenie pomyślnej operacji
-- **ShowInfo** - Informacje ogólne
+- **ShowError** - Displays error and logs exception
+- **ShowWarning** - Warning for the user
+- **ShowSuccess** - Confirmation of successful operation
+- **ShowInfo** - General information
 
 ### StatusBar
 
-Status bieżącej operacji jest zawsze wyświetlany w dolnym pasku:
-- Komunikaty o postępie operacji
-- Informacje o błędach
-- Potwierdzenia zakończonych działań
-- Pasek postępu dla operacji długotrwałych
+Current operation status is always displayed in the bottom bar:
+- Operation progress messages
+- Error information
+- Completion confirmations
+- Progress bar for long-running operations
 
-## Rozszerzanie funkcjonalności
+## Extending Functionality
 
-### Dodawanie nowego Command
+### Adding a New Command
 
-1. Zdefiniuj property w MainWindowViewModel:
+1. Define property in MainWindowViewModel:
 ```csharp
 public ReactiveCommand<Unit, Unit> MyCommand { get; private set; } = null!;
 ```
 
-2. Zainicjalizuj w `InitializeCommands()`:
+2. Initialize in `InitializeCommands()`:
 ```csharp
 var canExecute = this.WhenAnyValue(x => x.SomeCondition);
 MyCommand = ReactiveCommand.CreateFromTask(MyMethodAsync, canExecute);
 ```
 
-3. Implementuj metodę:
+3. Implement method:
 ```csharp
 private async Task MyMethodAsync()
 {
     try
     {
-        // Logika
+        // Logic
     }
     catch (Exception ex)
     {
-        _notificationService.ShowError("Błąd", ex);
+        _notificationService.ShowError("Error", ex);
     }
 }
 ```
 
-4. Podłącz w XAML:
+4. Connect in XAML:
 ```xml
 <MenuItem Header="My Action" Command="{Binding MyCommand}"/>
 ```
 
-### Dodawanie nowego Value Converter
+### Adding a New Value Converter
 
-1. Utwórz klasę implementującą `IValueConverter`:
+1. Create a class implementing `IValueConverter`:
 ```csharp
 public class MyConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, 
         object? parameter, CultureInfo culture)
     {
-        // Konwersja
+        // Conversion
     }
 }
 ```
 
-2. Dodaj do Resources w XAML:
+2. Add to Resources in XAML:
 ```xml
 <Window.Resources>
     <converters:MyConverter x:Key="MyConverter"/>
 </Window.Resources>
 ```
 
-3. Użyj w binding:
+3. Use in binding:
 ```xml
 <TextBlock Text="{Binding Value, Converter={StaticResource MyConverter}}"/>
 ```
 
-## Testowanie
+## Testing
 
-### Manualne scenariusze testowe
+### Manual Test Scenarios
 
-1. **Test otwierania archiwum**
-   - Otwórz prawidłowy plik .WD
-   - Sprawdź czy lista plików jest wyświetlona
-   - Sprawdź informacje o archiwum w panelu prawym
+1. **Archive Opening Test**
+   - Open a valid .WD file
+   - Check if the file list is displayed
+   - Check archive information in the right panel
 
-2. **Test ekstraktacji**
-   - Zaznacz plik
-   - Ekstraktuj do folderu
-   - Zweryfikuj że plik został utworzony
+2. **Extraction Test**
+   - Select a file
+   - Extract to folder
+   - Verify that the file was created
 
-3. **Test tworzenia archiwum**
-   - Utwórz nowe archiwum
-   - Dodaj kilka plików
-   - Zapisz jako nowy plik .WD
-   - Otwórz zapisany plik i zweryfikuj zawartość
+3. **Archive Creation Test**
+   - Create a new archive
+   - Add several files
+   - Save as a new .WD file
+   - Open the saved file and verify contents
 
-4. **Test modyfikacji**
-   - Otwórz archiwum
-   - Dodaj nowe pliki
-   - Usuń niektóre pliki
-   - Zapisz i ponownie otwórz
+4. **Modification Test**
+   - Open an archive
+   - Add new files
+   - Remove some files
+   - Save and reopen
 
-5. **Test obsługi błędów**
-   - Spróbuj otworzyć nieprawidłowy plik
-   - Spróbuj zapisać do chronionego folderu
-   - Zweryfikuj komunikaty błędów
+5. **Error Handling Test**
+   - Try to open an invalid file
+   - Try to save to a protected folder
+   - Verify error messages
 
-## Znane ograniczenia
+## Known Limitations
 
-- **Selekcja pojedyncza** - Obecnie obsługiwana jest tylko pojedyncza selekcja plików (planowane wielokrotne zaznaczanie w przyszłej wersji)
-- **Brak Progress dla długich operacji** - Ekstraktacja dużych archiwów pokazuje tylko indicator indeterminate (planowany szczegółowy progress)
-- **Brak Preview plików** - Podgląd zawartości plików tekstowych planowany w przyszłej wersji
+- **Single Selection** - Currently only single file selection is supported (multiple selection planned for future version)
+- **No Progress for Long Operations** - Large archive extraction shows only indeterminate indicator (detailed progress planned)
+- **No File Preview** - Text file content preview planned for future version
 
 ## Roadmap
 
-### Przyszłe funkcjonalności
+### Future Features
 
-- [ ] Multi-selection w DataGrid
-- [ ] Szczegółowy progress bar dla długich operacji
-- [ ] Podgląd plików tekstowych
-- [ ] Drag & Drop dla dodawania plików
-- [ ] Historia ostatnio otwieranych plików
-- [ ] Wyszukiwanie plików w archiwum
-- [ ] Sortowanie i filtrowanie listy plików
-- [ ] Eksport listy plików do CSV
-- [ ] Porównywanie dwóch archiwów
-- [ ] Batch operations (operacje na wielu archiwach)
+- [ ] Multi-selection in DataGrid
+- [ ] Detailed progress bar for long operations
+- [ ] Text file preview
+- [ ] Drag & Drop for adding files
+- [ ] Recently opened files history
+- [ ] File search in archive
+- [ ] File list sorting and filtering
+- [ ] Export file list to CSV
+- [ ] Compare two archives
+- [ ] Batch operations (operations on multiple archives)
 
-### Ulepszenia UI
+### UI Improvements
 
-- [ ] Ikony zamiast emoji w menu
-- [ ] Motywy (Light/Dark mode)
-- [ ] Konfigurowalne kolory
-- [ ] Zakładki dla wielu otwartych archiwów
-- [ ] Statusbar z dodatkowymi informacjami
+- [ ] Icons instead of emoji in menu
+- [ ] Themes (Light/Dark mode)
+- [ ] Configurable colors
+- [ ] Tabs for multiple open archives
+- [ ] Statusbar with additional information
 
-## Licencja
+## License
 
-Część projektu EarthTool. Zobacz główny plik LICENSE w katalogu głównym repozytorium.
+Part of the EarthTool project. See the main LICENSE file in the root directory of the repository.
 
-## Kontakt i wsparcie
+## Contact and Support
 
-Aby zgłosić błędy lub zaproponować nowe funkcje, użyj systemu Issues w repozytorium GitHub.
+To report bugs or suggest new features, use the Issues system in the GitHub repository.
 
-## Podziękowania
+## Acknowledgments
 
-- Społeczność Earth 2150 za dokumentację formatu WD
-- Zespół Avalonia UI za doskonały framework
-- Autorzy ReactiveUI za MVVM framework
+- Earth 2150 community for WD format documentation
+- Avalonia UI team for the excellent framework
+- ReactiveUI authors for the MVVM framework
