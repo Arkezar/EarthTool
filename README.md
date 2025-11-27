@@ -1,4 +1,4 @@
-[![CI](https://github.com/Arkezar/EarthTool/actions/workflows/ci.yml/badge.svg)](https://github.com/Arkezar/EarthTool/actions/workflows/ci.yml)
+[![CI](https://github.com/Arkezar/EarthTool/actions/workflows/ci-unified.yml/badge.svg)](https://github.com/Arkezar/EarthTool/actions/workflows/ci-unified.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 # EarthTool
