@@ -66,29 +66,16 @@ jobs:
               - 'EarthTool.TEX/**'
               - 'EarthTool.Common/**'
 
-  build-and-test:
-    name: Build ${{ matrix.project }} (${{ matrix.os }})
+  build-cli:
+    name: Build CLI (${{ matrix.os }})
     needs: detect-changes
     runs-on: ${{ matrix.os }}
-    if: |
-      (needs.detect-changes.outputs.cli == 'true' && matrix.project == 'cli') ||
-      (needs.detect-changes.outputs.gui == 'true' && matrix.project == 'gui') ||
-      github.event_name == 'workflow_dispatch'
+    if: needs.detect-changes.outputs.cli == 'true' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
-        project: [cli, gui]
         include:
-          # CLI configurations
-          - project: cli
-            project_path: "EarthTool.CLI/EarthTool.CLI.csproj"
-            artifact_prefix: "EarthTool.CLI"
-          # GUI configurations
-          - project: gui
-            project_path: "EarthTool.WD.GUI/EarthTool.WD.GUI.csproj"
-            artifact_prefix: "EarthTool.WD.GUI"
-          # Platform configurations
           - os: windows-latest
             runtime: win-x64
             platform_name: Windows-x64
@@ -103,10 +90,9 @@ jobs:
       - name: Display build context
         shell: bash
         run: |
-          echo "🚀 Building ${{ matrix.artifact_prefix }} (CI)"
+          echo "🚀 Building EarthTool.CLI (CI)"
           echo "Platform: ${{ matrix.os }}"
           echo "Runtime: ${{ matrix.runtime }}"
-          echo "Project: ${{ matrix.project }}"
           echo "Event: ${{ github.event_name }}"
           echo "Branch: ${{ github.ref_name }}"
           
@@ -152,15 +138,15 @@ jobs:
         uses: dorny/test-reporter@v1
         if: success() || failure()
         with:
-          name: Test Results (${{ matrix.project }} - ${{ matrix.os }})
+          name: Test Results (CLI - ${{ matrix.os }})
           path: "**/*.trx"
           reporter: dotnet-trx
           fail-on-error: false
 
-      - name: Publish application
+      - name: Publish CLI application
         shell: bash
         run: |
-          dotnet publish ${{ matrix.project_path }} \
+          dotnet publish EarthTool.CLI/EarthTool.CLI.csproj \
             --configuration Release \
             --runtime ${{ matrix.runtime }} \
             --self-contained true \
@@ -176,17 +162,126 @@ jobs:
         run: |
           cd "publish/${{ matrix.runtime }}"
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            7z a -tzip "../../${{ matrix.artifact_prefix }}-${{ matrix.platform_name }}.zip" *
+            7z a -tzip "../../EarthTool.CLI-${{ matrix.platform_name }}.zip" *
           else
-            tar -czf "../../${{ matrix.artifact_prefix }}-${{ matrix.platform_name }}.tar.gz" *
+            tar -czf "../../EarthTool.CLI-${{ matrix.platform_name }}.tar.gz" *
           fi
           cd ../..
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_prefix }}-${{ matrix.platform_name }}
-          path: ${{ matrix.artifact_prefix }}-${{ matrix.platform_name }}${{ matrix.os == 'windows-latest' && '.zip' || '.tar.gz' }}
+          name: EarthTool.CLI-${{ matrix.platform_name }}
+          path: EarthTool.CLI-${{ matrix.platform_name }}${{ matrix.os == 'windows-latest' && '.zip' || '.tar.gz' }}
+          retention-days: 7
+
+  build-gui:
+    name: Build GUI (${{ matrix.os }})
+    needs: detect-changes
+    runs-on: ${{ matrix.os }}
+    if: needs.detect-changes.outputs.gui == 'true' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - os: windows-latest
+            runtime: win-x64
+            platform_name: Windows-x64
+          - os: ubuntu-latest
+            runtime: linux-x64
+            platform_name: Linux-x64
+          - os: macos-latest
+            runtime: osx-x64
+            platform_name: macOS-x64
+
+    steps:
+      - name: Display build context
+        shell: bash
+        run: |
+          echo "🚀 Building EarthTool.WD.GUI (CI)"
+          echo "Platform: ${{ matrix.os }}"
+          echo "Runtime: ${{ matrix.runtime }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Branch: ${{ github.ref_name }}"
+          
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "🔍 This is a PR build for review"
+          elif [[ "${{ github.ref_name }}" == "dev" ]]; then
+            echo "🧪 This is a DEV build"
+          elif [[ "${{ startsWith(github.ref, 'refs/heads/feature/') }}" == "true" ]]; then
+            echo "🚧 This is a FEATURE build"
+          else
+            echo "🔧 This is a CI build for branch: ${{ github.ref_name }}"
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Build solution
+        run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
+        continue-on-error: false
+
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        if: success() || failure()
+        with:
+          name: Test Results (GUI - ${{ matrix.os }})
+          path: "**/*.trx"
+          reporter: dotnet-trx
+          fail-on-error: false
+
+      - name: Publish GUI application
+        shell: bash
+        run: |
+          dotnet publish EarthTool.WD.GUI/EarthTool.WD.GUI.csproj \
+            --configuration Release \
+            --runtime ${{ matrix.runtime }} \
+            --self-contained true \
+            --output ./publish/${{ matrix.runtime }} \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true \
+            -p:DebugType=none \
+            -p:DebugSymbols=false
+
+      - name: Create artifact archive
+        shell: bash
+        run: |
+          cd "publish/${{ matrix.runtime }}"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            7z a -tzip "../../EarthTool.WD.GUI-${{ matrix.platform_name }}.zip" *
+          else
+            tar -czf "../../EarthTool.WD.GUI-${{ matrix.platform_name }}.tar.gz" *
+          fi
+          cd ../..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EarthTool.WD.GUI-${{ matrix.platform_name }}
+          path: EarthTool.WD.GUI-${{ matrix.platform_name }}${{ matrix.os == 'windows-latest' && '.zip' || '.tar.gz' }}
           retention-days: 7
 
   code-quality:
@@ -252,23 +347,11 @@ jobs:
         run: dotnet list ${{ env.SOLUTION_FILE }} package --outdated
         continue-on-error: true
 
-  publish-preview:
-    name: Publish Preview Build (${{ matrix.project }})
-    needs: [detect-changes, build-and-test, code-quality]
+  publish-preview-cli:
+    name: Publish CLI Preview Build
+    needs: [detect-changes, build-cli, code-quality]
     runs-on: windows-latest
-    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
-    strategy:
-      matrix:
-        project: [cli, gui]
-        include:
-          - project: cli
-            project_path: "EarthTool.CLI/EarthTool.CLI.csproj"
-            artifact_name: "EarthTool.CLI-Preview"
-            display_name: "CLI"
-          - project: gui
-            project_path: "EarthTool.WD.GUI/EarthTool.WD.GUI.csproj"
-            artifact_name: "EarthTool.WD.GUI-Preview"
-            display_name: "GUI"
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push' && needs.detect-changes.outputs.cli == 'true'
 
     steps:
       - name: Checkout code
@@ -285,7 +368,7 @@ jobs:
       - name: Build and publish preview
         shell: bash
         run: |
-          dotnet publish ${{ matrix.project_path }} \
+          dotnet publish EarthTool.CLI/EarthTool.CLI.csproj \
             --configuration Release \
             --runtime win-x64 \
             --self-contained true \
@@ -298,14 +381,14 @@ jobs:
         shell: bash
         run: |
           cd preview
-          powershell "Compress-Archive -Path '.' -DestinationPath '../${{ matrix.artifact_name }}.zip' -Force"
+          powershell "Compress-Archive -Path '.' -DestinationPath '../EarthTool.CLI-Preview.zip' -Force"
           cd ..
 
       - name: Upload preview artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_name }}.zip
+          name: EarthTool.CLI-Preview
+          path: EarthTool.CLI-Preview.zip
           retention-days: 30
 
       - name: Comment on commit
@@ -316,9 +399,68 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               commit_sha: context.sha,
-              body: `🚀 Preview build completed successfully for **${{ matrix.display_name }}**!
+              body: `🚀 Preview build completed successfully for **CLI**!
               
-              📦 **Download**: [${{ matrix.artifact_name }}.zip](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+              📦 **Download**: [EarthTool.CLI-Preview.zip](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+              
+              ✅ This is a preview build from the dev branch. Test it out and report any issues!`
+            })
+
+  publish-preview-gui:
+    name: Publish GUI Preview Build
+    needs: [detect-changes, build-gui, code-quality]
+    runs-on: windows-latest
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push' && needs.detect-changes.outputs.gui == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Build and publish preview
+        shell: bash
+        run: |
+          dotnet publish EarthTool.WD.GUI/EarthTool.WD.GUI.csproj \
+            --configuration Release \
+            --runtime win-x64 \
+            --self-contained true \
+            --output ./preview \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:VersionSuffix=preview-${{ github.run_number }}
+
+      - name: Create preview artifact
+        shell: bash
+        run: |
+          cd preview
+          powershell "Compress-Archive -Path '.' -DestinationPath '../EarthTool.WD.GUI-Preview.zip' -Force"
+          cd ..
+
+      - name: Upload preview artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EarthTool.WD.GUI-Preview
+          path: EarthTool.WD.GUI-Preview.zip
+          retention-days: 30
+
+      - name: Comment on commit
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: `🚀 Preview build completed successfully for **GUI**!
+              
+              📦 **Download**: [EarthTool.WD.GUI-Preview.zip](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
               
               ✅ This is a preview build from the dev branch. Test it out and report any issues!`
             })
