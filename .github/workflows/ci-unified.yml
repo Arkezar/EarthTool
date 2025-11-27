@@ -350,8 +350,8 @@ jobs:
           set -e
           
           # Count warnings and errors
-          WARNING_COUNT=$(grep -c "warning CS" analysis-output.txt 2>/dev/null || echo "0")
-          ERROR_COUNT=$(grep -c "error CS" analysis-output.txt 2>/dev/null || echo "0")
+          WARNING_COUNT=$(grep "warning CS" analysis-output.txt 2>/dev/null | wc -l)
+          ERROR_COUNT=$(grep "error CS" analysis-output.txt 2>/dev/null | wc -l)
           
           echo "### Build Statistics:" >> code-quality-report.md
           echo "- ⚠️ Warnings: $WARNING_COUNT" >> code-quality-report.md
@@ -359,7 +359,7 @@ jobs:
           echo "- 🔄 Exit Code: $BUILD_EXIT_CODE" >> code-quality-report.md
           echo "" >> code-quality-report.md
           
-          if [ "$WARNING_COUNT" -gt 0 ]; then
+          if [ "$WARNING_COUNT" -gt 0 ] 2>/dev/null; then
             echo "### Warnings:" >> code-quality-report.md
             echo "\`\`\`" >> code-quality-report.md
             grep "warning CS" analysis-output.txt | head -20 >> code-quality-report.md
@@ -465,9 +465,9 @@ jobs:
           OUTDATED_EXIT_CODE=$?
           set -e
           
-          OUTDATED_COUNT=$(grep -c ">" outdated-packages.txt 2>/dev/null || echo "0")
+          OUTDATED_COUNT=$(grep ">" outdated-packages.txt 2>/dev/null | wc -l)
           
-          if [ "$OUTDATED_COUNT" -gt 0 ]; then
+          if [ "$OUTDATED_COUNT" -gt 0 ] 2>/dev/null; then
             echo "📦 **Status**: $OUTDATED_COUNT outdated packages found" >> security-report.md
             echo "" >> security-report.md
             echo "\`\`\`" >> security-report.md
