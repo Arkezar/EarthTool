@@ -1,4 +1,4 @@
-﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Enums;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -17,7 +17,7 @@ namespace EarthTool.PAR.Models.Abstracts
       BinaryReader data) : base(name, requiredResearch, type)
     {
       Mesh = GetString(data);
-      ShadowType = GetInteger(data);
+      ShadowType = (ShadowType)GetInteger(data);
       ViewParamsIndex = GetInteger(data);
       Cost = GetInteger(data);
       TimeOfBuild = GetInteger(data);
@@ -33,7 +33,7 @@ namespace EarthTool.PAR.Models.Abstracts
 
     public string Mesh { get; set; }
 
-    public int ShadowType { get; set; }
+    public ShadowType ShadowType { get; set; }
 
     public int ViewParamsIndex { get; set; }
 
@@ -54,7 +54,7 @@ namespace EarthTool.PAR.Models.Abstracts
     {
       get => base.FieldTypes.Concat(IsStringMember(
         () => Mesh,
-        () => ShadowType,
+        () => (int)ShadowType,
         () => ViewParamsIndex,
         () => Cost,
         () => TimeOfBuild,
@@ -79,7 +79,7 @@ namespace EarthTool.PAR.Models.Abstracts
           bw.Write(base.ToByteArray(encoding));
           bw.Write(Mesh.Length);
           bw.Write(encoding.GetBytes(Mesh));
-          bw.Write(ShadowType);
+          bw.Write((int)ShadowType);
           bw.Write(ViewParamsIndex);
           bw.Write(Cost);
           bw.Write(TimeOfBuild);

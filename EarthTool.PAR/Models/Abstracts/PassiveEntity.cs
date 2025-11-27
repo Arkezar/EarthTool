@@ -1,4 +1,4 @@
-﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Enums;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,12 +16,12 @@ namespace EarthTool.PAR.Models.Abstracts
     public PassiveEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      PassiveMask = GetInteger(data);
+      PassiveMask = (PassiveMask)GetInteger(data);
       WallCopulaId = GetString(data);
       data.ReadBytes(4);
     }
 
-    public int PassiveMask { get; set; }
+    public PassiveMask PassiveMask { get; set; }
 
     public string WallCopulaId { get; set; }
 
@@ -29,7 +29,7 @@ namespace EarthTool.PAR.Models.Abstracts
     public override IEnumerable<bool> FieldTypes
     {
       get => base.FieldTypes.Concat(IsStringMember(
-        () => PassiveMask,
+        () => (int)PassiveMask,
         () => WallCopulaId,
         () => 1
       ));
@@ -43,7 +43,7 @@ namespace EarthTool.PAR.Models.Abstracts
         using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
-          bw.Write(PassiveMask);
+          bw.Write((int)PassiveMask);
           bw.Write(WallCopulaId.Length);
           bw.Write(encoding.GetBytes(WallCopulaId));
           bw.Write(-1);

@@ -1,4 +1,4 @@
-﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Enums;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
@@ -63,7 +63,7 @@ namespace EarthTool.PAR.Models
       AmmoReloadingTime = GetInteger(data);
       BuildExplosionId = GetString(data);
       data.ReadBytes(4);
-      CopulaAnimationFlags = GetInteger(data);
+      CopulaAnimationFlags = (CopulaAnimationFlags)GetInteger(data);
       EndOfClosingCopulaAnimation = GetInteger(data);
       LaserId = GetString(data);
       data.ReadBytes(4);
@@ -132,7 +132,7 @@ namespace EarthTool.PAR.Models
 
     public string BuildExplosionId { get; set; }
 
-    public int CopulaAnimationFlags { get; set; }
+    public CopulaAnimationFlags CopulaAnimationFlags { get; set; }
 
     public int EndOfClosingCopulaAnimation { get; set; }
 
@@ -190,7 +190,7 @@ namespace EarthTool.PAR.Models
         () => AmmoReloadingTime,
         () => BuildExplosionId,
         () => 1,
-        () => CopulaAnimationFlags,
+        () => (int)CopulaAnimationFlags,
         () => EndOfClosingCopulaAnimation,
         () => LaserId,
         () => 1,
@@ -267,7 +267,7 @@ namespace EarthTool.PAR.Models
           bw.Write(BuildExplosionId.Length);
           bw.Write(encoding.GetBytes(BuildExplosionId));
           bw.Write(-1);
-          bw.Write(CopulaAnimationFlags);
+          bw.Write((int)CopulaAnimationFlags);
           bw.Write(EndOfClosingCopulaAnimation);
           bw.Write(LaserId.Length);
           bw.Write(encoding.GetBytes(LaserId));

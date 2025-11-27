@@ -1,6 +1,8 @@
-﻿namespace EarthTool.PAR.Enums
+using System;
+
+namespace EarthTool.PAR.Enums
 {
-  //TODO: It might be a flag
+  [Flags]
   public enum EntityClassType
   {
     None                     = 0x00000000,
