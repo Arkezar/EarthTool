@@ -428,12 +428,69 @@ jobs:
         run: dotnet restore ${{ env.SOLUTION_FILE }}
 
       - name: Check for vulnerable packages
-        run: dotnet list ${{ env.SOLUTION_FILE }} package --vulnerable --include-transitive
+        id: vuln-check
+        run: |
+          echo "## 🔒 Security Scan Report" > security-report.md
+          echo "" >> security-report.md
+          echo "### Vulnerable Packages" >> security-report.md
+          echo "" >> security-report.md
+          
+          set +e
+          dotnet list ${{ env.SOLUTION_FILE }} package --vulnerable --include-transitive 2>&1 | tee vulnerable-packages.txt
+          VULN_EXIT_CODE=$?
+          set -e
+          
+          if grep -q "has the following vulnerable packages" vulnerable-packages.txt; then
+            echo "⚠️ **Status**: Vulnerabilities found" >> security-report.md
+            echo "" >> security-report.md
+            echo "\`\`\`" >> security-report.md
+            grep -A 10 "has the following vulnerable packages" vulnerable-packages.txt | head -50 >> security-report.md
+            echo "\`\`\`" >> security-report.md
+            echo "vuln_status=found" >> $GITHUB_OUTPUT
+          else
+            echo "✅ **Status**: No known vulnerabilities" >> security-report.md
+            echo "vuln_status=clean" >> $GITHUB_OUTPUT
+          fi
+          echo "" >> security-report.md
         continue-on-error: true
 
       - name: Check for outdated packages
-        run: dotnet list ${{ env.SOLUTION_FILE }} package --outdated
+        id: outdated-check
+        run: |
+          echo "### Outdated Packages" >> security-report.md
+          echo "" >> security-report.md
+          
+          set +e
+          dotnet list ${{ env.SOLUTION_FILE }} package --outdated 2>&1 | tee outdated-packages.txt
+          OUTDATED_EXIT_CODE=$?
+          set -e
+          
+          OUTDATED_COUNT=$(grep -c ">" outdated-packages.txt 2>/dev/null || echo "0")
+          
+          if [ "$OUTDATED_COUNT" -gt 0 ]; then
+            echo "📦 **Status**: $OUTDATED_COUNT outdated packages found" >> security-report.md
+            echo "" >> security-report.md
+            echo "\`\`\`" >> security-report.md
+            grep ">" outdated-packages.txt | head -20 >> security-report.md
+            echo "\`\`\`" >> security-report.md
+            echo "outdated_count=$OUTDATED_COUNT" >> $GITHUB_OUTPUT
+          else
+            echo "✅ **Status**: All packages are up to date" >> security-report.md
+            echo "outdated_count=0" >> $GITHUB_OUTPUT
+          fi
+          echo "" >> security-report.md
         continue-on-error: true
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-scan-report
+          path: |
+            security-report.md
+            vulnerable-packages.txt
+            outdated-packages.txt
+          retention-days: 30
 
   publish-preview-cli:
     name: Publish CLI Preview Build
