@@ -307,7 +307,14 @@ jobs:
               awk '/\|\|\|/ {commit=$0; getline; print commit "|||" $0}' | \
               sort -t'|' -k4 -rn | head -3 | \
               while IFS='|||' read -r hash subject author stats; do
+                # Extract scope BEFORE removing prefix
+                scope=$(echo "$subject" | sed -nE 's/^[a-z]+\(([^)]+)\):.*/\1/p')
+                # Remove conventional commit prefix
                 clean_subject=$(echo "$subject" | sed -E 's/^(feat|fix|docs|style|refactor|perf|test|chore|build|ci)(\([^)]+\))?:\s*//')
+                # Add scope tag if present
+                if [ ! -z "$scope" ]; then
+                  clean_subject="**[$scope]** $clean_subject"
+                fi
                 echo "- $clean_subject [\`$hash\`](https://github.com/${{ github.repository }}/commit/$hash)" >> CHANGELOG.md
               done || true
             echo "" >> CHANGELOG.md
@@ -355,11 +362,13 @@ jobs:
               local count=0
               while IFS='|||' read -r subject hash author date; do
                 if [ ! -z "$subject" ]; then
+                  # Extract scope BEFORE removing prefix
+                  local scope=$(echo "$subject" | sed -nE 's/^[a-z]+\(([^)]+)\):.*/\1/p')
+                  
                   # Remove conventional commit prefix for cleaner display
                   local clean_subject=$(echo "$subject" | sed -E 's/^(feat|fix|docs|style|refactor|perf|test|chore|build|ci)(\([^)]+\))?:\s*//')
                   
-                  # Extract scope if present
-                  local scope=$(echo "$subject" | sed -nE 's/^[a-z]+\(([^)]+)\):.*/\1/p')
+                  # Add scope tag if present
                   if [ ! -z "$scope" ]; then
                     clean_subject="**[$scope]** $clean_subject"
                   fi
