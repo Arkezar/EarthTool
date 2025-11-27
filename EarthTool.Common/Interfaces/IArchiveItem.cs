@@ -9,6 +9,7 @@ namespace EarthTool.Common.Interfaces
     int CompressedSize { get; }
     int DecompressedSize { get; }
     bool IsCompressed { get; }
+    bool IsArchived { get; }
     ReadOnlyMemory<byte> Data { get; }
   }
 }

@@ -24,6 +24,7 @@ public class ArchiveItem : IArchiveItem
   public int CompressedSize { get; }
   public int DecompressedSize { get; }
   public bool IsCompressed => Header.Flags.HasFlag(FileFlags.Compressed);
+  public bool IsArchived => Header.Flags.HasFlag(FileFlags.Archive);
   public ReadOnlyMemory<byte> Data => _dataSource.Data;
 
   public int CompareTo(IArchiveItem other)
