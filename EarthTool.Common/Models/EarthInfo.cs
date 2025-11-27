@@ -27,7 +27,7 @@ namespace EarthTool.Common.Models
       ValidateFlags();
       using (MemoryStream stream = new())
       {
-        if (Flags != FileFlags.None)
+        if (Flags != FileFlags.None && Flags != FileFlags.Text)
         {
           using (BinaryWriter writer = new(stream, encoding))
           {

@@ -291,7 +291,7 @@
         </Border>
 
         <!-- Main Content -->
-        <Grid ColumnDefinitions="*">
+        <Grid ColumnDefinitions="*,Auto,300">
             <!-- File List -->
             <Grid Grid.Column="0" RowDefinitions="Auto,*" Margin="{StaticResource CompactThickness}">
                 <!-- Column Headers -->
@@ -300,16 +300,12 @@
                         BorderThickness="0,0,0,1"
                         Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
                         Padding="4,2">
-                    <Grid ColumnDefinitions="Auto,*,350,150,330,300,120,120,80">
+                    <Grid ColumnDefinitions="Auto,*,120,120,80">
                         <TextBlock Grid.Column="0" Text="" FontWeight="Bold" VerticalAlignment="Center" Width="20"/>
                         <TextBlock Grid.Column="1" Text="Name" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="2" Text="Flags" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="3" Text="Resource" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="4" Text="GUID" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="5" Text="Translation Id" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="6" Text="Compressed" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="7" Text="Decompressed" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="8" Text="Ratio" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="2" Text="Compressed" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="3" Text="Decompressed" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="4" Text="Ratio" FontWeight="Bold" VerticalAlignment="Center"/>
                     </Grid>
                 </Border>
 
@@ -371,7 +367,7 @@
                     </TreeView.ContextMenu>
                     <TreeView.ItemTemplate>
                         <TreeDataTemplate ItemsSource="{Binding Children}">
-                            <Grid ColumnDefinitions="Auto,*,350,150,330,300,120,120,80">
+                            <Grid ColumnDefinitions="Auto,*,120,120,80">
                                 <!-- Text Flag Indicator -->
                                 <TextBlock Grid.Column="0" Text="📄" FontSize="12" 
                                           IsVisible="{Binding HasTextFlag}" 
@@ -379,13 +375,9 @@
                                           Margin="0,0,4,0"
                                           ToolTip.Tip="Text File"/>
                                 <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="2" Text="{Binding Flags, Converter={StaticResource FileFlagsToString}}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="3" Text="{Binding FormattedResourceType}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="4" Text="{Binding FormattedResourceGuid}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="5" Text="{Binding FormattedTranslationId}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="6" Text="{Binding FormattedCompressedSize}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="7" Text="{Binding FormattedDecompressedSize}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="8" Text="{Binding FormattedCompressionRatio}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="{Binding FormattedCompressedSize}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="{Binding FormattedDecompressedSize}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="4" Text="{Binding FormattedCompressionRatio}" VerticalAlignment="Center"/>
                             </Grid>
                         </TreeDataTemplate>
                     </TreeView.ItemTemplate>
@@ -396,6 +388,95 @@
                     </TreeView.Styles>
                 </TreeView>
             </Grid>
+
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="1" 
+                          Width="4"
+                          Background="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                          ResizeDirection="Columns" />
+
+            <!-- Details Side Panel -->
+            <Border Grid.Column="2" 
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                    BorderThickness="1"
+                    Margin="{StaticResource CompactThickness}"
+                    Padding="{StaticResource StandardThickness}"
+                    Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+                <ScrollViewer>
+                    <StackPanel Spacing="{StaticResource StandardSpacing}" 
+                                IsVisible="{Binding SelectedTreeItem, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <!-- Panel Title -->
+                        <TextBlock Text="Item Details" 
+                                   FontSize="{StaticResource TitleFontSize}"
+                                   FontWeight="Bold" 
+                                   Margin="0,0,0,8"/>
+
+                        <!-- File Name -->
+                        <StackPanel Spacing="{StaticResource TightSpacing}">
+                            <TextBlock Text="Name:" Classes="InfoLabel"/>
+                            <TextBlock Text="{Binding SelectedTreeItem.Name}" Classes="InfoValue"/>
+                        </StackPanel>
+
+                        <!-- Full Path -->
+                        <StackPanel Spacing="{StaticResource TightSpacing}">
+                            <TextBlock Text="Full Path:" Classes="InfoLabel"/>
+                            <TextBlock Text="{Binding SelectedTreeItem.FullPath}" Classes="InfoValue"/>
+                        </StackPanel>
+
+                        <Separator Margin="0,4"/>
+
+                        <!-- Flags -->
+                        <StackPanel Spacing="{StaticResource TightSpacing}">
+                            <TextBlock Text="Flags:" Classes="InfoLabel"/>
+                            <TextBlock Text="{Binding SelectedTreeItem.Flags, Converter={StaticResource FileFlagsToString}}" 
+                                       Classes="InfoValue"/>
+                        </StackPanel>
+
+                        <!-- Resource Type -->
+                        <StackPanel Spacing="{StaticResource TightSpacing}">
+                            <TextBlock Text="Resource Type:" Classes="InfoLabel"/>
+                            <TextBlock Text="{Binding SelectedTreeItem.FormattedResourceType}" Classes="InfoValue"/>
+                        </StackPanel>
+
+                        <!-- GUID -->
+                        <StackPanel Spacing="{StaticResource TightSpacing}">
+                            <TextBlock Text="Resource GUID:" Classes="InfoLabel"/>
+                            <TextBlock Text="{Binding SelectedTreeItem.FormattedResourceGuid}" 
+                                       Classes="InfoValue"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <!-- Translation ID -->
+                        <StackPanel Spacing="{StaticResource TightSpacing}">
+                            <TextBlock Text="Translation ID:" Classes="InfoLabel"/>
+                            <TextBlock Text="{Binding SelectedTreeItem.FormattedTranslationId}" 
+                                       Classes="InfoValue"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <Separator Margin="0,4"/>
+
+                        <!-- Sizes (only for files) -->
+                        <StackPanel Spacing="{StaticResource StandardSpacing}"
+                                    IsVisible="{Binding !SelectedTreeItem.IsFolder}">
+                            <StackPanel Spacing="{StaticResource TightSpacing}">
+                                <TextBlock Text="Compressed Size:" Classes="InfoLabel"/>
+                                <TextBlock Text="{Binding SelectedTreeItem.FormattedCompressedSize}" Classes="InfoValue"/>
+                            </StackPanel>
+
+                            <StackPanel Spacing="{StaticResource TightSpacing}">
+                                <TextBlock Text="Decompressed Size:" Classes="InfoLabel"/>
+                                <TextBlock Text="{Binding SelectedTreeItem.FormattedDecompressedSize}" Classes="InfoValue"/>
+                            </StackPanel>
+
+                            <StackPanel Spacing="{StaticResource TightSpacing}">
+                                <TextBlock Text="Compression Ratio:" Classes="InfoLabel"/>
+                                <TextBlock Text="{Binding SelectedTreeItem.FormattedCompressionRatio}" Classes="InfoValue"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
         </Grid>
     </DockPanel>
 

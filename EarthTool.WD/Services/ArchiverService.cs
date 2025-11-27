@@ -13,11 +13,11 @@ namespace EarthTool.WD.Services
   public class ArchiverService : IArchiver
   {
     private readonly ILogger<ArchiverService> _logger;
-    private readonly IEarthInfoFactory _earthInfoFactory;
-    private readonly IArchiveFactory _archiveFactory;
-    private readonly IDecompressor _decompressor;
-    private readonly ICompressor _compressor;
-    private readonly Encoding _encoding;
+    private readonly IEarthInfoFactory        _earthInfoFactory;
+    private readonly IArchiveFactory          _archiveFactory;
+    private readonly IDecompressor            _decompressor;
+    private readonly ICompressor              _compressor;
+    private readonly Encoding                 _encoding;
 
     public ArchiverService(
       ILogger<ArchiverService> logger,
@@ -76,7 +76,12 @@ namespace EarthTool.WD.Services
         item.FileName, compress);
     }
 
-    public void AddFile(IArchive archive, byte[] data, string filePath, string baseDirectory = null, bool compress = true)
+    public void AddFile(
+      IArchive archive,
+      byte[] data,
+      string filePath,
+      string baseDirectory = null,
+      bool compress = true)
     {
       ArgumentNullException.ThrowIfNull(archive);
 
@@ -126,7 +131,7 @@ namespace EarthTool.WD.Services
 
       // Use safe file writing pattern for Windows 11 compatibility
       // Write to temporary file first, then replace original
-      var tempFilePath = outputFilePath + ".tmp";
+      var tempFilePath = outputFilePath   + ".tmp";
       var backupFilePath = outputFilePath + ".bak";
 
       try
@@ -164,7 +169,8 @@ namespace EarthTool.WD.Services
         // Cleanup temp file if it exists
         if (File.Exists(tempFilePath))
         {
-          try { File.Delete(tempFilePath); } catch { }
+          try { File.Delete(tempFilePath); }
+          catch { }
         }
 
         // Restore from backup if original was moved
@@ -202,14 +208,35 @@ namespace EarthTool.WD.Services
       if (!item.IsCompressed)
       {
         var header = item.Header.ToByteArray(_encoding);
-        return header.Concat(item.Data.ToArray()).ToArray();
+        var extractedData = header.Concat(item.Data.ToArray()).ToArray();
+        VerifyIntegrity(item, extractedData.Length - header.Length);
+        return extractedData;
+      }
+      else if (item.IsArchived)
+      {
+        var extractHeader = (IEarthInfo)item.Header.Clone();
+        extractHeader.RemoveFlag(FileFlags.Archive);
+        var header = extractHeader.ToByteArray(_encoding);
+        var extractedData = header.Concat(_decompressor.Decompress(item.Data.ToArray())).ToArray();
+        VerifyIntegrity(item, extractedData.Length - header.Length);
+        return _compressor.Compress(extractedData);
       }
       else
       {
         var extractHeader = (IEarthInfo)item.Header.Clone();
         extractHeader.RemoveFlag(FileFlags.Compressed);
         var header = extractHeader.ToByteArray(_encoding);
-        return header.Concat(_decompressor.Decompress(item.Data.ToArray())).ToArray();
+        var extractedData = header.Concat(_decompressor.Decompress(item.Data.ToArray())).ToArray();
+        VerifyIntegrity(item, extractedData.Length - header.Length);
+        return extractedData;
+      }
+    }
+
+    private void VerifyIntegrity(IArchiveItem item, int extractedLength)
+    {
+      if (extractedLength != item.DecompressedSize)
+      {
+        _logger.LogWarning("{Extracted}:{Expected}", extractedLength, item.DecompressedSize);
       }
     }
 
@@ -262,20 +289,40 @@ namespace EarthTool.WD.Services
         fileName = Path.GetFileName(filePath);
       }
 
+      var data = HandlePrecompressed(fileData, out var precompressed);
       // Read existing header from file if it has EarthInfo
-      using var ms = new MemoryStream(fileData);
+      using var ms = new MemoryStream(data);
       var header = earthInfoFactory.Get(ms) ?? earthInfoFactory.Get();
       var headerSize = (int)ms.Position;
-      var contentData = new byte[fileData.Length - headerSize];
-      Array.Copy(fileData, headerSize, contentData, 0, contentData.Length);
+      var contentData = new byte[data.Length - headerSize];
+      Array.Copy(data, headerSize, contentData, 0, contentData.Length);
 
       var decompressedSize = contentData.Length;
-      var archiveData = compress && !header.Flags.HasFlag(FileFlags.Compressed) ? compressor.Compress(contentData) : contentData;
+      var archiveData = compress && (!header.Flags.HasFlag(FileFlags.Compressed) || precompressed)
+          ? compressor.Compress(contentData)
+          : contentData;
       var compressedSize = archiveData.Length;
       var archiveHeader = (IEarthInfo)header.Clone();
       if (compress) archiveHeader.SetFlag(FileFlags.Compressed);
+      if (precompressed) archiveHeader.SetFlag(FileFlags.Archive);
 
-      return new ArchiveItem(fileName, archiveHeader, new InMemoryArchiveDataSource(archiveData), compressedSize, decompressedSize);
+      return new ArchiveItem(fileName, archiveHeader, new InMemoryArchiveDataSource(archiveData), compressedSize,
+        decompressedSize);
+    }
+
+    private byte[] HandlePrecompressed(byte[] data, out bool compressed)
+    {
+      try
+      {
+        data = _decompressor.Decompress(data);
+        compressed = true;
+      }
+      catch
+      {
+        compressed = false;
+      }
+
+      return data;
     }
   }
 }

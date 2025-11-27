@@ -1,10 +1,10 @@
-# EarthTool.WD.GUI - Architektura
+# EarthTool.WD.GUI - Architecture
 
-## Przegląd
+## Overview
 
-EarthTool.WD.GUI to aplikacja desktopowa zbudowana w oparciu o wzorzec MVVM (Model-View-ViewModel) wykorzystująca Avalonia UI i ReactiveUI.
+EarthTool.WD.GUI is a desktop application built on the MVVM (Model-View-ViewModel) pattern using Avalonia UI and ReactiveUI.
 
-## Wzorce architektoniczne
+## Architectural Patterns
 
 ### MVVM (Model-View-ViewModel)
 
@@ -21,31 +21,31 @@ MainWindow.axaml      MainWindowViewModel.cs         IArchiver
                                                       IArchiveItem
 ```
 
-#### Separacja odpowiedzialności
+#### Separation of Concerns
 
 **View (Views/)**
-- Wyłącznie UI w XAML
-- Minimalny code-behind (tylko inicjalizacja)
-- Data binding do ViewModel
-- Nie zawiera logiki biznesowej
+- UI only in XAML
+- Minimal code-behind (initialization only)
+- Data binding to ViewModel
+- Contains no business logic
 
 **ViewModel (ViewModels/)**
-- Logika prezentacji i biznesowa
-- Commands dla akcji użytkownika
-- Observable properties dla data binding
-- Interakcja z Services
-- Nie zna konkretnych View
+- Presentation and business logic
+- Commands for user actions
+- Observable properties for data binding
+- Interaction with Services
+- No knowledge of specific Views
 
 **Model (EarthTool.WD/)**
-- Logika domenowa (zarządzanie archiwami)
-- Dostęp do danych (pliki WD)
-- Niezależna od UI
+- Domain logic (archive management)
+- Data access (WD files)
+- UI independent
 
 ### Dependency Injection
 
-Aplikacja używa **Microsoft.Extensions.DependencyInjection** do zarządzania zależnościami.
+The application uses **Microsoft.Extensions.DependencyInjection** for dependency management.
 
-#### Konfiguracja (App.axaml.cs)
+#### Configuration (App.axaml.cs)
 
 ```csharp
 private void ConfigureServices(IServiceCollection services)
@@ -68,38 +68,38 @@ private void ConfigureServices(IServiceCollection services)
 
 #### Service Lifetimes
 
-| Service | Lifetime | Uzasadnienie |
-|---------|----------|--------------|
-| IDialogService | Singleton | Współdzielony dostęp do okien dialogowych |
-| INotificationService | Singleton | Centralna obsługa powiadomień |
-| MainWindowViewModel | Transient | Nowa instancja dla każdego okna |
-| IArchiver | Scoped | Per operacja na archiwum |
-| IArchiveFactory | Scoped | Per operacja tworzenia |
+| Service | Lifetime | Rationale |
+|---------|----------|-----------|
+| IDialogService | Singleton | Shared access to dialog windows |
+| INotificationService | Singleton | Central notification handling |
+| MainWindowViewModel | Transient | New instance for each window |
+| IArchiver | Scoped | Per archive operation |
+| IArchiveFactory | Scoped | Per creation operation |
 
 ### Reactive Extensions (ReactiveUI)
 
 #### ReactiveCommand
 
-Wszystkie akcje użytkownika są implementowane jako `ReactiveCommand`:
+All user actions are implemented as `ReactiveCommand`:
 
 ```csharp
-// Definicja
+// Definition
 public ReactiveCommand<Unit, Unit> OpenArchiveCommand { get; private set; }
 
-// Inicjalizacja z CanExecute
+// Initialization with CanExecute
 var canOpen = this.WhenAnyValue(x => x.IsReady);
 OpenArchiveCommand = ReactiveCommand.CreateFromTask(OpenArchiveAsync, canOpen);
 
-// Implementacja
+// Implementation
 private async Task OpenArchiveAsync()
 {
-    // Logika otwarcia archiwum
+    // Archive opening logic
 }
 ```
 
 #### Observable Properties
 
-Właściwości powiadamiają o zmianach automatycznie:
+Properties notify changes automatically:
 
 ```csharp
 private bool _isBusy;
@@ -120,112 +120,112 @@ this.WhenAnyValue(
 .ToProperty(this, x => x.CompressionRatio, out _compressionRatio);
 ```
 
-## Przepływ danych
+## Data Flow
 
-### Otwieranie archiwum
+### Opening an Archive
 
 ```
 User Click → Command → ViewModel → Service → Backend → Update Properties → UI Update
 ```
 
-Szczegółowo:
+In detail:
 
-1. Użytkownik klika "Open Archive"
-2. `OpenArchiveCommand.Execute()` jest wywołane
-3. `MainWindowViewModel.OpenArchiveAsync()` wykonuje:
-   - Wywołuje `IDialogService.ShowOpenFileDialogAsync()`
-   - Otrzymuje ścieżkę pliku
-   - Wywołuje `IArchiver.OpenArchive(filePath)`
-   - Otrzymuje `IArchive` z backendu
-   - Konwertuje `IArchiveItem[]` na `ArchiveItemViewModel[]`
-   - Aktualizuje `ArchiveItems` ObservableCollection
-   - Aktualizuje `ArchiveInfo`
-4. Data binding automatycznie aktualizuje UI (DataGrid, Info Panel)
-5. StatusBar pokazuje komunikat sukcesu
+1. User clicks "Open Archive"
+2. `OpenArchiveCommand.Execute()` is invoked
+3. `MainWindowViewModel.OpenArchiveAsync()` executes:
+   - Calls `IDialogService.ShowOpenFileDialogAsync()`
+   - Receives file path
+   - Calls `IArchiver.OpenArchive(filePath)`
+   - Receives `IArchive` from backend
+   - Converts `IArchiveItem[]` to `ArchiveItemViewModel[]`
+   - Updates `ArchiveItems` ObservableCollection
+   - Updates `ArchiveInfo`
+4. Data binding automatically updates UI (DataGrid, Info Panel)
+5. StatusBar shows success message
 
-### Ekstraktacja pliku
+### Extracting a File
 
 ```
 User Selection → Command → ViewModel → Dialog → Backend → Notification → Status Update
 ```
 
-1. Użytkownik zaznacza plik w DataGrid
-2. `SelectedItem` property jest aktualizowane (two-way binding)
-3. `ExtractSelectedCommand.CanExecute` zmienia się na `true`
-4. Użytkownik klika "Extract"
-5. `ExtractSelectedAsync()` wykonuje:
-   - Wywołuje `IDialogService.ShowFolderBrowserDialogAsync()`
-   - Otrzymuje folder docelowy
-   - Ustawia `IsBusy = true` (UI pokazuje progress)
-   - Wywołuje `IArchiver.Extract(item, folder)` w `Task.Run`
-   - Po zakończeniu wywołuje `INotificationService.ShowSuccess()`
-   - Aktualizuje `StatusMessage`
-   - Ustawia `IsBusy = false`
+1. User selects file in DataGrid
+2. `SelectedItem` property is updated (two-way binding)
+3. `ExtractSelectedCommand.CanExecute` changes to `true`
+4. User clicks "Extract"
+5. `ExtractSelectedAsync()` executes:
+   - Calls `IDialogService.ShowFolderBrowserDialogAsync()`
+   - Receives destination folder
+   - Sets `IsBusy = true` (UI shows progress)
+   - Calls `IArchiver.Extract(item, folder)` in `Task.Run`
+   - After completion calls `INotificationService.ShowSuccess()`
+   - Updates `StatusMessage`
+   - Sets `IsBusy = false`
 
-## Komponenty
+## Components
 
 ### ViewModels
 
 #### MainWindowViewModel
 
-**Odpowiedzialności:**
-- Orkiestracja głównych operacji aplikacji
-- Zarządzanie stanem archiwum
-- Obsługa komend użytkownika
-- Koordynacja z Services
+**Responsibilities:**
+- Orchestration of main application operations
+- Archive state management
+- User command handling
+- Coordination with Services
 
-**Kluczowe properties:**
-- `ArchiveItems` - Lista plików w archiwum
-- `SelectedItem` - Aktualnie zaznaczony plik
-- `ArchiveInfo` - Metadane archiwum
-- `IsBusy` - Czy trwa operacja
-- `StatusMessage` - Komunikat dla użytkownika
-- `HasUnsavedChanges` - Czy są niezapisane zmiany
+**Key properties:**
+- `ArchiveItems` - List of files in archive
+- `SelectedItem` - Currently selected file
+- `ArchiveInfo` - Archive metadata
+- `IsBusy` - Whether operation is in progress
+- `StatusMessage` - Message for user
+- `HasUnsavedChanges` - Whether there are unsaved changes
 
-**Kluczowe commands:**
-- `OpenArchiveCommand` - Otwórz archiwum
-- `SaveArchiveCommand` - Zapisz zmiany
-- `ExtractSelectedCommand` - Ekstraktuj plik
-- `ExtractAllCommand` - Ekstraktuj wszystko
-- `AddFilesCommand` - Dodaj pliki
-- `RemoveSelectedCommand` - Usuń plik
+**Key commands:**
+- `OpenArchiveCommand` - Open archive
+- `SaveArchiveCommand` - Save changes
+- `ExtractSelectedCommand` - Extract file
+- `ExtractAllCommand` - Extract everything
+- `AddFilesCommand` - Add files
+- `RemoveSelectedCommand` - Remove file
 
 #### ArchiveItemViewModel
 
-**Odpowiedzialności:**
-- Wrapper dla `IArchiveItem`
-- Formatowanie danych dla UI
+**Responsibilities:**
+- Wrapper for `IArchiveItem`
+- Data formatting for UI
 - Computed properties (ratio, formatted sizes)
 
-**Kluczowe properties:**
+**Key properties:**
 - `Item` - Underlying IArchiveItem
 - `FileName`, `CompressedSize`, `DecompressedSize`
-- `CompressionRatio` - Obliczony współczynnik
-- `FormattedCompressedSize` - Sformatowany rozmiar
+- `CompressionRatio` - Calculated ratio
+- `FormattedCompressedSize` - Formatted size
 - `Flags` - FileFlags enum
 
 #### ArchiveInfoViewModel
 
-**Odpowiedzialności:**
-- Agregacja informacji o archiwum
-- Formatowanie metadanych
-- Obliczanie statystyk
+**Responsibilities:**
+- Aggregation of archive information
+- Metadata formatting
+- Statistics calculation
 
-**Kluczowe properties:**
+**Key properties:**
 - `FilePath`, `LastModification`, `ItemCount`
 - `TotalCompressedSize`, `TotalDecompressedSize`
-- `FormattedCompressionRatio` - Ogólny współczynnik
+- `FormattedCompressionRatio` - Overall ratio
 
-**Kluczowe metody:**
-- `UpdateFromArchive(IArchive)` - Aktualizuj z archiwum
-- `Clear()` - Wyczyść dane
+**Key methods:**
+- `UpdateFromArchive(IArchive)` - Update from archive
+- `Clear()` - Clear data
 
 ### Services
 
 #### IDialogService
 
-**Odpowiedzialności:**
-- Abstrakcja nad systemowymi dialogami
+**Responsibilities:**
+- Abstraction over system dialogs
 - File pickers (Open, Save, Folder)
 - Message boxes
 
@@ -238,16 +238,16 @@ Task<IReadOnlyList<string>> ShowOpenFilesDialogAsync();
 Task<MessageBoxResult> ShowMessageBoxAsync(string message, string title, MessageBoxType type);
 ```
 
-**Implementacja:**
-- Używa `StorageProvider` API z Avalonia 11.x
-- File filters dla plików .WD
-- Centrowanie względem głównego okna
+**Implementation:**
+- Uses `StorageProvider` API from Avalonia 11.x
+- File filters for .WD files
+- Centering relative to main window
 
 #### INotificationService
 
-**Odpowiedzialności:**
-- Centralna obsługa powiadomień
-- Logging błędów
+**Responsibilities:**
+- Central notification handling
+- Error logging
 - Event-driven notifications
 
 **API:**
@@ -259,16 +259,16 @@ void ShowInfo(string message);
 event EventHandler<NotificationEventArgs> NotificationRaised;
 ```
 
-**Implementacja:**
-- Integracja z `ILogger<T>`
-- Event emission dla subskrypcji w ViewModels
-- Różne poziomy logowania
+**Implementation:**
+- Integration with `ILogger<T>`
+- Event emission for ViewModel subscriptions
+- Different logging levels
 
 ### Converters
 
 #### BytesToHumanReadableConverter
 
-Konwertuje liczby bajtów na czytelny format (B, KB, MB, GB).
+Converts byte numbers to human-readable format (B, KB, MB, GB).
 
 ```csharp
 1024 → "1.00 KB"
@@ -277,7 +277,7 @@ Konwertuje liczby bajtów na czytelny format (B, KB, MB, GB).
 
 #### FileFlagsToStringConverter
 
-Konwertuje `FileFlags` enum na string z opisem flag.
+Converts `FileFlags` enum to string with flag descriptions.
 
 ```csharp
 FileFlags.Compressed | FileFlags.Named → "Compressed, Named"
@@ -285,7 +285,7 @@ FileFlags.Compressed | FileFlags.Named → "Compressed, Named"
 
 #### BoolToVisibilityConverter
 
-Konwertuje bool na visibility (true/false binding).
+Converts bool to visibility (true/false binding).
 
 ```csharp
 true → Visible
@@ -294,9 +294,9 @@ false → Collapsed
 
 ## Error Handling Strategy
 
-### Trzy poziomy obsługi
+### Three Levels of Handling
 
-1. **Try-Catch w ViewModel methods**
+1. **Try-Catch in ViewModel methods**
    ```csharp
    try
    {
@@ -309,17 +309,17 @@ false → Collapsed
    }
    ```
 
-2. **NotificationService agregacja**
-   - Wszystkie błędy przez jeden service
-   - Spójne logowanie
-   - Centralne formatowanie komunikatów
+2. **NotificationService aggregation**
+   - All errors through one service
+   - Consistent logging
+   - Central message formatting
 
 3. **UI Feedback**
-   - StatusMessage w StatusBar
-   - MessageBox dla krytycznych błędów
-   - IsBusy indicator podczas operacji
+   - StatusMessage in StatusBar
+   - MessageBox for critical errors
+   - IsBusy indicator during operations
 
-### Wzorzec Try-Finally dla IsBusy
+### Try-Finally Pattern for IsBusy
 
 ```csharp
 try
@@ -336,7 +336,7 @@ catch (Exception ex)
 }
 finally
 {
-    IsBusy = false;  // ZAWSZE resetuj
+    IsBusy = false;  // ALWAYS reset
 }
 ```
 
@@ -372,20 +372,20 @@ finally
 
 ### Async Operations
 
-Wszystkie I/O operacje są asynchroniczne:
+All I/O operations are asynchronous:
 
 ```csharp
 await Task.Run(() => _archiver.OpenArchive(filePath));
 ```
 
-Korzyści:
-- UI pozostaje responsywny
-- Brak blokowania głównego wątku
-- Progress indicators mogą być wyświetlane
+Benefits:
+- UI remains responsive
+- No main thread blocking
+- Progress indicators can be displayed
 
 ### ObservableCollection Updates
 
-Aktualizacje list są batched gdzie możliwe:
+List updates are batched where possible:
 
 ```csharp
 ArchiveItems.Clear();
@@ -397,7 +397,7 @@ foreach (var item in archive.Items)
 
 ### Memory Management
 
-- `IArchive` implementuje `IDisposable` (memory-mapped files)
+- `IArchive` implements `IDisposable` (memory-mapped files)
 - `MainWindowViewModel` Dispose pattern:
   ```csharp
   public void Dispose()
@@ -411,7 +411,7 @@ foreach (var item in archive.Items)
 
 ### ViewModels
 
-Unit testy z mockowanymi services:
+Unit tests with mocked services:
 
 ```csharp
 var mockArchiver = new Mock<IArchiver>();
@@ -432,11 +432,11 @@ await viewModel.OpenArchiveCommand.Execute();
 
 ### Integration Tests
 
-Testy end-to-end z rzeczywistymi services i testowymi archiwami.
+End-to-end tests with real services and test archives.
 
 ### Manual Testing
 
-Scenariusze testowe opisane w README.md.
+Test scenarios described in README.md.
 
 ## Deployment
 
@@ -448,7 +448,7 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 ### Cross-Platform
 
-Avalonia wspiera:
+Avalonia supports:
 - Windows (win-x64, win-arm64)
 - Linux (linux-x64, linux-arm, linux-arm64)
 - macOS (osx-x64, osx-arm64)
@@ -457,21 +457,21 @@ Avalonia wspiera:
 
 ### Planned Enhancements
 
-1. **Multi-selection support** - Refaktoryzacja SelectedItem → SelectedItems collection
-2. **Background operations** - Queue dla długich operacji
-3. **Plugin system** - Extensibility dla custom file handlers
-4. **Undo/Redo** - Command pattern z history
-5. **Async initialization** - Lazy loading dla ViewModels
+1. **Multi-selection support** - Refactoring SelectedItem → SelectedItems collection
+2. **Background operations** - Queue for long operations
+3. **Plugin system** - Extensibility for custom file handlers
+4. **Undo/Redo** - Command pattern with history
+5. **Async initialization** - Lazy loading for ViewModels
 
 ### Technical Debt
 
-- [ ] Dodać unit testy dla ViewModels
-- [ ] Dodać integration testy
-- [ ] Refaktor DialogService na używanie behaviors
-- [ ] Implementacja Attached Properties dla SelectedItems binding
-- [ ] Progress reporting dla długich operacji
+- [ ] Add unit tests for ViewModels
+- [ ] Add integration tests
+- [ ] Refactor DialogService to use behaviors
+- [ ] Implement Attached Properties for SelectedItems binding
+- [ ] Progress reporting for long operations
 
-## Diagram klas
+## Class Diagram
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
@@ -505,12 +505,12 @@ Avalonia wspiera:
 └──────────────────────┘    └────────────────────────┘
 ```
 
-## Konkluzja
+## Conclusion
 
-Architektura EarthTool.WD.GUI jest zaprojektowana z myślą o:
+The EarthTool.WD.GUI architecture is designed with focus on:
 
-- **Separacji odpowiedzialności** - MVVM pattern
-- **Testowalności** - Dependency Injection
-- **Maintainability** - Jasna struktura folderów i klasy Single Responsibility
-- **Extensibility** - Service abstractions i plugin-ready architecture
-- **User Experience** - Reactive UI z feedback w czasie rzeczywistym
+- **Separation of concerns** - MVVM pattern
+- **Testability** - Dependency Injection
+- **Maintainability** - Clear folder structure and Single Responsibility classes
+- **Extensibility** - Service abstractions and plugin-ready architecture
+- **User Experience** - Reactive UI with real-time feedback

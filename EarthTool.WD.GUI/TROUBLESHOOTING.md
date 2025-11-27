@@ -1,23 +1,23 @@
-# Troubleshooting - DataGrid i Panel Information puste po otwarciu archiwum
+# Troubleshooting - DataGrid and Information Panel Empty After Opening Archive
 
 ## Problem
-Status bar i tytuł okna pokazują poprawne informacje, ale:
-- DataGrid (Archive Contents) jest pusty
-- Panel Information jest pusty lub niewidoczny
+Status bar and window title show correct information, but:
+- DataGrid (Archive Contents) is empty
+- Information panel is empty or invisible
 
-## Diagnostyka krok po kroku
+## Step-by-Step Diagnostics
 
-### 1. Sprawdź czy dane są ładowane
+### 1. Check if data is loading
 
-Uruchom aplikację z logowaniem:
+Run application with logging:
 ```bash
 cd /home/arkezar/Source/EarthTool/EarthTool.WD.GUI
 dotnet run --verbosity detailed > app.log 2>&1
 ```
 
-Otwórz archiwum WD, potem sprawdź `app.log`:
+Open a WD archive, then check `app.log`:
 
-**Szukaj tych linii:**
+**Look for these lines:**
 ```
 MainWindowViewModel constructed
 LoadArchiveItems called. Archive is null: False
@@ -25,12 +25,12 @@ Archive has X items
 Added X items to ArchiveItems collection
 ```
 
-**Jeśli widzisz te logi** → dane SĄ ładowane, problem jest w bindingu UI  
-**Jeśli NIE widzisz tych logów** → problem jest w ładowaniu danych
+**If you see these logs** → data IS loading, problem is in UI binding  
+**If you DON'T see these logs** → problem is in data loading
 
-### 2. Sprawdź DataContext
+### 2. Check DataContext
 
-Dodaj do MainWindow.axaml.cs w konstruktorze:
+Add to MainWindow.axaml.cs in constructor:
 ```csharp
 public MainWindow()
 {
@@ -46,26 +46,26 @@ public MainWindow()
 }
 ```
 
-Uruchom aplikację - powinieneś zobaczyć:
+Run application - you should see:
 ```
 DataContext type: MainWindowViewModel
 ArchiveItems count: 0
 ```
 
-### 3. Test binding z testowymi danymi
+### 3. Test binding with test data
 
-Tymczasowo dodaj testowe dane w MainWindowViewModel konstruktorze:
+Temporarily add test data in MainWindowViewModel constructor:
 ```csharp
 // DEBUG: Add test data
 ArchiveItems.Add(new ArchiveItemViewModel(
     new TestArchiveItem("test.txt", 100, 200)));
 ```
 
-Jeśli po tym widzisz "test.txt" w DataGrid → binding działa, problem jest w ładowaniu prawdziwych danych
+If you see "test.txt" in DataGrid → binding works, problem is in loading real data
 
-### 4. Sprawdź czy ObservableCollection wysyła notyfikacje
+### 4. Check if ObservableCollection sends notifications
 
-Dodaj event handler do ArchiveItems:
+Add event handler to ArchiveItems:
 ```csharp
 ArchiveItems.CollectionChanged += (s, e) =>
 {
@@ -74,14 +74,14 @@ ArchiveItems.CollectionChanged += (s, e) =>
 };
 ```
 
-### 5. Sprawdź panel IsVisible binding
+### 5. Check panel IsVisible binding
 
-W XAML panel używa:
+In XAML panel uses:
 ```xml
 <StackPanel IsVisible="{Binding IsArchiveOpen}">
 ```
 
-Dodaj log gdy `IsArchiveOpen` się zmienia:
+Add log when `IsArchiveOpen` changes:
 ```csharp
 public bool IsArchiveOpen
 {
@@ -94,32 +94,32 @@ public bool IsArchiveOpen
 }
 ```
 
-## Możliwe przyczyny i rozwiązania
+## Possible Causes and Solutions
 
-### Przyczyna 1: Thread safety issue
-**Objawy**: Exception w logach o cross-thread operation
+### Cause 1: Thread safety issue
+**Symptoms**: Exception in logs about cross-thread operation
 
-**Rozwiązanie**: Użyj Dispatcher dla operacji na kolekcji (już zaimplementowane)
+**Solution**: Use Dispatcher for collection operations (already implemented)
 
-### Przyczyna 2: Compiled bindings nie działają
-**Objawy**: Brak błędów, ale UI nie aktualizuje się
+### Cause 2: Compiled bindings don't work
+**Symptoms**: No errors, but UI doesn't update
 
-**Rozwiązanie**: Tymczasowo usuń `x:DataType` z XAML i zobacz czy pomaga
+**Solution**: Temporarily remove `x:DataType` from XAML and see if it helps
 
-### Przyczyna 3: DataContext nie jest ustawiony
-**Objawy**: DataContext jest null
+### Cause 3: DataContext is not set
+**Symptoms**: DataContext is null
 
-**Rozwiązanie**: Sprawdź App.axaml.cs czy `desktop.MainWindow = new MainWindow { DataContext = mainViewModel };` jest wykonywane
+**Solution**: Check App.axaml.cs if `desktop.MainWindow = new MainWindow { DataContext = mainViewModel };` is executed
 
-### Przyczyna 4: Collection nie jest obserwowana
-**Objawy**: Dane są dodawane ale UI się nie odświeża
+### Cause 4: Collection is not observed
+**Symptoms**: Data is added but UI doesn't refresh
 
-**Rozwiązanie**: Upewnij się że używasz `ObservableCollection` a nie `List`
+**Solution**: Ensure you're using `ObservableCollection` not `List`
 
-### Przyczyna 5: Timing issue
-**Objawy**: Dane się pojawiają po chwili lub po resize okna
+### Cause 5: Timing issue
+**Symptoms**: Data appears after a while or after window resize
 
-**Rozwiązanie**: Wymuś refresh UI:
+**Solution**: Force UI refresh:
 ```csharp
 Dispatcher.UIThread.Post(() =>
 {
@@ -127,9 +127,9 @@ Dispatcher.UIThread.Post(() =>
 }, DispatcherPriority.Render);
 ```
 
-## Quick fixes do wypróbowania
+## Quick Fixes to Try
 
-### Fix 1: Force UI refresh po załadowaniu
+### Fix 1: Force UI refresh after loading
 ```csharp
 private void LoadArchiveItemsCore()
 {
@@ -141,7 +141,7 @@ private void LoadArchiveItemsCore()
 }
 ```
 
-### Fix 2: Używaj Post zamiast Schedule
+### Fix 2: Use Post instead of Schedule
 ```csharp
 Dispatcher.UIThread.Post(() => LoadArchiveItemsCore(), DispatcherPriority.Normal);
 ```
@@ -152,42 +152,42 @@ await Task.Delay(100); // Give UI time to process
 this.RaisePropertyChanged(nameof(ArchiveItems));
 ```
 
-## Weryfikacja ostateczna
+## Final Verification
 
-Po otwarciu archiwum sprawdź:
+After opening archive check:
 
-1. ✅ Tytuł okna zmienił się → ViewModel działa
-2. ✅ Status bar pokazuje "Loaded X file(s)" → LoadArchiveItems zostało wywołane  
-3. ❌ DataGrid jest pusty → Problem z bindingiem lub notyfikacją
-4. ❌ Panel jest niewidoczny → Problem z IsArchiveOpen binding
+1. ✅ Window title changed → ViewModel works
+2. ✅ Status bar shows "Loaded X file(s)" → LoadArchiveItems was called  
+3. ❌ DataGrid is empty → Problem with binding or notification
+4. ❌ Panel is invisible → Problem with IsArchiveOpen binding
 
-Jeśli 1 i 2 działają ale 3 i 4 nie - to problem jest w UI bindingu, nie w logice backendu.
+If 1 and 2 work but 3 and 4 don't - the problem is in UI binding, not backend logic.
 
-## Dodatkowe narzędzia diagnostyczne
+## Additional Diagnostic Tools
 
 ### Avalonia DevTools
-Uruchom z DevTools:
+Run with DevTools:
 ```bash
 dotnet run
-# W aplikacji naciśnij F12
+# In application press F12
 ```
 
-W DevTools sprawdź:
-- Visual Tree → znajdź DataGrid → Properties → ItemsSource
-- Jeśli ItemsSource jest null → binding nie działa
-- Jeśli ItemsSource ma elementy ale są niewidoczne → problem z renderowaniem
+In DevTools check:
+- Visual Tree → find DataGrid → Properties → ItemsSource
+- If ItemsSource is null → binding doesn't work
+- If ItemsSource has elements but they're invisible → rendering problem
 
-### Binding diagnostics w XAML
-Dodaj tymczasowo:
+### Binding diagnostics in XAML
+Temporarily add:
 ```xml
 <TextBlock Text="{Binding ArchiveItems.Count}" />
 ```
 
-Jeśli pokazuje się prawidłowa liczba → ArchiveItems binding działa, problem jest w DataGrid
+If it shows correct number → ArchiveItems binding works, problem is in DataGrid
 
-## Kontakt
+## Contact
 
-Jeśli żaden z powyższych kroków nie pomaga, dołącz do zgłoszenia:
-1. Pełny log z `dotnet run --verbosity detailed`
-2. Screenshot aplikacji po otwarciu archiwum
-3. Wynik DevTools inspection (jeśli możliwy)
+If none of the above steps help, include in your report:
+1. Full log from `dotnet run --verbosity detailed`
+2. Screenshot of application after opening archive
+3. DevTools inspection result (if possible)
