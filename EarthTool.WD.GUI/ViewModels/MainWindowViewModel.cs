@@ -132,6 +132,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   public ReactiveCommand<Unit, Unit> SetTextFlagCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> ClearTextFlagCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> ToggleTextFlagCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> ToggleThemeCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> AboutCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> ExitCommand { get; private set; } = null!;
 
@@ -183,6 +184,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     SetTextFlagCommand = ReactiveCommand.CreateFromTask(SetTextFlagAsync, canExtractSelected);
     ClearTextFlagCommand = ReactiveCommand.CreateFromTask(ClearTextFlagAsync, canExtractSelected);
     ToggleTextFlagCommand = ReactiveCommand.CreateFromTask(ToggleTextFlagAsync, canExtractSelected);
+
+    // ToggleThemeCommand - always enabled
+    ToggleThemeCommand = ReactiveCommand.Create(ToggleTheme);
 
     // AboutCommand - always enabled
     AboutCommand = ReactiveCommand.CreateFromTask(ShowAboutAsync);
@@ -996,6 +1000,28 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     }
 
     return Task.CompletedTask;
+  }
+
+  private void ToggleTheme()
+  {
+    try
+    {
+      var app = Avalonia.Application.Current;
+      if (app != null)
+      {
+        var currentTheme = app.ActualThemeVariant;
+        app.RequestedThemeVariant = currentTheme == Avalonia.Styling.ThemeVariant.Dark
+          ? Avalonia.Styling.ThemeVariant.Light
+          : Avalonia.Styling.ThemeVariant.Dark;
+        
+        _logger.LogInformation("Theme toggled to: {Theme}", app.RequestedThemeVariant);
+      }
+    }
+    catch (Exception ex)
+    {
+      _logger.LogError(ex, "Failed to toggle theme");
+      _notificationService.ShowError("Failed to toggle theme", ex);
+    }
   }
 
   private async Task ShowAboutAsync()

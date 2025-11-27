@@ -180,6 +180,12 @@
             </MenuItem>
 
             <MenuItem Header="_Help">
+                <MenuItem Header="Toggle _Theme" Command="{Binding ToggleThemeCommand}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="🌓" FontSize="14" />
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator />
                 <MenuItem Header="_About" Command="{Binding AboutCommand}">
                     <MenuItem.Icon>
                         <ContentControl ContentTemplate="{StaticResource InfoIcon}" />
