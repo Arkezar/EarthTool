@@ -1,4 +1,4 @@
-﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Enums;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
@@ -30,7 +30,7 @@ namespace EarthTool.PAR.Models
       AmmoId = GetString(data);
       data.ReadBytes(4);
       AmmoType = GetInteger(data);
-      TargetType = GetInteger(data);
+      TargetType = (TargetType)GetInteger(data);
       RangeOfFire = GetInteger(data);
       PlusDamage = GetInteger(data);
       FireType = GetInteger(data);
@@ -66,7 +66,7 @@ namespace EarthTool.PAR.Models
 
     public int AmmoType { get; set; }
 
-    public int TargetType { get; set; }
+    public TargetType TargetType { get; set; }
 
     public int RangeOfFire { get; set; }
 
@@ -102,7 +102,7 @@ namespace EarthTool.PAR.Models
           () => AmmoId,
           () => 1,
           () => AmmoType,
-          () => TargetType,
+          () => (int)TargetType,
           () => RangeOfFire,
           () => PlusDamage,
           () => FireType,
@@ -137,7 +137,7 @@ namespace EarthTool.PAR.Models
           bw.Write(encoding.GetBytes(AmmoId));
           bw.Write(-1);
           bw.Write(AmmoType);
-          bw.Write(TargetType);
+          bw.Write((int)TargetType);
           bw.Write(RangeOfFire);
           bw.Write(PlusDamage);
           bw.Write(FireType);

@@ -1,4 +1,4 @@
-﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Enums;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
@@ -18,19 +18,19 @@ namespace EarthTool.PAR.Models
       : base(name, requiredResearch, type, data)
     {
       ExplosionTicks = GetInteger(data);
-      ExplosionFlags = GetInteger(data);
+      ExplosionFlags = (ExplosionFlags)GetInteger(data);
     }
 
     public int ExplosionTicks { get; set; }
 
-    public int ExplosionFlags { get; set; }
+    public ExplosionFlags ExplosionFlags { get; set; }
 
     [JsonIgnore]
     public override IEnumerable<bool> FieldTypes
     {
       get => base.FieldTypes.Concat(IsStringMember(
         () => ExplosionTicks,
-        () => ExplosionFlags
+        () => (int)ExplosionFlags
       ));
       set => base.FieldTypes = value;
     }
@@ -43,7 +43,7 @@ namespace EarthTool.PAR.Models
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(ExplosionTicks);
-          bw.Write(ExplosionFlags);
+          bw.Write((int)ExplosionFlags);
         }
 
         return output.ToArray();

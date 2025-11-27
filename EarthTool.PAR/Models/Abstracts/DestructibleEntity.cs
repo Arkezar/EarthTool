@@ -1,4 +1,4 @@
-﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Enums;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -21,7 +21,7 @@ namespace EarthTool.PAR.Models.Abstracts
       Armor = GetInteger(data);
       CalorificCapacity = GetInteger(data);
       DisableResist = GetInteger(data);
-      StoreableFlags = GetInteger(data);
+      StoreableFlags = (StoreableFlags)GetInteger(data);
       StandType = GetInteger(data);
     }
 
@@ -35,7 +35,7 @@ namespace EarthTool.PAR.Models.Abstracts
 
     public int DisableResist { get; set; }
 
-    public int StoreableFlags { get; set; }
+    public StoreableFlags StoreableFlags { get; set; }
 
     public int StandType { get; set; }
 
@@ -48,7 +48,7 @@ namespace EarthTool.PAR.Models.Abstracts
         () => Armor,
         () => CalorificCapacity,
         () => DisableResist,
-        () => StoreableFlags,
+        () => (int)StoreableFlags,
         () => StandType
       ));
       set => base.FieldTypes = value;
@@ -66,7 +66,7 @@ namespace EarthTool.PAR.Models.Abstracts
           bw.Write(Armor);
           bw.Write(CalorificCapacity);
           bw.Write(DisableResist);
-          bw.Write(StoreableFlags);
+          bw.Write((int)StoreableFlags);
           bw.Write(StandType);
         }
 
