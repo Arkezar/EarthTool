@@ -1,0 +1,324 @@
+name: CI (Unified)
+
+on:
+  push:
+    branches: [main, master, dev, "feature/**"]
+    paths:
+      - "EarthTool.CLI/**"
+      - "EarthTool.WD.GUI/**"
+      - "EarthTool.Common/**"
+      - "EarthTool.WD/**"
+      - "EarthTool.MSH/**"
+      - "EarthTool.DAE/**"
+      - "EarthTool.PAR/**"
+      - "EarthTool.TEX/**"
+      - ".github/workflows/ci-unified.yml"
+  pull_request:
+    branches: [main, master, dev]
+    paths:
+      - "EarthTool.CLI/**"
+      - "EarthTool.WD.GUI/**"
+      - "EarthTool.Common/**"
+      - "EarthTool.WD/**"
+      - "EarthTool.MSH/**"
+      - "EarthTool.DAE/**"
+      - "EarthTool.PAR/**"
+      - "EarthTool.TEX/**"
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: "8.0.x"
+  SOLUTION_FILE: "EarthTool.sln"
+
+jobs:
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      cli: ${{ steps.filter.outputs.cli }}
+      gui: ${{ steps.filter.outputs.gui }}
+      libraries: ${{ steps.filter.outputs.libraries }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            cli:
+              - 'EarthTool.CLI/**'
+              - 'EarthTool.Common/**'
+              - 'EarthTool.WD/**'
+              - 'EarthTool.MSH/**'
+              - 'EarthTool.DAE/**'
+              - 'EarthTool.PAR/**'
+              - 'EarthTool.TEX/**'
+            gui:
+              - 'EarthTool.WD.GUI/**'
+              - 'EarthTool.WD/**'
+              - 'EarthTool.Common/**'
+            libraries:
+              - 'EarthTool.WD/**'
+              - 'EarthTool.MSH/**'
+              - 'EarthTool.DAE/**'
+              - 'EarthTool.PAR/**'
+              - 'EarthTool.TEX/**'
+              - 'EarthTool.Common/**'
+
+  build-and-test:
+    name: Build ${{ matrix.project }} (${{ matrix.os }})
+    needs: detect-changes
+    runs-on: ${{ matrix.os }}
+    if: |
+      (needs.detect-changes.outputs.cli == 'true' && matrix.project == 'cli') ||
+      (needs.detect-changes.outputs.gui == 'true' && matrix.project == 'gui') ||
+      github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        project: [cli, gui]
+        include:
+          # CLI configurations
+          - project: cli
+            project_path: "EarthTool.CLI/EarthTool.CLI.csproj"
+            artifact_prefix: "EarthTool.CLI"
+          # GUI configurations
+          - project: gui
+            project_path: "EarthTool.WD.GUI/EarthTool.WD.GUI.csproj"
+            artifact_prefix: "EarthTool.WD.GUI"
+          # Platform configurations
+          - os: windows-latest
+            runtime: win-x64
+            platform_name: Windows-x64
+          - os: ubuntu-latest
+            runtime: linux-x64
+            platform_name: Linux-x64
+          - os: macos-latest
+            runtime: osx-x64
+            platform_name: macOS-x64
+
+    steps:
+      - name: Display build context
+        shell: bash
+        run: |
+          echo "🚀 Building ${{ matrix.artifact_prefix }} (CI)"
+          echo "Platform: ${{ matrix.os }}"
+          echo "Runtime: ${{ matrix.runtime }}"
+          echo "Project: ${{ matrix.project }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Branch: ${{ github.ref_name }}"
+          
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "🔍 This is a PR build for review"
+          elif [[ "${{ github.ref_name }}" == "dev" ]]; then
+            echo "🧪 This is a DEV build"
+          elif [[ "${{ startsWith(github.ref, 'refs/heads/feature/') }}" == "true" ]]; then
+            echo "🚧 This is a FEATURE build"
+          else
+            echo "🔧 This is a CI build for branch: ${{ github.ref_name }}"
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Build solution
+        run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
+        continue-on-error: false
+
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        if: success() || failure()
+        with:
+          name: Test Results (${{ matrix.project }} - ${{ matrix.os }})
+          path: "**/*.trx"
+          reporter: dotnet-trx
+          fail-on-error: false
+
+      - name: Publish application
+        shell: bash
+        run: |
+          dotnet publish ${{ matrix.project_path }} \
+            --configuration Release \
+            --runtime ${{ matrix.runtime }} \
+            --self-contained true \
+            --output ./publish/${{ matrix.runtime }} \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true \
+            -p:DebugType=none \
+            -p:DebugSymbols=false
+
+      - name: Create artifact archive
+        shell: bash
+        run: |
+          cd "publish/${{ matrix.runtime }}"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            7z a -tzip "../../${{ matrix.artifact_prefix }}-${{ matrix.platform_name }}.zip" *
+          else
+            tar -czf "../../${{ matrix.artifact_prefix }}-${{ matrix.platform_name }}.tar.gz" *
+          fi
+          cd ../..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_prefix }}-${{ matrix.platform_name }}
+          path: ${{ matrix.artifact_prefix }}-${{ matrix.platform_name }}${{ matrix.os == 'windows-latest' && '.zip' || '.tar.gz' }}
+          retention-days: 7
+
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ubuntu-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ubuntu-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Install dotnet format
+        run: dotnet tool install -g dotnet-format || dotnet tool update -g dotnet-format
+
+      - name: Check code formatting
+        run: dotnet format ${{ env.SOLUTION_FILE }} --verify-no-changes --verbosity diagnostic
+        continue-on-error: true
+
+      - name: Run code analysis with warnings
+        run: |
+          dotnet build ${{ env.SOLUTION_FILE }} \
+            --configuration Release \
+            --no-restore \
+            /p:TreatWarningsAsErrors=false \
+            /p:WarningLevel=4
+
+  security-check:
+    name: Security Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Check for vulnerable packages
+        run: dotnet list ${{ env.SOLUTION_FILE }} package --vulnerable --include-transitive
+        continue-on-error: true
+
+      - name: Check for outdated packages
+        run: dotnet list ${{ env.SOLUTION_FILE }} package --outdated
+        continue-on-error: true
+
+  publish-preview:
+    name: Publish Preview Build (${{ matrix.project }})
+    needs: [detect-changes, build-and-test, code-quality]
+    runs-on: windows-latest
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+    strategy:
+      matrix:
+        project: [cli, gui]
+        include:
+          - project: cli
+            project_path: "EarthTool.CLI/EarthTool.CLI.csproj"
+            artifact_name: "EarthTool.CLI-Preview"
+            display_name: "CLI"
+          - project: gui
+            project_path: "EarthTool.WD.GUI/EarthTool.WD.GUI.csproj"
+            artifact_name: "EarthTool.WD.GUI-Preview"
+            display_name: "GUI"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Build and publish preview
+        shell: bash
+        run: |
+          dotnet publish ${{ matrix.project_path }} \
+            --configuration Release \
+            --runtime win-x64 \
+            --self-contained true \
+            --output ./preview \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:VersionSuffix=preview-${{ github.run_number }}
+
+      - name: Create preview artifact
+        shell: bash
+        run: |
+          cd preview
+          powershell "Compress-Archive -Path '.' -DestinationPath '../${{ matrix.artifact_name }}.zip' -Force"
+          cd ..
+
+      - name: Upload preview artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}.zip
+          retention-days: 30
+
+      - name: Comment on commit
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: `🚀 Preview build completed successfully for **${{ matrix.display_name }}**!
+              
+              📦 **Download**: [${{ matrix.artifact_name }}.zip](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+              
+              ✅ This is a preview build from the dev branch. Test it out and report any issues!`
+            })
