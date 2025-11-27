@@ -155,16 +155,70 @@ jobs:
         run: dotnet tool install -g dotnet-format || dotnet tool update -g dotnet-format
 
       - name: Check code formatting
-        run: dotnet format ${{ env.SOLUTION_FILE }} --verify-no-changes --verbosity diagnostic
+        id: format-check
+        run: |
+          echo "## Code Formatting Report" > code-quality-report.md
+          echo "" >> code-quality-report.md
+          
+          if dotnet format ${{ env.SOLUTION_FILE }} --verify-no-changes --verbosity diagnostic 2>&1 | tee format-output.txt; then
+            echo "✅ **Status**: All files are properly formatted" >> code-quality-report.md
+            echo "format_status=success" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ **Status**: Formatting issues found" >> code-quality-report.md
+            echo "" >> code-quality-report.md
+            echo "### Issues Found:" >> code-quality-report.md
+            echo "\`\`\`" >> code-quality-report.md
+            tail -20 format-output.txt >> code-quality-report.md
+            echo "\`\`\`" >> code-quality-report.md
+            echo "format_status=failed" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "" >> code-quality-report.md
         continue-on-error: true
 
       - name: Run code analysis with warnings
+        id: code-analysis
         run: |
-          dotnet build ${{ env.SOLUTION_FILE }} \
+          echo "## Code Analysis Report" >> code-quality-report.md
+          echo "" >> code-quality-report.md
+          
+          if dotnet build ${{ env.SOLUTION_FILE }} \
             --configuration Release \
             --no-restore \
             /p:TreatWarningsAsErrors=false \
-            /p:WarningLevel=4
+            /p:WarningLevel=4 2>&1 | tee analysis-output.txt; then
+            
+            # Count warnings
+            WARNING_COUNT=$(grep -c "warning CS" analysis-output.txt || echo "0")
+            ERROR_COUNT=$(grep -c "error CS" analysis-output.txt || echo "0")
+            
+            echo "### Build Statistics:" >> code-quality-report.md
+            echo "- ⚠️ Warnings: $WARNING_COUNT" >> code-quality-report.md
+            echo "- ❌ Errors: $ERROR_COUNT" >> code-quality-report.md
+            echo "" >> code-quality-report.md
+            
+            if [ $WARNING_COUNT -gt 0 ]; then
+              echo "### Warnings:" >> code-quality-report.md
+              echo "\`\`\`" >> code-quality-report.md
+              grep "warning CS" analysis-output.txt | head -20 >> code-quality-report.md
+              echo "\`\`\`" >> code-quality-report.md
+            fi
+            
+            echo "analysis_warnings=$WARNING_COUNT" >> $GITHUB_OUTPUT
+            echo "analysis_errors=$ERROR_COUNT" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Upload code quality report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: code-quality-report
+          path: |
+            code-quality-report.md
+            format-output.txt
+            analysis-output.txt
+          retention-days: 30
 
   security-scan:
     name: Security Scan
