@@ -339,31 +339,36 @@ jobs:
           echo "## Code Analysis Report" >> code-quality-report.md
           echo "" >> code-quality-report.md
           
-          if dotnet build ${{ env.SOLUTION_FILE }} \
+          # Run build and capture output
+          set +e
+          dotnet build ${{ env.SOLUTION_FILE }} \
             --configuration Release \
             --no-restore \
             /p:TreatWarningsAsErrors=false \
-            /p:WarningLevel=4 2>&1 | tee analysis-output.txt; then
-            
-            # Count warnings
-            WARNING_COUNT=$(grep -c "warning CS" analysis-output.txt || echo "0")
-            ERROR_COUNT=$(grep -c "error CS" analysis-output.txt || echo "0")
-            
-            echo "### Build Statistics:" >> code-quality-report.md
-            echo "- ⚠️ Warnings: $WARNING_COUNT" >> code-quality-report.md
-            echo "- ❌ Errors: $ERROR_COUNT" >> code-quality-report.md
-            echo "" >> code-quality-report.md
-            
-            if [ $WARNING_COUNT -gt 0 ]; then
-              echo "### Warnings:" >> code-quality-report.md
-              echo "\`\`\`" >> code-quality-report.md
-              grep "warning CS" analysis-output.txt | head -20 >> code-quality-report.md
-              echo "\`\`\`" >> code-quality-report.md
-            fi
-            
-            echo "analysis_warnings=$WARNING_COUNT" >> $GITHUB_OUTPUT
-            echo "analysis_errors=$ERROR_COUNT" >> $GITHUB_OUTPUT
+            /p:WarningLevel=4 2>&1 | tee analysis-output.txt
+          BUILD_EXIT_CODE=$?
+          set -e
+          
+          # Count warnings and errors
+          WARNING_COUNT=$(grep -c "warning CS" analysis-output.txt 2>/dev/null || echo "0")
+          ERROR_COUNT=$(grep -c "error CS" analysis-output.txt 2>/dev/null || echo "0")
+          
+          echo "### Build Statistics:" >> code-quality-report.md
+          echo "- ⚠️ Warnings: $WARNING_COUNT" >> code-quality-report.md
+          echo "- ❌ Errors: $ERROR_COUNT" >> code-quality-report.md
+          echo "- 🔄 Exit Code: $BUILD_EXIT_CODE" >> code-quality-report.md
+          echo "" >> code-quality-report.md
+          
+          if [ "$WARNING_COUNT" -gt 0 ]; then
+            echo "### Warnings:" >> code-quality-report.md
+            echo "\`\`\`" >> code-quality-report.md
+            grep "warning CS" analysis-output.txt | head -20 >> code-quality-report.md
+            echo "\`\`\`" >> code-quality-report.md
           fi
+          
+          echo "analysis_warnings=$WARNING_COUNT" >> $GITHUB_OUTPUT
+          echo "analysis_errors=$ERROR_COUNT" >> $GITHUB_OUTPUT
+          echo "build_exit_code=$BUILD_EXIT_CODE" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Upload code quality report
