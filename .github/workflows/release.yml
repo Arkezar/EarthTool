@@ -419,19 +419,31 @@ jobs:
             fi
             echo "" >> CHANGELOG.md
             
-            # Contributors with GitHub profiles
+            # Contributors with GitHub profiles (deduplicated by email)
             echo "### 👥 Contributors" >> CHANGELOG.md
             echo "" >> CHANGELOG.md
             echo "This release was made possible by:" >> CHANGELOG.md
-            git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%an|||%ae" | sort -u | while IFS='|||' read -r name email; do
-              # Extract GitHub username from email if it's a GitHub email
+            
+            # Create associative array to deduplicate by email
+            declare -A contributors
+            while IFS='|||' read -r name email; do
+              # Use email as key to avoid duplicates from same person with different names
+              if [ ! -z "$email" ] && [ -z "${contributors[$email]}" ]; then
+                contributors[$email]="$name"
+              fi
+            done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%an|||%ae")
+            
+            # Output unique contributors sorted
+            for email in "${!contributors[@]}"; do
+              name="${contributors[$email]}"
               if [[ $email == *"@users.noreply.github.com" ]]; then
                 username=$(echo $email | sed -E 's/^[0-9]+\+?([^@]+)@.*/\1/')
-                echo "- [@$username](https://github.com/$username)" >> CHANGELOG.md
+                echo "- [@$username](https://github.com/$username)"
               else
-                echo "- @$name" >> CHANGELOG.md
+                echo "- @$name"
               fi
-            done
+            done | sort >> CHANGELOG.md
+            
             echo "" >> CHANGELOG.md
             
             # Check for dependency updates (excluding merges)
