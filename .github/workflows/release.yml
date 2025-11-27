@@ -255,10 +255,10 @@ jobs:
             
             # Determine release type based on conventional commits
             RELEASE_TYPE="patch"
-            if git log $PREVIOUS_TAG..HEAD --pretty=format:"%s" | grep -qE "^feat"; then
+            if git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s" | grep -qE "^feat"; then
               RELEASE_TYPE="minor"
             fi
-            if git log $PREVIOUS_TAG..HEAD --pretty=format:"%s|||%b" | grep -qi "BREAKING CHANGE"; then
+            if git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%b" | grep -qi "BREAKING CHANGE"; then
               RELEASE_TYPE="major"
             fi
             
@@ -276,8 +276,8 @@ jobs:
             esac
             echo "" >> CHANGELOG.md
             
-            # Count commits
-            COMMIT_COUNT=$(git rev-list --count $PREVIOUS_TAG..HEAD)
+            # Count commits (excluding merges)
+            COMMIT_COUNT=$(git rev-list --count --no-merges $PREVIOUS_TAG..HEAD)
             echo "**$COMMIT_COUNT commits** since [\`$PREVIOUS_TAG\`](https://github.com/${{ github.repository }}/releases/tag/$PREVIOUS_TAG)" >> CHANGELOG.md
             echo "" >> CHANGELOG.md
             
@@ -285,10 +285,10 @@ jobs:
             echo "### 🎯 Highlights" >> CHANGELOG.md
             echo "" >> CHANGELOG.md
             
-            # Count different types of changes using conventional commits
-            FEAT_COUNT=$(git log $PREVIOUS_TAG..HEAD --pretty=format:"%s" --grep="^feat" -E | wc -l)
-            FIX_COUNT=$(git log $PREVIOUS_TAG..HEAD --pretty=format:"%s" --grep="^fix" -E | wc -l)
-            PERF_COUNT=$(git log $PREVIOUS_TAG..HEAD --pretty=format:"%s" --grep="^perf" -E | wc -l)
+            # Count different types of changes using conventional commits (excluding merges)
+            FEAT_COUNT=$(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s" --grep="^feat" -E | wc -l)
+            FIX_COUNT=$(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s" --grep="^fix" -E | wc -l)
+            PERF_COUNT=$(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s" --grep="^perf" -E | wc -l)
             
             if [ $FEAT_COUNT -gt 0 ]; then
               echo "- ✨ **$FEAT_COUNT new features** added" >> CHANGELOG.md
@@ -300,10 +300,10 @@ jobs:
               echo "- ⚡ **$PERF_COUNT performance improvements** implemented" >> CHANGELOG.md
             fi
             
-            # Get first 3 most significant commits (by lines changed)
+            # Get first 3 most significant commits (by lines changed, excluding merges)
             echo "" >> CHANGELOG.md
             echo "**Most significant changes:**" >> CHANGELOG.md
-            git log $PREVIOUS_TAG..HEAD --pretty=format:"%h|||%s|||%an" --shortstat | \
+            git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%h|||%s|||%an" --shortstat | \
               awk '/\|\|\|/ {commit=$0; getline; print commit "|||" $0}' | \
               sort -t'|' -k4 -rn | head -3 | \
               while IFS='|||' read -r hash subject author stats; do
@@ -319,8 +319,8 @@ jobs:
               done || true
             echo "" >> CHANGELOG.md
             
-            # Check for breaking changes
-            BREAKING_CHANGES=$(git log $PREVIOUS_TAG..HEAD --pretty=format:"%s|||%b|||%h|||%an" | grep -i "BREAKING CHANGE" || true)
+            # Check for breaking changes (excluding merges)
+            BREAKING_CHANGES=$(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%b|||%h|||%an" | grep -i "BREAKING CHANGE" || true)
             if [ ! -z "$BREAKING_CHANGES" ]; then
               echo "## ⚠️ BREAKING CHANGES" >> CHANGELOG.md
               echo "" >> CHANGELOG.md
@@ -337,7 +337,7 @@ jobs:
                     has_breaking=true
                   fi
                 fi
-              done < <(git log $PREVIOUS_TAG..HEAD --pretty=format:"%s|||%b|||%h|||%an")
+              done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%b|||%h|||%an")
               
               if [ "$has_breaking" = true ]; then
                 echo "" >> CHANGELOG.md
@@ -387,7 +387,7 @@ jobs:
                   echo "- $clean_subject [\`$hash\`](https://github.com/${{ github.repository }}/commit/$hash) - @$author" >> CHANGELOG.md
                   count=$((count + 1))
                 fi
-              done < <(git log $PREVIOUS_TAG..HEAD --pretty=format:"%s|||%h|||%an|||%ad" --date=short --grep="$patterns" -E)
+              done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%h|||%an|||%ad" --date=short --grep="$patterns" -E)
               
               if [ $count -eq 0 ]; then
                 echo "- No $title" >> CHANGELOG.md
@@ -412,7 +412,7 @@ jobs:
                 echo "- $subject [\`$hash\`](https://github.com/${{ github.repository }}/commit/$hash) - @$author" >> CHANGELOG.md
                 other_count=$((other_count + 1))
               fi
-            done < <(git log $PREVIOUS_TAG..HEAD --pretty=format:"%s|||%h|||%an" --invert-grep --extended-regexp --grep="^(feat|fix|docs|perf|refactor|test|build|ci|chore)")
+            done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%h|||%an" --invert-grep --extended-regexp --grep="^(feat|fix|docs|perf|refactor|test|build|ci|chore)")
             
             if [ $other_count -eq 0 ]; then
               echo "- No other changes" >> CHANGELOG.md
@@ -423,7 +423,7 @@ jobs:
             echo "### 👥 Contributors" >> CHANGELOG.md
             echo "" >> CHANGELOG.md
             echo "This release was made possible by:" >> CHANGELOG.md
-            git log $PREVIOUS_TAG..HEAD --pretty=format:"%an|||%ae" | sort -u | while IFS='|||' read -r name email; do
+            git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%an|||%ae" | sort -u | while IFS='|||' read -r name email; do
               # Extract GitHub username from email if it's a GitHub email
               if [[ $email == *"@users.noreply.github.com" ]]; then
                 username=$(echo $email | sed -E 's/^[0-9]+\+?([^@]+)@.*/\1/')
@@ -434,12 +434,12 @@ jobs:
             done
             echo "" >> CHANGELOG.md
             
-            # Check for dependency updates
-            DEP_UPDATES=$(git log $PREVIOUS_TAG..HEAD --pretty=format:"%s" --grep="bump\|upgrade\|update.*dependency\|update.*package\|^chore\(deps\)" -i | wc -l)
+            # Check for dependency updates (excluding merges)
+            DEP_UPDATES=$(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s" --grep="bump\|upgrade\|update.*dependency\|update.*package\|^chore\(deps\)" -i | wc -l)
             if [ $DEP_UPDATES -gt 0 ]; then
               echo "### 📦 Dependencies" >> CHANGELOG.md
               echo "" >> CHANGELOG.md
-              git log $PREVIOUS_TAG..HEAD --pretty=format:"- %s [\`%h\`](https://github.com/${{ github.repository }}/commit/%h)" --grep="bump\|upgrade\|update.*dependency\|update.*package\|^chore\(deps\)" -i >> CHANGELOG.md
+              git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"- %s [\`%h\`](https://github.com/${{ github.repository }}/commit/%h)" --grep="bump\|upgrade\|update.*dependency\|update.*package\|^chore\(deps\)" -i >> CHANGELOG.md
               echo "" >> CHANGELOG.md
               echo "" >> CHANGELOG.md
             fi
@@ -454,8 +454,8 @@ jobs:
             INSERTIONS=$(echo "$DIFF_STATS" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo "0")
             DELETIONS=$(echo "$DIFF_STATS" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo "0")
             
-            # Count contributors
-            CONTRIBUTOR_COUNT=$(git log $PREVIOUS_TAG..HEAD --pretty=format:"%an" | sort -u | wc -l)
+            # Count contributors (excluding merge commits)
+            CONTRIBUTOR_COUNT=$(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%an" | sort -u | wc -l)
             
             echo "- **Commits**: $COMMIT_COUNT" >> CHANGELOG.md
             echo "- **Contributors**: $CONTRIBUTOR_COUNT" >> CHANGELOG.md
@@ -463,9 +463,9 @@ jobs:
             echo "- **Insertions**: +$INSERTIONS lines" >> CHANGELOG.md
             echo "- **Deletions**: -$DELETIONS lines" >> CHANGELOG.md
             
-            # Calculate time span
-            FIRST_COMMIT_DATE=$(git log $PREVIOUS_TAG..HEAD --pretty=format:"%ad" --date=short | tail -1)
-            LAST_COMMIT_DATE=$(git log $PREVIOUS_TAG..HEAD --pretty=format:"%ad" --date=short | head -1)
+            # Calculate time span (excluding merges)
+            FIRST_COMMIT_DATE=$(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%ad" --date=short | tail -1)
+            LAST_COMMIT_DATE=$(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%ad" --date=short | head -1)
             echo "- **Time span**: $FIRST_COMMIT_DATE to $LAST_COMMIT_DATE" >> CHANGELOG.md
             echo "" >> CHANGELOG.md
           fi
