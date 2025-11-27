@@ -1,12 +1,12 @@
 # Debugging Guide - EarthTool.WD.GUI
 
-## Problem: UI nie odświeża się po otwarciu archiwum
+## Problem: UI doesn't refresh after opening archive
 
-### Przyczyna
-Problem wynikał z nieprawidłowej aktualizacji `ObservableCollection` z wątku background.
+### Cause
+The problem resulted from incorrect `ObservableCollection` updates from a background thread.
 
-### Rozwiązanie
-Dodano `RxApp.MainThreadScheduler` aby wymusić wykonanie operacji na kolekcji w wątku UI:
+### Solution
+Added `RxApp.MainThreadScheduler` to force collection operations on the UI thread:
 
 ```csharp
 private void LoadArchiveItems()
@@ -21,110 +21,110 @@ private void LoadArchiveItems()
 }
 ```
 
-### Dodatkowe poprawki
-1. **Przeniesienie przypisania `_currentArchive` poza `Task.Run`**
-   - Operacje I/O w background thread
-   - Przypisanie do pola i notification w UI thread
+### Additional Fixes
+1. **Moving `_currentArchive` assignment outside `Task.Run`**
+   - I/O operations in background thread
+   - Field assignment and notification in UI thread
 
 2. **Explicit `RaisePropertyChanged(nameof(IsArchiveOpen))`**
-   - Wywoływane zaraz po zmianie `_currentArchive`
-   - Zapewnia aktualizację visibility panelu informacyjnego
+   - Called right after `_currentArchive` changes
+   - Ensures info panel visibility update
 
-### Weryfikacja
-Aby sprawdzić czy problem jest rozwiązany:
+### Verification
+To verify the problem is resolved:
 
-1. Uruchom aplikację z logowaniem Debug:
+1. Run application with Debug logging:
 ```bash
 export DOTNET_ENVIRONMENT=Development
 dotnet run --verbosity detailed
 ```
 
-2. Otwórz archiwum WD
+2. Open a WD archive
 
-3. Sprawdź czy w konsoli pojawiają się logi:
+3. Check if console shows logs:
 ```
 LoadArchiveItems called. Archive is null: False
 Archive has X items
 Added X items to ArchiveItems collection
 ```
 
-4. Sprawdź UI:
-   - DataGrid powinien pokazywać listę plików
-   - Panel "Archive Information" powinien być widoczny
-   - Wszystkie pola (File, Last Modified, Files, etc.) powinny mieć wartości
+4. Check UI:
+   - DataGrid should show file list
+   - "Archive Information" panel should be visible
+   - All fields (File, Last Modified, Files, etc.) should have values
 
-### Typowe problemy
+### Common Issues
 
 #### Problem: "Cross-thread operation exception"
-**Objawy**: Wyjątek podczas dodawania do `ObservableCollection`
+**Symptoms**: Exception when adding to `ObservableCollection`
 
-**Rozwiązanie**: Upewnij się że operacje na kolekcji są w `RxApp.MainThreadScheduler.Schedule()`
+**Solution**: Ensure collection operations are in `RxApp.MainThreadScheduler.Schedule()`
 
-#### Problem: Panel informacyjny nie pokazuje się
-**Objawy**: Lista plików się wyświetla ale prawy panel jest pusty
+#### Problem: Info panel doesn't show
+**Symptoms**: File list displays but right panel is empty
 
-**Rozwiązanie**: Sprawdź czy `IsArchiveOpen` property jest prawidłowo powiadamiane:
+**Solution**: Check if `IsArchiveOpen` property is properly notified:
 ```csharp
 this.RaisePropertyChanged(nameof(IsArchiveOpen));
 ```
 
-#### Problem: Dane w panelu są puste
-**Objawy**: Panel jest widoczny ale wszystkie pola pokazują "N/A"
+#### Problem: Panel data is empty
+**Symptoms**: Panel is visible but all fields show "N/A"
 
-**Rozwiązanie**: Sprawdź czy `ArchiveInfo.UpdateFromArchive()` jest wywoływane z niepustym archiwum
+**Solution**: Check if `ArchiveInfo.UpdateFromArchive()` is called with non-null archive
 
-### Debug logging
+### Debug Logging
 
-Dodano logi debug w `LoadArchiveItems()`:
-- Stan archiwum (null/not null)
-- Liczba elementów w archiwum
-- Liczba dodanych elementów do kolekcji
+Added debug logs in `LoadArchiveItems()`:
+- Archive state (null/not null)
+- Number of items in archive
+- Number of items added to collection
 
-Aby je zobaczyć, ustaw poziom logowania na Debug w App.axaml.cs:
+To see them, set logging level to Debug in App.axaml.cs:
 ```csharp
 services.AddLogging(builder =>
 {
-    builder.SetMinimumLevel(LogLevel.Debug); // Zmień z Information na Debug
+    builder.SetMinimumLevel(LogLevel.Debug); // Change from Information to Debug
 });
 ```
 
-### Performance considerations
+### Performance Considerations
 
-`RxApp.MainThreadScheduler.Schedule()` dodaje małe opóźnienie, ale:
-- Zapewnia thread-safety
-- Unika cross-thread exceptions
-- Standardowa praktyka w ReactiveUI
+`RxApp.MainThreadScheduler.Schedule()` adds small delay, but:
+- Ensures thread-safety
+- Avoids cross-thread exceptions
+- Standard practice in ReactiveUI
 
-Dla bardzo dużych archiwów (1000+ plików) rozważ:
-1. Virtualization w DataGrid
-2. Batch loading z progressem
-3. Async initialization ViewModels
+For very large archives (1000+ files) consider:
+1. Virtualization in DataGrid
+2. Batch loading with progress
+3. Async initialization of ViewModels
 
-### Test cases
+### Test Cases
 
-Przetestuj następujące scenariusze:
+Test the following scenarios:
 
-1. **Otwarcie małego archiwum** (< 10 plików)
-   - Wszystkie pliki powinny się pokazać natychmiast
-   - Info panel powinien mieć poprawne dane
+1. **Open small archive** (< 10 files)
+   - All files should appear immediately
+   - Info panel should have correct data
 
-2. **Otwarcie dużego archiwum** (100+ plików)
-   - Może pojawić się krótkie opóźnienie
-   - IsBusy indicator powinien się pokazać
+2. **Open large archive** (100+ files)
+   - Brief delay may occur
+   - IsBusy indicator should appear
 
-3. **Otwarcie uszkodzonego archiwum**
-   - Error message powinien się pokazać
-   - UI powinno pozostać responsywne
+3. **Open corrupted archive**
+   - Error message should appear
+   - UI should remain responsive
 
-4. **Utworzenie nowego archiwum**
-   - Lista plików powinna być pusta
-   - Info panel powinien pokazać "0 files"
+4. **Create new archive**
+   - File list should be empty
+   - Info panel should show "0 files"
 
-5. **Dodanie plików do archiwum**
-   - Nowe pliki powinny się pokazać w liście
-   - Liczniki w info panel powinny się zaktualizować
+5. **Add files to archive**
+   - New files should appear in list
+   - Counters in info panel should update
 
-### Related issues
+### Related Issues
 
 - ReactiveUI threading: https://www.reactiveui.net/docs/handbook/scheduling/
 - Avalonia threading: https://docs.avaloniaui.net/docs/concepts/services/dispatcher

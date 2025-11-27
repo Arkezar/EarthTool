@@ -1,31 +1,31 @@
-# Przewodnik użytkownika - EarthTool WD Archive Manager
+# User Guide - EarthTool WD Archive Manager
 
-## Spis treści
+## Table of Contents
 
-1. [Wprowadzenie](#wprowadzenie)
-2. [Pierwsze kroki](#pierwsze-kroki)
-3. [Podstawowe operacje](#podstawowe-operacje)
-4. [Zaawansowane funkcje](#zaawansowane-funkcje)
-5. [Rozwiązywanie problemów](#rozwiązywanie-problemów)
+1. [Introduction](#introduction)
+2. [Getting Started](#getting-started)
+3. [Basic Operations](#basic-operations)
+4. [Advanced Features](#advanced-features)
+5. [Troubleshooting](#troubleshooting)
 6. [FAQ](#faq)
 
-## Wprowadzenie
+## Introduction
 
-EarthTool WD Archive Manager to narzędzie graficzne do zarządzania archiwami WD używanymi przez grę Earth 2150. Aplikacja umożliwia przeglądanie, ekstraktowanie i modyfikowanie zawartości tych archiwów.
+EarthTool WD Archive Manager is a graphical tool for managing WD archives used by the Earth 2150 game. The application enables browsing, extracting, and modifying archive contents.
 
-### Czym są pliki WD?
+### What are WD files?
 
-Pliki z rozszerzeniem `.WD` to spakowane archiwa zawierające zasoby gry Earth 2150 (modele, tekstury, dźwięki, skrypty itp.). Format WD używa kompresji do zmniejszenia rozmiaru plików.
+Files with `.WD` extension are packed archives containing Earth 2150 game resources (models, textures, sounds, scripts, etc.). The WD format uses compression to reduce file size.
 
-## Pierwsze kroki
+## Getting Started
 
-### Uruchomienie aplikacji
+### Running the Application
 
-1. Uruchom `EarthTool.WD.GUI.exe`
-2. Zobaczysz główne okno aplikacji z pustą listą plików
-3. Pasek statusu na dole pokazuje "Ready"
+1. Run `EarthTool.WD.GUI.exe`
+2. You'll see the main application window with an empty file list
+3. Status bar at the bottom shows "Ready"
 
-### Interfejs użytkownika
+### User Interface
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -50,291 +50,291 @@ Pliki z rozszerzeniem `.WD` to spakowane archiwa zawierające zasoby gry Earth 2
 └──────────────────────────────────────────────────────────────┘
 ```
 
-## Podstawowe operacje
+## Basic Operations
 
-### 1. Otwieranie archiwum
+### 1. Opening an Archive
 
-**Metoda 1: Menu**
-1. Kliknij `File → Open Archive...`
-2. Wybierz plik `.WD` z dysku
-3. Kliknij "Open"
+**Method 1: Menu**
+1. Click `File → Open Archive...`
+2. Select a `.WD` file from disk
+3. Click "Open"
 
-**Metoda 2: Skrót klawiszowy**
-- Naciśnij `Ctrl+O`
-- Wybierz plik
-- Kliknij "Open"
+**Method 2: Keyboard Shortcut**
+- Press `Ctrl+O`
+- Select file
+- Click "Open"
 
-**Metoda 3: Toolbar**
-- Kliknij przycisk 📂 "Open" na pasku narzędzi
+**Method 3: Toolbar**
+- Click 📂 "Open" button on toolbar
 
-**Co się dzieje:**
-- Lista plików zostanie zapełniona zawartością archiwum
-- Panel informacyjny po prawej pokazuje szczegóły archiwum
-- Pasek statusu pokazuje liczbę załadowanych plików
+**What happens:**
+- File list will be populated with archive contents
+- Info panel on the right shows archive details
+- Status bar shows number of loaded files
 
-### 2. Przeglądanie zawartości
+### 2. Browsing Contents
 
-**Lista plików pokazuje:**
-- **File Name** - Nazwa pliku z archiwum (może zawierać ścieżkę)
-- **Compressed** - Rozmiar skompresowany w archiwum
-- **Decompressed** - Rzeczywisty rozmiar po rozpakowaniu
-- **Ratio** - Współczynnik kompresji w procentach
-- **Flags** - Flagi pliku (Compressed, Named, Text, etc.)
+**File list shows:**
+- **File Name** - File name from archive (may include path)
+- **Compressed** - Compressed size in archive
+- **Decompressed** - Actual size after decompression
+- **Ratio** - Compression ratio in percentage
+- **Flags** - File flags (Compressed, Named, Text, etc.)
 
-**Panel informacyjny pokazuje:**
-- Ścieżka do otwartego archiwum
-- Data ostatniej modyfikacji
-- Całkowita liczba plików
-- Łączny rozmiar (skompresowany i nieskompresowany)
-- Ogólny współczynnik kompresji
+**Info panel shows:**
+- Path to opened archive
+- Last modification date
+- Total number of files
+- Total size (compressed and decompressed)
+- Overall compression ratio
 
-**Sortowanie:**
-- Kliknij na nagłówek kolumny aby posortować
-- Kliknij ponownie aby odwrócić kolejność
+**Sorting:**
+- Click on column header to sort
+- Click again to reverse order
 
-### 3. Ekstraktowanie plików
+### 3. Extracting Files
 
-#### Pojedynczy plik
+#### Single File
 
-1. **Zaznacz plik** w tabeli (kliknij na wiersz)
-2. **Wybierz akcję ekstraktacji:**
+1. **Select file** in table (click on row)
+2. **Choose extraction action:**
    - Menu: `Archive → Extract Selected...`
-   - Toolbar: Kliknij 📤 "Extract"
-   - Kontekst menu: Prawy przycisk → "Extract..."
-3. **Wybierz folder docelowy**
-4. Kliknij "Select Folder"
+   - Toolbar: Click 📤 "Extract"
+   - Context menu: Right click → "Extract..."
+3. **Select destination folder**
+4. Click "Select Folder"
 
-**Rezultat:**
-- Plik zostanie wyekstraktowany do wybranego folderu
-- Jeśli plik był skompresowany, zostanie automatycznie rozpakowany
-- Komunikat sukcesu pojawi się w statusie
-- Plik zachowa swoją oryginalną nazwę
+**Result:**
+- File will be extracted to selected folder
+- If file was compressed, it will be automatically decompressed
+- Success message appears in status
+- File retains its original name
 
-#### Wszystkie pliki
+#### All Files
 
-1. **Wybierz akcję:**
+1. **Choose action:**
    - Menu: `Archive → Extract All...`
-   - Toolbar: Kliknij 📦 "Extract All"
-   - Skrót: `Ctrl+E`
-2. **Wybierz folder docelowy**
-3. Kliknij "Select Folder"
+   - Toolbar: Click 📦 "Extract All"
+   - Shortcut: `Ctrl+E`
+2. **Select destination folder**
+3. Click "Select Folder"
 
-**Rezultat:**
-- Wszystkie pliki zostaną wyekstraktowane
-- Struktura katalogów z archiwum zostanie zachowana
-- Pasek postępu pokazuje operację w trakcie
-- Po zakończeniu zobaczysz komunikat z liczbą wyekstraktowanych plików
+**Result:**
+- All files will be extracted
+- Directory structure from archive is preserved
+- Progress bar shows ongoing operation
+- After completion you'll see message with number of extracted files
 
-### 4. Tworzenie nowego archiwum
+### 4. Creating a New Archive
 
-1. **Utwórz archiwum:**
+1. **Create archive:**
    - Menu: `File → New Archive`
-   - Skrót: `Ctrl+N`
+   - Shortcut: `Ctrl+N`
 
-2. **Dodaj pliki:**
+2. **Add files:**
    - Menu: `Archive → Add Files...`
-   - Toolbar: Kliknij ➕ "Add"
-   - Skrót: `Ctrl+A`
-   - Wybierz jeden lub więcej plików
-   - Kliknij "Open"
+   - Toolbar: Click ➕ "Add"
+   - Shortcut: `Ctrl+A`
+   - Select one or more files
+   - Click "Open"
 
-3. **Zapisz archiwum:**
+3. **Save archive:**
    - Menu: `File → Save Archive As...`
-   - Skrót: `Ctrl+Shift+S`
-   - Wybierz nazwę i lokalizację
-   - Kliknij "Save"
+   - Shortcut: `Ctrl+Shift+S`
+   - Choose name and location
+   - Click "Save"
 
-**Wskazówki:**
-- Nowe archiwum jest początkowo puste
-- Możesz dodać wiele plików naraz
-- Pliki są automatycznie kompresowane podczas dodawania
-- Tytuł okna pokazuje gwiazdkę (*) jeśli są niezapisane zmiany
+**Tips:**
+- New archive is initially empty
+- You can add multiple files at once
+- Files are automatically compressed when added
+- Window title shows asterisk (*) if there are unsaved changes
 
-### 5. Modyfikowanie istniejącego archiwum
+### 5. Modifying an Existing Archive
 
-#### Dodawanie plików
+#### Adding Files
 
-1. Otwórz istniejące archiwum
-2. Kliknij `Archive → Add Files...` lub `Ctrl+A`
-3. Wybierz pliki do dodania
-4. Kliknij "Open"
-5. Zapisz zmiany: `Ctrl+S`
+1. Open existing archive
+2. Click `Archive → Add Files...` or `Ctrl+A`
+3. Select files to add
+4. Click "Open"
+5. Save changes: `Ctrl+S`
 
-**Uwagi:**
-- Nowe pliki pojawią się w liście
-- Struktura katalogów jest zachowana na podstawie lokalizacji plików
-- Duplikaty nazw są dozwolone (nazwa z pełną ścieżką)
+**Notes:**
+- New files will appear in list
+- Directory structure is preserved based on file locations
+- Duplicate names are allowed (name with full path)
 
-#### Usuwanie plików
+#### Removing Files
 
-1. Zaznacz plik w tabeli
-2. **Wybierz akcję usunięcia:**
+1. Select file in table
+2. **Choose removal action:**
    - Menu: `Archive → Remove Selected`
-   - Toolbar: Kliknij 🗑️ "Remove"
-   - Skrót: `Delete` lub `Del`
-   - Kontekst menu: Prawy przycisk → "Remove"
-3. Potwierdź usunięcie w dialogu
-4. Zapisz zmiany: `Ctrl+S`
+   - Toolbar: Click 🗑️ "Remove"
+   - Shortcut: `Delete` or `Del`
+   - Context menu: Right click → "Remove"
+3. Confirm deletion in dialog
+4. Save changes: `Ctrl+S`
 
-**Ostrzeżenie:**
-- Usunięcie jest trwałe po zapisaniu archiwum
-- Zawsze pojawia się dialog potwierdzenia
-- Możesz anulować przed zapisaniem (zamknij bez zapisu)
+**Warning:**
+- Deletion is permanent after saving archive
+- Confirmation dialog always appears
+- You can cancel before saving (close without saving)
 
-### 6. Zapisywanie zmian
+### 6. Saving Changes
 
-#### Save (Zapisz)
+#### Save
 - Menu: `File → Save Archive`
-- Skrót: `Ctrl+S`
-- Zapisuje do oryginalnego pliku
-- Dostępne tylko gdy są niezapisane zmiany
+- Shortcut: `Ctrl+S`
+- Saves to original file
+- Available only when there are unsaved changes
 
-#### Save As (Zapisz jako)
+#### Save As
 - Menu: `File → Save Archive As...`
-- Skrót: `Ctrl+Shift+S`
-- Zapisuje do nowego pliku
-- Oryginalny plik pozostaje niezmieniony
+- Shortcut: `Ctrl+Shift+S`
+- Saves to new file
+- Original file remains unchanged
 
-### 7. Zamykanie archiwum
+### 7. Closing Archive
 
-1. Kliknij `File → Close Archive`
-2. Jeśli są niezapisane zmiany, pojawi się dialog:
-   - **Yes** - Zapisz i zamknij
-   - **No** - Zamknij bez zapisywania
-   - **Cancel** - Anuluj zamykanie
+1. Click `File → Close Archive`
+2. If there are unsaved changes, dialog appears:
+   - **Yes** - Save and close
+   - **No** - Close without saving
+   - **Cancel** - Cancel closing
 
-## Zaawansowane funkcje
+## Advanced Features
 
-### Skróty klawiszowe
+### Keyboard Shortcuts
 
-| Skrót | Akcja |
-|-------|-------|
-| `Ctrl+O` | Otwórz archiwum |
-| `Ctrl+N` | Nowe archiwum |
-| `Ctrl+S` | Zapisz |
-| `Ctrl+Shift+S` | Zapisz jako... |
-| `Ctrl+E` | Ekstraktuj wszystko |
-| `Ctrl+A` | Dodaj pliki |
-| `Delete` / `Del` | Usuń zaznaczony plik |
-| `F5` | Odśwież (przyszła funkcja) |
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+O` | Open archive |
+| `Ctrl+N` | New archive |
+| `Ctrl+S` | Save |
+| `Ctrl+Shift+S` | Save as... |
+| `Ctrl+E` | Extract all |
+| `Ctrl+A` | Add files |
+| `Delete` / `Del` | Remove selected file |
+| `F5` | Refresh (future feature) |
 
-### Kontekstowe menu
+### Context Menu
 
-Kliknij prawym przyciskiem myszy na plik w tabeli aby otworzyć menu kontekstowe:
-- **Extract...** - Ekstraktuj wybrany plik
-- **Remove** - Usuń plik z archiwum
+Right-click on a file in table to open context menu:
+- **Extract...** - Extract selected file
+- **Remove** - Remove file from archive
 
-### Status bar
+### Status Bar
 
-Dolny pasek pokazuje:
-- **Po lewej:** Komunikaty statusu (Ready, Loading, Error, Success)
-- **W środku:** Pasek postępu dla długich operacji
-- **Po prawej:** Liczba plików w archiwum
+Bottom bar shows:
+- **Left:** Status messages (Ready, Loading, Error, Success)
+- **Middle:** Progress bar for long operations
+- **Right:** Number of files in archive
 
-### Panel informacyjny
+### Information Panel
 
-Prawy panel zawiera:
-- **File:** Pełna ścieżka do otwartego archiwum
-- **Last Modified:** Data ostatniej modyfikacji archiwum
-- **Files:** Liczba plików w archiwum
-- **Total Compressed Size:** Łączny rozmiar w archiwum
-- **Total Decompressed Size:** Rzeczywisty rozmiar wszystkich plików
-- **Overall Compression:** Średni współczynnik kompresji
+Right panel contains:
+- **File:** Full path to opened archive
+- **Last Modified:** Archive last modification date
+- **Files:** Number of files in archive
+- **Total Compressed Size:** Total size in archive
+- **Total Decompressed Size:** Actual size of all files
+- **Overall Compression:** Average compression ratio
 
-## Rozwiązywanie problemów
+## Troubleshooting
 
-### Problem: "Nie mogę otworzyć archiwum"
+### Problem: "Can't open archive"
 
-**Możliwe przyczyny:**
-1. Plik nie jest prawidłowym archiwum WD
-2. Plik jest uszkodzony
-3. Brak uprawnień do odczytu pliku
+**Possible causes:**
+1. File is not a valid WD archive
+2. File is corrupted
+3. No read permissions for file
 
-**Rozwiązanie:**
-- Sprawdź czy plik ma rozszerzenie `.WD`
-- Spróbuj otworzyć inny plik WD aby sprawdzić czy aplikacja działa
-- Sprawdź uprawnienia do pliku (kliknij prawym → Properties)
-- Zobacz komunikat błędu w status bar lub message box
+**Solution:**
+- Check if file has `.WD` extension
+- Try opening another WD file to check if application works
+- Check file permissions (right click → Properties)
+- See error message in status bar or message box
 
-### Problem: "Ekstraktacja kończy się błędem"
+### Problem: "Extraction fails with error"
 
-**Możliwe przyczyny:**
-1. Brak uprawnień do zapisu w folderze docelowym
-2. Brak miejsca na dysku
-3. Plik w archiwum jest uszkodzony
+**Possible causes:**
+1. No write permissions in destination folder
+2. Not enough disk space
+3. File in archive is corrupted
 
-**Rozwiązanie:**
-- Wybierz inny folder docelowy (np. Desktop)
-- Sprawdź wolne miejsce na dysku
-- Spróbuj wyekstraktować inny plik
-- Sprawdź logi w konsoli (jeśli dostępne)
+**Solution:**
+- Choose different destination folder (e.g., Desktop)
+- Check free disk space
+- Try extracting different file
+- Check logs in console (if available)
 
-### Problem: "Nie mogę zapisać archiwum"
+### Problem: "Can't save archive"
 
-**Możliwe przyczyny:**
-1. Brak uprawnień do zapisu
-2. Plik jest otwarty w innym programie
-3. Brak miejsca na dysku
+**Possible causes:**
+1. No write permissions
+2. File is open in another program
+3. Not enough disk space
 
-**Rozwiązanie:**
-- Użyj "Save As" do zapisania w innej lokalizacji
-- Zamknij inne aplikacje które mogą używać pliku
-- Sprawdź wolne miejsce na dysku
-- Uruchom aplikację jako administrator (jeśli potrzebne)
+**Solution:**
+- Use "Save As" to save in different location
+- Close other applications that might be using the file
+- Check free disk space
+- Run application as administrator (if needed)
 
-### Problem: "Aplikacja się zawiesza podczas operacji"
+### Problem: "Application hangs during operation"
 
-**Możliwe przyczyny:**
-1. Bardzo duże archiwum
-2. Powolny dysk
-3. Brak pamięci RAM
+**Possible causes:**
+1. Very large archive
+2. Slow disk
+3. Not enough RAM
 
-**Rozwiązanie:**
-- Poczekaj - operacje na dużych archiwach mogą trwać
-- Sprawdź pasek postępu - jeśli się porusza, operacja trwa
-- Zamknij inne aplikacje aby zwolnić pamięć
-- Dla bardzo dużych archiwów rozważ użycie wersji CLI
+**Solution:**
+- Wait - operations on large archives may take time
+- Check progress bar - if it's moving, operation is ongoing
+- Close other applications to free memory
+- For very large archives consider using CLI version
 
-### Problem: "Niezapisane zmiany zostały utracone"
+### Problem: "Unsaved changes were lost"
 
-**Zapobieganie:**
-- Zawsze zapisuj zmiany przed zamknięciem: `Ctrl+S`
-- Aplikacja ostrzega o niezapisanych zmianach przed zamknięciem
-- Tytuł okna pokazuje `*` gdy są niezapisane zmiany
+**Prevention:**
+- Always save changes before closing: `Ctrl+S`
+- Application warns about unsaved changes before closing
+- Window title shows `*` when there are unsaved changes
 
 ## FAQ
 
-### Czy mogę otworzyć wiele archiwów jednocześnie?
+### Can I open multiple archives simultaneously?
 
-Obecnie aplikacja obsługuje tylko jedno archiwum na raz. Wsparcie dla zakładek jest planowane w przyszłej wersji.
+Currently the application supports only one archive at a time. Tab support is planned for future version.
 
-### Czy mogę zaznaczyć wiele plików do ekstraktacji?
+### Can I select multiple files for extraction?
 
-Obecnie obsługiwana jest tylko pojedyncza selekcja. Możesz jednak użyć "Extract All" aby wyekstraktować wszystkie pliki naraz. Multi-selection jest planowane.
+Currently only single selection is supported. However, you can use "Extract All" to extract all files at once. Multi-selection is planned.
 
-### Czy aplikacja modyfikuje oryginalne pliki?
+### Does the application modify original files?
 
-Nie, dopóki nie zapiszesz zmian. Wszystkie modyfikacje są w pamięci do momentu kliknięcia "Save". Używając "Save As" możesz zachować oryginał nienaruszony.
+No, not until you save changes. All modifications are in memory until you click "Save". Using "Save As" allows you to keep original untouched.
 
-### Jakie formaty plików są wspierane?
+### What file formats are supported?
 
-Aplikacja obsługuje wyłącznie format archiwów WD z gry Earth 2150. Pliki wewnątrz archiwum mogą być dowolnego typu (MSH, TEX, PAR, etc.).
+The application supports only WD archive format from Earth 2150 game. Files inside archive can be of any type (MSH, TEX, PAR, etc.).
 
-### Czy pliki są automatycznie kompresowane?
+### Are files automatically compressed?
 
-Tak, podczas dodawania plików do archiwum są one automatycznie kompresowane przy użyciu algorytmu stosowanego przez Earth 2150.
+Yes, when adding files to archive they are automatically compressed using the algorithm used by Earth 2150.
 
-### Czy mogę podejrzeć zawartość pliku przed ekstraktacją?
+### Can I preview file contents before extraction?
 
-Obecnie nie. Podgląd plików tekstowych jest planowany w przyszłej wersji.
+Not currently. Text file preview is planned for future version.
 
-### Jak mogę sprawdzić czy plik jest skompresowany?
+### How can I check if a file is compressed?
 
-Kolumna "Flags" pokazuje flagę "Compressed" dla skompresowanych plików. Dodatkowo kolumna "Ratio" pokazuje współczynnik kompresji.
+The "Flags" column shows "Compressed" flag for compressed files. Additionally, the "Ratio" column shows compression ratio.
 
-### Czy aplikacja działa na Linuxie/Mac?
+### Does the application work on Linux/Mac?
 
-Tak! Avalonia UI wspiera cross-platform. Potrzebujesz tylko .NET 8.0 runtime. Zbuduj dla swojej platformy:
+Yes! Avalonia UI supports cross-platform. You only need .NET 8.0 runtime. Build for your platform:
 
 ```bash
 # Linux
@@ -344,58 +344,58 @@ dotnet publish -c Release -r linux-x64
 dotnet publish -c Release -r osx-x64
 ```
 
-### Gdzie są zapisywane logi?
+### Where are logs saved?
 
-Logi są obecnie wypisywane do konsoli (jeśli uruchomiona z terminala). Wsparcie dla plików logów jest planowane.
+Logs are currently written to console (if launched from terminal). Log file support is planned.
 
-### Jak zgłosić błąd?
+### How to report a bug?
 
-Użyj systemu Issues w repozytorium GitHub projektu EarthTool. Dołącz:
-- Opis problemu
-- Kroki do reprodukcji
-- Wersję aplikacji
-- System operacyjny
-- Jeśli możliwe - przykładowy plik WD
+Use the Issues system in the EarthTool GitHub repository. Include:
+- Problem description
+- Steps to reproduce
+- Application version
+- Operating system
+- If possible - sample WD file
 
-### Czy mogę używać aplikacji do modowania gry?
+### Can I use the application for game modding?
 
-Tak! Aplikacja jest idealna do:
-- Ekstraktowania zasobów gry
-- Modyfikowania plików
-- Tworzenia własnych archiwów WD
-- Pakowania modów
+Yes! The application is ideal for:
+- Extracting game resources
+- Modifying files
+- Creating custom WD archives
+- Packaging mods
 
-**Ostrzeżenie:** Zawsze twórz backup oryginalnych plików gry przed modyfikacją!
+**Warning:** Always create backup of original game files before modification!
 
-### Czy mogę dodać pliki z różnych folderów?
+### Can I add files from different folders?
 
-Tak, możesz dodać pliki z dowolnych lokalizacji. Aplikacja zachowa względną strukturę katalogów na podstawie wspólnego katalogu nadrzędnego.
+Yes, you can add files from any locations. The application preserves relative directory structure based on common parent directory.
 
-### Co się stanie jeśli dodam plik o tej samej nazwie?
+### What happens if I add a file with the same name?
 
-Archiwum WD pozwala na duplikaty nazw jeśli pliki mają różne ścieżki. Jeśli dodasz plik o identycznej nazwie i ścieżce, oba będą w archiwum (format to pozwala).
+WD archive allows duplicate names if files have different paths. If you add a file with identical name and path, both will be in archive (format allows this).
 
-### Jak mogę zobaczyć szczegóły pojedynczego pliku?
+### How can I see details of a single file?
 
-Kliknij na wiersz w tabeli - szczegóły są widoczne w kolumnach. Dedykowany panel szczegółów jest planowany w przyszłości.
+Click on row in table - details are visible in columns. Dedicated details panel is planned for future.
 
-## Wsparcie
+## Support
 
-Jeśli masz pytania lub problemy:
+If you have questions or problems:
 
-1. Sprawdź ten przewodnik
-2. Zobacz README.md dla informacji technicznych
-3. Zobacz ARCHITECTURE.md dla szczegółów implementacji
-4. Zgłoś issue w GitHub
+1. Check this guide
+2. See README.md for technical information
+3. See ARCHITECTURE.md for implementation details
+4. Report issue on GitHub
 
-## Historia zmian
+## Changelog
 
-### Wersja 1.0.0
-- Pierwsza publiczna wersja
-- Wszystkie podstawowe funkcje implementowane
-- Stabilny UI i backend integration
-- Kompletna dokumentacja
+### Version 1.0.0
+- First public release
+- All basic features implemented
+- Stable UI and backend integration
+- Complete documentation
 
 ---
 
-**Miłego modowania gry Earth 2150!** 🚀
+**Happy modding Earth 2150!** 🚀
