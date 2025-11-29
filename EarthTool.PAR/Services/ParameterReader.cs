@@ -40,15 +40,13 @@ namespace EarthTool.PAR.Services
 
     private static IEnumerable<Research> LoadResearch(BinaryReader reader)
     {
-      int researchCount = reader.ReadInt32();
-      reader.ReadInt32();
+      var researchCount = (int)reader.ReadInt64();
       return Enumerable.Range(0, researchCount).Select(i => new Research(reader)).ToList();
     }
 
     private static IEnumerable<EntityGroup> LoadGroups(BinaryReader reader)
     {
-      int groupCount = reader.ReadInt32();
-      reader.ReadInt32();
+      var groupCount = (int)reader.ReadInt64();
       return Enumerable.Range(0, groupCount).Select(i => new EntityGroup(reader)).ToList();
     }
 
