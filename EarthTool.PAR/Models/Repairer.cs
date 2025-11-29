@@ -16,7 +16,7 @@ namespace EarthTool.PAR.Models
     public Repairer(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      RepairerCapabilities = (RepairerCapabilities)GetInteger(data);
+      RepairerCapabilities = (RepairerCapabilityFlags)GetInteger(data);
       RepairHPPerTick = GetInteger(data);
       RepairElectronicsPerTick = GetInteger(data);
       TicksPerRepair = GetInteger(data);
@@ -47,7 +47,7 @@ namespace EarthTool.PAR.Models
       AnimRepaintEndEnd = GetInteger(data);
     }
 
-    public RepairerCapabilities RepairerCapabilities { get; set; }
+    public RepairerCapabilityFlags RepairerCapabilities { get; set; }
 
     public int RepairHPPerTick { get; set; }
 

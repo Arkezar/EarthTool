@@ -13,11 +13,14 @@ namespace EarthTool.PAR.Models
     {
     }
 
-    public OmnidirectionalEquipment(string name, IEnumerable<int> requiredResearch, EntityClassType type,
+    public OmnidirectionalEquipment(
+      string name,
+      IEnumerable<int> requiredResearch,
+      EntityClassType type,
       BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      LookRoundTypeMask = GetInteger(data);
+      LookRoundTypeMask = (LookRoundTypeFlags)GetInteger(data);
       LookRoundRange = GetInteger(data);
       TurnSpeed = GetInteger(data);
       BannerAddExperienceLevel = GetInteger(data);
@@ -25,7 +28,7 @@ namespace EarthTool.PAR.Models
       ShieldReloadAdd = GetInteger(data);
     }
 
-    public int LookRoundTypeMask { get; set; }
+    public LookRoundTypeFlags LookRoundTypeMask { get; set; }
 
     public int LookRoundRange { get; set; }
 
@@ -40,14 +43,15 @@ namespace EarthTool.PAR.Models
     [JsonIgnore]
     public override IEnumerable<bool> FieldTypes
     {
-      get => base.FieldTypes.Concat(IsStringMember(
-        () => LookRoundTypeMask,
-        () => LookRoundRange,
-        () => TurnSpeed,
-        () => BannerAddExperienceLevel,
-        () => RegenerationHPMultiple,
-        () => ShieldReloadAdd
-      ));
+      get
+        => base.FieldTypes.Concat(IsStringMember(
+          () => LookRoundTypeMask,
+          () => LookRoundRange,
+          () => TurnSpeed,
+          () => BannerAddExperienceLevel,
+          () => RegenerationHPMultiple,
+          () => ShieldReloadAdd
+        ));
       set => base.FieldTypes = value;
     }
 
@@ -58,7 +62,7 @@ namespace EarthTool.PAR.Models
         using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
-          bw.Write(LookRoundTypeMask);
+          bw.Write((int)LookRoundTypeMask);
           bw.Write(LookRoundRange);
           bw.Write(TurnSpeed);
           bw.Write(BannerAddExperienceLevel);

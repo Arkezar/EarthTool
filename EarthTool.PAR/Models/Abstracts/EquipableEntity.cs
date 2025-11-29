@@ -22,29 +22,29 @@ namespace EarthTool.PAR.Models.Abstracts
       data.ReadBytes(4);
       ShieldGeneratorId = GetString(data);
       data.ReadBytes(4);
-      MaxShieldUpdate = GetInteger(data);
-      Slot1Type = (SlotType)GetUnsignedInteger(data);
-      Slot2Type = (SlotType)GetUnsignedInteger(data);
-      Slot3Type = (SlotType)GetUnsignedInteger(data);
-      Slot4Type = (SlotType)GetUnsignedInteger(data);
+      MaxShieldUpgrade = (MaxShieldUpgradeType)GetInteger(data);
+      Slot1Type = (ConnectorType)GetUnsignedInteger(data);
+      Slot2Type = (ConnectorType)GetUnsignedInteger(data);
+      Slot3Type = (ConnectorType)GetUnsignedInteger(data);
+      Slot4Type = (ConnectorType)GetUnsignedInteger(data);
     }
 
     public int SightRange { get; set; }
-    
+
 
     public string TalkPackId { get; set; }
 
     public string ShieldGeneratorId { get; set; }
 
-    public int MaxShieldUpdate { get; set; }
+    public MaxShieldUpgradeType MaxShieldUpgrade { get; set; }
 
-    public SlotType Slot1Type { get; set; }
+    public ConnectorType Slot1Type { get; set; }
 
-    public SlotType Slot2Type { get; set; }
+    public ConnectorType Slot2Type { get; set; }
 
-    public SlotType Slot3Type { get; set; }
+    public ConnectorType Slot3Type { get; set; }
 
-    public SlotType Slot4Type { get; set; }
+    public ConnectorType Slot4Type { get; set; }
 
     [JsonIgnore]
     public override IEnumerable<bool> FieldTypes
@@ -56,7 +56,7 @@ namespace EarthTool.PAR.Models.Abstracts
           () => 1,
           () => ShieldGeneratorId,
           () => 1,
-          () => MaxShieldUpdate,
+          () => MaxShieldUpgrade,
           () => Slot1Type,
           () => Slot2Type,
           () => Slot3Type,
@@ -79,7 +79,7 @@ namespace EarthTool.PAR.Models.Abstracts
           bw.Write(ShieldGeneratorId.Length);
           bw.Write(encoding.GetBytes(ShieldGeneratorId));
           bw.Write(-1);
-          bw.Write(MaxShieldUpdate);
+          bw.Write((uint)MaxShieldUpgrade);
           bw.Write((uint)Slot1Type);
           bw.Write((uint)Slot2Type);
           bw.Write((uint)Slot3Type);

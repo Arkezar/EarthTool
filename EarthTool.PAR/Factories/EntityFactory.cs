@@ -1,11 +1,12 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Models;
 using EarthTool.PAR.Models.Abstracts;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace EarthTool.PAR.Models
+namespace EarthTool.PAR.Factories
 {
   public class EntityFactory
   {

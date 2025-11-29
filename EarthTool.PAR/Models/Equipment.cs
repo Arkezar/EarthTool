@@ -18,17 +18,17 @@ namespace EarthTool.PAR.Models
       : base(name, requiredResearch, type, data)
     {
       RangeOfSight = GetInteger(data);
-      PlugType = (SlotType)GetUnsignedInteger(data);
-      SlotType = (SlotType)GetUnsignedInteger(data);
+      PlugType = (ConnectorType)GetUnsignedInteger(data);
+      SlotType = (ConnectorType)GetUnsignedInteger(data);
       MaxAlphaPerTick = GetInteger(data);
       MaxBetaPerTick = GetInteger(data);
     }
 
     public int RangeOfSight { get; set; }
 
-    public SlotType PlugType { get; set; }
+    public ConnectorType PlugType { get; set; }
 
-    public SlotType SlotType { get; set; }
+    public ConnectorType SlotType { get; set; }
 
     public int MaxAlphaPerTick { get; set; }
 

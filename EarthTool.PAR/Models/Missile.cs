@@ -17,8 +17,8 @@ namespace EarthTool.PAR.Models
     public Missile(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      Type = GetInteger(data);
-      RocketType = GetInteger(data);
+      Type = (MissileType)GetInteger(data);
+      RocketType = (RocketType)GetInteger(data);
       MissileSize = GetInteger(data);
       RocketDummyId = GetString(data);
       data.ReadBytes(4);
@@ -26,17 +26,17 @@ namespace EarthTool.PAR.Models
       Speed = GetInteger(data);
       TimeOfShoot = GetInteger(data);
       PlusRangeOfFire = GetInteger(data);
-      HitType = GetInteger(data);
+      HitType = (HitType)GetInteger(data);
       HitRange = GetInteger(data);
-      TypeOfDamage = GetInteger(data);
+      TypeOfDamage = (DamageFlags)GetInteger(data);
       Damage = GetInteger(data);
       ExplosionId = GetString(data);
       data.ReadBytes(4);
     }
 
-    public int Type { get; set; }
+    public MissileType Type { get; set; }
 
-    public int RocketType { get; set; }
+    public RocketType RocketType { get; set; }
 
     public int MissileSize { get; set; }
 
@@ -50,11 +50,11 @@ namespace EarthTool.PAR.Models
 
     public int PlusRangeOfFire { get; set; }
 
-    public int HitType { get; set; }
+    public HitType HitType { get; set; }
 
     public int HitRange { get; set; }
 
-    public int TypeOfDamage { get; set; }
+    public DamageFlags TypeOfDamage { get; set; }
 
     public int Damage { get; set; }
 
@@ -63,23 +63,24 @@ namespace EarthTool.PAR.Models
     [JsonIgnore]
     public override IEnumerable<bool> FieldTypes
     {
-      get => base.FieldTypes.Concat(IsStringMember(
-        () => Type,
-        () => RocketType,
-        () => MissileSize,
-        () => RocketDummyId,
-        () => 1,
-        () => IsAntiRocketTarget,
-        () => Speed,
-        () => TimeOfShoot,
-        () => PlusRangeOfFire,
-        () => HitType,
-        () => HitRange,
-        () => TypeOfDamage,
-        () => Damage,
-        () => ExplosionId,
-        () => 1
-      ));
+      get
+        => base.FieldTypes.Concat(IsStringMember(
+          () => Type,
+          () => RocketType,
+          () => MissileSize,
+          () => RocketDummyId,
+          () => 1,
+          () => IsAntiRocketTarget,
+          () => Speed,
+          () => TimeOfShoot,
+          () => PlusRangeOfFire,
+          () => HitType,
+          () => HitRange,
+          () => TypeOfDamage,
+          () => Damage,
+          () => ExplosionId,
+          () => 1
+        ));
       set => base.FieldTypes = value;
     }
 
@@ -90,8 +91,8 @@ namespace EarthTool.PAR.Models
         using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
-          bw.Write(Type);
-          bw.Write(RocketType);
+          bw.Write((int)Type);
+          bw.Write((int)RocketType);
           bw.Write(MissileSize);
           bw.Write(RocketDummyId.Length);
           bw.Write(encoding.GetBytes(RocketDummyId));
@@ -100,9 +101,9 @@ namespace EarthTool.PAR.Models
           bw.Write(Speed);
           bw.Write(TimeOfShoot);
           bw.Write(PlusRangeOfFire);
-          bw.Write(HitType);
+          bw.Write((int)HitType);
           bw.Write(HitRange);
-          bw.Write(TypeOfDamage);
+          bw.Write((int)TypeOfDamage);
           bw.Write(Damage);
           bw.Write(ExplosionId.Length);
           bw.Write(encoding.GetBytes(ExplosionId));

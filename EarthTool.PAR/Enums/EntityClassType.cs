@@ -2,7 +2,6 @@ using System;
 
 namespace EarthTool.PAR.Enums
 {
-  [Flags]
   public enum EntityClassType
   {
     None                     = 0x00000000,

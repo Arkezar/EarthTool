@@ -17,13 +17,13 @@ namespace EarthTool.PAR.Models
     public ResourceTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      ResourceVehicleType = GetInteger(data);
+      ResourceVehicleType = (ResourceVehicleType)GetInteger(data);
       AnimatedTransporterStop = GetInteger(data);
       ShowVideoPerTransportersCount = GetInteger(data);
       TotalOrbitalMoney = GetInteger(data);
     }
 
-    public int ResourceVehicleType { get; set; }
+    public ResourceVehicleType ResourceVehicleType { get; set; }
 
     public int AnimatedTransporterStop { get; set; }
 
@@ -50,7 +50,7 @@ namespace EarthTool.PAR.Models
         using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
-          bw.Write(ResourceVehicleType);
+          bw.Write((int)ResourceVehicleType);
           bw.Write(AnimatedTransporterStop);
           bw.Write(ShowVideoPerTransportersCount);
           bw.Write(TotalOrbitalMoney);

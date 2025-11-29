@@ -17,9 +17,9 @@ namespace EarthTool.PAR.Models
     public Building(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      BuildingType = GetInteger(data);
-      BuildingTypeEx = GetInteger(data);
-      BuildingTabType = GetInteger(data);
+      BuildingType = (BuildingType)GetInteger(data);
+      BuildingTypeEx = (BuildingExType)GetInteger(data);
+      BuildingTabType = (BuildingTabType)GetInteger(data);
       InitCannonId1 = GetString(data);
       data.ReadBytes(4);
       InitCannonId2 = GetString(data);
@@ -47,7 +47,7 @@ namespace EarthTool.PAR.Models
       PowerTransmitterRange = GetInteger(data);
       ConnectTransmitterRange = GetInteger(data);
       FullEnergyPowerInDay = GetInteger(data);
-      ResourceInputOutput = GetInteger(data);
+      ResourceInputOutput = (ResourceInputOutputFlags)GetInteger(data);
       TickPerContainer = GetInteger(data);
       ContainerId = GetString(data);
       data.ReadBytes(4);
@@ -67,14 +67,14 @@ namespace EarthTool.PAR.Models
       EndOfClosingCopulaAnimation = GetInteger(data);
       LaserId = GetString(data);
       data.ReadBytes(4);
-      SpaceStationType = GetInteger(data);
+      SpaceStationType = (SpaceStationType)GetInteger(data);
     }
 
-    public int BuildingType { get; set; }
+    public BuildingType BuildingType { get; set; }
 
-    public int BuildingTypeEx { get; set; }
+    public BuildingExType BuildingTypeEx { get; set; }
 
-    public int BuildingTabType { get; set; }
+    public BuildingTabType BuildingTabType { get; set; }
 
     public string InitCannonId1 { get; set; }
 
@@ -110,7 +110,7 @@ namespace EarthTool.PAR.Models
 
     public int FullEnergyPowerInDay { get; set; }
 
-    public int ResourceInputOutput { get; set; }
+    public ResourceInputOutputFlags ResourceInputOutput { get; set; }
 
     public int TickPerContainer { get; set; }
 
@@ -138,7 +138,7 @@ namespace EarthTool.PAR.Models
 
     public string LaserId { get; set; }
 
-    public int SpaceStationType { get; set; }
+    public SpaceStationType SpaceStationType { get; set; }
 
     [JsonIgnore]
     public override IEnumerable<bool> FieldTypes
@@ -206,9 +206,9 @@ namespace EarthTool.PAR.Models
         using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
-          bw.Write(BuildingType);
-          bw.Write(BuildingTypeEx);
-          bw.Write(BuildingTabType);
+          bw.Write((int)BuildingType);
+          bw.Write((int)BuildingTypeEx);
+          bw.Write((int)BuildingTabType);
           bw.Write(InitCannonId1.Length);
           bw.Write(encoding.GetBytes(InitCannonId1));
           bw.Write(-1);
@@ -246,7 +246,7 @@ namespace EarthTool.PAR.Models
           bw.Write(PowerTransmitterRange);
           bw.Write(ConnectTransmitterRange);
           bw.Write(FullEnergyPowerInDay);
-          bw.Write(ResourceInputOutput);
+          bw.Write((int)ResourceInputOutput);
           bw.Write(TickPerContainer);
           bw.Write(ContainerId.Length);
           bw.Write(encoding.GetBytes(ContainerId));
@@ -272,7 +272,7 @@ namespace EarthTool.PAR.Models
           bw.Write(LaserId.Length);
           bw.Write(encoding.GetBytes(LaserId));
           bw.Write(-1);
-          bw.Write(SpaceStationType);
+          bw.Write((int)SpaceStationType);
         }
 
         return output.ToArray();

@@ -18,13 +18,13 @@ namespace EarthTool.PAR.Models
       : base(name, requiredResearch, type, data)
     {
       RangeOfSight = GetInteger(data);
-      PlugType = (SlotType)GetUnsignedInteger(data);
-      SlotType = (SlotType)GetUnsignedInteger(data);
+      PlugType = (ConnectorType)GetUnsignedInteger(data);
+      SlotType = (ConnectorType)GetUnsignedInteger(data);
       MaxAlphaPerTick = GetInteger(data);
       MaxBetaPerTick = GetInteger(data);
       AlphaMargin = GetInteger(data);
       BetaMargin = GetInteger(data);
-      BarrelBetaType = GetInteger(data);
+      BarrelBetaType = (BarrelBetaType)GetInteger(data);
       BarrelBetaAngle = GetInteger(data);
       BarrelCount = GetInteger(data);
       AmmoId = GetString(data);
@@ -33,7 +33,7 @@ namespace EarthTool.PAR.Models
       TargetType = (TargetType)GetInteger(data);
       RangeOfFire = GetInteger(data);
       PlusDamage = GetInteger(data);
-      FireType = GetInteger(data);
+      FireType = (WeaponFireType)GetInteger(data);
       ShootDelay = GetInteger(data);
       NeedExternal = GetInteger(data);
       ReloadDelay = GetInteger(data);
@@ -44,9 +44,9 @@ namespace EarthTool.PAR.Models
 
     public int RangeOfSight { get; set; }
 
-    public SlotType PlugType { get; set; }
+    public ConnectorType PlugType { get; set; }
 
-    public SlotType SlotType { get; set; }
+    public ConnectorType SlotType { get; set; }
 
     public int MaxAlphaPerTick { get; set; }
 
@@ -56,7 +56,7 @@ namespace EarthTool.PAR.Models
 
     public int BetaMargin { get; set; }
 
-    public int BarrelBetaType { get; set; }
+    public BarrelBetaType BarrelBetaType { get; set; }
 
     public int BarrelBetaAngle { get; set; }
 
@@ -72,7 +72,7 @@ namespace EarthTool.PAR.Models
 
     public int PlusDamage { get; set; }
 
-    public int FireType { get; set; }
+    public WeaponFireType FireType { get; set; }
 
     public int ShootDelay { get; set; }
 
@@ -130,7 +130,7 @@ namespace EarthTool.PAR.Models
           bw.Write(MaxBetaPerTick);
           bw.Write(AlphaMargin);
           bw.Write(BetaMargin);
-          bw.Write(BarrelBetaType);
+          bw.Write((int)BarrelBetaType);
           bw.Write(BarrelBetaAngle);
           bw.Write(BarrelCount);
           bw.Write(AmmoId.Length);
@@ -140,7 +140,7 @@ namespace EarthTool.PAR.Models
           bw.Write((int)TargetType);
           bw.Write(RangeOfFire);
           bw.Write(PlusDamage);
-          bw.Write(FireType);
+          bw.Write((int)FireType);
           bw.Write(ShootDelay);
           bw.Write(NeedExternal);
           bw.Write(ReloadDelay);
