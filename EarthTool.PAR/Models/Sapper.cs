@@ -16,16 +16,14 @@ namespace EarthTool.PAR.Models
     public Sapper(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      MinesLookRange = GetInteger(data);
-      MineId = GetString(data);
-      data.ReadBytes(4);
-      MaxMinesCount = GetInteger(data);
-      AnimDownStart = GetInteger(data);
-      AnimDownEnd = GetInteger(data);
-      AnimUpStart = GetInteger(data);
-      AnimUpEnd = GetInteger(data);
-      PutMineSmokeId = GetString(data);
-      data.ReadBytes(4);
+      MinesLookRange = ReadInteger(data);
+      MineId = ReadStringRef(data);
+      MaxMinesCount = ReadInteger(data);
+      AnimDownStart = ReadInteger(data);
+      AnimDownEnd = ReadInteger(data);
+      AnimUpStart = ReadInteger(data);
+      AnimUpEnd = ReadInteger(data);
+      PutMineSmokeId = ReadStringRef(data);
     }
 
     public int MinesLookRange { get; set; }
@@ -50,41 +48,34 @@ namespace EarthTool.PAR.Models
       get => base.FieldTypes.Concat(IsStringMember(
         () => MinesLookRange,
         () => MineId,
-        () => 1,
+        () => ReferenceMarker,
         () => MaxMinesCount,
         () => AnimDownStart,
         () => AnimDownEnd,
         () => AnimUpStart,
         () => AnimUpEnd,
         () => PutMineSmokeId,
-        () => 1
+        () => ReferenceMarker
       ));
       set => base.FieldTypes = value;
     }
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(MinesLookRange);
-          bw.Write(MineId.Length);
-          bw.Write(encoding.GetBytes(MineId));
-          bw.Write(-1);
-          bw.Write(MaxMinesCount);
-          bw.Write(AnimDownStart);
-          bw.Write(AnimDownEnd);
-          bw.Write(AnimUpStart);
-          bw.Write(AnimUpEnd);
-          bw.Write(PutMineSmokeId.Length);
-          bw.Write(encoding.GetBytes(PutMineSmokeId));
-          bw.Write(-1);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write(MinesLookRange);
+      WriteStringRef(bw, MineId, encoding);
+      bw.Write(MaxMinesCount);
+      bw.Write(AnimDownStart);
+      bw.Write(AnimDownEnd);
+      bw.Write(AnimUpStart);
+      bw.Write(AnimUpEnd);
+      WriteStringRef(bw, PutMineSmokeId, encoding);
+
+      return output.ToArray();
     }
   }
 }

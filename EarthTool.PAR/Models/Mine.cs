@@ -17,9 +17,9 @@ namespace EarthTool.PAR.Models
     public Mine(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      MineSize = GetInteger(data);
-      MineTypeOfDamage = GetInteger(data);
-      MineDamage = GetInteger(data);
+      MineSize = ReadInteger(data);
+      MineTypeOfDamage = ReadInteger(data);
+      MineDamage = ReadInteger(data);
     }
 
     public int MineSize { get; set; }
@@ -41,18 +41,15 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(MineSize);
-          bw.Write(MineTypeOfDamage);
-          bw.Write(MineDamage);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write(MineSize);
+      bw.Write(MineTypeOfDamage);
+      bw.Write(MineDamage);
+
+      return output.ToArray();
     }
   }
 }

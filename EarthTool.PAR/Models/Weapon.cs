@@ -17,29 +17,27 @@ namespace EarthTool.PAR.Models
     public Weapon(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      RangeOfSight = GetInteger(data);
-      PlugType = (ConnectorType)GetUnsignedInteger(data);
-      SlotType = (ConnectorType)GetUnsignedInteger(data);
-      MaxAlphaPerTick = GetInteger(data);
-      MaxBetaPerTick = GetInteger(data);
-      AlphaMargin = GetInteger(data);
-      BetaMargin = GetInteger(data);
-      BarrelBetaType = (BarrelBetaType)GetInteger(data);
-      BarrelBetaAngle = GetInteger(data);
-      BarrelCount = GetInteger(data);
-      AmmoId = GetString(data);
-      data.ReadBytes(4);
-      AmmoType = GetInteger(data);
-      TargetType = (TargetType)GetInteger(data);
-      RangeOfFire = GetInteger(data);
-      PlusDamage = GetInteger(data);
-      FireType = (WeaponFireType)GetInteger(data);
-      ShootDelay = GetInteger(data);
-      NeedExternal = GetInteger(data);
-      ReloadDelay = GetInteger(data);
-      MaxAmmo = GetInteger(data);
-      BarrelExplosionId = GetString(data);
-      data.ReadBytes(4);
+      RangeOfSight = ReadInteger(data);
+      PlugType = (ConnectorType)ReadUnsignedInteger(data);
+      SlotType = (ConnectorType)ReadUnsignedInteger(data);
+      MaxAlphaPerTick = ReadInteger(data);
+      MaxBetaPerTick = ReadInteger(data);
+      AlphaMargin = ReadInteger(data);
+      BetaMargin = ReadInteger(data);
+      BarrelBetaType = (BarrelBetaType)ReadInteger(data);
+      BarrelBetaAngle = ReadInteger(data);
+      BarrelCount = ReadInteger(data);
+      AmmoId = ReadStringRef(data);
+      AmmoType = ReadInteger(data);
+      TargetType = (TargetType)ReadInteger(data);
+      RangeOfFire = ReadInteger(data);
+      PlusDamage = ReadInteger(data);
+      FireType = (WeaponFireType)ReadInteger(data);
+      ShootDelay = ReadInteger(data);
+      NeedExternal = ReadInteger(data);
+      ReloadDelay = ReadInteger(data);
+      MaxAmmo = ReadInteger(data);
+      BarrelExplosionId = ReadStringRef(data);
     }
 
     public int RangeOfSight { get; set; }
@@ -100,7 +98,7 @@ namespace EarthTool.PAR.Models
           () => BarrelBetaAngle,
           () => BarrelCount,
           () => AmmoId,
-          () => 1,
+          () => ReferenceMarker,
           () => AmmoType,
           () => (int)TargetType,
           () => RangeOfFire,
@@ -111,47 +109,40 @@ namespace EarthTool.PAR.Models
           () => ReloadDelay,
           () => MaxAmmo,
           () => BarrelExplosionId,
-          () => 1
+          () => ReferenceMarker
         ));
       set => base.FieldTypes = value;
     }
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(RangeOfSight);
-          bw.Write((uint)PlugType);
-          bw.Write((uint)SlotType);
-          bw.Write(MaxAlphaPerTick);
-          bw.Write(MaxBetaPerTick);
-          bw.Write(AlphaMargin);
-          bw.Write(BetaMargin);
-          bw.Write((int)BarrelBetaType);
-          bw.Write(BarrelBetaAngle);
-          bw.Write(BarrelCount);
-          bw.Write(AmmoId.Length);
-          bw.Write(encoding.GetBytes(AmmoId));
-          bw.Write(-1);
-          bw.Write(AmmoType);
-          bw.Write((int)TargetType);
-          bw.Write(RangeOfFire);
-          bw.Write(PlusDamage);
-          bw.Write((int)FireType);
-          bw.Write(ShootDelay);
-          bw.Write(NeedExternal);
-          bw.Write(ReloadDelay);
-          bw.Write(MaxAmmo);
-          bw.Write(BarrelExplosionId.Length);
-          bw.Write(encoding.GetBytes(BarrelExplosionId));
-          bw.Write(-1);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write(RangeOfSight);
+      bw.Write((uint)PlugType);
+      bw.Write((uint)SlotType);
+      bw.Write(MaxAlphaPerTick);
+      bw.Write(MaxBetaPerTick);
+      bw.Write(AlphaMargin);
+      bw.Write(BetaMargin);
+      bw.Write((int)BarrelBetaType);
+      bw.Write(BarrelBetaAngle);
+      bw.Write(BarrelCount);
+      WriteStringRef(bw, AmmoId, encoding);
+      bw.Write(AmmoType);
+      bw.Write((int)TargetType);
+      bw.Write(RangeOfFire);
+      bw.Write(PlusDamage);
+      bw.Write((int)FireType);
+      bw.Write(ShootDelay);
+      bw.Write(NeedExternal);
+      bw.Write(ReloadDelay);
+      bw.Write(MaxAmmo);
+      WriteStringRef(bw, BarrelExplosionId, encoding);
+
+      return output.ToArray();
     }
   }
 }

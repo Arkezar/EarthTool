@@ -18,29 +18,26 @@ namespace EarthTool.PAR.Models
 
     public byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
+      using var output = new MemoryStream();
+
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(FileHeader.ToByteArray(encoding));
+      bw.Write(Identifiers.Paramters);
+      bw.Write(Groups.Count());
+      bw.Write(0);
+      foreach (EntityGroup group in Groups)
       {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(FileHeader.ToByteArray(encoding));
-          bw.Write(Identifiers.Paramters);
-          bw.Write(Groups.Count());
-          bw.Write(0);
-          foreach (EntityGroup group in Groups)
-          {
-            bw.Write(group.ToByteArray(encoding));
-          }
-
-          bw.Write(Research.Count());
-          bw.Write(-1);
-          foreach (Research research in Research)
-          {
-            bw.Write(research.ToByteArray(encoding));
-          }
-        }
-
-        return output.ToArray();
+        bw.Write(group.ToByteArray(encoding));
       }
+
+      bw.Write(Research.Count());
+      bw.Write(-1);
+      foreach (Research research in Research)
+      {
+        bw.Write(research.ToByteArray(encoding));
+      }
+
+      return output.ToArray();
     }
   }
 }

@@ -15,8 +15,7 @@ namespace EarthTool.PAR.Models
     public SpecialUpdateLink(string name, IEnumerable<int> requiredResearch, BinaryReader data)
       : base(name, requiredResearch)
     {
-      Value = GetString(data);
-      data.ReadBytes(4);
+      Value = ReadStringRef(data);
     }
 
     public string Value { get; set; }
@@ -26,25 +25,20 @@ namespace EarthTool.PAR.Models
     {
       get => IsStringMember(
         () => Value,
-        () => 1
+        () => ReferenceMarker
       );
       set => base.FieldTypes = value;
     }
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(Value.Length);
-          bw.Write(encoding.GetBytes(Value));
-          bw.Write(-1);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      WriteStringRef(bw, Value, encoding);
+
+      return output.ToArray();
     }
   }
 }

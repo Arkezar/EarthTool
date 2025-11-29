@@ -26,16 +26,13 @@ namespace EarthTool.PAR.Models.Abstracts
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write((int)ClassId);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write((int)ClassId);
+
+      return output.ToArray();
     }
   }
 }

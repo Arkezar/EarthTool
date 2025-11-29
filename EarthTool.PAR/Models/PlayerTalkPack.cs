@@ -15,30 +15,30 @@ namespace EarthTool.PAR.Models
     public PlayerTalkPack(string name, IEnumerable<int> requiredResearch, BinaryReader data)
       : base(name, requiredResearch)
     {
-      BaseUnderAttack = GetString(data);
-      BuildingUnderAttack = GetString(data);
-      SpacePortUnderAttack = GetString(data);
-      EnemyLandInBase = GetString(data);
-      LowMaterials = GetString(data);
-      LowMaterialsInBase = GetString(data);
-      LowPower = GetString(data);
-      LowPowerInBase = GetString(data);
-      ResearchComplete = GetString(data);
-      ProductionStarted = GetString(data);
-      ProductionCompleted = GetString(data);
-      ProductionCanceled = GetString(data);
-      PlatoonLost = GetString(data);
-      PlatoonCreated = GetString(data);
-      PlatoonDisbanded = GetString(data);
-      UnitLost = GetString(data);
-      TransporterArrived = GetString(data);
-      ArtefactLocated = GetString(data);
-      ArtefactRecovered = GetString(data);
-      NewAreaLocationFound = GetString(data);
-      EnemyMainBaseLocated = GetString(data);
-      NewSourceFieldLocated = GetString(data);
-      SourceFieldExploited = GetString(data);
-      BuildingLost = GetString(data);
+      BaseUnderAttack = ReadString(data);
+      BuildingUnderAttack = ReadString(data);
+      SpacePortUnderAttack = ReadString(data);
+      EnemyLandInBase = ReadString(data);
+      LowMaterials = ReadString(data);
+      LowMaterialsInBase = ReadString(data);
+      LowPower = ReadString(data);
+      LowPowerInBase = ReadString(data);
+      ResearchComplete = ReadString(data);
+      ProductionStarted = ReadString(data);
+      ProductionCompleted = ReadString(data);
+      ProductionCanceled = ReadString(data);
+      PlatoonLost = ReadString(data);
+      PlatoonCreated = ReadString(data);
+      PlatoonDisbanded = ReadString(data);
+      UnitLost = ReadString(data);
+      TransporterArrived = ReadString(data);
+      ArtefactLocated = ReadString(data);
+      ArtefactRecovered = ReadString(data);
+      NewAreaLocationFound = ReadString(data);
+      EnemyMainBaseLocated = ReadString(data);
+      NewSourceFieldLocated = ReadString(data);
+      SourceFieldExploited = ReadString(data);
+      BuildingLost = ReadString(data);
     }
 
     public string BaseUnderAttack { get; set; }
@@ -123,63 +123,36 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(BaseUnderAttack.Length);
-          bw.Write(encoding.GetBytes(BaseUnderAttack));
-          bw.Write(BuildingUnderAttack.Length);
-          bw.Write(encoding.GetBytes(BuildingUnderAttack));
-          bw.Write(SpacePortUnderAttack.Length);
-          bw.Write(encoding.GetBytes(SpacePortUnderAttack));
-          bw.Write(EnemyLandInBase.Length);
-          bw.Write(encoding.GetBytes(EnemyLandInBase));
-          bw.Write(LowMaterials.Length);
-          bw.Write(encoding.GetBytes(LowMaterials));
-          bw.Write(LowMaterialsInBase.Length);
-          bw.Write(encoding.GetBytes(LowMaterialsInBase));
-          bw.Write(LowPower.Length);
-          bw.Write(encoding.GetBytes(LowPower));
-          bw.Write(LowPowerInBase.Length);
-          bw.Write(encoding.GetBytes(LowPowerInBase));
-          bw.Write(ResearchComplete.Length);
-          bw.Write(encoding.GetBytes(ResearchComplete));
-          bw.Write(ProductionStarted.Length);
-          bw.Write(encoding.GetBytes(ProductionStarted));
-          bw.Write(ProductionCompleted.Length);
-          bw.Write(encoding.GetBytes(ProductionCompleted));
-          bw.Write(ProductionCanceled.Length);
-          bw.Write(encoding.GetBytes(ProductionCanceled));
-          bw.Write(PlatoonLost.Length);
-          bw.Write(encoding.GetBytes(PlatoonLost));
-          bw.Write(PlatoonCreated.Length);
-          bw.Write(encoding.GetBytes(PlatoonCreated));
-          bw.Write(PlatoonDisbanded.Length);
-          bw.Write(encoding.GetBytes(PlatoonDisbanded));
-          bw.Write(UnitLost.Length);
-          bw.Write(encoding.GetBytes(UnitLost));
-          bw.Write(TransporterArrived.Length);
-          bw.Write(encoding.GetBytes(TransporterArrived));
-          bw.Write(ArtefactLocated.Length);
-          bw.Write(encoding.GetBytes(ArtefactLocated));
-          bw.Write(ArtefactRecovered.Length);
-          bw.Write(encoding.GetBytes(ArtefactRecovered));
-          bw.Write(NewAreaLocationFound.Length);
-          bw.Write(encoding.GetBytes(NewAreaLocationFound));
-          bw.Write(EnemyMainBaseLocated.Length);
-          bw.Write(encoding.GetBytes(EnemyMainBaseLocated));
-          bw.Write(NewSourceFieldLocated.Length);
-          bw.Write(encoding.GetBytes(NewSourceFieldLocated));
-          bw.Write(SourceFieldExploited.Length);
-          bw.Write(encoding.GetBytes(SourceFieldExploited));
-          bw.Write(BuildingLost.Length);
-          bw.Write(encoding.GetBytes(BuildingLost));
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      WriteString(bw, BaseUnderAttack, encoding);
+      WriteString(bw, BuildingUnderAttack, encoding);
+      WriteString(bw, SpacePortUnderAttack, encoding);
+      WriteString(bw, EnemyLandInBase, encoding);
+      WriteString(bw, LowMaterials, encoding);
+      WriteString(bw, LowMaterialsInBase, encoding);
+      WriteString(bw, LowPower, encoding);
+      WriteString(bw, LowPowerInBase, encoding);
+      WriteString(bw, ResearchComplete, encoding);
+      WriteString(bw, ProductionStarted, encoding);
+      WriteString(bw, ProductionCompleted, encoding);
+      WriteString(bw, ProductionCanceled, encoding);
+      WriteString(bw, PlatoonLost, encoding);
+      WriteString(bw, PlatoonCreated, encoding);
+      WriteString(bw, PlatoonDisbanded, encoding);
+      WriteString(bw, UnitLost, encoding);
+      WriteString(bw, TransporterArrived, encoding);
+      WriteString(bw, ArtefactLocated, encoding);
+      WriteString(bw, ArtefactRecovered, encoding);
+      WriteString(bw, NewAreaLocationFound, encoding);
+      WriteString(bw, EnemyMainBaseLocated, encoding);
+      WriteString(bw, NewSourceFieldLocated, encoding);
+      WriteString(bw, SourceFieldExploited, encoding);
+      WriteString(bw, BuildingLost, encoding);
+
+      return output.ToArray();
     }
   }
 }

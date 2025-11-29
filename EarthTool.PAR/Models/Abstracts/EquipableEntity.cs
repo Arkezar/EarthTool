@@ -1,4 +1,4 @@
-﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Enums;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -17,16 +17,14 @@ namespace EarthTool.PAR.Models.Abstracts
       :
       base(name, requiredResearch, type, data)
     {
-      SightRange = GetInteger(data);
-      TalkPackId = GetString(data);
-      data.ReadBytes(4);
-      ShieldGeneratorId = GetString(data);
-      data.ReadBytes(4);
-      MaxShieldUpgrade = (MaxShieldUpgradeType)GetInteger(data);
-      Slot1Type = (ConnectorType)GetUnsignedInteger(data);
-      Slot2Type = (ConnectorType)GetUnsignedInteger(data);
-      Slot3Type = (ConnectorType)GetUnsignedInteger(data);
-      Slot4Type = (ConnectorType)GetUnsignedInteger(data);
+      SightRange = ReadInteger(data);
+      TalkPackId = ReadStringRef(data);
+      ShieldGeneratorId = ReadStringRef(data);
+      MaxShieldUpgrade = (MaxShieldUpgradeType)ReadInteger(data);
+      Slot1Type = (ConnectorType)ReadUnsignedInteger(data);
+      Slot2Type = (ConnectorType)ReadUnsignedInteger(data);
+      Slot3Type = (ConnectorType)ReadUnsignedInteger(data);
+      Slot4Type = (ConnectorType)ReadUnsignedInteger(data);
     }
 
     public int SightRange { get; set; }
@@ -53,9 +51,9 @@ namespace EarthTool.PAR.Models.Abstracts
         => base.FieldTypes.Concat(IsStringMember(
           () => SightRange,
           () => TalkPackId,
-          () => 1,
+          () => ReferenceMarker,
           () => ShieldGeneratorId,
-          () => 1,
+          () => ReferenceMarker,
           () => MaxShieldUpgrade,
           () => Slot1Type,
           () => Slot2Type,
@@ -67,27 +65,18 @@ namespace EarthTool.PAR.Models.Abstracts
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(SightRange);
-          bw.Write(TalkPackId.Length);
-          bw.Write(encoding.GetBytes(TalkPackId));
-          bw.Write(-1);
-          bw.Write(ShieldGeneratorId.Length);
-          bw.Write(encoding.GetBytes(ShieldGeneratorId));
-          bw.Write(-1);
-          bw.Write((uint)MaxShieldUpgrade);
-          bw.Write((uint)Slot1Type);
-          bw.Write((uint)Slot2Type);
-          bw.Write((uint)Slot3Type);
-          bw.Write((uint)Slot4Type);
-        }
-
-        return output.ToArray();
-      }
+      using var output = new MemoryStream();
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write(SightRange);
+      WriteStringRef(bw, TalkPackId, encoding);
+      WriteStringRef(bw, ShieldGeneratorId, encoding);
+      bw.Write((uint)MaxShieldUpgrade);
+      bw.Write((uint)Slot1Type);
+      bw.Write((uint)Slot2Type);
+      bw.Write((uint)Slot3Type);
+      bw.Write((uint)Slot4Type);
+      return output.ToArray();
     }
   }
 }

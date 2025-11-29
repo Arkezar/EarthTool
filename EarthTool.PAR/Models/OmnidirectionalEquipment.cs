@@ -20,12 +20,12 @@ namespace EarthTool.PAR.Models
       BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      LookRoundTypeMask = (LookRoundTypeFlags)GetInteger(data);
-      LookRoundRange = GetInteger(data);
-      TurnSpeed = GetInteger(data);
-      BannerAddExperienceLevel = GetInteger(data);
-      RegenerationHPMultiple = GetInteger(data);
-      ShieldReloadAdd = GetInteger(data);
+      LookRoundTypeMask = (LookRoundTypeFlags)ReadInteger(data);
+      LookRoundRange = ReadInteger(data);
+      TurnSpeed = ReadInteger(data);
+      BannerAddExperienceLevel = ReadInteger(data);
+      RegenerationHPMultiple = ReadInteger(data);
+      ShieldReloadAdd = ReadInteger(data);
     }
 
     public LookRoundTypeFlags LookRoundTypeMask { get; set; }
@@ -57,21 +57,18 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write((int)LookRoundTypeMask);
-          bw.Write(LookRoundRange);
-          bw.Write(TurnSpeed);
-          bw.Write(BannerAddExperienceLevel);
-          bw.Write(RegenerationHPMultiple);
-          bw.Write(ShieldReloadAdd);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write((int)LookRoundTypeMask);
+      bw.Write(LookRoundRange);
+      bw.Write(TurnSpeed);
+      bw.Write(BannerAddExperienceLevel);
+      bw.Write(RegenerationHPMultiple);
+      bw.Write(ShieldReloadAdd);
+
+      return output.ToArray();
     }
   }
 }

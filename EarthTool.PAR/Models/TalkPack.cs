@@ -15,13 +15,13 @@ namespace EarthTool.PAR.Models
     public TalkPack(string name, IEnumerable<int> requiredResearch, BinaryReader data)
       : base(name, requiredResearch)
     {
-      Selected = GetString(data);
-      Move = GetString(data);
-      Attack = GetString(data);
-      Command = GetString(data);
-      Enemy = GetString(data);
-      Help = GetString(data);
-      FreeWay = GetString(data);
+      Selected = ReadString(data);
+      Move = ReadString(data);
+      Attack = ReadString(data);
+      Command = ReadString(data);
+      Enemy = ReadString(data);
+      Help = ReadString(data);
+      FreeWay = ReadString(data);
     }
 
     public string Selected { get; set; }
@@ -55,29 +55,19 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(Selected.Length);
-          bw.Write(encoding.GetBytes(Selected));
-          bw.Write(Move.Length);
-          bw.Write(encoding.GetBytes(Move));
-          bw.Write(Attack.Length);
-          bw.Write(encoding.GetBytes(Attack));
-          bw.Write(Command.Length);
-          bw.Write(encoding.GetBytes(Command));
-          bw.Write(Enemy.Length);
-          bw.Write(encoding.GetBytes(Enemy));
-          bw.Write(Help.Length);
-          bw.Write(encoding.GetBytes(Help));
-          bw.Write(FreeWay.Length);
-          bw.Write(encoding.GetBytes(FreeWay));
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      WriteString(bw, Selected, encoding);
+      WriteString(bw, Move, encoding);
+      WriteString(bw, Attack, encoding);
+      WriteString(bw, Command, encoding);
+      WriteString(bw, Enemy, encoding);
+      WriteString(bw, Help, encoding);
+      WriteString(bw, FreeWay, encoding);
+
+      return output.ToArray();
     }
   }
 }

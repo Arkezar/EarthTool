@@ -15,11 +15,11 @@ namespace EarthTool.PAR.Models
     public ShieldGenerator(string name, IEnumerable<int> requiredResearch, BinaryReader data)
       : base(name, requiredResearch)
     {
-      ShieldCost = GetInteger(data);
-      ShieldValue = GetInteger(data);
-      ReloadTime = GetInteger(data);
-      ShieldMeshName = GetString(data);
-      ShieldMeshViewIndex = GetInteger(data);
+      ShieldCost = ReadInteger(data);
+      ShieldValue = ReadInteger(data);
+      ReloadTime = ReadInteger(data);
+      ShieldMeshName = ReadString(data);
+      ShieldMeshViewIndex = ReadInteger(data);
     }
 
     public int ShieldCost { get; set; }
@@ -47,21 +47,17 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(ShieldCost);
-          bw.Write(ShieldValue);
-          bw.Write(ReloadTime);
-          bw.Write(ShieldMeshName.Length);
-          bw.Write(encoding.GetBytes(ShieldMeshName));
-          bw.Write(ShieldMeshViewIndex);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write(ShieldCost);
+      bw.Write(ShieldValue);
+      bw.Write(ReloadTime);
+      WriteString(bw, ShieldMeshName, encoding);
+      bw.Write(ShieldMeshViewIndex);
+
+      return output.ToArray();
     }
   }
 }

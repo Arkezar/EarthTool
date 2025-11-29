@@ -1,4 +1,4 @@
-﻿using EarthTool.Common.Interfaces;
+using EarthTool.Common.Interfaces;
 using EarthTool.PAR.Enums;
 using System;
 using System.Collections.Generic;
@@ -9,11 +9,15 @@ using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models.Abstracts
 {
-  public abstract class Entity : PolymorphicEntity, IBinarySerializable
+  public abstract class Entity : ParameterEntry, IBinarySerializable
   {
     public Entity()
     {
+      TypeName = GetType().FullName;
     }
+
+    [JsonPropertyName("$type")]
+    public string TypeName { get; set; }
 
     public Entity(string name, IEnumerable<int> requiredResearch, EntityClassType type) : this()
     {
@@ -31,27 +35,22 @@ namespace EarthTool.PAR.Models.Abstracts
 
     public virtual byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
+      using var output = new MemoryStream();
+      using var bw = new BinaryWriter(output, encoding);
+      WriteString(bw, Name, encoding);
+      bw.Write(RequiredResearch.Count());
+      foreach (int research in RequiredResearch)
       {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(Name.Length);
-          bw.Write(encoding.GetBytes(Name));
-          bw.Write(RequiredResearch.Count());
-          foreach (int research in RequiredResearch)
-          {
-            bw.Write(research);
-          }
-
-          bw.Write(FieldTypes.Count());
-          foreach (bool fieldType in FieldTypes)
-          {
-            bw.Write(fieldType);
-          }
-        }
-
-        return output.ToArray();
+        bw.Write(research);
       }
+
+      bw.Write(FieldTypes.Count());
+      foreach (bool fieldType in FieldTypes)
+      {
+        bw.Write(fieldType);
+      }
+
+      return output.ToArray();
     }
 
     protected IEnumerable<bool> IsStringMember(params Func<object>[] fieldGetter)

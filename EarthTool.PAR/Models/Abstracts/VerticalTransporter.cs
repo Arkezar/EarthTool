@@ -16,8 +16,8 @@ namespace EarthTool.PAR.Models.Abstracts
     public VerticalTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      VehicleSpeed = GetInteger(data);
-      VerticalVehicleAnimationType = (VerticalVehicleAnimationType)GetInteger(data);
+      VehicleSpeed = ReadInteger(data);
+      VerticalVehicleAnimationType = (VerticalVehicleAnimationType)ReadInteger(data);
     }
 
     public int VehicleSpeed { get; set; }
@@ -36,17 +36,14 @@ namespace EarthTool.PAR.Models.Abstracts
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(VehicleSpeed);
-          bw.Write((int)VerticalVehicleAnimationType);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write(VehicleSpeed);
+      bw.Write((int)VerticalVehicleAnimationType);
+
+      return output.ToArray();
     }
   }
 }

@@ -16,13 +16,13 @@ namespace EarthTool.PAR.Models.Abstracts
     public DestructibleEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      HP = GetInteger(data);
-      HpRegeneration = GetInteger(data);
-      Armor = GetInteger(data);
-      CalorificCapacity = GetInteger(data);
-      DisableResist = GetInteger(data);
-      StoreableFlags = (StoreableFlags)GetInteger(data);
-      StandType = (StandType)GetInteger(data);
+      HP = ReadInteger(data);
+      HpRegeneration = ReadInteger(data);
+      Armor = ReadInteger(data);
+      CalorificCapacity = ReadInteger(data);
+      DisableResist = ReadInteger(data);
+      StoreableFlags = (StoreableFlags)ReadInteger(data);
+      StandType = (StandType)ReadInteger(data);
     }
 
     public int HP { get; set; }
@@ -56,22 +56,19 @@ namespace EarthTool.PAR.Models.Abstracts
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(HP);
-          bw.Write(HpRegeneration);
-          bw.Write(Armor);
-          bw.Write(CalorificCapacity);
-          bw.Write(DisableResist);
-          bw.Write((int)StoreableFlags);
-          bw.Write((int)StandType);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write(HP);
+      bw.Write(HpRegeneration);
+      bw.Write(Armor);
+      bw.Write(CalorificCapacity);
+      bw.Write(DisableResist);
+      bw.Write((int)StoreableFlags);
+      bw.Write((int)StandType);
+
+      return output.ToArray();
     }
   }
 }

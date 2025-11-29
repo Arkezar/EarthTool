@@ -17,8 +17,7 @@ namespace EarthTool.PAR.Models
     public BuildingTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      BuilderLineId = GetString(data);
-      data.ReadBytes(4);
+      BuilderLineId = ReadStringRef(data);
     }
 
     public string BuilderLineId { get; set; }
@@ -28,25 +27,20 @@ namespace EarthTool.PAR.Models
     {
       get => base.FieldTypes.Concat(IsStringMember(
         () => BuilderLineId,
-        () => 1
+        () => ReferenceMarker
       ));
       set => base.FieldTypes = value;
     }
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(BuilderLineId.Length);
-          bw.Write(encoding.GetBytes(BuilderLineId));
-          bw.Write(-1);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      WriteStringRef(bw, BuilderLineId, encoding);
+
+      return output.ToArray();
     }
   }
 }

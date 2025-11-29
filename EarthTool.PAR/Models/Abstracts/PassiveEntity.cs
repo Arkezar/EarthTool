@@ -16,9 +16,8 @@ namespace EarthTool.PAR.Models.Abstracts
     public PassiveEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      PassiveMask = (PassiveMask)GetInteger(data);
-      WallCopulaId = GetString(data);
-      data.ReadBytes(4);
+      PassiveMask = (PassiveMask)ReadInteger(data);
+      WallCopulaId = ReadStringRef(data);
     }
 
     public PassiveMask PassiveMask { get; set; }
@@ -31,26 +30,19 @@ namespace EarthTool.PAR.Models.Abstracts
       get => base.FieldTypes.Concat(IsStringMember(
         () => (int)PassiveMask,
         () => WallCopulaId,
-        () => 1
+        () => ReferenceMarker
       ));
       set => base.FieldTypes = value;
     }
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write((int)PassiveMask);
-          bw.Write(WallCopulaId.Length);
-          bw.Write(encoding.GetBytes(WallCopulaId));
-          bw.Write(-1);
-        }
-
-        return output.ToArray();
-      }
+      using var output = new MemoryStream();
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write((int)PassiveMask);
+      WriteStringRef(bw, WallCopulaId, encoding);
+      return output.ToArray();
     }
   }
 }

@@ -17,21 +17,19 @@ namespace EarthTool.PAR.Models
     public Missile(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      Type = (MissileType)GetInteger(data);
-      RocketType = (RocketType)GetInteger(data);
-      MissileSize = GetInteger(data);
-      RocketDummyId = GetString(data);
-      data.ReadBytes(4);
-      IsAntiRocketTarget = GetInteger(data);
-      Speed = GetInteger(data);
-      TimeOfShoot = GetInteger(data);
-      PlusRangeOfFire = GetInteger(data);
-      HitType = (HitType)GetInteger(data);
-      HitRange = GetInteger(data);
-      TypeOfDamage = (DamageFlags)GetInteger(data);
-      Damage = GetInteger(data);
-      ExplosionId = GetString(data);
-      data.ReadBytes(4);
+      Type = (MissileType)ReadInteger(data);
+      RocketType = (RocketType)ReadInteger(data);
+      MissileSize = ReadInteger(data);
+      RocketDummyId = ReadStringRef(data);
+      IsAntiRocketTarget = ReadInteger(data);
+      Speed = ReadInteger(data);
+      TimeOfShoot = ReadInteger(data);
+      PlusRangeOfFire = ReadInteger(data);
+      HitType = (HitType)ReadInteger(data);
+      HitRange = ReadInteger(data);
+      TypeOfDamage = (DamageFlags)ReadInteger(data);
+      Damage = ReadInteger(data);
+      ExplosionId = ReadStringRef(data);
     }
 
     public MissileType Type { get; set; }
@@ -69,7 +67,7 @@ namespace EarthTool.PAR.Models
           () => RocketType,
           () => MissileSize,
           () => RocketDummyId,
-          () => 1,
+          () => ReferenceMarker,
           () => IsAntiRocketTarget,
           () => Speed,
           () => TimeOfShoot,
@@ -79,39 +77,32 @@ namespace EarthTool.PAR.Models
           () => TypeOfDamage,
           () => Damage,
           () => ExplosionId,
-          () => 1
+          () => ReferenceMarker
         ));
       set => base.FieldTypes = value;
     }
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write((int)Type);
-          bw.Write((int)RocketType);
-          bw.Write(MissileSize);
-          bw.Write(RocketDummyId.Length);
-          bw.Write(encoding.GetBytes(RocketDummyId));
-          bw.Write(-1);
-          bw.Write(IsAntiRocketTarget);
-          bw.Write(Speed);
-          bw.Write(TimeOfShoot);
-          bw.Write(PlusRangeOfFire);
-          bw.Write((int)HitType);
-          bw.Write(HitRange);
-          bw.Write((int)TypeOfDamage);
-          bw.Write(Damage);
-          bw.Write(ExplosionId.Length);
-          bw.Write(encoding.GetBytes(ExplosionId));
-          bw.Write(-1);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write((int)Type);
+      bw.Write((int)RocketType);
+      bw.Write(MissileSize);
+      WriteStringRef(bw, RocketDummyId, encoding);
+      bw.Write(IsAntiRocketTarget);
+      bw.Write(Speed);
+      bw.Write(TimeOfShoot);
+      bw.Write(PlusRangeOfFire);
+      bw.Write((int)HitType);
+      bw.Write(HitRange);
+      bw.Write((int)TypeOfDamage);
+      bw.Write(Damage);
+      WriteStringRef(bw, ExplosionId, encoding);
+
+      return output.ToArray();
     }
   }
 }

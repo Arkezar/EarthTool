@@ -15,14 +15,14 @@ namespace EarthTool.PAR.Models
     public SoundPack(string name, IEnumerable<int> requiredResearch, BinaryReader data)
       : base(name, requiredResearch)
     {
-      NormalWavePack1 = GetString(data);
-      NormalWavePack2 = GetString(data);
-      NormalWavePack3 = GetString(data);
-      NormalWavePack4 = GetString(data);
-      LoopedWavePack1 = GetString(data);
-      LoopedWavePack2 = GetString(data);
-      LoopedWavePack3 = GetString(data);
-      LoopedWavePack4 = GetString(data);
+      NormalWavePack1 = ReadString(data);
+      NormalWavePack2 = ReadString(data);
+      NormalWavePack3 = ReadString(data);
+      NormalWavePack4 = ReadString(data);
+      LoopedWavePack1 = ReadString(data);
+      LoopedWavePack2 = ReadString(data);
+      LoopedWavePack3 = ReadString(data);
+      LoopedWavePack4 = ReadString(data);
     }
 
     public string NormalWavePack1 { get; set; }
@@ -59,31 +59,20 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(NormalWavePack1.Length);
-          bw.Write(encoding.GetBytes(NormalWavePack1));
-          bw.Write(NormalWavePack2.Length);
-          bw.Write(encoding.GetBytes(NormalWavePack2));
-          bw.Write(NormalWavePack3.Length);
-          bw.Write(encoding.GetBytes(NormalWavePack3));
-          bw.Write(NormalWavePack4.Length);
-          bw.Write(encoding.GetBytes(NormalWavePack4));
-          bw.Write(LoopedWavePack1.Length);
-          bw.Write(encoding.GetBytes(LoopedWavePack1));
-          bw.Write(LoopedWavePack2.Length);
-          bw.Write(encoding.GetBytes(LoopedWavePack2));
-          bw.Write(LoopedWavePack3.Length);
-          bw.Write(encoding.GetBytes(LoopedWavePack3));
-          bw.Write(LoopedWavePack4.Length);
-          bw.Write(encoding.GetBytes(LoopedWavePack4));
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      WriteString(bw, NormalWavePack1, encoding);
+      WriteString(bw, NormalWavePack2, encoding);
+      WriteString(bw, NormalWavePack3, encoding);
+      WriteString(bw, NormalWavePack4, encoding);
+      WriteString(bw, LoopedWavePack1, encoding);
+      WriteString(bw, LoopedWavePack2, encoding);
+      WriteString(bw, LoopedWavePack3, encoding);
+      WriteString(bw, LoopedWavePack4, encoding);
+
+      return output.ToArray();
     }
   }
 }
