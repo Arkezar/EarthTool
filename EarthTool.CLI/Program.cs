@@ -50,7 +50,16 @@ namespace EarthTool.CLI
         config.AddCommand<Commands.MSH.ConvertCommand>("msh");
         config.AddCommand<Commands.DAE.ConvertCommand>("dae");
         config.AddCommand<Commands.TEX.ConvertCommand>("tex");
-        config.AddCommand<Commands.PAR.ConvertCommand>("par");
+
+        // PAR commands
+        config.AddBranch("par", par =>
+        {
+          par.SetDescription("PAR parameter file commands");
+          par.AddCommand<Commands.PAR.ConvertCommand>("convert")
+            .WithDescription("Convert between PAR and JSON formats");
+          par.AddCommand<Commands.PAR.ItemCommand>("item")
+            .WithDescription("Display detailed information about an item by name");
+        });
 
         config.SetExceptionHandler((ex, _) =>
         {
