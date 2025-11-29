@@ -17,9 +17,9 @@ namespace EarthTool.PAR.Models
     public Artifact(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      ArtefactMask = (ArtifactType)GetInteger(data);
-      ArtefactParam = GetInteger(data);
-      RespawnTime = GetInteger(data);
+      ArtefactMask = (ArtifactType)ReadInteger(data);
+      ArtefactParam = ReadInteger(data);
+      RespawnTime = ReadInteger(data);
     }
 
     public ArtifactType ArtefactMask { get; set; }
@@ -42,18 +42,15 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write((int)ArtefactMask);
-          bw.Write(ArtefactParam);
-          bw.Write(RespawnTime);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write((int)ArtefactMask);
+      bw.Write(ArtefactParam);
+      bw.Write(RespawnTime);
+
+      return output.ToArray();
     }
   }
 }

@@ -16,10 +16,10 @@ namespace EarthTool.PAR.Models
     public ContainerTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      AnimContainerDownStart = GetInteger(data);
-      AnimContainerDownEnd = GetInteger(data);
-      AnimContainerUpStart = GetInteger(data);
-      AnimContainerUpEnd = GetInteger(data);
+      AnimContainerDownStart = ReadInteger(data);
+      AnimContainerDownEnd = ReadInteger(data);
+      AnimContainerUpStart = ReadInteger(data);
+      AnimContainerUpEnd = ReadInteger(data);
     }
 
     public int AnimContainerDownStart { get; set; }
@@ -44,19 +44,16 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(AnimContainerDownStart);
-          bw.Write(AnimContainerDownEnd);
-          bw.Write(AnimContainerUpStart);
-          bw.Write(AnimContainerUpEnd);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write(AnimContainerDownStart);
+      bw.Write(AnimContainerDownEnd);
+      bw.Write(AnimContainerUpStart);
+      bw.Write(AnimContainerUpEnd);
+
+      return output.ToArray();
     }
   }
 }

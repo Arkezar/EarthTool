@@ -17,23 +17,19 @@ namespace EarthTool.PAR.Models
     public FlyingWaste(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      WasteSize = (WasteSize)GetInteger(data);
-      SubWasteId1 = GetString(data);
-      data.ReadBytes(4);
-      SubWaste1Alpha = GetInteger(data);
-      SubWasteId2 = GetString(data);
-      data.ReadBytes(4);
-      SubWaste2Alpha = GetInteger(data);
-      SubWasteId3 = GetString(data);
-      data.ReadBytes(4);
-      SubWaste3Alpha = GetInteger(data);
-      SubWasteId4 = GetString(data);
-      data.ReadBytes(4);
-      SubWaste4Alpha = GetInteger(data);
-      FlightTime = GetInteger(data);
-      WasteSpeed = GetInteger(data);
-      WasteDistanceX4 = GetInteger(data);
-      WasteBeta = GetInteger(data);
+      WasteSize = (WasteSize)ReadInteger(data);
+      SubWasteId1 = ReadStringRef(data);
+      SubWaste1Alpha = ReadInteger(data);
+      SubWasteId2 = ReadStringRef(data);
+      SubWaste2Alpha = ReadInteger(data);
+      SubWasteId3 = ReadStringRef(data);
+      SubWaste3Alpha = ReadInteger(data);
+      SubWasteId4 = ReadStringRef(data);
+      SubWaste4Alpha = ReadInteger(data);
+      FlightTime = ReadInteger(data);
+      WasteSpeed = ReadInteger(data);
+      WasteDistanceX4 = ReadInteger(data);
+      WasteBeta = ReadInteger(data);
     }
 
     public WasteSize WasteSize { get; set; }
@@ -69,16 +65,16 @@ namespace EarthTool.PAR.Models
         => base.FieldTypes.Concat(IsStringMember(
           () => WasteSize,
           () => SubWasteId1,
-          () => 1,
+          () => ReferenceMarker,
           () => SubWaste1Alpha,
           () => SubWasteId2,
-          () => 1,
+          () => ReferenceMarker,
           () => SubWaste2Alpha,
           () => SubWasteId3,
-          () => 1,
+          () => ReferenceMarker,
           () => SubWaste3Alpha,
           () => SubWasteId4,
-          () => 1,
+          () => ReferenceMarker,
           () => SubWaste4Alpha,
           () => FlightTime,
           () => WasteSpeed,
@@ -90,36 +86,25 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write((int)WasteSize);
-          bw.Write(SubWasteId1.Length);
-          bw.Write(encoding.GetBytes(SubWasteId1));
-          bw.Write(-1);
-          bw.Write(SubWaste1Alpha);
-          bw.Write(SubWasteId2.Length);
-          bw.Write(encoding.GetBytes(SubWasteId2));
-          bw.Write(-1);
-          bw.Write(SubWaste2Alpha);
-          bw.Write(SubWasteId3.Length);
-          bw.Write(encoding.GetBytes(SubWasteId3));
-          bw.Write(-1);
-          bw.Write(SubWaste3Alpha);
-          bw.Write(SubWasteId4.Length);
-          bw.Write(encoding.GetBytes(SubWasteId4));
-          bw.Write(-1);
-          bw.Write(SubWaste4Alpha);
-          bw.Write(FlightTime);
-          bw.Write(WasteSpeed);
-          bw.Write(WasteDistanceX4);
-          bw.Write(WasteBeta);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write((int)WasteSize);
+      WriteStringRef(bw, SubWasteId1, encoding);
+      bw.Write(SubWaste1Alpha);
+      WriteStringRef(bw, SubWasteId2, encoding);
+      bw.Write(SubWaste2Alpha);
+      WriteStringRef(bw, SubWasteId3, encoding);
+      bw.Write(SubWaste3Alpha);
+      WriteStringRef(bw, SubWasteId4, encoding);
+      bw.Write(SubWaste4Alpha);
+      bw.Write(FlightTime);
+      bw.Write(WasteSpeed);
+      bw.Write(WasteDistanceX4);
+      bw.Write(WasteBeta);
+
+      return output.ToArray();
     }
   }
 }

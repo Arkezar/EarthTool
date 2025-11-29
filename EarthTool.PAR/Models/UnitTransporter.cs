@@ -17,16 +17,16 @@ namespace EarthTool.PAR.Models
     public UnitTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      UnitsCount = GetInteger(data);
-      DockingHeight = GetInteger(data);
-      AnimLoadingStartStart = GetInteger(data);
-      AnimLoadingStartEnd = GetInteger(data);
-      AnimLoadingEndStart = GetInteger(data);
-      AnimLoadingEndEnd = GetInteger(data);
-      AnimUnloadingStartStart = GetInteger(data);
-      AnimUnloadingStartEnd = GetInteger(data);
-      AnimUnloadingEndStart = GetInteger(data);
-      AnimUnloadingEndEnd = GetInteger(data);
+      UnitsCount = ReadInteger(data);
+      DockingHeight = ReadInteger(data);
+      AnimLoadingStartStart = ReadInteger(data);
+      AnimLoadingStartEnd = ReadInteger(data);
+      AnimLoadingEndStart = ReadInteger(data);
+      AnimLoadingEndEnd = ReadInteger(data);
+      AnimUnloadingStartStart = ReadInteger(data);
+      AnimUnloadingStartEnd = ReadInteger(data);
+      AnimUnloadingEndStart = ReadInteger(data);
+      AnimUnloadingEndEnd = ReadInteger(data);
     }
 
     public int UnitsCount { get; set; }
@@ -69,25 +69,22 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(UnitsCount);
-          bw.Write(DockingHeight);
-          bw.Write(AnimLoadingStartStart);
-          bw.Write(AnimLoadingStartEnd);
-          bw.Write(AnimLoadingEndStart);
-          bw.Write(AnimLoadingEndEnd);
-          bw.Write(AnimUnloadingStartStart);
-          bw.Write(AnimUnloadingStartEnd);
-          bw.Write(AnimUnloadingEndStart);
-          bw.Write(AnimUnloadingEndEnd);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write(UnitsCount);
+      bw.Write(DockingHeight);
+      bw.Write(AnimLoadingStartStart);
+      bw.Write(AnimLoadingStartEnd);
+      bw.Write(AnimLoadingEndStart);
+      bw.Write(AnimLoadingEndEnd);
+      bw.Write(AnimUnloadingStartStart);
+      bw.Write(AnimUnloadingStartEnd);
+      bw.Write(AnimUnloadingEndStart);
+      bw.Write(AnimUnloadingEndEnd);
+
+      return output.ToArray();
     }
   }
 }

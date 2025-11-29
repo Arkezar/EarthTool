@@ -16,19 +16,19 @@ namespace EarthTool.PAR.Models
 
     public Research(BinaryReader data)
     {
-      Id = GetInteger(data);
-      Faction = (Faction)GetInteger(data);
-      CampaignCost = GetInteger(data);
-      SkirmishCost = GetInteger(data);
-      CampaignTime = GetInteger(data);
-      SkirmishTime = GetInteger(data);
-      Name = GetString(data);
-      Video = GetString(data);
-      Type = (ResearchType)GetInteger(data);
-      Mesh = GetString(data);
-      MeshParamsIndex = GetInteger(data);
-      int requiredResearchCount = GetInteger(data);
-      RequiredResearch = Enumerable.Range(0, requiredResearchCount).Select(i => GetInteger(data)).ToList();
+      Id = ReadInteger(data);
+      Faction = (Faction)ReadInteger(data);
+      CampaignCost = ReadInteger(data);
+      SkirmishCost = ReadInteger(data);
+      CampaignTime = ReadInteger(data);
+      SkirmishTime = ReadInteger(data);
+      Name = ReadString(data);
+      Video = ReadString(data);
+      Type = (ResearchType)ReadInteger(data);
+      Mesh = ReadString(data);
+      MeshParamsIndex = ReadInteger(data);
+      int requiredResearchCount = ReadInteger(data);
+      RequiredResearch = Enumerable.Range(0, requiredResearchCount).Select(i => ReadInteger(data)).ToList();
     }
 
     public int Id { get; set; }
@@ -55,33 +55,27 @@ namespace EarthTool.PAR.Models
 
     public virtual byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(Id);
-          bw.Write((int)Faction);
-          bw.Write(CampaignCost);
-          bw.Write(SkirmishCost);
-          bw.Write(CampaignTime);
-          bw.Write(SkirmishTime);
-          bw.Write(Name.Length);
-          bw.Write(encoding.GetBytes(Name));
-          bw.Write(Video.Length);
-          bw.Write(encoding.GetBytes(Video));
-          bw.Write((int)Type);
-          bw.Write(Mesh.Length);
-          bw.Write(encoding.GetBytes(Mesh));
-          bw.Write(MeshParamsIndex);
-          bw.Write(RequiredResearch.Count());
-          foreach (int research in RequiredResearch)
-          {
-            bw.Write(research);
-          }
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(Id);
+      bw.Write((int)Faction);
+      bw.Write(CampaignCost);
+      bw.Write(SkirmishCost);
+      bw.Write(CampaignTime);
+      bw.Write(SkirmishTime);
+      WriteString(bw, Name, encoding);
+      WriteString(bw, Video, encoding);
+      bw.Write((int)Type);
+      WriteString(bw, Mesh, encoding);
+      bw.Write(MeshParamsIndex);
+      bw.Write(RequiredResearch.Count());
+      foreach (int research in RequiredResearch)
+      {
+        bw.Write(research);
       }
+
+      return output.ToArray();
     }
   }
 }

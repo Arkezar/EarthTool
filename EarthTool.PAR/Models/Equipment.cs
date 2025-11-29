@@ -17,11 +17,11 @@ namespace EarthTool.PAR.Models
     public Equipment(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      RangeOfSight = GetInteger(data);
-      PlugType = (ConnectorType)GetUnsignedInteger(data);
-      SlotType = (ConnectorType)GetUnsignedInteger(data);
-      MaxAlphaPerTick = GetInteger(data);
-      MaxBetaPerTick = GetInteger(data);
+      RangeOfSight = ReadInteger(data);
+      PlugType = (ConnectorType)ReadUnsignedInteger(data);
+      SlotType = (ConnectorType)ReadUnsignedInteger(data);
+      MaxAlphaPerTick = ReadInteger(data);
+      MaxBetaPerTick = ReadInteger(data);
     }
 
     public int RangeOfSight { get; set; }
@@ -50,20 +50,17 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(RangeOfSight);
-          bw.Write((uint)PlugType);
-          bw.Write((uint)SlotType);
-          bw.Write(MaxAlphaPerTick);
-          bw.Write(MaxBetaPerTick);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write(RangeOfSight);
+      bw.Write((uint)PlugType);
+      bw.Write((uint)SlotType);
+      bw.Write(MaxAlphaPerTick);
+      bw.Write(MaxBetaPerTick);
+
+      return output.ToArray();
     }
   }
 }

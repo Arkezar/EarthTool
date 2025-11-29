@@ -16,11 +16,11 @@ namespace EarthTool.PAR.Models
     public SupplyTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      AmmoCapacity = GetInteger(data);
-      AnimSupplyDownStart = GetInteger(data);
-      AnimSupplyDownEnd = GetInteger(data);
-      AnimSupplyUpStart = GetInteger(data);
-      AnimSupplyUpEnd = GetInteger(data);
+      AmmoCapacity = ReadInteger(data);
+      AnimSupplyDownStart = ReadInteger(data);
+      AnimSupplyDownEnd = ReadInteger(data);
+      AnimSupplyUpStart = ReadInteger(data);
+      AnimSupplyUpEnd = ReadInteger(data);
     }
 
     public int AmmoCapacity { get; set; }
@@ -48,20 +48,17 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(AmmoCapacity);
-          bw.Write(AnimSupplyDownStart);
-          bw.Write(AnimSupplyDownEnd);
-          bw.Write(AnimSupplyUpStart);
-          bw.Write(AnimSupplyUpEnd);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write(AmmoCapacity);
+      bw.Write(AnimSupplyDownStart);
+      bw.Write(AnimSupplyDownEnd);
+      bw.Write(AnimSupplyUpStart);
+      bw.Write(AnimSupplyUpEnd);
+
+      return output.ToArray();
     }
   }
 }

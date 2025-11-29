@@ -16,19 +16,15 @@ namespace EarthTool.PAR.Models.Abstracts
     protected InteractableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type,
       BinaryReader data) : base(name, requiredResearch, type)
     {
-      Mesh = GetString(data);
-      ShadowType = (ShadowType)GetInteger(data);
-      ViewParamsIndex = GetInteger(data);
-      Cost = GetInteger(data);
-      TimeOfBuild = GetInteger(data);
-      SoundPackId = GetString(data);
-      data.ReadBytes(4);
-      SmokeId = GetString(data);
-      data.ReadBytes(4);
-      KillExplosionId = GetString(data);
-      data.ReadBytes(4);
-      DestructedId = GetString(data);
-      data.ReadBytes(4);
+      Mesh = ReadString(data);
+      ShadowType = (ShadowType)ReadInteger(data);
+      ViewParamsIndex = ReadInteger(data);
+      Cost = ReadInteger(data);
+      TimeOfBuild = ReadInteger(data);
+      SoundPackId = ReadStringRef(data);
+      SmokeId = ReadStringRef(data);
+      KillExplosionId = ReadStringRef(data);
+      DestructedId = ReadStringRef(data);
     }
 
     public string Mesh { get; set; }
@@ -72,33 +68,19 @@ namespace EarthTool.PAR.Models.Abstracts
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(Mesh.Length);
-          bw.Write(encoding.GetBytes(Mesh));
-          bw.Write((int)ShadowType);
-          bw.Write(ViewParamsIndex);
-          bw.Write(Cost);
-          bw.Write(TimeOfBuild);
-          bw.Write(SoundPackId.Length);
-          bw.Write(encoding.GetBytes(SoundPackId));
-          bw.Write(-1);
-          bw.Write(SmokeId.Length);
-          bw.Write(encoding.GetBytes(SmokeId));
-          bw.Write(-1);
-          bw.Write(KillExplosionId.Length);
-          bw.Write(encoding.GetBytes(KillExplosionId));
-          bw.Write(-1);
-          bw.Write(DestructedId.Length);
-          bw.Write(encoding.GetBytes(DestructedId));
-          bw.Write(-1);
-        }
-
-        return output.ToArray();
-      }
+      using var output = new MemoryStream();
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      WriteString(bw, Mesh, encoding);
+      bw.Write((int)ShadowType);
+      bw.Write(ViewParamsIndex);
+      bw.Write(Cost);
+      bw.Write(TimeOfBuild);
+      WriteStringRef(bw, SoundPackId, encoding);
+      WriteStringRef(bw, SmokeId, encoding);
+      WriteStringRef(bw, KillExplosionId, encoding);
+      WriteStringRef(bw, DestructedId, encoding);
+      return output.ToArray();
     }
   }
 }

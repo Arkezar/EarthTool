@@ -17,7 +17,7 @@ namespace EarthTool.PAR.Models
     public StartingPosition(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      PositionType = (PositionType)GetInteger(data);
+      PositionType = (PositionType)ReadInteger(data);
     }
 
     public PositionType PositionType { get; set; }
@@ -33,16 +33,13 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write((int)PositionType);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write((int)PositionType);
+
+      return output.ToArray();
     }
   }
 }

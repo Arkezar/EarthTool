@@ -16,17 +16,16 @@ namespace EarthTool.PAR.Models
     public Harvester(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(
       name, requiredResearch, type, data)
     {
-      ContainerCount = GetInteger(data);
-      TicksPerContainer = GetInteger(data);
-      PutResourceAngle = GetInteger(data);
-      AnimHarvestStartStart = GetInteger(data);
-      AnimHarvestStartEnd = GetInteger(data);
-      AnimHarvestWorkStart = GetInteger(data);
-      AnimHarvestWorkEnd = GetInteger(data);
-      AnimHarvestEndStart = GetInteger(data);
-      AnimHarvestEndEnd = GetInteger(data);
-      HarvestSomkeId = GetString(data);
-      data.ReadBytes(4);
+      ContainerCount = ReadInteger(data);
+      TicksPerContainer = ReadInteger(data);
+      PutResourceAngle = ReadInteger(data);
+      AnimHarvestStartStart = ReadInteger(data);
+      AnimHarvestStartEnd = ReadInteger(data);
+      AnimHarvestWorkStart = ReadInteger(data);
+      AnimHarvestWorkEnd = ReadInteger(data);
+      AnimHarvestEndStart = ReadInteger(data);
+      AnimHarvestEndEnd = ReadInteger(data);
+      HarvestSomkeId = ReadStringRef(data);
     }
 
     public int ContainerCount { get; set; }
@@ -63,34 +62,29 @@ namespace EarthTool.PAR.Models
         () => AnimHarvestEndStart,
         () => AnimHarvestEndEnd,
         () => HarvestSomkeId,
-        () => 1
+        () => ReferenceMarker
       ));
       set => base.FieldTypes = value;
     }
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(ContainerCount);
-          bw.Write(TicksPerContainer);
-          bw.Write(PutResourceAngle);
-          bw.Write(AnimHarvestStartStart);
-          bw.Write(AnimHarvestStartEnd);
-          bw.Write(AnimHarvestWorkStart);
-          bw.Write(AnimHarvestWorkEnd);
-          bw.Write(AnimHarvestEndStart);
-          bw.Write(AnimHarvestEndEnd);
-          bw.Write(HarvestSomkeId.Length);
-          bw.Write(encoding.GetBytes(HarvestSomkeId));
-          bw.Write(-1);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write(ContainerCount);
+      bw.Write(TicksPerContainer);
+      bw.Write(PutResourceAngle);
+      bw.Write(AnimHarvestStartStart);
+      bw.Write(AnimHarvestStartEnd);
+      bw.Write(AnimHarvestWorkStart);
+      bw.Write(AnimHarvestWorkEnd);
+      bw.Write(AnimHarvestEndStart);
+      bw.Write(AnimHarvestEndEnd);
+      WriteStringRef(bw, HarvestSomkeId, encoding);
+
+      return output.ToArray();
     }
   }
 }

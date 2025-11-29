@@ -17,7 +17,7 @@ namespace EarthTool.PAR.Models
       : base(name, requiredResearch)
     {
       FieldTypes = fieldTypes;
-      Values = fieldTypes.Select(s => s ? GetString(data) : GetInteger(data).ToString()).ToList();
+      Values = fieldTypes.Select(s => s ? ReadString(data) : ReadInteger(data).ToString()).ToList();
     }
 
     [JsonInclude] public override IEnumerable<bool> FieldTypes { get; set; }
@@ -26,28 +26,25 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          for (int i = 0; i < Values.Count(); i++)
-          {
-            bool isString = FieldTypes.ElementAt(i);
-            if (isString)
-            {
-              bw.Write(Values.ElementAt(i).Length);
-              bw.Write(encoding.GetBytes(Values.ElementAt(i)));
-            }
-            else
-            {
-              bw.Write(int.Parse(Values.ElementAt(i)));
-            }
-          }
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      for (int i = 0; i < Values.Count(); i++)
+      {
+        bool isString = FieldTypes.ElementAt(i);
+        if (isString)
+        {
+          bw.Write(Values.ElementAt(i).Length);
+          bw.Write(encoding.GetBytes(Values.ElementAt(i)));
+        }
+        else
+        {
+          bw.Write(int.Parse(Values.ElementAt(i)));
+        }
       }
+
+      return output.ToArray();
     }
   }
 }

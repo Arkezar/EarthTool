@@ -1,4 +1,4 @@
-﻿using EarthTool.Common.Bases;
+using EarthTool.Common.Bases;
 using EarthTool.Common.Enums;
 using EarthTool.PAR.Models;
 using System.IO;
@@ -19,15 +19,10 @@ namespace EarthTool.PAR.Services
 
     protected override string InternalWrite(ParFile data, string filePath)
     {
-      using (FileStream stream = File.Create(filePath))
-      {
-        using (BinaryWriter writer = new BinaryWriter(stream, _encoding))
-        {
-          writer.Write(data.ToByteArray(_encoding));
-        }
-
-        return filePath;
-      }
+      using var stream = File.Create(filePath);
+      using var writer = new BinaryWriter(stream, _encoding);
+      writer.Write(data.ToByteArray(_encoding));
+      return filePath;
     }
   }
 }

@@ -17,24 +17,19 @@ namespace EarthTool.PAR.Models
     public Vehicle(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      SoilSpeed = GetInteger(data);
-      RoadSpeed = GetInteger(data);
-      SandSpeed = GetInteger(data);
-      BankSpeed = GetInteger(data);
-      WaterSpeed = GetInteger(data);
-      DeepWaterSpeed = GetInteger(data);
-      AirSpeed = GetInteger(data);
-      ObjectType = (VehicleObjectType)GetInteger(data);
-      EngineSmokeId = GetString(data);
-      data.ReadBytes(4);
-      DustId = GetString(data);
-      data.ReadBytes(4);
-      BillowId = GetString(data);
-      data.ReadBytes(4);
-      StandBillowId = GetString(data);
-      data.ReadBytes(4);
-      TrackId = GetString(data);
-      data.ReadBytes(4);
+      SoilSpeed = ReadInteger(data);
+      RoadSpeed = ReadInteger(data);
+      SandSpeed = ReadInteger(data);
+      BankSpeed = ReadInteger(data);
+      WaterSpeed = ReadInteger(data);
+      DeepWaterSpeed = ReadInteger(data);
+      AirSpeed = ReadInteger(data);
+      ObjectType = (VehicleObjectType)ReadInteger(data);
+      EngineSmokeId = ReadStringRef(data);
+      DustId = ReadStringRef(data);
+      BillowId = ReadStringRef(data);
+      StandBillowId = ReadStringRef(data);
+      TrackId = ReadStringRef(data);
     }
 
     public int SoilSpeed { get; set; }
@@ -77,53 +72,40 @@ namespace EarthTool.PAR.Models
           () => AirSpeed,
           () => ObjectType,
           () => EngineSmokeId,
-          () => 1,
+          () => ReferenceMarker,
           () => DustId,
-          () => 1,
+          () => ReferenceMarker,
           () => BillowId,
-          () => 1,
+          () => ReferenceMarker,
           () => StandBillowId,
-          () => 1,
+          () => ReferenceMarker,
           () => TrackId,
-          () => 1
+          () => ReferenceMarker
         ));
       set => base.FieldTypes = value;
     }
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(SoilSpeed);
-          bw.Write(RoadSpeed);
-          bw.Write(SandSpeed);
-          bw.Write(BankSpeed);
-          bw.Write(WaterSpeed);
-          bw.Write(DeepWaterSpeed);
-          bw.Write(AirSpeed);
-          bw.Write((int)ObjectType);
-          bw.Write(EngineSmokeId.Length);
-          bw.Write(encoding.GetBytes(EngineSmokeId));
-          bw.Write(-1);
-          bw.Write(DustId.Length);
-          bw.Write(encoding.GetBytes(DustId));
-          bw.Write(-1);
-          bw.Write(BillowId.Length);
-          bw.Write(encoding.GetBytes(BillowId));
-          bw.Write(-1);
-          bw.Write(StandBillowId.Length);
-          bw.Write(encoding.GetBytes(StandBillowId));
-          bw.Write(-1);
-          bw.Write(TrackId.Length);
-          bw.Write(encoding.GetBytes(TrackId));
-          bw.Write(-1);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write(SoilSpeed);
+      bw.Write(RoadSpeed);
+      bw.Write(SandSpeed);
+      bw.Write(BankSpeed);
+      bw.Write(WaterSpeed);
+      bw.Write(DeepWaterSpeed);
+      bw.Write(AirSpeed);
+      bw.Write((int)ObjectType);
+      WriteStringRef(bw, EngineSmokeId, encoding);
+      WriteStringRef(bw, DustId, encoding);
+      WriteStringRef(bw, BillowId, encoding);
+      WriteStringRef(bw, StandBillowId, encoding);
+      WriteStringRef(bw, TrackId, encoding);
+
+      return output.ToArray();
     }
   }
 }

@@ -1,4 +1,4 @@
-﻿using EarthTool.Common;
+using EarthTool.Common;
 using EarthTool.Common.Bases;
 using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
@@ -26,20 +26,16 @@ namespace EarthTool.PAR.Services
 
     protected override ParFile InternalRead(string filePath)
     {
-      using (FileStream stream = File.OpenRead(filePath))
-      {
-        ParFile parameters = new ParFile();
+      using var stream = File.OpenRead(filePath);
+      ParFile parameters = new ParFile();
 
-        parameters.FileHeader = _earthInfoFactory.Get(stream);
-        using (BinaryReader reader = new BinaryReader(stream, _encoding))
-        {
-          IsValidModel(reader);
-          parameters.Groups = LoadGroups(reader);
-          parameters.Research = LoadResearch(reader);
-        }
+      parameters.FileHeader = _earthInfoFactory.Get(stream);
+      using var reader = new BinaryReader(stream, _encoding);
+      IsValidModel(reader);
+      parameters.Groups = LoadGroups(reader);
+      parameters.Research = LoadResearch(reader);
 
-        return parameters;
-      }
+      return parameters;
     }
 
     private static IEnumerable<Research> LoadResearch(BinaryReader reader)

@@ -17,18 +17,18 @@ namespace EarthTool.PAR.Models
     public Smoke(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      Mesh1 = GetString(data);
-      Mesh2 = GetString(data);
-      Mesh3 = GetString(data);
-      SmokeTime1 = GetInteger(data);
-      SmokeTime2 = GetInteger(data);
-      SmokeTime3 = GetInteger(data);
-      SmokeFrequency = GetInteger(data);
-      StartingTime = GetInteger(data);
-      SmokingTime = GetInteger(data);
-      EndingTime = GetInteger(data);
-      SmokeUpSpeed = GetInteger(data);
-      NewSmokeDistance = GetInteger(data);
+      Mesh1 = ReadString(data);
+      Mesh2 = ReadString(data);
+      Mesh3 = ReadString(data);
+      SmokeTime1 = ReadInteger(data);
+      SmokeTime2 = ReadInteger(data);
+      SmokeTime3 = ReadInteger(data);
+      SmokeFrequency = ReadInteger(data);
+      StartingTime = ReadInteger(data);
+      SmokingTime = ReadInteger(data);
+      EndingTime = ReadInteger(data);
+      SmokeUpSpeed = ReadInteger(data);
+      NewSmokeDistance = ReadInteger(data);
     }
 
     public string Mesh1 { get; set; }
@@ -77,30 +77,24 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(Mesh1.Length);
-          bw.Write(encoding.GetBytes(Mesh1));
-          bw.Write(Mesh2.Length);
-          bw.Write(encoding.GetBytes(Mesh2));
-          bw.Write(Mesh3.Length);
-          bw.Write(encoding.GetBytes(Mesh3));
-          bw.Write(SmokeTime1);
-          bw.Write(SmokeTime2);
-          bw.Write(SmokeTime3);
-          bw.Write(SmokeFrequency);
-          bw.Write(StartingTime);
-          bw.Write(SmokingTime);
-          bw.Write(EndingTime);
-          bw.Write(SmokeUpSpeed);
-          bw.Write(NewSmokeDistance);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      WriteString(bw, Mesh1, encoding);
+      WriteString(bw, Mesh2, encoding);
+      WriteString(bw, Mesh3, encoding);
+      bw.Write(SmokeTime1);
+      bw.Write(SmokeTime2);
+      bw.Write(SmokeTime3);
+      bw.Write(SmokeFrequency);
+      bw.Write(StartingTime);
+      bw.Write(SmokingTime);
+      bw.Write(EndingTime);
+      bw.Write(SmokeUpSpeed);
+      bw.Write(NewSmokeDistance);
+
+      return output.ToArray();
     }
   }
 }

@@ -16,13 +16,13 @@ namespace EarthTool.PAR.Models
     public TransporterHook(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      AnimTransporterDownStart = GetInteger(data);
-      AnimTransporterDownEnd = GetInteger(data);
-      AnimTransporterUpStart = GetInteger(data);
-      AnimTransporterUpEnd = GetInteger(data);
-      AngleToGetPut = GetInteger(data);
-      AngleOfGetUnitByLandTransporter = GetInteger(data);
-      TakeHeight = GetInteger(data);
+      AnimTransporterDownStart = ReadInteger(data);
+      AnimTransporterDownEnd = ReadInteger(data);
+      AnimTransporterUpStart = ReadInteger(data);
+      AnimTransporterUpEnd = ReadInteger(data);
+      AngleToGetPut = ReadInteger(data);
+      AngleOfGetUnitByLandTransporter = ReadInteger(data);
+      TakeHeight = ReadInteger(data);
     }
 
     public int AnimTransporterDownStart { get; set; }
@@ -56,22 +56,19 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(AnimTransporterDownStart);
-          bw.Write(AnimTransporterDownEnd);
-          bw.Write(AnimTransporterUpStart);
-          bw.Write(AnimTransporterUpEnd);
-          bw.Write(AngleToGetPut);
-          bw.Write(AngleOfGetUnitByLandTransporter);
-          bw.Write(TakeHeight);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write(AnimTransporterDownStart);
+      bw.Write(AnimTransporterDownEnd);
+      bw.Write(AnimTransporterUpStart);
+      bw.Write(AnimTransporterUpEnd);
+      bw.Write(AngleToGetPut);
+      bw.Write(AngleOfGetUnitByLandTransporter);
+      bw.Write(TakeHeight);
+
+      return output.ToArray();
     }
   }
 }

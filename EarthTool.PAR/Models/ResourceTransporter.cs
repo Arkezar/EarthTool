@@ -17,10 +17,10 @@ namespace EarthTool.PAR.Models
     public ResourceTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      ResourceVehicleType = (ResourceVehicleType)GetInteger(data);
-      AnimatedTransporterStop = GetInteger(data);
-      ShowVideoPerTransportersCount = GetInteger(data);
-      TotalOrbitalMoney = GetInteger(data);
+      ResourceVehicleType = (ResourceVehicleType)ReadInteger(data);
+      AnimatedTransporterStop = ReadInteger(data);
+      ShowVideoPerTransportersCount = ReadInteger(data);
+      TotalOrbitalMoney = ReadInteger(data);
     }
 
     public ResourceVehicleType ResourceVehicleType { get; set; }
@@ -45,19 +45,16 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write((int)ResourceVehicleType);
-          bw.Write(AnimatedTransporterStop);
-          bw.Write(ShowVideoPerTransportersCount);
-          bw.Write(TotalOrbitalMoney);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write((int)ResourceVehicleType);
+      bw.Write(AnimatedTransporterStop);
+      bw.Write(ShowVideoPerTransportersCount);
+      bw.Write(TotalOrbitalMoney);
+
+      return output.ToArray();
     }
   }
 }

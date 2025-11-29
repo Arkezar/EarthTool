@@ -17,49 +17,41 @@ namespace EarthTool.PAR.Models
     public MultiExplosion(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      UseDownBuilding = GetInteger(data);
-      DownBuildingStart = GetInteger(data);
-      DownBuildingTime = GetInteger(data);
-      SubObject1 = GetString(data);
-      data.ReadBytes(4);
-      Time1 = GetInteger(data);
-      Angle1 = GetInteger(data);
-      Dist4X1 = GetInteger(data);
-      SubObject2 = GetString(data);
-      data.ReadBytes(4);
-      Time2 = GetInteger(data);
-      Angle2 = GetInteger(data);
-      Dist4X2 = GetInteger(data);
-      SubObject3 = GetString(data);
-      data.ReadBytes(4);
-      Time3 = GetInteger(data);
-      Angle3 = GetInteger(data);
-      Dist4X3 = GetInteger(data);
-      SubObject4 = GetString(data);
-      data.ReadBytes(4);
-      Time4 = GetInteger(data);
-      Angle4 = GetInteger(data);
-      Dist4X4 = GetInteger(data);
-      SubObject5 = GetString(data);
-      data.ReadBytes(4);
-      Time5 = GetInteger(data);
-      Angle5 = GetInteger(data);
-      Dist4X5 = GetInteger(data);
-      SubObject6 = GetString(data);
-      data.ReadBytes(4);
-      Time6 = GetInteger(data);
-      Angle6 = GetInteger(data);
-      Dist4X6 = GetInteger(data);
-      SubObject7 = GetString(data);
-      data.ReadBytes(4);
-      Time7 = GetInteger(data);
-      Angle7 = GetInteger(data);
-      Dist4X7 = GetInteger(data);
-      SubObject8 = GetString(data);
-      data.ReadBytes(4);
-      Time8 = GetInteger(data);
-      Angle8 = GetInteger(data);
-      Dist4X8 = GetInteger(data);
+      UseDownBuilding = ReadInteger(data);
+      DownBuildingStart = ReadInteger(data);
+      DownBuildingTime = ReadInteger(data);
+      SubObject1 = ReadStringRef(data);
+      Time1 = ReadInteger(data);
+      Angle1 = ReadInteger(data);
+      Dist4X1 = ReadInteger(data);
+      SubObject2 = ReadStringRef(data);
+      Time2 = ReadInteger(data);
+      Angle2 = ReadInteger(data);
+      Dist4X2 = ReadInteger(data);
+      SubObject3 = ReadStringRef(data);
+      Time3 = ReadInteger(data);
+      Angle3 = ReadInteger(data);
+      Dist4X3 = ReadInteger(data);
+      SubObject4 = ReadStringRef(data);
+      Time4 = ReadInteger(data);
+      Angle4 = ReadInteger(data);
+      Dist4X4 = ReadInteger(data);
+      SubObject5 = ReadStringRef(data);
+      Time5 = ReadInteger(data);
+      Angle5 = ReadInteger(data);
+      Dist4X5 = ReadInteger(data);
+      SubObject6 = ReadStringRef(data);
+      Time6 = ReadInteger(data);
+      Angle6 = ReadInteger(data);
+      Dist4X6 = ReadInteger(data);
+      SubObject7 = ReadStringRef(data);
+      Time7 = ReadInteger(data);
+      Angle7 = ReadInteger(data);
+      Dist4X7 = ReadInteger(data);
+      SubObject8 = ReadStringRef(data);
+      Time8 = ReadInteger(data);
+      Angle8 = ReadInteger(data);
+      Dist4X8 = ReadInteger(data);
     }
 
     public int UseDownBuilding { get; set; }
@@ -137,42 +129,42 @@ namespace EarthTool.PAR.Models
         () => DownBuildingStart,
         () => DownBuildingTime,
         () => SubObject1,
-        () => 1,
+        () => ReferenceMarker,
         () => Time1,
         () => Angle1,
         () => Dist4X1,
         () => SubObject2,
-        () => 1,
+        () => ReferenceMarker,
         () => Time2,
         () => Angle2,
         () => Dist4X2,
         () => SubObject3,
-        () => 1,
+        () => ReferenceMarker,
         () => Time3,
         () => Angle3,
         () => Dist4X3,
         () => SubObject4,
-        () => 1,
+        () => ReferenceMarker,
         () => Time4,
         () => Angle4,
         () => Dist4X4,
         () => SubObject5,
-        () => 1,
+        () => ReferenceMarker,
         () => Time5,
         () => Angle5,
         () => Dist4X5,
         () => SubObject6,
-        () => 1,
+        () => ReferenceMarker,
         () => Time6,
         () => Angle6,
         () => Dist4X6,
         () => SubObject7,
-        () => 1,
+        () => ReferenceMarker,
         () => Time7,
         () => Angle7,
         () => Dist4X7,
         () => SubObject8,
-        () => 1,
+        () => ReferenceMarker,
         () => Time8,
         () => Angle8,
         () => Dist4X8
@@ -182,66 +174,47 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write(UseDownBuilding);
-          bw.Write(DownBuildingStart);
-          bw.Write(DownBuildingTime);
-          bw.Write(SubObject1.Length);
-          bw.Write(encoding.GetBytes(SubObject1));
-          bw.Write(-1);
-          bw.Write(Time1);
-          bw.Write(Angle1);
-          bw.Write(Dist4X1);
-          bw.Write(SubObject2.Length);
-          bw.Write(encoding.GetBytes(SubObject2));
-          bw.Write(-1);
-          bw.Write(Time2);
-          bw.Write(Angle2);
-          bw.Write(Dist4X2);
-          bw.Write(SubObject3.Length);
-          bw.Write(encoding.GetBytes(SubObject3));
-          bw.Write(-1);
-          bw.Write(Time3);
-          bw.Write(Angle3);
-          bw.Write(Dist4X3);
-          bw.Write(SubObject4.Length);
-          bw.Write(encoding.GetBytes(SubObject4));
-          bw.Write(-1);
-          bw.Write(Time4);
-          bw.Write(Angle4);
-          bw.Write(Dist4X4);
-          bw.Write(SubObject5.Length);
-          bw.Write(encoding.GetBytes(SubObject5));
-          bw.Write(-1);
-          bw.Write(Time5);
-          bw.Write(Angle5);
-          bw.Write(Dist4X5);
-          bw.Write(SubObject6.Length);
-          bw.Write(encoding.GetBytes(SubObject6));
-          bw.Write(-1);
-          bw.Write(Time6);
-          bw.Write(Angle6);
-          bw.Write(Dist4X6);
-          bw.Write(SubObject7.Length);
-          bw.Write(encoding.GetBytes(SubObject7));
-          bw.Write(-1);
-          bw.Write(Time7);
-          bw.Write(Angle7);
-          bw.Write(Dist4X7);
-          bw.Write(SubObject8.Length);
-          bw.Write(encoding.GetBytes(SubObject8));
-          bw.Write(-1);
-          bw.Write(Time8);
-          bw.Write(Angle8);
-          bw.Write(Dist4X8);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write(UseDownBuilding);
+      bw.Write(DownBuildingStart);
+      bw.Write(DownBuildingTime);
+      WriteStringRef(bw, SubObject1, encoding);
+      bw.Write(Time1);
+      bw.Write(Angle1);
+      bw.Write(Dist4X1);
+      WriteStringRef(bw, SubObject2, encoding);
+      bw.Write(Time2);
+      bw.Write(Angle2);
+      bw.Write(Dist4X2);
+      WriteStringRef(bw, SubObject3, encoding);
+      bw.Write(Time3);
+      bw.Write(Angle3);
+      bw.Write(Dist4X3);
+      WriteStringRef(bw, SubObject4, encoding);
+      bw.Write(Time4);
+      bw.Write(Angle4);
+      bw.Write(Dist4X4);
+      WriteStringRef(bw, SubObject5, encoding);
+      bw.Write(Time5);
+      bw.Write(Angle5);
+      bw.Write(Dist4X5);
+      WriteStringRef(bw, SubObject6, encoding);
+      bw.Write(Time6);
+      bw.Write(Angle6);
+      bw.Write(Dist4X6);
+      WriteStringRef(bw, SubObject7, encoding);
+      bw.Write(Time7);
+      bw.Write(Angle7);
+      bw.Write(Dist4X7);
+      WriteStringRef(bw, SubObject8, encoding);
+      bw.Write(Time8);
+      bw.Write(Angle8);
+      bw.Write(Dist4X8);
+
+      return output.ToArray();
     }
   }
 }

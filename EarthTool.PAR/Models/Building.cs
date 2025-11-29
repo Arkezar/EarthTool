@@ -17,57 +17,41 @@ namespace EarthTool.PAR.Models
     public Building(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      BuildingType = (BuildingType)GetInteger(data);
-      BuildingTypeEx = (BuildingExType)GetInteger(data);
-      BuildingTabType = (BuildingTabType)GetInteger(data);
-      InitCannonId1 = GetString(data);
-      data.ReadBytes(4);
-      InitCannonId2 = GetString(data);
-      data.ReadBytes(4);
-      InitCannonId3 = GetString(data);
-      data.ReadBytes(4);
-      InitCannonId4 = GetString(data);
-      data.ReadBytes(4);
-      CopulaId = GetString(data);
-      data.ReadBytes(4);
-      BuildingTunnelNumber = GetInteger(data);
-      UpgradeCopulaSmallId = GetString(data);
-      data.ReadBytes(4);
-      UpgradeCopulaBigId = GetString(data);
-      data.ReadBytes(4);
-      BuildLCTransporterId = GetString(data);
-      data.ReadBytes(4);
-      ChimneySmokeId = GetString(data);
-      data.ReadBytes(4);
-      NeedPower = GetInteger(data);
-      SlaveBuildingId = GetString(data);
-      data.ReadBytes(4);
-      MaxSubBuildingCount = GetInteger(data);
-      PowerLevel = GetInteger(data);
-      PowerTransmitterRange = GetInteger(data);
-      ConnectTransmitterRange = GetInteger(data);
-      FullEnergyPowerInDay = GetInteger(data);
-      ResourceInputOutput = (ResourceInputOutputFlags)GetInteger(data);
-      TickPerContainer = GetInteger(data);
-      ContainerId = GetString(data);
-      data.ReadBytes(4);
-      ContainerSmeltingTicks = GetInteger(data);
-      ResourcesPerTransport = GetInteger(data);
-      TransporterId = GetString(data);
-      data.ReadBytes(4);
-      BuildingAmmoId = GetString(data);
-      data.ReadBytes(4);
-      RangeOfBuildingFire = GetInteger(data);
-      ShootExplosionId = GetString(data);
-      data.ReadBytes(4);
-      AmmoReloadingTime = GetInteger(data);
-      BuildExplosionId = GetString(data);
-      data.ReadBytes(4);
-      CopulaAnimationFlags = (CopulaAnimationFlags)GetInteger(data);
-      EndOfClosingCopulaAnimation = GetInteger(data);
-      LaserId = GetString(data);
-      data.ReadBytes(4);
-      SpaceStationType = (SpaceStationType)GetInteger(data);
+      BuildingType = (BuildingType)ReadInteger(data);
+      BuildingTypeEx = (BuildingExType)ReadInteger(data);
+      BuildingTabType = (BuildingTabType)ReadInteger(data);
+      InitCannonId1 = ReadStringRef(data);
+      InitCannonId2 = ReadStringRef(data);
+      InitCannonId3 = ReadStringRef(data);
+      InitCannonId4 = ReadStringRef(data);
+      CopulaId = ReadStringRef(data);
+      BuildingTunnelNumber = ReadInteger(data);
+      UpgradeCopulaSmallId = ReadStringRef(data);
+      UpgradeCopulaBigId = ReadStringRef(data);
+      BuildLCTransporterId = ReadStringRef(data);
+      ChimneySmokeId = ReadStringRef(data);
+      NeedPower = ReadInteger(data);
+      SlaveBuildingId = ReadStringRef(data);
+      MaxSubBuildingCount = ReadInteger(data);
+      PowerLevel = ReadInteger(data);
+      PowerTransmitterRange = ReadInteger(data);
+      ConnectTransmitterRange = ReadInteger(data);
+      FullEnergyPowerInDay = ReadInteger(data);
+      ResourceInputOutput = (ResourceInputOutputFlags)ReadInteger(data);
+      TickPerContainer = ReadInteger(data);
+      ContainerId = ReadStringRef(data);
+      ContainerSmeltingTicks = ReadInteger(data);
+      ResourcesPerTransport = ReadInteger(data);
+      TransporterId = ReadStringRef(data);
+      BuildingAmmoId = ReadStringRef(data);
+      RangeOfBuildingFire = ReadInteger(data);
+      ShootExplosionId = ReadStringRef(data);
+      AmmoReloadingTime = ReadInteger(data);
+      BuildExplosionId = ReadStringRef(data);
+      CopulaAnimationFlags = (CopulaAnimationFlags)ReadInteger(data);
+      EndOfClosingCopulaAnimation = ReadInteger(data);
+      LaserId = ReadStringRef(data);
+      SpaceStationType = (SpaceStationType)ReadInteger(data);
     }
 
     public BuildingType BuildingType { get; set; }
@@ -148,27 +132,27 @@ namespace EarthTool.PAR.Models
         () => BuildingTypeEx,
         () => BuildingTabType,
         () => InitCannonId1,
-        () => 1,
+        () => ReferenceMarker,
         () => InitCannonId2,
-        () => 1,
+        () => ReferenceMarker,
         () => InitCannonId3,
-        () => 1,
+        () => ReferenceMarker,
         () => InitCannonId4,
-        () => 1,
+        () => ReferenceMarker,
         () => CopulaId,
-        () => 1,
+        () => ReferenceMarker,
         () => BuildingTunnelNumber,
         () => UpgradeCopulaSmallId,
-        () => 1,
+        () => ReferenceMarker,
         () => UpgradeCopulaBigId,
-        () => 1,
+        () => ReferenceMarker,
         () => BuildLCTransporterId,
-        () => 1,
+        () => ReferenceMarker,
         () => ChimneySmokeId,
-        () => 1,
+        () => ReferenceMarker,
         () => NeedPower,
         () => SlaveBuildingId,
-        () => 1,
+        () => ReferenceMarker,
         () => MaxSubBuildingCount,
         () => PowerLevel,
         () => PowerTransmitterRange,
@@ -177,23 +161,23 @@ namespace EarthTool.PAR.Models
         () => ResourceInputOutput,
         () => TickPerContainer,
         () => ContainerId,
-        () => 1,
+        () => ReferenceMarker,
         () => ContainerSmeltingTicks,
         () => ResourcesPerTransport,
         () => TransporterId,
-        () => 1,
+        () => ReferenceMarker,
         () => BuildingAmmoId,
-        () => 1,
+        () => ReferenceMarker,
         () => RangeOfBuildingFire,
         () => ShootExplosionId,
-        () => 1,
+        () => ReferenceMarker,
         () => AmmoReloadingTime,
         () => BuildExplosionId,
-        () => 1,
+        () => ReferenceMarker,
         () => (int)CopulaAnimationFlags,
         () => EndOfClosingCopulaAnimation,
         () => LaserId,
-        () => 1,
+        () => ReferenceMarker,
         () => SpaceStationType
       ));
       set => base.FieldTypes = value;
@@ -201,82 +185,47 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write((int)BuildingType);
-          bw.Write((int)BuildingTypeEx);
-          bw.Write((int)BuildingTabType);
-          bw.Write(InitCannonId1.Length);
-          bw.Write(encoding.GetBytes(InitCannonId1));
-          bw.Write(-1);
-          bw.Write(InitCannonId2.Length);
-          bw.Write(encoding.GetBytes(InitCannonId2));
-          bw.Write(-1);
-          bw.Write(InitCannonId3.Length);
-          bw.Write(encoding.GetBytes(InitCannonId3));
-          bw.Write(-1);
-          bw.Write(InitCannonId4.Length);
-          bw.Write(encoding.GetBytes(InitCannonId4));
-          bw.Write(-1);
-          bw.Write(CopulaId.Length);
-          bw.Write(encoding.GetBytes(CopulaId));
-          bw.Write(-1);
-          bw.Write(BuildingTunnelNumber);
-          bw.Write(UpgradeCopulaSmallId.Length);
-          bw.Write(encoding.GetBytes(UpgradeCopulaSmallId));
-          bw.Write(-1);
-          bw.Write(UpgradeCopulaBigId.Length);
-          bw.Write(encoding.GetBytes(UpgradeCopulaBigId));
-          bw.Write(-1);
-          bw.Write(BuildLCTransporterId.Length);
-          bw.Write(encoding.GetBytes(BuildLCTransporterId));
-          bw.Write(-1);
-          bw.Write(ChimneySmokeId.Length);
-          bw.Write(encoding.GetBytes(ChimneySmokeId));
-          bw.Write(-1);
-          bw.Write(NeedPower);
-          bw.Write(SlaveBuildingId.Length);
-          bw.Write(encoding.GetBytes(SlaveBuildingId));
-          bw.Write(-1);
-          bw.Write(MaxSubBuildingCount);
-          bw.Write(PowerLevel);
-          bw.Write(PowerTransmitterRange);
-          bw.Write(ConnectTransmitterRange);
-          bw.Write(FullEnergyPowerInDay);
-          bw.Write((int)ResourceInputOutput);
-          bw.Write(TickPerContainer);
-          bw.Write(ContainerId.Length);
-          bw.Write(encoding.GetBytes(ContainerId));
-          bw.Write(-1);
-          bw.Write(ContainerSmeltingTicks);
-          bw.Write(ResourcesPerTransport);
-          bw.Write(TransporterId.Length);
-          bw.Write(encoding.GetBytes(TransporterId));
-          bw.Write(-1);
-          bw.Write(BuildingAmmoId.Length);
-          bw.Write(encoding.GetBytes(BuildingAmmoId));
-          bw.Write(-1);
-          bw.Write(RangeOfBuildingFire);
-          bw.Write(ShootExplosionId.Length);
-          bw.Write(encoding.GetBytes(ShootExplosionId));
-          bw.Write(-1);
-          bw.Write(AmmoReloadingTime);
-          bw.Write(BuildExplosionId.Length);
-          bw.Write(encoding.GetBytes(BuildExplosionId));
-          bw.Write(-1);
-          bw.Write((int)CopulaAnimationFlags);
-          bw.Write(EndOfClosingCopulaAnimation);
-          bw.Write(LaserId.Length);
-          bw.Write(encoding.GetBytes(LaserId));
-          bw.Write(-1);
-          bw.Write((int)SpaceStationType);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write((int)BuildingType);
+      bw.Write((int)BuildingTypeEx);
+      bw.Write((int)BuildingTabType);
+      WriteStringRef(bw, InitCannonId1, encoding);
+      WriteStringRef(bw, InitCannonId2, encoding);
+      WriteStringRef(bw, InitCannonId3, encoding);
+      WriteStringRef(bw, InitCannonId4, encoding);
+      WriteStringRef(bw, CopulaId, encoding);
+      bw.Write(BuildingTunnelNumber);
+      WriteStringRef(bw, UpgradeCopulaSmallId, encoding);
+      WriteStringRef(bw, UpgradeCopulaBigId, encoding);
+      WriteStringRef(bw, BuildLCTransporterId, encoding);
+      WriteStringRef(bw, ChimneySmokeId, encoding);
+      bw.Write(NeedPower);
+      WriteStringRef(bw, SlaveBuildingId, encoding);
+      bw.Write(MaxSubBuildingCount);
+      bw.Write(PowerLevel);
+      bw.Write(PowerTransmitterRange);
+      bw.Write(ConnectTransmitterRange);
+      bw.Write(FullEnergyPowerInDay);
+      bw.Write((int)ResourceInputOutput);
+      bw.Write(TickPerContainer);
+      WriteStringRef(bw, ContainerId, encoding);
+      bw.Write(ContainerSmeltingTicks);
+      bw.Write(ResourcesPerTransport);
+      WriteStringRef(bw, TransporterId, encoding);
+      WriteStringRef(bw, BuildingAmmoId, encoding);
+      bw.Write(RangeOfBuildingFire);
+      WriteStringRef(bw, ShootExplosionId, encoding);
+      bw.Write(AmmoReloadingTime);
+      WriteStringRef(bw, BuildExplosionId, encoding);
+      bw.Write((int)CopulaAnimationFlags);
+      bw.Write(EndOfClosingCopulaAnimation);
+      WriteStringRef(bw, LaserId, encoding);
+      bw.Write((int)SpaceStationType);
+
+      return output.ToArray();
     }
   }
 }

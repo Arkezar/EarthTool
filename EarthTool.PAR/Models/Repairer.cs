@@ -16,35 +16,35 @@ namespace EarthTool.PAR.Models
     public Repairer(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      RepairerCapabilities = (RepairerCapabilityFlags)GetInteger(data);
-      RepairHPPerTick = GetInteger(data);
-      RepairElectronicsPerTick = GetInteger(data);
-      TicksPerRepair = GetInteger(data);
-      ConvertTankTime = GetInteger(data);
-      ConvertBuildingTime = GetInteger(data);
-      ConvertHealthyTankTime = GetInteger(data);
-      ConvertHealthyBuildingTime = GetInteger(data);
-      RepaintTankTime = GetInteger(data);
-      RepaintBuildingTime = GetInteger(data);
-      UpgradeTankTime = GetInteger(data);
-      AnimRepairStartStart = GetInteger(data);
-      AnimRepairStartEnd = GetInteger(data);
-      AnimRepairWorkStart = GetInteger(data);
-      AnimRepairWorkEnd = GetInteger(data);
-      AnimRepairEndStart = GetInteger(data);
-      AnimRepairEndEnd = GetInteger(data);
-      AnimConvertStartStart = GetInteger(data);
-      AnimConvertStartEnd = GetInteger(data);
-      AnimConvertWorkStart = GetInteger(data);
-      AnimConvertWorkEnd = GetInteger(data);
-      AnimConvertEndStart = GetInteger(data);
-      AnimConvertEndEnd = GetInteger(data);
-      AnimRepaintStartStart = GetInteger(data);
-      AnimRepaintStartEnd = GetInteger(data);
-      AnimRepaintWorkStart = GetInteger(data);
-      AnimRepaintWorkEnd = GetInteger(data);
-      AnimRepaintEndStart = GetInteger(data);
-      AnimRepaintEndEnd = GetInteger(data);
+      RepairerCapabilities = (RepairerCapabilityFlags)ReadInteger(data);
+      RepairHPPerTick = ReadInteger(data);
+      RepairElectronicsPerTick = ReadInteger(data);
+      TicksPerRepair = ReadInteger(data);
+      ConvertTankTime = ReadInteger(data);
+      ConvertBuildingTime = ReadInteger(data);
+      ConvertHealthyTankTime = ReadInteger(data);
+      ConvertHealthyBuildingTime = ReadInteger(data);
+      RepaintTankTime = ReadInteger(data);
+      RepaintBuildingTime = ReadInteger(data);
+      UpgradeTankTime = ReadInteger(data);
+      AnimRepairStartStart = ReadInteger(data);
+      AnimRepairStartEnd = ReadInteger(data);
+      AnimRepairWorkStart = ReadInteger(data);
+      AnimRepairWorkEnd = ReadInteger(data);
+      AnimRepairEndStart = ReadInteger(data);
+      AnimRepairEndEnd = ReadInteger(data);
+      AnimConvertStartStart = ReadInteger(data);
+      AnimConvertStartEnd = ReadInteger(data);
+      AnimConvertWorkStart = ReadInteger(data);
+      AnimConvertWorkEnd = ReadInteger(data);
+      AnimConvertEndStart = ReadInteger(data);
+      AnimConvertEndEnd = ReadInteger(data);
+      AnimRepaintStartStart = ReadInteger(data);
+      AnimRepaintStartEnd = ReadInteger(data);
+      AnimRepaintWorkStart = ReadInteger(data);
+      AnimRepaintWorkEnd = ReadInteger(data);
+      AnimRepaintEndStart = ReadInteger(data);
+      AnimRepaintEndEnd = ReadInteger(data);
     }
 
     public RepairerCapabilityFlags RepairerCapabilities { get; set; }
@@ -145,44 +145,41 @@ namespace EarthTool.PAR.Models
 
     public override byte[] ToByteArray(Encoding encoding)
     {
-      using (MemoryStream output = new MemoryStream())
-      {
-        using (BinaryWriter bw = new BinaryWriter(output, encoding))
-        {
-          bw.Write(base.ToByteArray(encoding));
-          bw.Write((int)RepairerCapabilities);
-          bw.Write(RepairHPPerTick);
-          bw.Write(RepairElectronicsPerTick);
-          bw.Write(TicksPerRepair);
-          bw.Write(ConvertTankTime);
-          bw.Write(ConvertBuildingTime);
-          bw.Write(ConvertHealthyTankTime);
-          bw.Write(ConvertHealthyBuildingTime);
-          bw.Write(RepaintTankTime);
-          bw.Write(RepaintBuildingTime);
-          bw.Write(UpgradeTankTime);
-          bw.Write(AnimRepairStartStart);
-          bw.Write(AnimRepairStartEnd);
-          bw.Write(AnimRepairWorkStart);
-          bw.Write(AnimRepairWorkEnd);
-          bw.Write(AnimRepairEndStart);
-          bw.Write(AnimRepairEndEnd);
-          bw.Write(AnimConvertStartStart);
-          bw.Write(AnimConvertStartEnd);
-          bw.Write(AnimConvertWorkStart);
-          bw.Write(AnimConvertWorkEnd);
-          bw.Write(AnimConvertEndStart);
-          bw.Write(AnimConvertEndEnd);
-          bw.Write(AnimRepaintStartStart);
-          bw.Write(AnimRepaintStartEnd);
-          bw.Write(AnimRepaintWorkStart);
-          bw.Write(AnimRepaintWorkEnd);
-          bw.Write(AnimRepaintEndStart);
-          bw.Write(AnimRepaintEndEnd);
-        }
+      using var output = new MemoryStream();
 
-        return output.ToArray();
-      }
+      using var bw = new BinaryWriter(output, encoding);
+      bw.Write(base.ToByteArray(encoding));
+      bw.Write((int)RepairerCapabilities);
+      bw.Write(RepairHPPerTick);
+      bw.Write(RepairElectronicsPerTick);
+      bw.Write(TicksPerRepair);
+      bw.Write(ConvertTankTime);
+      bw.Write(ConvertBuildingTime);
+      bw.Write(ConvertHealthyTankTime);
+      bw.Write(ConvertHealthyBuildingTime);
+      bw.Write(RepaintTankTime);
+      bw.Write(RepaintBuildingTime);
+      bw.Write(UpgradeTankTime);
+      bw.Write(AnimRepairStartStart);
+      bw.Write(AnimRepairStartEnd);
+      bw.Write(AnimRepairWorkStart);
+      bw.Write(AnimRepairWorkEnd);
+      bw.Write(AnimRepairEndStart);
+      bw.Write(AnimRepairEndEnd);
+      bw.Write(AnimConvertStartStart);
+      bw.Write(AnimConvertStartEnd);
+      bw.Write(AnimConvertWorkStart);
+      bw.Write(AnimConvertWorkEnd);
+      bw.Write(AnimConvertEndStart);
+      bw.Write(AnimConvertEndEnd);
+      bw.Write(AnimRepaintStartStart);
+      bw.Write(AnimRepaintStartEnd);
+      bw.Write(AnimRepaintWorkStart);
+      bw.Write(AnimRepaintWorkEnd);
+      bw.Write(AnimRepaintEndStart);
+      bw.Write(AnimRepaintEndEnd);
+
+      return output.ToArray();
     }
   }
 }
