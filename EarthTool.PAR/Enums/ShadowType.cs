@@ -2,13 +2,21 @@ using System;
 
 namespace EarthTool.PAR.Enums
 {
-  [Flags]
   public enum ShadowType
   {
-    None      = 0x00,
-    Unknown1  = 0x01,
-    Unknown2  = 0x02,
-    Unknown4  = 0x04,
-    Unknown8  = 0x08,
+    None,
+    Stone,
+    Tree0,
+    Tree1,
+    Tree2,
+    Tree3,
+    Tank,
+    AntyG,
+    Plane,
+    Building,
+    Cannon,
+    Amphibia,
+    Ship,
+    Bridge,
   }
 }

@@ -17,12 +17,12 @@ namespace EarthTool.PAR.Models.Abstracts
       : base(name, requiredResearch, type, data)
     {
       VehicleSpeed = GetInteger(data);
-      VerticalVehicleAnimationType = GetInteger(data);
+      VerticalVehicleAnimationType = (VerticalVehicleAnimationType)GetInteger(data);
     }
 
     public int VehicleSpeed { get; set; }
 
-    public int VerticalVehicleAnimationType { get; set; }
+    public VerticalVehicleAnimationType VerticalVehicleAnimationType { get; set; }
 
     [JsonIgnore]
     public override IEnumerable<bool> FieldTypes
@@ -42,7 +42,7 @@ namespace EarthTool.PAR.Models.Abstracts
         {
           bw.Write(base.ToByteArray(encoding));
           bw.Write(VehicleSpeed);
-          bw.Write(VerticalVehicleAnimationType);
+          bw.Write((int)VerticalVehicleAnimationType);
         }
 
         return output.ToArray();

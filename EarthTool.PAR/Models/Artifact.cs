@@ -17,12 +17,12 @@ namespace EarthTool.PAR.Models
     public Artifact(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      ArtefactMask = GetInteger(data);
+      ArtefactMask = (ArtifactType)GetInteger(data);
       ArtefactParam = GetInteger(data);
       RespawnTime = GetInteger(data);
     }
 
-    public int ArtefactMask { get; set; }
+    public ArtifactType ArtefactMask { get; set; }
 
     public int ArtefactParam { get; set; }
 
@@ -31,11 +31,12 @@ namespace EarthTool.PAR.Models
     [JsonIgnore]
     public override IEnumerable<bool> FieldTypes
     {
-      get => base.FieldTypes.Concat(IsStringMember(
-        () => ArtefactMask,
-        () => ArtefactParam,
-        () => RespawnTime
-      ));
+      get
+        => base.FieldTypes.Concat(IsStringMember(
+          () => ArtefactMask,
+          () => ArtefactParam,
+          () => RespawnTime
+        ));
       set => base.FieldTypes = value;
     }
 
@@ -46,7 +47,7 @@ namespace EarthTool.PAR.Models
         using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
-          bw.Write(ArtefactMask);
+          bw.Write((int)ArtefactMask);
           bw.Write(ArtefactParam);
           bw.Write(RespawnTime);
         }

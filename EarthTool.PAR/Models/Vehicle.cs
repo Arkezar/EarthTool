@@ -24,7 +24,7 @@ namespace EarthTool.PAR.Models
       WaterSpeed = GetInteger(data);
       DeepWaterSpeed = GetInteger(data);
       AirSpeed = GetInteger(data);
-      ObjectType = GetInteger(data);
+      ObjectType = (VehicleObjectType)GetInteger(data);
       EngineSmokeId = GetString(data);
       data.ReadBytes(4);
       DustId = GetString(data);
@@ -51,7 +51,7 @@ namespace EarthTool.PAR.Models
 
     public int AirSpeed { get; set; }
 
-    public int ObjectType { get; set; }
+    public VehicleObjectType ObjectType { get; set; }
 
     public string EngineSmokeId { get; set; }
 
@@ -66,26 +66,27 @@ namespace EarthTool.PAR.Models
     [JsonIgnore]
     public override IEnumerable<bool> FieldTypes
     {
-      get => base.FieldTypes.Concat(IsStringMember(
-        () => SoilSpeed,
-        () => RoadSpeed,
-        () => SandSpeed,
-        () => BankSpeed,
-        () => WaterSpeed,
-        () => DeepWaterSpeed,
-        () => AirSpeed,
-        () => ObjectType,
-        () => EngineSmokeId,
-        () => 1,
-        () => DustId,
-        () => 1,
-        () => BillowId,
-        () => 1,
-        () => StandBillowId,
-        () => 1,
-        () => TrackId,
-        () => 1
-      ));
+      get
+        => base.FieldTypes.Concat(IsStringMember(
+          () => SoilSpeed,
+          () => RoadSpeed,
+          () => SandSpeed,
+          () => BankSpeed,
+          () => WaterSpeed,
+          () => DeepWaterSpeed,
+          () => AirSpeed,
+          () => ObjectType,
+          () => EngineSmokeId,
+          () => 1,
+          () => DustId,
+          () => 1,
+          () => BillowId,
+          () => 1,
+          () => StandBillowId,
+          () => 1,
+          () => TrackId,
+          () => 1
+        ));
       set => base.FieldTypes = value;
     }
 
@@ -103,7 +104,7 @@ namespace EarthTool.PAR.Models
           bw.Write(WaterSpeed);
           bw.Write(DeepWaterSpeed);
           bw.Write(AirSpeed);
-          bw.Write(ObjectType);
+          bw.Write((int)ObjectType);
           bw.Write(EngineSmokeId.Length);
           bw.Write(encoding.GetBytes(EngineSmokeId));
           bw.Write(-1);

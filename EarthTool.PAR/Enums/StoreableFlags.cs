@@ -5,13 +5,13 @@ namespace EarthTool.PAR.Enums
   [Flags]
   public enum StoreableFlags
   {
-    None                = 0x00,
-    Unknown1            = 0x01,
-    Unknown2            = 0x02,
-    Unknown4            = 0x04,
-    Unknown8            = 0x08,
-    Unknown10           = 0x10,
-    Unknown20           = 0x20,
-    Unknown3B           = 0x3B,
+    None                        = 0x00,
+    ResistantOnInfiniteDisabled = 0x01,
+    ResistantOnHitSonic         = 0x02,
+    AlwaysShadowed              = 0x04,
+    NotEnemyTarget              = 0x08,
+    NotSelectableActive         = 0x10,
+    NeverShadowed               = 0x20,
+    CTFUnitFlags                = 0x3B,
   }
 }

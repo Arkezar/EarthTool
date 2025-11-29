@@ -17,7 +17,7 @@ namespace EarthTool.PAR.Models
     public FlyingWaste(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      WasteSize = GetInteger(data);
+      WasteSize = (WasteSize)GetInteger(data);
       SubWasteId1 = GetString(data);
       data.ReadBytes(4);
       SubWaste1Alpha = GetInteger(data);
@@ -36,7 +36,7 @@ namespace EarthTool.PAR.Models
       WasteBeta = GetInteger(data);
     }
 
-    public int WasteSize { get; set; }
+    public WasteSize WasteSize { get; set; }
 
     public string SubWasteId1 { get; set; }
 
@@ -65,25 +65,26 @@ namespace EarthTool.PAR.Models
     [JsonIgnore]
     public override IEnumerable<bool> FieldTypes
     {
-      get => base.FieldTypes.Concat(IsStringMember(
-        () => WasteSize,
-        () => SubWasteId1,
-        () => 1,
-        () => SubWaste1Alpha,
-        () => SubWasteId2,
-        () => 1,
-        () => SubWaste2Alpha,
-        () => SubWasteId3,
-        () => 1,
-        () => SubWaste3Alpha,
-        () => SubWasteId4,
-        () => 1,
-        () => SubWaste4Alpha,
-        () => FlightTime,
-        () => WasteSpeed,
-        () => WasteDistanceX4,
-        () => WasteBeta
-      ));
+      get
+        => base.FieldTypes.Concat(IsStringMember(
+          () => WasteSize,
+          () => SubWasteId1,
+          () => 1,
+          () => SubWaste1Alpha,
+          () => SubWasteId2,
+          () => 1,
+          () => SubWaste2Alpha,
+          () => SubWasteId3,
+          () => 1,
+          () => SubWaste3Alpha,
+          () => SubWasteId4,
+          () => 1,
+          () => SubWaste4Alpha,
+          () => FlightTime,
+          () => WasteSpeed,
+          () => WasteDistanceX4,
+          () => WasteBeta
+        ));
       set => base.FieldTypes = value;
     }
 
@@ -94,7 +95,7 @@ namespace EarthTool.PAR.Models
         using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
-          bw.Write(WasteSize);
+          bw.Write((int)WasteSize);
           bw.Write(SubWasteId1.Length);
           bw.Write(encoding.GetBytes(SubWasteId1));
           bw.Write(-1);

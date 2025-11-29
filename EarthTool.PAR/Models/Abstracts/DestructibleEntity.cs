@@ -22,7 +22,7 @@ namespace EarthTool.PAR.Models.Abstracts
       CalorificCapacity = GetInteger(data);
       DisableResist = GetInteger(data);
       StoreableFlags = (StoreableFlags)GetInteger(data);
-      StandType = GetInteger(data);
+      StandType = (StandType)GetInteger(data);
     }
 
     public int HP { get; set; }
@@ -37,7 +37,7 @@ namespace EarthTool.PAR.Models.Abstracts
 
     public StoreableFlags StoreableFlags { get; set; }
 
-    public int StandType { get; set; }
+    public StandType StandType { get; set; }
 
     [JsonIgnore]
     public override IEnumerable<bool> FieldTypes
@@ -48,7 +48,7 @@ namespace EarthTool.PAR.Models.Abstracts
         () => Armor,
         () => CalorificCapacity,
         () => DisableResist,
-        () => (int)StoreableFlags,
+        () => StoreableFlags,
         () => StandType
       ));
       set => base.FieldTypes = value;
@@ -67,7 +67,7 @@ namespace EarthTool.PAR.Models.Abstracts
           bw.Write(CalorificCapacity);
           bw.Write(DisableResist);
           bw.Write((int)StoreableFlags);
-          bw.Write(StandType);
+          bw.Write((int)StandType);
         }
 
         return output.ToArray();

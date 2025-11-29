@@ -17,17 +17,17 @@ namespace EarthTool.PAR.Models
     public StartingPosition(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      PositionType = GetInteger(data);
+      PositionType = (PositionType)GetInteger(data);
     }
 
-    public int PositionType { get; set; }
+    public PositionType PositionType { get; set; }
 
     [JsonIgnore]
     public override IEnumerable<bool> FieldTypes
     {
-      get => base.FieldTypes.Concat(IsStringMember(
-        () => PositionType
-      ));
+      get
+        => base.FieldTypes.Concat(IsStringMember(() => PositionType
+        ));
       set => base.FieldTypes = value;
     }
 
@@ -38,7 +38,7 @@ namespace EarthTool.PAR.Models
         using (BinaryWriter bw = new BinaryWriter(output, encoding))
         {
           bw.Write(base.ToByteArray(encoding));
-          bw.Write(PositionType);
+          bw.Write((int)PositionType);
         }
 
         return output.ToArray();
