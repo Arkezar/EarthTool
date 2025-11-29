@@ -16,7 +16,7 @@ using System.Threading.Tasks;
 
 namespace EarthTool.CLI.Commands.PAR;
 
-public class ConvertCommand : CommonCommand<CommonSettings>
+public class ConvertCommand : CommonCommand<ParSettings>
 {
   private const string ParExtension = ".par";
   private const string JsonExtension = ".json";
@@ -32,7 +32,7 @@ public class ConvertCommand : CommonCommand<CommonSettings>
     _earthInfoFactory = earthInfoFactory;
   }
 
-  protected override Task InternalAnalyzeAsync(string inputFilePath, CommonSettings settings)
+  protected override Task InternalAnalyzeAsync(string inputFilePath, ParSettings settings)
   {
     var extension = Path.GetExtension(inputFilePath);
 
@@ -63,7 +63,7 @@ public class ConvertCommand : CommonCommand<CommonSettings>
     return Task.CompletedTask;
   }
 
-  protected override Task InternalExecuteAsync(string filePath, CommonSettings settings)
+  protected override Task InternalExecuteAsync(string filePath, ParSettings settings)
   {
     var outputDirectory = settings.OutputFolderPath.Value ?? Path.GetDirectoryName(filePath);
     var extension = Path.GetExtension(filePath);
@@ -74,7 +74,7 @@ public class ConvertCommand : CommonCommand<CommonSettings>
     }
     else if (extension == JsonExtension)
     {
-      ConvertToPar(filePath, outputDirectory);
+      ConvertToPar(filePath, outputDirectory, settings);
     }
     else
     {
@@ -108,7 +108,7 @@ public class ConvertCommand : CommonCommand<CommonSettings>
     AnsiConsole.MarkupLine($"[green]Successfully converted to JSON: {outputFileName}[/]");
   }
 
-  private void ConvertToPar(string filePath, string outputDirectory)
+  private void ConvertToPar(string filePath, string outputDirectory, ParSettings settings)
   {
     var outputFileName = Path.ChangeExtension(Path.GetFileName(filePath), ParExtension);
     var outputFilePath = Path.Combine(outputDirectory, outputFileName);
@@ -123,8 +123,9 @@ public class ConvertCommand : CommonCommand<CommonSettings>
       return;
     }
 
+    var fileGuid = settings.Guid ?? Guid.NewGuid();
     parameters.FileHeader =
-        _earthInfoFactory.Get(FileFlags.Resource | FileFlags.Guid, Guid.NewGuid(), ResourceType.Parameters);
+        _earthInfoFactory.Get(FileFlags.Resource | FileFlags.Guid, fileGuid, ResourceType.Parameters);
 
     _writer.Write(parameters, outputFilePath);
 
