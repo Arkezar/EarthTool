@@ -1,4 +1,4 @@
-﻿using EarthTool.Common.Enums;
+using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
 using EarthTool.Common.Models;
 using EarthTool.PAR.Enums;
@@ -12,13 +12,15 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace EarthTool.CLI.Commands.PAR;
 
 public class ConvertCommand : CommonCommand<CommonSettings>
 {
+  private const string ParExtension = ".par";
+  private const string JsonExtension = ".json";
+
   private readonly IReader<ParFile> _reader;
   private readonly IWriter<ParFile> _writer;
   private readonly IEarthInfoFactory _earthInfoFactory;
@@ -32,24 +34,29 @@ public class ConvertCommand : CommonCommand<CommonSettings>
 
   protected override Task InternalAnalyzeAsync(string inputFilePath, CommonSettings settings)
   {
-    var outputDirectory = settings.OutputFolderPath.Value ?? Path.GetDirectoryName(inputFilePath);
     var extension = Path.GetExtension(inputFilePath);
 
-    if (extension == ".par")
+    if (extension == ParExtension)
     {
       var file = _reader.Read(inputFilePath);
-      if (file != null)
+      if (file == null)
       {
-        var resDist = file.Research.ToDictionary(r => r.Id, r => r.Name);
-        AnsiConsole.MarkupLine("[green]Parameters file loaded successfully.[/]");
-        file.Research.Where(r => r.RequiredResearch.Count() > 1)
-          .ToList()
-          .ForEach(r =>
-          {
-            var depRes = r.RequiredResearch.Select(id => resDist[id]);
-            AnsiConsole.MarkupLine(
-              $"[yellow]Research {r.Id} has multiple required researches ({string.Join(",", depRes)}).[/]");
-          });
+        AnsiConsole.MarkupLine("[red]Failed to read PAR file.[/]");
+        return Task.CompletedTask;
+      }
+
+      var researchLookup = file.Research.ToDictionary(r => r.Id, r => r.Name);
+      AnsiConsole.MarkupLine("[green]Parameters file loaded successfully.[/]");
+
+      var multiDependencyResearch = file.Research
+        .Where(r => r.RequiredResearch.Count() > 1)
+        .ToList();
+
+      foreach (var research in multiDependencyResearch)
+      {
+        var dependencyNames = research.RequiredResearch.Select(id => researchLookup[id]);
+        AnsiConsole.MarkupLine(
+          $"[yellow]Research {research.Id} has multiple required researches ({string.Join(", ", dependencyNames)}).[/]");
       }
     }
 
@@ -61,17 +68,17 @@ public class ConvertCommand : CommonCommand<CommonSettings>
     var outputDirectory = settings.OutputFolderPath.Value ?? Path.GetDirectoryName(filePath);
     var extension = Path.GetExtension(filePath);
 
-    if (extension == ".par")
+    if (extension == ParExtension)
     {
       ConvertToJson(filePath, outputDirectory);
     }
-    else if (extension == ".json")
+    else if (extension == JsonExtension)
     {
       ConvertToPar(filePath, outputDirectory);
     }
     else
     {
-      AnsiConsole.MarkupLine("[red]Unsupported file format[/]");
+      AnsiConsole.MarkupLine($"[red]Unsupported file format: {extension}. Expected {ParExtension} or {JsonExtension}.[/]");
     }
 
     return Task.CompletedTask;
@@ -80,8 +87,13 @@ public class ConvertCommand : CommonCommand<CommonSettings>
   private void ConvertToJson(string filePath, string outputDirectory)
   {
     var file = _reader.Read(filePath);
+    if (file == null)
+    {
+      AnsiConsole.MarkupLine("[red]Failed to read PAR file.[/]");
+      return;
+    }
 
-    var outputFileName = Path.ChangeExtension(Path.GetFileName(filePath), "json");
+    var outputFileName = Path.ChangeExtension(Path.GetFileName(filePath), JsonExtension);
     var outputFilePath = Path.Combine(outputDirectory, outputFileName);
 
     if (!Directory.Exists(outputDirectory))
@@ -89,25 +101,42 @@ public class ConvertCommand : CommonCommand<CommonSettings>
       Directory.CreateDirectory(outputDirectory);
     }
 
-    var opts = new JsonSerializerOptions { WriteIndented = true };
-    opts.Converters.Add(new EntityConverter());
-    opts.Converters.Add(new JsonStringEnumConverter());
-    var serializedRoot = JsonSerializer.Serialize(file, opts);
-    File.WriteAllText(outputFilePath, serializedRoot);
+    var options = CreateJsonSerializerOptions();
+    var serializedContent = JsonSerializer.Serialize(file, options);
+    File.WriteAllText(outputFilePath, serializedContent);
+
+    AnsiConsole.MarkupLine($"[green]Successfully converted to JSON: {outputFileName}[/]");
   }
 
   private void ConvertToPar(string filePath, string outputDirectory)
   {
-    var outputFileName = Path.ChangeExtension(Path.GetFileName(filePath), "par");
+    var outputFileName = Path.ChangeExtension(Path.GetFileName(filePath), ParExtension);
     var outputFilePath = Path.Combine(outputDirectory, outputFileName);
-    var opts = new JsonSerializerOptions();
-    opts.Converters.Add(new EntityConverter());
-    opts.Converters.Add(new JsonStringEnumConverter());
-    var parameters = JsonSerializer.Deserialize<ParFile>(File.ReadAllText(filePath), opts);
+
+    var options = CreateJsonSerializerOptions();
+    var jsonContent = File.ReadAllText(filePath);
+    var parameters = JsonSerializer.Deserialize<ParFile>(jsonContent, options);
+
+    if (parameters == null)
+    {
+      AnsiConsole.MarkupLine("[red]Failed to deserialize JSON file.[/]");
+      return;
+    }
+
     parameters.FileHeader =
         _earthInfoFactory.Get(FileFlags.Resource | FileFlags.Guid, Guid.NewGuid(), ResourceType.Parameters);
 
     _writer.Write(parameters, outputFilePath);
+
+    AnsiConsole.MarkupLine($"[green]Successfully converted to PAR: {outputFileName}[/]");
+  }
+
+  private static JsonSerializerOptions CreateJsonSerializerOptions()
+  {
+    var options = new JsonSerializerOptions { WriteIndented = true };
+    options.Converters.Add(new EntityConverter());
+    options.Converters.Add(new JsonStringEnumConverter());
+    return options;
   }
 
   private void PrintModelDetails(ParFile model)
@@ -117,7 +146,7 @@ public class ConvertCommand : CommonCommand<CommonSettings>
     PopulateGroupsHierarchy(groups, model.Groups, model.Research);
 
     var research = root.AddNode("Research");
-    PopulateReaserchHierarchy(research, model.Research);
+    PopulateResearchHierarchy(research, model.Research);
 
     AnsiConsole.Write(root);
   }
@@ -146,7 +175,7 @@ public class ConvertCommand : CommonCommand<CommonSettings>
     }
   }
 
-  private void PopulateReaserchHierarchy(TreeNode research, IEnumerable<Research> modelResearch)
+  private void PopulateResearchHierarchy(TreeNode research, IEnumerable<Research> modelResearch)
   {
     var startNodes = modelResearch.Where(r => !r.RequiredResearch.Any());
     var groupedStartNodes = startNodes.GroupBy(n => n.Faction);
