@@ -1,4 +1,5 @@
-﻿using EarthTool.PAR.Models.Abstracts;
+﻿using EarthTool.PAR.Extensions;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -15,7 +16,7 @@ namespace EarthTool.PAR.Models
     public SpecialUpdateLink(string name, IEnumerable<int> requiredResearch, BinaryReader data)
       : base(name, requiredResearch)
     {
-      Value = ReadStringRef(data);
+      Value = data.ReadParameterStringRef();
     }
 
     public string Value { get; set; }
@@ -36,7 +37,7 @@ namespace EarthTool.PAR.Models
 
       using var bw = new BinaryWriter(output, encoding);
       bw.Write(base.ToByteArray(encoding));
-      WriteStringRef(bw, Value, encoding);
+      bw.WriteParameterStringRef(Value, encoding);
 
       return output.ToArray();
     }

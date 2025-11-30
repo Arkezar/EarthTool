@@ -1,4 +1,5 @@
-﻿using EarthTool.PAR.Models.Abstracts;
+﻿using EarthTool.PAR.Extensions;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -15,11 +16,11 @@ namespace EarthTool.PAR.Models
     public ShieldGenerator(string name, IEnumerable<int> requiredResearch, BinaryReader data)
       : base(name, requiredResearch)
     {
-      ShieldCost = ReadInteger(data);
-      ShieldValue = ReadInteger(data);
-      ReloadTime = ReadInteger(data);
-      ShieldMeshName = ReadString(data);
-      ShieldMeshViewIndex = ReadInteger(data);
+      ShieldCost = data.ReadInteger();
+      ShieldValue = data.ReadInteger();
+      ReloadTime = data.ReadInteger();
+      ShieldMeshName = data.ReadParameterString();
+      ShieldMeshViewIndex = data.ReadInteger();
     }
 
     public int ShieldCost { get; set; }
@@ -54,7 +55,7 @@ namespace EarthTool.PAR.Models
       bw.Write(ShieldCost);
       bw.Write(ShieldValue);
       bw.Write(ReloadTime);
-      WriteString(bw, ShieldMeshName, encoding);
+      bw.WriteParameterString(ShieldMeshName, encoding);
       bw.Write(ShieldMeshViewIndex);
 
       return output.ToArray();

@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
@@ -17,18 +18,18 @@ namespace EarthTool.PAR.Models
     public Smoke(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      Mesh1 = ReadString(data);
-      Mesh2 = ReadString(data);
-      Mesh3 = ReadString(data);
-      SmokeTime1 = ReadInteger(data);
-      SmokeTime2 = ReadInteger(data);
-      SmokeTime3 = ReadInteger(data);
-      SmokeFrequency = ReadInteger(data);
-      StartingTime = ReadInteger(data);
-      SmokingTime = ReadInteger(data);
-      EndingTime = ReadInteger(data);
-      SmokeUpSpeed = ReadInteger(data);
-      NewSmokeDistance = ReadInteger(data);
+      Mesh1 = data.ReadParameterString();
+      Mesh2 = data.ReadParameterString();
+      Mesh3 = data.ReadParameterString();
+      SmokeTime1 = data.ReadInteger();
+      SmokeTime2 = data.ReadInteger();
+      SmokeTime3 = data.ReadInteger();
+      SmokeFrequency = data.ReadInteger();
+      StartingTime = data.ReadInteger();
+      SmokingTime = data.ReadInteger();
+      EndingTime = data.ReadInteger();
+      SmokeUpSpeed = data.ReadInteger();
+      NewSmokeDistance = data.ReadInteger();
     }
 
     public string Mesh1 { get; set; }
@@ -81,9 +82,9 @@ namespace EarthTool.PAR.Models
 
       using var bw = new BinaryWriter(output, encoding);
       bw.Write(base.ToByteArray(encoding));
-      WriteString(bw, Mesh1, encoding);
-      WriteString(bw, Mesh2, encoding);
-      WriteString(bw, Mesh3, encoding);
+      bw.WriteParameterString(Mesh1, encoding);
+      bw.WriteParameterString(Mesh2, encoding);
+      bw.WriteParameterString(Mesh3, encoding);
       bw.Write(SmokeTime1);
       bw.Write(SmokeTime2);
       bw.Write(SmokeTime3);

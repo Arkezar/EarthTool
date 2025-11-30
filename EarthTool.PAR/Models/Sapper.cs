@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,14 +17,14 @@ namespace EarthTool.PAR.Models
     public Sapper(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      MinesLookRange = ReadInteger(data);
-      MineId = ReadStringRef(data);
-      MaxMinesCount = ReadInteger(data);
-      AnimDownStart = ReadInteger(data);
-      AnimDownEnd = ReadInteger(data);
-      AnimUpStart = ReadInteger(data);
-      AnimUpEnd = ReadInteger(data);
-      PutMineSmokeId = ReadStringRef(data);
+      MinesLookRange = data.ReadInteger();
+      MineId = data.ReadParameterStringRef();
+      MaxMinesCount = data.ReadInteger();
+      AnimDownStart = data.ReadInteger();
+      AnimDownEnd = data.ReadInteger();
+      AnimUpStart = data.ReadInteger();
+      AnimUpEnd = data.ReadInteger();
+      PutMineSmokeId = data.ReadParameterStringRef();
     }
 
     public int MinesLookRange { get; set; }
@@ -67,13 +68,13 @@ namespace EarthTool.PAR.Models
       using var bw = new BinaryWriter(output, encoding);
       bw.Write(base.ToByteArray(encoding));
       bw.Write(MinesLookRange);
-      WriteStringRef(bw, MineId, encoding);
+      bw.WriteParameterStringRef(MineId, encoding);
       bw.Write(MaxMinesCount);
       bw.Write(AnimDownStart);
       bw.Write(AnimDownEnd);
       bw.Write(AnimUpStart);
       bw.Write(AnimUpEnd);
-      WriteStringRef(bw, PutMineSmokeId, encoding);
+      bw.WriteParameterStringRef(PutMineSmokeId, encoding);
 
       return output.ToArray();
     }

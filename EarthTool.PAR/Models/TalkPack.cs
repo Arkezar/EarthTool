@@ -1,4 +1,5 @@
-﻿using EarthTool.PAR.Models.Abstracts;
+﻿using EarthTool.PAR.Extensions;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -15,13 +16,13 @@ namespace EarthTool.PAR.Models
     public TalkPack(string name, IEnumerable<int> requiredResearch, BinaryReader data)
       : base(name, requiredResearch)
     {
-      Selected = ReadString(data);
-      Move = ReadString(data);
-      Attack = ReadString(data);
-      Command = ReadString(data);
-      Enemy = ReadString(data);
-      Help = ReadString(data);
-      FreeWay = ReadString(data);
+      Selected = data.ReadParameterString();
+      Move = data.ReadParameterString();
+      Attack = data.ReadParameterString();
+      Command = data.ReadParameterString();
+      Enemy = data.ReadParameterString();
+      Help = data.ReadParameterString();
+      FreeWay = data.ReadParameterString();
     }
 
     public string Selected { get; set; }
@@ -59,13 +60,13 @@ namespace EarthTool.PAR.Models
 
       using var bw = new BinaryWriter(output, encoding);
       bw.Write(base.ToByteArray(encoding));
-      WriteString(bw, Selected, encoding);
-      WriteString(bw, Move, encoding);
-      WriteString(bw, Attack, encoding);
-      WriteString(bw, Command, encoding);
-      WriteString(bw, Enemy, encoding);
-      WriteString(bw, Help, encoding);
-      WriteString(bw, FreeWay, encoding);
+      bw.WriteParameterString(Selected, encoding);
+      bw.WriteParameterString(Move, encoding);
+      bw.WriteParameterString(Attack, encoding);
+      bw.WriteParameterString(Command, encoding);
+      bw.WriteParameterString(Enemy, encoding);
+      bw.WriteParameterString(Help, encoding);
+      bw.WriteParameterString(FreeWay, encoding);
 
       return output.ToArray();
     }

@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
@@ -17,19 +18,19 @@ namespace EarthTool.PAR.Models
     public FlyingWaste(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      WasteSize = (WasteSize)ReadInteger(data);
-      SubWasteId1 = ReadStringRef(data);
-      SubWaste1Alpha = ReadInteger(data);
-      SubWasteId2 = ReadStringRef(data);
-      SubWaste2Alpha = ReadInteger(data);
-      SubWasteId3 = ReadStringRef(data);
-      SubWaste3Alpha = ReadInteger(data);
-      SubWasteId4 = ReadStringRef(data);
-      SubWaste4Alpha = ReadInteger(data);
-      FlightTime = ReadInteger(data);
-      WasteSpeed = ReadInteger(data);
-      WasteDistanceX4 = ReadInteger(data);
-      WasteBeta = ReadInteger(data);
+      WasteSize = (WasteSize)data.ReadInteger();
+      SubWasteId1 = data.ReadParameterStringRef();
+      SubWaste1Alpha = data.ReadInteger();
+      SubWasteId2 = data.ReadParameterStringRef();
+      SubWaste2Alpha = data.ReadInteger();
+      SubWasteId3 = data.ReadParameterStringRef();
+      SubWaste3Alpha = data.ReadInteger();
+      SubWasteId4 = data.ReadParameterStringRef();
+      SubWaste4Alpha = data.ReadInteger();
+      FlightTime = data.ReadInteger();
+      WasteSpeed = data.ReadInteger();
+      WasteDistanceX4 = data.ReadInteger();
+      WasteBeta = data.ReadInteger();
     }
 
     public WasteSize WasteSize { get; set; }
@@ -91,13 +92,13 @@ namespace EarthTool.PAR.Models
       using var bw = new BinaryWriter(output, encoding);
       bw.Write(base.ToByteArray(encoding));
       bw.Write((int)WasteSize);
-      WriteStringRef(bw, SubWasteId1, encoding);
+      bw.WriteParameterStringRef(SubWasteId1, encoding);
       bw.Write(SubWaste1Alpha);
-      WriteStringRef(bw, SubWasteId2, encoding);
+      bw.WriteParameterStringRef(SubWasteId2, encoding);
       bw.Write(SubWaste2Alpha);
-      WriteStringRef(bw, SubWasteId3, encoding);
+      bw.WriteParameterStringRef(SubWasteId3, encoding);
       bw.Write(SubWaste3Alpha);
-      WriteStringRef(bw, SubWasteId4, encoding);
+      bw.WriteParameterStringRef(SubWasteId4, encoding);
       bw.Write(SubWaste4Alpha);
       bw.Write(FlightTime);
       bw.Write(WasteSpeed);

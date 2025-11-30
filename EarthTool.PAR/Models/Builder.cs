@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,35 +17,35 @@ namespace EarthTool.PAR.Models
     public Builder(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      WallId = ReadStringRef(data);
-      BridgeId = ReadStringRef(data);
-      TunnelNumber = ReadInteger(data);
-      RoadBuildTime = ReadInteger(data);
-      FlatBuildTime = ReadInteger(data);
-      TrenchBuildTime = ReadInteger(data);
-      TunnelBuildTime = ReadInteger(data);
-      BuildObjectAnimationAngle = ReadInteger(data);
-      DigNormalAnimationAngle = ReadInteger(data);
-      DigLowAnimationAngle = ReadInteger(data);
-      AnimBuildObjectStartStart = ReadInteger(data);
-      AnimBuildObjectStartEnd = ReadInteger(data);
-      AnimBuildObjectWorkStart = ReadInteger(data);
-      AnimBuildObjectWorkEnd = ReadInteger(data);
-      AnimBuildObjectEndStart = ReadInteger(data);
-      AnimBuildObjectEndEnd = ReadInteger(data);
-      AnimDigNormalStartStart = ReadInteger(data);
-      AnimDigNormalStartEnd = ReadInteger(data);
-      AnimDigNormalWorkStart = ReadInteger(data);
-      AnimDigNormalWorkEnd = ReadInteger(data);
-      AnimDigNormalEndStart = ReadInteger(data);
-      AnimDigNormalEndEnd = ReadInteger(data);
-      AnimDigLowStartStart = ReadInteger(data);
-      AnimDigLowStartEnd = ReadInteger(data);
-      AnimDigLowWorkStart = ReadInteger(data);
-      AnimDigLowWorkEnd = ReadInteger(data);
-      AnimDigLowEndStart = ReadInteger(data);
-      AnimDigLowEndEnd = ReadInteger(data);
-      DigSmokeId = ReadStringRef(data);
+      WallId = data.ReadParameterStringRef();
+      BridgeId = data.ReadParameterStringRef();
+      TunnelNumber = data.ReadInteger();
+      RoadBuildTime = data.ReadInteger();
+      FlatBuildTime = data.ReadInteger();
+      TrenchBuildTime = data.ReadInteger();
+      TunnelBuildTime = data.ReadInteger();
+      BuildObjectAnimationAngle = data.ReadInteger();
+      DigNormalAnimationAngle = data.ReadInteger();
+      DigLowAnimationAngle = data.ReadInteger();
+      AnimBuildObjectStartStart = data.ReadInteger();
+      AnimBuildObjectStartEnd = data.ReadInteger();
+      AnimBuildObjectWorkStart = data.ReadInteger();
+      AnimBuildObjectWorkEnd = data.ReadInteger();
+      AnimBuildObjectEndStart = data.ReadInteger();
+      AnimBuildObjectEndEnd = data.ReadInteger();
+      AnimDigNormalStartStart = data.ReadInteger();
+      AnimDigNormalStartEnd = data.ReadInteger();
+      AnimDigNormalWorkStart = data.ReadInteger();
+      AnimDigNormalWorkEnd = data.ReadInteger();
+      AnimDigNormalEndStart = data.ReadInteger();
+      AnimDigNormalEndEnd = data.ReadInteger();
+      AnimDigLowStartStart = data.ReadInteger();
+      AnimDigLowStartEnd = data.ReadInteger();
+      AnimDigLowWorkStart = data.ReadInteger();
+      AnimDigLowWorkEnd = data.ReadInteger();
+      AnimDigLowEndStart = data.ReadInteger();
+      AnimDigLowEndEnd = data.ReadInteger();
+      DigSmokeId = data.ReadParameterStringRef();
     }
 
     public string WallId { get; set; }
@@ -151,8 +152,8 @@ namespace EarthTool.PAR.Models
 
       using var bw = new BinaryWriter(output, encoding);
       bw.Write(base.ToByteArray(encoding));
-      WriteStringRef(bw, WallId, encoding);
-      WriteStringRef(bw, BridgeId, encoding);
+      bw.WriteParameterStringRef(WallId, encoding);
+      bw.WriteParameterStringRef(BridgeId, encoding);
       bw.Write(TunnelNumber);
       bw.Write(RoadBuildTime);
       bw.Write(FlatBuildTime);
@@ -179,7 +180,7 @@ namespace EarthTool.PAR.Models
       bw.Write(AnimDigLowWorkEnd);
       bw.Write(AnimDigLowEndStart);
       bw.Write(AnimDigLowEndEnd);
-      WriteStringRef(bw, DigSmokeId, encoding);
+      bw.WriteParameterStringRef(DigSmokeId, encoding);
 
       return output.ToArray();
     }

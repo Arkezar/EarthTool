@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -20,12 +21,12 @@ namespace EarthTool.PAR.Models
       BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      LookRoundTypeMask = (LookRoundTypeFlags)ReadInteger(data);
-      LookRoundRange = ReadInteger(data);
-      TurnSpeed = ReadInteger(data);
-      BannerAddExperienceLevel = ReadInteger(data);
-      RegenerationHPMultiple = ReadInteger(data);
-      ShieldReloadAdd = ReadInteger(data);
+      LookRoundTypeMask = (LookRoundTypeFlags)data.ReadInteger();
+      LookRoundRange = data.ReadInteger();
+      TurnSpeed = data.ReadInteger();
+      BannerAddExperienceLevel = data.ReadInteger();
+      RegenerationHPMultiple = data.ReadInteger();
+      ShieldReloadAdd = data.ReadInteger();
     }
 
     public LookRoundTypeFlags LookRoundTypeMask { get; set; }

@@ -1,4 +1,5 @@
-﻿using EarthTool.PAR.Models.Abstracts;
+﻿using EarthTool.PAR.Extensions;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -17,7 +18,7 @@ namespace EarthTool.PAR.Models
       : base(name, requiredResearch)
     {
       FieldTypes = fieldTypes;
-      Values = fieldTypes.Select(s => s ? ReadString(data) : ReadInteger(data).ToString()).ToList();
+      Values = fieldTypes.Select(s => s ? data.ReadParameterString() : data.ReadInteger().ToString()).ToList();
     }
 
     [JsonInclude] public override IEnumerable<bool> FieldTypes { get; set; }

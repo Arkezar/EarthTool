@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,8 +17,8 @@ namespace EarthTool.PAR.Models.Abstracts
     public VerticalTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      VehicleSpeed = ReadInteger(data);
-      VerticalVehicleAnimationType = (VerticalVehicleAnimationType)ReadInteger(data);
+      VehicleSpeed = data.ReadInteger();
+      VerticalVehicleAnimationType = (VerticalVehicleAnimationType)data.ReadInteger();
     }
 
     public int VehicleSpeed { get; set; }

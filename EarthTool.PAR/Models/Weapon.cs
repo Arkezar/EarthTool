@@ -1,4 +1,5 @@
 using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
@@ -17,27 +18,27 @@ namespace EarthTool.PAR.Models
     public Weapon(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      RangeOfSight = ReadInteger(data);
-      PlugType = (ConnectorType)ReadUnsignedInteger(data);
-      SlotType = (ConnectorType)ReadUnsignedInteger(data);
-      MaxAlphaPerTick = ReadInteger(data);
-      MaxBetaPerTick = ReadInteger(data);
-      AlphaMargin = ReadInteger(data);
-      BetaMargin = ReadInteger(data);
-      BarrelBetaType = (BarrelBetaType)ReadInteger(data);
-      BarrelBetaAngle = ReadInteger(data);
-      BarrelCount = ReadInteger(data);
-      AmmoId = ReadStringRef(data);
-      AmmoType = ReadInteger(data);
-      TargetType = (TargetType)ReadInteger(data);
-      RangeOfFire = ReadInteger(data);
-      PlusDamage = ReadInteger(data);
-      FireType = (WeaponFireType)ReadInteger(data);
-      ShootDelay = ReadInteger(data);
-      NeedExternal = ReadInteger(data);
-      ReloadDelay = ReadInteger(data);
-      MaxAmmo = ReadInteger(data);
-      BarrelExplosionId = ReadStringRef(data);
+      RangeOfSight = data.ReadInteger();
+      PlugType = (ConnectorType)data.ReadUnsignedInteger();
+      SlotType = (ConnectorType)data.ReadUnsignedInteger();
+      MaxAlphaPerTick = data.ReadInteger();
+      MaxBetaPerTick = data.ReadInteger();
+      AlphaMargin = data.ReadInteger();
+      BetaMargin = data.ReadInteger();
+      BarrelBetaType = (BarrelBetaType)data.ReadInteger();
+      BarrelBetaAngle = data.ReadInteger();
+      BarrelCount = data.ReadInteger();
+      AmmoId = data.ReadParameterStringRef();
+      AmmoType = data.ReadInteger();
+      TargetType = (TargetType)data.ReadInteger();
+      RangeOfFire = data.ReadInteger();
+      PlusDamage = data.ReadInteger();
+      FireType = (WeaponFireType)data.ReadInteger();
+      ShootDelay = data.ReadInteger();
+      NeedExternal = data.ReadInteger();
+      ReloadDelay = data.ReadInteger();
+      MaxAmmo = data.ReadInteger();
+      BarrelExplosionId = data.ReadParameterStringRef();
     }
 
     public int RangeOfSight { get; set; }
@@ -130,7 +131,7 @@ namespace EarthTool.PAR.Models
       bw.Write((int)BarrelBetaType);
       bw.Write(BarrelBetaAngle);
       bw.Write(BarrelCount);
-      WriteStringRef(bw, AmmoId, encoding);
+      bw.WriteParameterStringRef(AmmoId, encoding);
       bw.Write(AmmoType);
       bw.Write((int)TargetType);
       bw.Write(RangeOfFire);
@@ -140,7 +141,7 @@ namespace EarthTool.PAR.Models
       bw.Write(NeedExternal);
       bw.Write(ReloadDelay);
       bw.Write(MaxAmmo);
-      WriteStringRef(bw, BarrelExplosionId, encoding);
+      bw.WriteParameterStringRef(BarrelExplosionId, encoding);
 
       return output.ToArray();
     }

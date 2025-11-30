@@ -1,5 +1,6 @@
 using EarthTool.Common.Interfaces;
 using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -37,7 +38,7 @@ namespace EarthTool.PAR.Models.Abstracts
     {
       using var output = new MemoryStream();
       using var bw = new BinaryWriter(output, encoding);
-      WriteString(bw, Name, encoding);
+      bw.WriteParameterString(Name, encoding);
       bw.Write(RequiredResearch.Count());
       foreach (int research in RequiredResearch)
       {

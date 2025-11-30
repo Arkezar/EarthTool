@@ -1,4 +1,5 @@
 using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,8 +17,8 @@ namespace EarthTool.PAR.Models.Abstracts
     public PassiveEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      PassiveMask = (PassiveMask)ReadInteger(data);
-      WallCopulaId = ReadStringRef(data);
+      PassiveMask = (PassiveMask)data.ReadInteger();
+      WallCopulaId = data.ReadParameterStringRef();
     }
 
     public PassiveMask PassiveMask { get; set; }
@@ -41,7 +42,7 @@ namespace EarthTool.PAR.Models.Abstracts
       using var bw = new BinaryWriter(output, encoding);
       bw.Write(base.ToByteArray(encoding));
       bw.Write((int)PassiveMask);
-      WriteStringRef(bw, WallCopulaId, encoding);
+      bw.WriteParameterStringRef(WallCopulaId, encoding);
       return output.ToArray();
     }
   }

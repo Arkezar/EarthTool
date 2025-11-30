@@ -1,4 +1,5 @@
 using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,13 +17,13 @@ namespace EarthTool.PAR.Models.Abstracts
     public DestructibleEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      HP = ReadInteger(data);
-      HpRegeneration = ReadInteger(data);
-      Armor = ReadInteger(data);
-      CalorificCapacity = ReadInteger(data);
-      DisableResist = ReadInteger(data);
-      StoreableFlags = (StoreableFlags)ReadInteger(data);
-      StandType = (StandType)ReadInteger(data);
+      HP = data.ReadInteger();
+      HpRegeneration = data.ReadInteger();
+      Armor = data.ReadInteger();
+      CalorificCapacity = data.ReadInteger();
+      DisableResist = data.ReadInteger();
+      StoreableFlags = (StoreableFlags)data.ReadInteger();
+      StandType = (StandType)data.ReadInteger();
     }
 
     public int HP { get; set; }

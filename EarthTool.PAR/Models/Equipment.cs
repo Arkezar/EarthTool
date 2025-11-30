@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
@@ -17,11 +18,11 @@ namespace EarthTool.PAR.Models
     public Equipment(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      RangeOfSight = ReadInteger(data);
-      PlugType = (ConnectorType)ReadUnsignedInteger(data);
-      SlotType = (ConnectorType)ReadUnsignedInteger(data);
-      MaxAlphaPerTick = ReadInteger(data);
-      MaxBetaPerTick = ReadInteger(data);
+      RangeOfSight = data.ReadInteger();
+      PlugType = (ConnectorType)data.ReadUnsignedInteger();
+      SlotType = (ConnectorType)data.ReadUnsignedInteger();
+      MaxAlphaPerTick = data.ReadInteger();
+      MaxBetaPerTick = data.ReadInteger();
     }
 
     public int RangeOfSight { get; set; }

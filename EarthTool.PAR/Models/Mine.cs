@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
@@ -17,9 +18,9 @@ namespace EarthTool.PAR.Models
     public Mine(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      MineSize = ReadInteger(data);
-      MineTypeOfDamage = ReadInteger(data);
-      MineDamage = ReadInteger(data);
+      MineSize = data.ReadInteger();
+      MineTypeOfDamage = data.ReadInteger();
+      MineDamage = data.ReadInteger();
     }
 
     public int MineSize { get; set; }

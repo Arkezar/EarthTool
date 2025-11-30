@@ -1,4 +1,5 @@
 using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
@@ -17,8 +18,8 @@ namespace EarthTool.PAR.Models
     public Explosion(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      ExplosionTicks = ReadInteger(data);
-      ExplosionFlags = (ExplosionFlags)ReadInteger(data);
+      ExplosionTicks = data.ReadInteger();
+      ExplosionFlags = (ExplosionFlags)data.ReadInteger();
     }
 
     public int ExplosionTicks { get; set; }

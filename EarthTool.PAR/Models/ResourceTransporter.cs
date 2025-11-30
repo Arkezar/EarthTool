@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
@@ -17,10 +18,10 @@ namespace EarthTool.PAR.Models
     public ResourceTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      ResourceVehicleType = (ResourceVehicleType)ReadInteger(data);
-      AnimatedTransporterStop = ReadInteger(data);
-      ShowVideoPerTransportersCount = ReadInteger(data);
-      TotalOrbitalMoney = ReadInteger(data);
+      ResourceVehicleType = (ResourceVehicleType)data.ReadInteger();
+      AnimatedTransporterStop = data.ReadInteger();
+      ShowVideoPerTransportersCount = data.ReadInteger();
+      TotalOrbitalMoney = data.ReadInteger();
     }
 
     public ResourceVehicleType ResourceVehicleType { get; set; }

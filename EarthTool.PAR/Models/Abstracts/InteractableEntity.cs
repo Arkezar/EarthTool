@@ -1,4 +1,5 @@
 using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,15 +17,15 @@ namespace EarthTool.PAR.Models.Abstracts
     protected InteractableEntity(string name, IEnumerable<int> requiredResearch, EntityClassType type,
       BinaryReader data) : base(name, requiredResearch, type)
     {
-      Mesh = ReadString(data);
-      ShadowType = (ShadowType)ReadInteger(data);
-      ViewParamsIndex = ReadInteger(data);
-      Cost = ReadInteger(data);
-      TimeOfBuild = ReadInteger(data);
-      SoundPackId = ReadStringRef(data);
-      SmokeId = ReadStringRef(data);
-      KillExplosionId = ReadStringRef(data);
-      DestructedId = ReadStringRef(data);
+      Mesh = data.ReadParameterString();
+      ShadowType = (ShadowType)data.ReadInteger();
+      ViewParamsIndex = data.ReadInteger();
+      Cost = data.ReadInteger();
+      TimeOfBuild = data.ReadInteger();
+      SoundPackId = data.ReadParameterStringRef();
+      SmokeId = data.ReadParameterStringRef();
+      KillExplosionId = data.ReadParameterStringRef();
+      DestructedId = data.ReadParameterStringRef();
     }
 
     public string Mesh { get; set; }
@@ -71,15 +72,15 @@ namespace EarthTool.PAR.Models.Abstracts
       using var output = new MemoryStream();
       using var bw = new BinaryWriter(output, encoding);
       bw.Write(base.ToByteArray(encoding));
-      WriteString(bw, Mesh, encoding);
+      bw.WriteParameterString(Mesh, encoding);
       bw.Write((int)ShadowType);
       bw.Write(ViewParamsIndex);
       bw.Write(Cost);
       bw.Write(TimeOfBuild);
-      WriteStringRef(bw, SoundPackId, encoding);
-      WriteStringRef(bw, SmokeId, encoding);
-      WriteStringRef(bw, KillExplosionId, encoding);
-      WriteStringRef(bw, DestructedId, encoding);
+      bw.WriteParameterStringRef(SoundPackId, encoding);
+      bw.WriteParameterStringRef(SmokeId, encoding);
+      bw.WriteParameterStringRef(KillExplosionId, encoding);
+      bw.WriteParameterStringRef(DestructedId, encoding);
       return output.ToArray();
     }
   }

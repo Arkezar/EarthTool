@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
@@ -17,19 +18,19 @@ namespace EarthTool.PAR.Models
     public Vehicle(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      SoilSpeed = ReadInteger(data);
-      RoadSpeed = ReadInteger(data);
-      SandSpeed = ReadInteger(data);
-      BankSpeed = ReadInteger(data);
-      WaterSpeed = ReadInteger(data);
-      DeepWaterSpeed = ReadInteger(data);
-      AirSpeed = ReadInteger(data);
-      ObjectType = (VehicleObjectType)ReadInteger(data);
-      EngineSmokeId = ReadStringRef(data);
-      DustId = ReadStringRef(data);
-      BillowId = ReadStringRef(data);
-      StandBillowId = ReadStringRef(data);
-      TrackId = ReadStringRef(data);
+      SoilSpeed = data.ReadInteger();
+      RoadSpeed = data.ReadInteger();
+      SandSpeed = data.ReadInteger();
+      BankSpeed = data.ReadInteger();
+      WaterSpeed = data.ReadInteger();
+      DeepWaterSpeed = data.ReadInteger();
+      AirSpeed = data.ReadInteger();
+      ObjectType = (VehicleObjectType)data.ReadInteger();
+      EngineSmokeId = data.ReadParameterStringRef();
+      DustId = data.ReadParameterStringRef();
+      BillowId = data.ReadParameterStringRef();
+      StandBillowId = data.ReadParameterStringRef();
+      TrackId = data.ReadParameterStringRef();
     }
 
     public int SoilSpeed { get; set; }
@@ -99,11 +100,11 @@ namespace EarthTool.PAR.Models
       bw.Write(DeepWaterSpeed);
       bw.Write(AirSpeed);
       bw.Write((int)ObjectType);
-      WriteStringRef(bw, EngineSmokeId, encoding);
-      WriteStringRef(bw, DustId, encoding);
-      WriteStringRef(bw, BillowId, encoding);
-      WriteStringRef(bw, StandBillowId, encoding);
-      WriteStringRef(bw, TrackId, encoding);
+      bw.WriteParameterStringRef(EngineSmokeId, encoding);
+      bw.WriteParameterStringRef(DustId, encoding);
+      bw.WriteParameterStringRef(BillowId, encoding);
+      bw.WriteParameterStringRef(StandBillowId, encoding);
+      bw.WriteParameterStringRef(TrackId, encoding);
 
       return output.ToArray();
     }

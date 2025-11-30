@@ -1,5 +1,6 @@
 ﻿using EarthTool.Common.Interfaces;
 using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
@@ -16,19 +17,19 @@ namespace EarthTool.PAR.Models
 
     public Research(BinaryReader data)
     {
-      Id = ReadInteger(data);
-      Faction = (Faction)ReadInteger(data);
-      CampaignCost = ReadInteger(data);
-      SkirmishCost = ReadInteger(data);
-      CampaignTime = ReadInteger(data);
-      SkirmishTime = ReadInteger(data);
-      Name = ReadString(data);
-      Video = ReadString(data);
-      Type = (ResearchType)ReadInteger(data);
-      Mesh = ReadString(data);
-      MeshParamsIndex = ReadInteger(data);
-      int requiredResearchCount = ReadInteger(data);
-      RequiredResearch = Enumerable.Range(0, requiredResearchCount).Select(i => ReadInteger(data)).ToList();
+      Id = data.ReadInteger();
+      Faction = (Faction)data.ReadInteger();
+      CampaignCost = data.ReadInteger();
+      SkirmishCost = data.ReadInteger();
+      CampaignTime = data.ReadInteger();
+      SkirmishTime = data.ReadInteger();
+      Name = data.ReadParameterString();
+      Video = data.ReadParameterString();
+      Type = (ResearchType)data.ReadInteger();
+      Mesh = data.ReadParameterString();
+      MeshParamsIndex = data.ReadInteger();
+      var requiredResearchCount = data.ReadInteger();
+      RequiredResearch = Enumerable.Range(0, requiredResearchCount).Select(i => data.ReadInteger()).ToList();
     }
 
     public int Id { get; set; }
@@ -64,10 +65,10 @@ namespace EarthTool.PAR.Models
       bw.Write(SkirmishCost);
       bw.Write(CampaignTime);
       bw.Write(SkirmishTime);
-      WriteString(bw, Name, encoding);
-      WriteString(bw, Video, encoding);
+      bw.WriteParameterString(Name, encoding);
+      bw.WriteParameterString(Video, encoding);
       bw.Write((int)Type);
-      WriteString(bw, Mesh, encoding);
+      bw.WriteParameterString(Mesh, encoding);
       bw.Write(MeshParamsIndex);
       bw.Write(RequiredResearch.Count());
       foreach (int research in RequiredResearch)

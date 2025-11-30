@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
@@ -17,7 +18,7 @@ namespace EarthTool.PAR.Models
     public BuildingTransporter(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      BuilderLineId = ReadStringRef(data);
+      BuilderLineId = data.ReadParameterStringRef();
     }
 
     public string BuilderLineId { get; set; }
@@ -38,7 +39,7 @@ namespace EarthTool.PAR.Models
 
       using var bw = new BinaryWriter(output, encoding);
       bw.Write(base.ToByteArray(encoding));
-      WriteStringRef(bw, BuilderLineId, encoding);
+      bw.WriteParameterStringRef(BuilderLineId, encoding);
 
       return output.ToArray();
     }

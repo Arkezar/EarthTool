@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,16 +17,16 @@ namespace EarthTool.PAR.Models
     public Harvester(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data) : base(
       name, requiredResearch, type, data)
     {
-      ContainerCount = ReadInteger(data);
-      TicksPerContainer = ReadInteger(data);
-      PutResourceAngle = ReadInteger(data);
-      AnimHarvestStartStart = ReadInteger(data);
-      AnimHarvestStartEnd = ReadInteger(data);
-      AnimHarvestWorkStart = ReadInteger(data);
-      AnimHarvestWorkEnd = ReadInteger(data);
-      AnimHarvestEndStart = ReadInteger(data);
-      AnimHarvestEndEnd = ReadInteger(data);
-      HarvestSomkeId = ReadStringRef(data);
+      ContainerCount = data.ReadInteger();
+      TicksPerContainer = data.ReadInteger();
+      PutResourceAngle = data.ReadInteger();
+      AnimHarvestStartStart = data.ReadInteger();
+      AnimHarvestStartEnd = data.ReadInteger();
+      AnimHarvestWorkStart = data.ReadInteger();
+      AnimHarvestWorkEnd = data.ReadInteger();
+      AnimHarvestEndStart = data.ReadInteger();
+      AnimHarvestEndEnd = data.ReadInteger();
+      HarvestSomkeId = data.ReadParameterStringRef();
     }
 
     public int ContainerCount { get; set; }
@@ -82,7 +83,7 @@ namespace EarthTool.PAR.Models
       bw.Write(AnimHarvestWorkEnd);
       bw.Write(AnimHarvestEndStart);
       bw.Write(AnimHarvestEndEnd);
-      WriteStringRef(bw, HarvestSomkeId, encoding);
+      bw.WriteParameterStringRef(HarvestSomkeId, encoding);
 
       return output.ToArray();
     }

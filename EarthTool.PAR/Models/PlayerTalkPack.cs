@@ -1,4 +1,5 @@
-﻿using EarthTool.PAR.Models.Abstracts;
+﻿using EarthTool.PAR.Extensions;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -15,30 +16,30 @@ namespace EarthTool.PAR.Models
     public PlayerTalkPack(string name, IEnumerable<int> requiredResearch, BinaryReader data)
       : base(name, requiredResearch)
     {
-      BaseUnderAttack = ReadString(data);
-      BuildingUnderAttack = ReadString(data);
-      SpacePortUnderAttack = ReadString(data);
-      EnemyLandInBase = ReadString(data);
-      LowMaterials = ReadString(data);
-      LowMaterialsInBase = ReadString(data);
-      LowPower = ReadString(data);
-      LowPowerInBase = ReadString(data);
-      ResearchComplete = ReadString(data);
-      ProductionStarted = ReadString(data);
-      ProductionCompleted = ReadString(data);
-      ProductionCanceled = ReadString(data);
-      PlatoonLost = ReadString(data);
-      PlatoonCreated = ReadString(data);
-      PlatoonDisbanded = ReadString(data);
-      UnitLost = ReadString(data);
-      TransporterArrived = ReadString(data);
-      ArtefactLocated = ReadString(data);
-      ArtefactRecovered = ReadString(data);
-      NewAreaLocationFound = ReadString(data);
-      EnemyMainBaseLocated = ReadString(data);
-      NewSourceFieldLocated = ReadString(data);
-      SourceFieldExploited = ReadString(data);
-      BuildingLost = ReadString(data);
+      BaseUnderAttack = data.ReadParameterString();
+      BuildingUnderAttack = data.ReadParameterString();
+      SpacePortUnderAttack = data.ReadParameterString();
+      EnemyLandInBase = data.ReadParameterString();
+      LowMaterials = data.ReadParameterString();
+      LowMaterialsInBase = data.ReadParameterString();
+      LowPower = data.ReadParameterString();
+      LowPowerInBase = data.ReadParameterString();
+      ResearchComplete = data.ReadParameterString();
+      ProductionStarted = data.ReadParameterString();
+      ProductionCompleted = data.ReadParameterString();
+      ProductionCanceled = data.ReadParameterString();
+      PlatoonLost = data.ReadParameterString();
+      PlatoonCreated = data.ReadParameterString();
+      PlatoonDisbanded = data.ReadParameterString();
+      UnitLost = data.ReadParameterString();
+      TransporterArrived = data.ReadParameterString();
+      ArtefactLocated = data.ReadParameterString();
+      ArtefactRecovered = data.ReadParameterString();
+      NewAreaLocationFound = data.ReadParameterString();
+      EnemyMainBaseLocated = data.ReadParameterString();
+      NewSourceFieldLocated = data.ReadParameterString();
+      SourceFieldExploited = data.ReadParameterString();
+      BuildingLost = data.ReadParameterString();
     }
 
     public string BaseUnderAttack { get; set; }
@@ -127,30 +128,30 @@ namespace EarthTool.PAR.Models
 
       using var bw = new BinaryWriter(output, encoding);
       bw.Write(base.ToByteArray(encoding));
-      WriteString(bw, BaseUnderAttack, encoding);
-      WriteString(bw, BuildingUnderAttack, encoding);
-      WriteString(bw, SpacePortUnderAttack, encoding);
-      WriteString(bw, EnemyLandInBase, encoding);
-      WriteString(bw, LowMaterials, encoding);
-      WriteString(bw, LowMaterialsInBase, encoding);
-      WriteString(bw, LowPower, encoding);
-      WriteString(bw, LowPowerInBase, encoding);
-      WriteString(bw, ResearchComplete, encoding);
-      WriteString(bw, ProductionStarted, encoding);
-      WriteString(bw, ProductionCompleted, encoding);
-      WriteString(bw, ProductionCanceled, encoding);
-      WriteString(bw, PlatoonLost, encoding);
-      WriteString(bw, PlatoonCreated, encoding);
-      WriteString(bw, PlatoonDisbanded, encoding);
-      WriteString(bw, UnitLost, encoding);
-      WriteString(bw, TransporterArrived, encoding);
-      WriteString(bw, ArtefactLocated, encoding);
-      WriteString(bw, ArtefactRecovered, encoding);
-      WriteString(bw, NewAreaLocationFound, encoding);
-      WriteString(bw, EnemyMainBaseLocated, encoding);
-      WriteString(bw, NewSourceFieldLocated, encoding);
-      WriteString(bw, SourceFieldExploited, encoding);
-      WriteString(bw, BuildingLost, encoding);
+      bw.WriteParameterString(BaseUnderAttack, encoding);
+      bw.WriteParameterString(BuildingUnderAttack, encoding);
+      bw.WriteParameterString(SpacePortUnderAttack, encoding);
+      bw.WriteParameterString(EnemyLandInBase, encoding);
+      bw.WriteParameterString(LowMaterials, encoding);
+      bw.WriteParameterString(LowMaterialsInBase, encoding);
+      bw.WriteParameterString(LowPower, encoding);
+      bw.WriteParameterString(LowPowerInBase, encoding);
+      bw.WriteParameterString(ResearchComplete, encoding);
+      bw.WriteParameterString(ProductionStarted, encoding);
+      bw.WriteParameterString(ProductionCompleted, encoding);
+      bw.WriteParameterString(ProductionCanceled, encoding);
+      bw.WriteParameterString(PlatoonLost, encoding);
+      bw.WriteParameterString(PlatoonCreated, encoding);
+      bw.WriteParameterString(PlatoonDisbanded, encoding);
+      bw.WriteParameterString(UnitLost, encoding);
+      bw.WriteParameterString(TransporterArrived, encoding);
+      bw.WriteParameterString(ArtefactLocated, encoding);
+      bw.WriteParameterString(ArtefactRecovered, encoding);
+      bw.WriteParameterString(NewAreaLocationFound, encoding);
+      bw.WriteParameterString(EnemyMainBaseLocated, encoding);
+      bw.WriteParameterString(NewSourceFieldLocated, encoding);
+      bw.WriteParameterString(SourceFieldExploited, encoding);
+      bw.WriteParameterString(BuildingLost, encoding);
 
       return output.ToArray();
     }

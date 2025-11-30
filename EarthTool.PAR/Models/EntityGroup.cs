@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace EarthTool.PAR.Models
 {
@@ -24,6 +25,8 @@ namespace EarthTool.PAR.Models
       int groupSize = reader.ReadInt32();
       Entities = Enumerable.Range(0, groupSize).Select(i => entityFactory.CreateEntity(reader, GroupType)).ToList();
     }
+    
+    public string Name => Entities.Select(e => ExtractCommonName(e.Name)).Distinct().Aggregate((a, b) => $"{a}, {b}");
 
     public Faction Faction { get; set; }
 
@@ -42,6 +45,13 @@ namespace EarthTool.PAR.Models
       bw.Write(Entities.SelectMany(e => e.ToByteArray(encoding)).ToArray());
 
       return output.ToArray();
+    }
+
+    private static string ExtractCommonName(string name)
+    {
+      var regex = new Regex(@"\D+", RegexOptions.Compiled);
+      var match = regex.Match(name);
+      return match.Success ? match.Value : name;
     }
   }
 }

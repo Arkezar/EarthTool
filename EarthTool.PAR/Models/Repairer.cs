@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,35 +17,35 @@ namespace EarthTool.PAR.Models
     public Repairer(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      RepairerCapabilities = (RepairerCapabilityFlags)ReadInteger(data);
-      RepairHPPerTick = ReadInteger(data);
-      RepairElectronicsPerTick = ReadInteger(data);
-      TicksPerRepair = ReadInteger(data);
-      ConvertTankTime = ReadInteger(data);
-      ConvertBuildingTime = ReadInteger(data);
-      ConvertHealthyTankTime = ReadInteger(data);
-      ConvertHealthyBuildingTime = ReadInteger(data);
-      RepaintTankTime = ReadInteger(data);
-      RepaintBuildingTime = ReadInteger(data);
-      UpgradeTankTime = ReadInteger(data);
-      AnimRepairStartStart = ReadInteger(data);
-      AnimRepairStartEnd = ReadInteger(data);
-      AnimRepairWorkStart = ReadInteger(data);
-      AnimRepairWorkEnd = ReadInteger(data);
-      AnimRepairEndStart = ReadInteger(data);
-      AnimRepairEndEnd = ReadInteger(data);
-      AnimConvertStartStart = ReadInteger(data);
-      AnimConvertStartEnd = ReadInteger(data);
-      AnimConvertWorkStart = ReadInteger(data);
-      AnimConvertWorkEnd = ReadInteger(data);
-      AnimConvertEndStart = ReadInteger(data);
-      AnimConvertEndEnd = ReadInteger(data);
-      AnimRepaintStartStart = ReadInteger(data);
-      AnimRepaintStartEnd = ReadInteger(data);
-      AnimRepaintWorkStart = ReadInteger(data);
-      AnimRepaintWorkEnd = ReadInteger(data);
-      AnimRepaintEndStart = ReadInteger(data);
-      AnimRepaintEndEnd = ReadInteger(data);
+      RepairerCapabilities = (RepairerCapabilityFlags)data.ReadInteger();
+      RepairHPPerTick = data.ReadInteger();
+      RepairElectronicsPerTick = data.ReadInteger();
+      TicksPerRepair = data.ReadInteger();
+      ConvertTankTime = data.ReadInteger();
+      ConvertBuildingTime = data.ReadInteger();
+      ConvertHealthyTankTime = data.ReadInteger();
+      ConvertHealthyBuildingTime = data.ReadInteger();
+      RepaintTankTime = data.ReadInteger();
+      RepaintBuildingTime = data.ReadInteger();
+      UpgradeTankTime = data.ReadInteger();
+      AnimRepairStartStart = data.ReadInteger();
+      AnimRepairStartEnd = data.ReadInteger();
+      AnimRepairWorkStart = data.ReadInteger();
+      AnimRepairWorkEnd = data.ReadInteger();
+      AnimRepairEndStart = data.ReadInteger();
+      AnimRepairEndEnd = data.ReadInteger();
+      AnimConvertStartStart = data.ReadInteger();
+      AnimConvertStartEnd = data.ReadInteger();
+      AnimConvertWorkStart = data.ReadInteger();
+      AnimConvertWorkEnd = data.ReadInteger();
+      AnimConvertEndStart = data.ReadInteger();
+      AnimConvertEndEnd = data.ReadInteger();
+      AnimRepaintStartStart = data.ReadInteger();
+      AnimRepaintStartEnd = data.ReadInteger();
+      AnimRepaintWorkStart = data.ReadInteger();
+      AnimRepaintWorkEnd = data.ReadInteger();
+      AnimRepaintEndStart = data.ReadInteger();
+      AnimRepaintEndEnd = data.ReadInteger();
     }
 
     public RepairerCapabilityFlags RepairerCapabilities { get; set; }

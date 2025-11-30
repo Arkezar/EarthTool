@@ -1,4 +1,5 @@
-﻿using EarthTool.PAR.Models.Abstracts;
+﻿using EarthTool.PAR.Extensions;
+using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -15,14 +16,14 @@ namespace EarthTool.PAR.Models
     public SoundPack(string name, IEnumerable<int> requiredResearch, BinaryReader data)
       : base(name, requiredResearch)
     {
-      NormalWavePack1 = ReadString(data);
-      NormalWavePack2 = ReadString(data);
-      NormalWavePack3 = ReadString(data);
-      NormalWavePack4 = ReadString(data);
-      LoopedWavePack1 = ReadString(data);
-      LoopedWavePack2 = ReadString(data);
-      LoopedWavePack3 = ReadString(data);
-      LoopedWavePack4 = ReadString(data);
+      NormalWavePack1 = data.ReadParameterString();
+      NormalWavePack2 = data.ReadParameterString();
+      NormalWavePack3 = data.ReadParameterString();
+      NormalWavePack4 = data.ReadParameterString();
+      LoopedWavePack1 = data.ReadParameterString();
+      LoopedWavePack2 = data.ReadParameterString();
+      LoopedWavePack3 = data.ReadParameterString();
+      LoopedWavePack4 = data.ReadParameterString();
     }
 
     public string NormalWavePack1 { get; set; }
@@ -63,14 +64,14 @@ namespace EarthTool.PAR.Models
 
       using var bw = new BinaryWriter(output, encoding);
       bw.Write(base.ToByteArray(encoding));
-      WriteString(bw, NormalWavePack1, encoding);
-      WriteString(bw, NormalWavePack2, encoding);
-      WriteString(bw, NormalWavePack3, encoding);
-      WriteString(bw, NormalWavePack4, encoding);
-      WriteString(bw, LoopedWavePack1, encoding);
-      WriteString(bw, LoopedWavePack2, encoding);
-      WriteString(bw, LoopedWavePack3, encoding);
-      WriteString(bw, LoopedWavePack4, encoding);
+      bw.WriteParameterString(NormalWavePack1, encoding);
+      bw.WriteParameterString(NormalWavePack2, encoding);
+      bw.WriteParameterString(NormalWavePack3, encoding);
+      bw.WriteParameterString(NormalWavePack4, encoding);
+      bw.WriteParameterString(LoopedWavePack1, encoding);
+      bw.WriteParameterString(LoopedWavePack2, encoding);
+      bw.WriteParameterString(LoopedWavePack3, encoding);
+      bw.WriteParameterString(LoopedWavePack4, encoding);
 
       return output.ToArray();
     }

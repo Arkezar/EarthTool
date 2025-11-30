@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
@@ -17,19 +18,19 @@ namespace EarthTool.PAR.Models
     public Missile(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      Type = (MissileType)ReadInteger(data);
-      RocketType = (RocketType)ReadInteger(data);
-      MissileSize = ReadInteger(data);
-      RocketDummyId = ReadStringRef(data);
-      IsAntiRocketTarget = ReadInteger(data);
-      Speed = ReadInteger(data);
-      TimeOfShoot = ReadInteger(data);
-      PlusRangeOfFire = ReadInteger(data);
-      HitType = (HitType)ReadInteger(data);
-      HitRange = ReadInteger(data);
-      TypeOfDamage = (DamageFlags)ReadInteger(data);
-      Damage = ReadInteger(data);
-      ExplosionId = ReadStringRef(data);
+      Type = (MissileType)data.ReadInteger();
+      RocketType = (RocketType)data.ReadInteger();
+      MissileSize = data.ReadInteger();
+      RocketDummyId = data.ReadParameterStringRef();
+      IsAntiRocketTarget = data.ReadInteger();
+      Speed = data.ReadInteger();
+      TimeOfShoot = data.ReadInteger();
+      PlusRangeOfFire = data.ReadInteger();
+      HitType = (HitType)data.ReadInteger();
+      HitRange = data.ReadInteger();
+      TypeOfDamage = (DamageFlags)data.ReadInteger();
+      Damage = data.ReadInteger();
+      ExplosionId = data.ReadParameterStringRef();
     }
 
     public MissileType Type { get; set; }
@@ -91,7 +92,7 @@ namespace EarthTool.PAR.Models
       bw.Write((int)Type);
       bw.Write((int)RocketType);
       bw.Write(MissileSize);
-      WriteStringRef(bw, RocketDummyId, encoding);
+      bw.WriteParameterStringRef(RocketDummyId, encoding);
       bw.Write(IsAntiRocketTarget);
       bw.Write(Speed);
       bw.Write(TimeOfShoot);
@@ -100,7 +101,7 @@ namespace EarthTool.PAR.Models
       bw.Write(HitRange);
       bw.Write((int)TypeOfDamage);
       bw.Write(Damage);
-      WriteStringRef(bw, ExplosionId, encoding);
+      bw.WriteParameterStringRef(ExplosionId, encoding);
 
       return output.ToArray();
     }

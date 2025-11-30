@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,13 +17,13 @@ namespace EarthTool.PAR.Models
     public TransporterHook(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      AnimTransporterDownStart = ReadInteger(data);
-      AnimTransporterDownEnd = ReadInteger(data);
-      AnimTransporterUpStart = ReadInteger(data);
-      AnimTransporterUpEnd = ReadInteger(data);
-      AngleToGetPut = ReadInteger(data);
-      AngleOfGetUnitByLandTransporter = ReadInteger(data);
-      TakeHeight = ReadInteger(data);
+      AnimTransporterDownStart = data.ReadInteger();
+      AnimTransporterDownEnd = data.ReadInteger();
+      AnimTransporterUpStart = data.ReadInteger();
+      AnimTransporterUpEnd = data.ReadInteger();
+      AngleToGetPut = data.ReadInteger();
+      AngleOfGetUnitByLandTransporter = data.ReadInteger();
+      TakeHeight = data.ReadInteger();
     }
 
     public int AnimTransporterDownStart { get; set; }

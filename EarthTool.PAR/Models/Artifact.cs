@@ -1,4 +1,5 @@
 ﻿using EarthTool.PAR.Enums;
+using EarthTool.PAR.Extensions;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;
 using System.IO;
@@ -17,9 +18,9 @@ namespace EarthTool.PAR.Models
     public Artifact(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      ArtefactMask = (ArtifactType)ReadInteger(data);
-      ArtefactParam = ReadInteger(data);
-      RespawnTime = ReadInteger(data);
+      ArtefactMask = (ArtifactType)data.ReadInteger();
+      ArtefactParam = data.ReadInteger();
+      RespawnTime = data.ReadInteger();
     }
 
     public ArtifactType ArtefactMask { get; set; }
