@@ -572,7 +572,8 @@ jobs:
             declare -A contributors
             while IFS='|||' read -r name email; do
               # Use email as key to avoid duplicates from same person with different names
-              if [ ! -z "$email" ] && [ -z "${contributors[$email]}" ]; then
+              # Skip dependabot
+              if [ ! -z "$email" ] && [ -z "${contributors[$email]}" ] && [[ ! "$name" =~ [Dd]ependabot ]] && [[ ! "$email" =~ dependabot ]]; then
                 contributors[$email]="$name"
               fi
             done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%an|||%ae")
@@ -610,8 +611,8 @@ jobs:
             INSERTIONS=$(echo "$DIFF_STATS" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo "0")
             DELETIONS=$(echo "$DIFF_STATS" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo "0")
             
-            # Count contributors (excluding merge commits)
-            CONTRIBUTOR_COUNT=$(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%an" | sort -u | wc -l)
+            # Count contributors (excluding merge commits and dependabot)
+            CONTRIBUTOR_COUNT=$(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%an" | grep -viE "dependabot" | sort -u | wc -l)
             
             echo "- **Commits**: $COMMIT_COUNT" >> CHANGELOG.md
             echo "- **Contributors**: $CONTRIBUTOR_COUNT" >> CHANGELOG.md
