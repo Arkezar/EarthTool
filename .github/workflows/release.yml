@@ -449,13 +449,14 @@ jobs:
               awk '/\|\|\|/ {commit=$0; getline; print commit "|||" $0}' | \
               sort -t'|' -k5 -rn | head -3 | \
               while IFS='|||' read -r short_hash full_hash subject author stats; do
-                if [ ! -z "$short_hash" ] && [ ! -z "$subject" ] && [ ! -z "$author" ]; then
+                # Skip empty lines
+                if [ -n "$subject" ]; then
                   # Extract scope BEFORE removing prefix
                   scope=$(echo "$subject" | sed -nE 's/^[a-z]+\(([^)]+)\):.*/\1/p')
                   # Remove conventional commit prefix
                   clean_subject=$(echo "$subject" | sed -E 's/^(feat|fix|docs|style|refactor|perf|test|chore|build|ci)(\([^)]+\))?:\s*//')
                   # Add scope tag if present
-                  if [ ! -z "$scope" ]; then
+                  if [ -n "$scope" ]; then
                     clean_subject="**[$scope]** $clean_subject"
                   fi
                   echo "- $clean_subject [\`$short_hash\`](https://github.com/${{ github.repository }}/commit/$full_hash)" >> CHANGELOG.md
@@ -473,10 +474,10 @@ jobs:
               
               has_breaking=false
               while IFS='|||' read -r subject body short_hash full_hash author; do
-                if [[ "$body" == *"BREAKING CHANGE"* ]] && [ ! -z "$short_hash" ] && [ ! -z "$author" ]; then
+                if [[ "$body" == *"BREAKING CHANGE"* ]] && [ -n "$short_hash" ]; then
                   # Extract the breaking change description
                   breaking_desc=$(echo "$body" | sed -n 's/.*BREAKING CHANGE[:]* \(.*\)/\1/p' | head -1)
-                  if [ ! -z "$breaking_desc" ]; then
+                  if [ -n "$breaking_desc" ]; then
                     echo "- **$breaking_desc** [\`$short_hash\`](https://github.com/${{ github.repository }}/commit/$full_hash) - @$author" >> CHANGELOG.md
                     has_breaking=true
                   fi
@@ -505,7 +506,8 @@ jobs:
               # Use grep with multiple patterns
               local count=0
               while IFS='|||' read -r subject short_hash full_hash author date; do
-                if [ ! -z "$subject" ] && [ ! -z "$short_hash" ] && [ ! -z "$author" ]; then
+                # Skip empty lines
+                if [ -n "$subject" ]; then
                   # Extract scope BEFORE removing prefix
                   local scope=$(echo "$subject" | sed -nE 's/^[a-z]+\(([^)]+)\):.*/\1/p')
                   
@@ -513,7 +515,7 @@ jobs:
                   local clean_subject=$(echo "$subject" | sed -E 's/^(feat|fix|docs|style|refactor|perf|test|chore|build|ci)(\([^)]+\))?:\s*//')
                   
                   # Add scope tag if present
-                  if [ ! -z "$scope" ]; then
+                  if [ -n "$scope" ]; then
                     clean_subject="**[$scope]** $clean_subject"
                   fi
                   
@@ -521,7 +523,7 @@ jobs:
                   local issues=$(echo "$subject" | grep -oE '#[0-9]+' | tr '\n' ' ')
                   
                   # Convert issue numbers to links
-                  if [ ! -z "$issues" ]; then
+                  if [ -n "$issues" ]; then
                     for issue in $issues; do
                       local issue_num=$(echo $issue | tr -d '#')
                       clean_subject=$(echo "$clean_subject" | sed "s/$issue/[#$issue_num](https:\/\/github.com\/${{ github.repository }}\/issues\/$issue_num)/g")
@@ -552,7 +554,8 @@ jobs:
             echo "### 🔧 Other Changes" >> CHANGELOG.md
             other_count=0
             while IFS='|||' read -r subject short_hash full_hash author; do
-              if [ ! -z "$subject" ] && [ ! -z "$short_hash" ] && [ ! -z "$author" ]; then
+              # Skip empty lines
+              if [ -n "$subject" ]; then
                 echo "- $subject [\`$short_hash\`](https://github.com/${{ github.repository }}/commit/$full_hash) - @$author" >> CHANGELOG.md
                 other_count=$((other_count + 1))
               fi
@@ -573,7 +576,7 @@ jobs:
             while IFS='|||' read -r name email; do
               # Use email as key to avoid duplicates from same person with different names
               # Skip dependabot
-              if [ ! -z "$email" ] && [ -z "${contributors[$email]}" ] && [[ ! "$name" =~ [Dd]ependabot ]] && [[ ! "$email" =~ dependabot ]]; then
+              if [ -n "$email" ] && [ -z "${contributors[$email]}" ] && [[ ! "$name" =~ [Dd]ependabot ]] && [[ ! "$email" =~ dependabot ]]; then
                 contributors[$email]="$name"
               fi
             done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%an|||%ae")
