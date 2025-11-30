@@ -445,10 +445,10 @@ jobs:
             # Get first 3 most significant commits (by lines changed, excluding merges)
             echo "" >> CHANGELOG.md
             echo "**Most significant changes:**" >> CHANGELOG.md
-            git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%h|||%H|||%s|||%an" --shortstat | \
-              awk '/\|\|\|/ {commit=$0; getline; print commit "|||" $0}' | \
-              sort -t'|' -k5 -rn | head -3 | \
-              while IFS='|||' read -r short_hash full_hash subject author stats; do
+            git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%h%x1F%H%x1F%s%x1F%an" --shortstat | \
+              awk -v FS=$'\x1F' -v OFS=$'\x1F' '/[\x1F]/ {commit=$0; getline; print commit OFS $0}' | \
+              sort -t$'\x1F' -k5 -rn | head -3 | \
+              while IFS=$'\x1F' read -r short_hash full_hash subject author stats; do
                 # Skip empty lines
                 if [ -n "$subject" ]; then
                   # Extract scope BEFORE removing prefix
@@ -465,7 +465,7 @@ jobs:
             echo "" >> CHANGELOG.md
             
             # Check for breaking changes (excluding merges)
-            BREAKING_CHANGES=$(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%b|||%h|||%H|||%an" | grep -i "BREAKING CHANGE" || true)
+            BREAKING_CHANGES=$(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s%x1F%b%x1F%h%x1F%H%x1F%an" | grep -i "BREAKING CHANGE" || true)
             if [ ! -z "$BREAKING_CHANGES" ]; then
               echo "## ⚠️ BREAKING CHANGES" >> CHANGELOG.md
               echo "" >> CHANGELOG.md
@@ -473,7 +473,7 @@ jobs:
               echo "" >> CHANGELOG.md
               
               has_breaking=false
-              while IFS='|||' read -r subject body short_hash full_hash author; do
+              while IFS=$'\x1F' read -r subject body short_hash full_hash author; do
                 if [[ "$body" == *"BREAKING CHANGE"* ]] && [ -n "$short_hash" ]; then
                   # Extract the breaking change description
                   breaking_desc=$(echo "$body" | sed -n 's/.*BREAKING CHANGE[:]* \(.*\)/\1/p' | head -1)
@@ -482,7 +482,7 @@ jobs:
                     has_breaking=true
                   fi
                 fi
-              done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%b|||%h|||%H|||%an")
+              done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s%x1F%b%x1F%h%x1F%H%x1F%an")
               
               if [ "$has_breaking" = true ]; then
                 echo "" >> CHANGELOG.md
@@ -505,7 +505,7 @@ jobs:
               
               # Use grep with multiple patterns
               local count=0
-              while IFS='|||' read -r subject short_hash full_hash author date; do
+              while IFS=$'\x1F' read -r subject short_hash full_hash author date; do
                 # Skip empty lines
                 if [ -n "$subject" ]; then
                   # Extract scope BEFORE removing prefix
@@ -533,7 +533,7 @@ jobs:
                   echo "- $clean_subject [\`$short_hash\`](https://github.com/${{ github.repository }}/commit/$full_hash) - @$author" >> CHANGELOG.md
                   count=$((count + 1))
                 fi
-              done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%h|||%H|||%an|||%ad" --date=short --grep="$patterns" -E)
+              done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s%x1F%h%x1F%H%x1F%an%x1F%ad" --date=short --grep="$patterns" -E)
               
               if [ $count -eq 0 ]; then
                 echo "- No $title" >> CHANGELOG.md
@@ -553,13 +553,13 @@ jobs:
             # Other changes (not matching conventional commit patterns)
             echo "### 🔧 Other Changes" >> CHANGELOG.md
             other_count=0
-            while IFS='|||' read -r subject short_hash full_hash author; do
+            while IFS=$'\x1F' read -r subject short_hash full_hash author; do
               # Skip empty lines
               if [ -n "$subject" ]; then
                 echo "- $subject [\`$short_hash\`](https://github.com/${{ github.repository }}/commit/$full_hash) - @$author" >> CHANGELOG.md
                 other_count=$((other_count + 1))
               fi
-            done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%h|||%H|||%an" --invert-grep --extended-regexp --grep="^(feat|fix|docs|perf|refactor|test|build|ci|chore)")
+            done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s%x1F%h%x1F%H%x1F%an" --invert-grep --extended-regexp --grep="^(feat|fix|docs|perf|refactor|test|build|ci|chore)")
             
             if [ $other_count -eq 0 ]; then
               echo "- No other changes" >> CHANGELOG.md
@@ -573,13 +573,13 @@ jobs:
             
             # Create associative array to deduplicate by email
             declare -A contributors
-            while IFS='|||' read -r name email; do
+            while IFS=$'\x1F' read -r name email; do
               # Use email as key to avoid duplicates from same person with different names
               # Skip dependabot
               if [ -n "$email" ] && [ -z "${contributors[$email]}" ] && [[ ! "$name" =~ [Dd]ependabot ]] && [[ ! "$email" =~ dependabot ]]; then
                 contributors[$email]="$name"
               fi
-            done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%an|||%ae")
+            done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%an%x1F%ae")
             
             # Output unique contributors sorted
             for email in "${!contributors[@]}"; do
