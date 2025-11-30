@@ -445,24 +445,26 @@ jobs:
             # Get first 3 most significant commits (by lines changed, excluding merges)
             echo "" >> CHANGELOG.md
             echo "**Most significant changes:**" >> CHANGELOG.md
-            git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%h|||%s|||%an" --shortstat | \
+            git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%h|||%H|||%s|||%an" --shortstat | \
               awk '/\|\|\|/ {commit=$0; getline; print commit "|||" $0}' | \
-              sort -t'|' -k4 -rn | head -3 | \
-              while IFS='|||' read -r hash subject author stats; do
-                # Extract scope BEFORE removing prefix
-                scope=$(echo "$subject" | sed -nE 's/^[a-z]+\(([^)]+)\):.*/\1/p')
-                # Remove conventional commit prefix
-                clean_subject=$(echo "$subject" | sed -E 's/^(feat|fix|docs|style|refactor|perf|test|chore|build|ci)(\([^)]+\))?:\s*//')
-                # Add scope tag if present
-                if [ ! -z "$scope" ]; then
-                  clean_subject="**[$scope]** $clean_subject"
+              sort -t'|' -k5 -rn | head -3 | \
+              while IFS='|||' read -r short_hash full_hash subject author stats; do
+                if [ ! -z "$short_hash" ] && [ ! -z "$subject" ] && [ ! -z "$author" ]; then
+                  # Extract scope BEFORE removing prefix
+                  scope=$(echo "$subject" | sed -nE 's/^[a-z]+\(([^)]+)\):.*/\1/p')
+                  # Remove conventional commit prefix
+                  clean_subject=$(echo "$subject" | sed -E 's/^(feat|fix|docs|style|refactor|perf|test|chore|build|ci)(\([^)]+\))?:\s*//')
+                  # Add scope tag if present
+                  if [ ! -z "$scope" ]; then
+                    clean_subject="**[$scope]** $clean_subject"
+                  fi
+                  echo "- $clean_subject [\`$short_hash\`](https://github.com/${{ github.repository }}/commit/$full_hash)" >> CHANGELOG.md
                 fi
-                echo "- $clean_subject [\`$hash\`](https://github.com/${{ github.repository }}/commit/$hash)" >> CHANGELOG.md
               done || true
             echo "" >> CHANGELOG.md
             
             # Check for breaking changes (excluding merges)
-            BREAKING_CHANGES=$(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%b|||%h|||%an" | grep -i "BREAKING CHANGE" || true)
+            BREAKING_CHANGES=$(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%b|||%h|||%H|||%an" | grep -i "BREAKING CHANGE" || true)
             if [ ! -z "$BREAKING_CHANGES" ]; then
               echo "## ⚠️ BREAKING CHANGES" >> CHANGELOG.md
               echo "" >> CHANGELOG.md
@@ -470,16 +472,16 @@ jobs:
               echo "" >> CHANGELOG.md
               
               has_breaking=false
-              while IFS='|||' read -r subject body hash author; do
-                if [[ "$body" == *"BREAKING CHANGE"* ]]; then
+              while IFS='|||' read -r subject body short_hash full_hash author; do
+                if [[ "$body" == *"BREAKING CHANGE"* ]] && [ ! -z "$short_hash" ] && [ ! -z "$author" ]; then
                   # Extract the breaking change description
                   breaking_desc=$(echo "$body" | sed -n 's/.*BREAKING CHANGE[:]* \(.*\)/\1/p' | head -1)
                   if [ ! -z "$breaking_desc" ]; then
-                    echo "- **$breaking_desc** [\`$hash\`](https://github.com/${{ github.repository }}/commit/$hash) - @$author" >> CHANGELOG.md
+                    echo "- **$breaking_desc** [\`$short_hash\`](https://github.com/${{ github.repository }}/commit/$full_hash) - @$author" >> CHANGELOG.md
                     has_breaking=true
                   fi
                 fi
-              done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%b|||%h|||%an")
+              done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%b|||%h|||%H|||%an")
               
               if [ "$has_breaking" = true ]; then
                 echo "" >> CHANGELOG.md
@@ -502,8 +504,8 @@ jobs:
               
               # Use grep with multiple patterns
               local count=0
-              while IFS='|||' read -r subject hash author date; do
-                if [ ! -z "$subject" ]; then
+              while IFS='|||' read -r subject short_hash full_hash author date; do
+                if [ ! -z "$subject" ] && [ ! -z "$short_hash" ] && [ ! -z "$author" ]; then
                   # Extract scope BEFORE removing prefix
                   local scope=$(echo "$subject" | sed -nE 's/^[a-z]+\(([^)]+)\):.*/\1/p')
                   
@@ -526,10 +528,10 @@ jobs:
                     done
                   fi
                   
-                  echo "- $clean_subject [\`$hash\`](https://github.com/${{ github.repository }}/commit/$hash) - @$author" >> CHANGELOG.md
+                  echo "- $clean_subject [\`$short_hash\`](https://github.com/${{ github.repository }}/commit/$full_hash) - @$author" >> CHANGELOG.md
                   count=$((count + 1))
                 fi
-              done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%h|||%an|||%ad" --date=short --grep="$patterns" -E)
+              done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%h|||%H|||%an|||%ad" --date=short --grep="$patterns" -E)
               
               if [ $count -eq 0 ]; then
                 echo "- No $title" >> CHANGELOG.md
@@ -549,12 +551,12 @@ jobs:
             # Other changes (not matching conventional commit patterns)
             echo "### 🔧 Other Changes" >> CHANGELOG.md
             other_count=0
-            while IFS='|||' read -r subject hash author; do
-              if [ ! -z "$subject" ]; then
-                echo "- $subject [\`$hash\`](https://github.com/${{ github.repository }}/commit/$hash) - @$author" >> CHANGELOG.md
+            while IFS='|||' read -r subject short_hash full_hash author; do
+              if [ ! -z "$subject" ] && [ ! -z "$short_hash" ] && [ ! -z "$author" ]; then
+                echo "- $subject [\`$short_hash\`](https://github.com/${{ github.repository }}/commit/$full_hash) - @$author" >> CHANGELOG.md
                 other_count=$((other_count + 1))
               fi
-            done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%h|||%an" --invert-grep --extended-regexp --grep="^(feat|fix|docs|perf|refactor|test|build|ci|chore)")
+            done < <(git log $PREVIOUS_TAG..HEAD --no-merges --pretty=format:"%s|||%h|||%H|||%an" --invert-grep --extended-regexp --grep="^(feat|fix|docs|perf|refactor|test|build|ci|chore)")
             
             if [ $other_count -eq 0 ]; then
               echo "- No other changes" >> CHANGELOG.md
