@@ -4,7 +4,6 @@ Thank you for your interest in contributing to EarthTool! This guide will help y
 
 ## Table of Contents
 
-- [Code of Conduct](#code-of-conduct)
 - [How Can I Contribute?](#how-can-i-contribute)
 - [Development Setup](#development-setup)
 - [Coding Guidelines](#coding-guidelines)
@@ -13,26 +12,18 @@ Thank you for your interest in contributing to EarthTool! This guide will help y
 - [Testing Requirements](#testing-requirements)
 - [Documentation](#documentation)
 
-## Code of Conduct
-
-### Our Standards
-
-- Be respectful and inclusive
-- Welcome newcomers and beginners
-- Provide constructive feedback
-- Focus on what is best for the community
-- Show empathy towards other community members
-
 ## How Can I Contribute?
 
 ### Reporting Bugs
 
 Before creating a bug report:
+
 1. Check the [troubleshooting guide](docs/troubleshooting.md)
 2. Search existing issues to avoid duplicates
 3. Update to the latest version and verify the bug still exists
 
 When creating a bug report, include:
+
 - **Clear title**: Descriptive summary of the issue
 - **Steps to reproduce**: Detailed steps to reproduce the behavior
 - **Expected behavior**: What you expected to happen
@@ -42,6 +33,7 @@ When creating a bug report, include:
 - **Logs**: Relevant error messages or stack traces
 
 **Template**:
+
 ```markdown
 **Environment:**
 - OS: Windows 11 / Ubuntu 22.04 / macOS 13
@@ -70,6 +62,7 @@ Archive size is 2GB.
 ### Suggesting Enhancements
 
 Enhancement suggestions are welcome! Include:
+
 - **Use case**: Why is this enhancement needed?
 - **Proposed solution**: How should it work?
 - **Alternatives**: Other approaches you considered
@@ -78,6 +71,7 @@ Enhancement suggestions are welcome! Include:
 ### Contributing Code
 
 We welcome pull requests for:
+
 - Bug fixes
 - New features
 - Performance improvements
@@ -95,32 +89,38 @@ We welcome pull requests for:
 ### Setup Steps
 
 1. **Fork the repository**
+
    ```bash
    # On GitHub, click "Fork" button
    ```
 
 2. **Clone your fork**
+
    ```bash
    git clone https://github.com/YOUR_USERNAME/EarthTool.git
    cd EarthTool
    ```
 
 3. **Add upstream remote**
+
    ```bash
    git remote add upstream https://github.com/Arkezar/EarthTool.git
    ```
 
 4. **Restore dependencies**
+
    ```bash
    dotnet restore
    ```
 
 5. **Build the project**
+
    ```bash
    dotnet build
    ```
 
 6. **Run tests**
+
    ```bash
    dotnet test
    ```
@@ -128,16 +128,19 @@ We welcome pull requests for:
 ### IDE Setup
 
 #### Visual Studio 2022
+
 1. Open `EarthTool.sln`
 2. Set `EarthTool.CLI` or `EarthTool.WD.GUI` as startup project
 3. Build → Build Solution (F6)
 
 #### VS Code
+
 1. Open folder in VS Code
 2. Install recommended extensions (C#, C# Dev Kit)
 3. Use Terminal → Run Build Task (Ctrl+Shift+B)
 
 #### JetBrains Rider
+
 1. Open `EarthTool.sln`
 2. Build → Build Solution
 3. Run configurations are in `.run/` folder
@@ -149,12 +152,14 @@ We follow strict coding standards. Please read [`AGENTS.md`](AGENTS.md) for comp
 ### Key Points
 
 #### Code Style
+
 - **Indentation**: 2 spaces (NOT tabs)
 - **Line endings**: LF only
 - **Encoding**: UTF-8 with BOM
 - **Braces**: Always use braces, new line before open brace
 
 #### Naming Conventions
+
 ```csharp
 // Private fields: _camelCase
 private readonly ILogger _logger;
@@ -173,6 +178,7 @@ private const int MaxSize = 1024;
 ```
 
 #### Null Handling
+
 ```csharp
 // ✅ Use null-coalescing and null-propagation
 var value = _field ?? defaultValue;
@@ -187,6 +193,7 @@ if (_field == null)
 ```
 
 #### Patterns
+
 ```csharp
 // ✅ Use pattern matching
 if (obj is ArchiveItem item)
@@ -205,11 +212,13 @@ if (item != null)
 ### Code Formatting
 
 Run before committing:
+
 ```bash
 dotnet format EarthTool.sln --verify-no-changes
 ```
 
 If there are changes:
+
 ```bash
 dotnet format EarthTool.sln
 ```
@@ -219,6 +228,7 @@ dotnet format EarthTool.sln
 We use **Conventional Commits** for clear, structured commit history.
 
 ### Format
+
 ```
 <type>(<scope>): <subject>
 
@@ -228,6 +238,7 @@ We use **Conventional Commits** for clear, structured commit history.
 ```
 
 ### Types
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `perf`: Performance improvement
@@ -239,6 +250,7 @@ We use **Conventional Commits** for clear, structured commit history.
 - `chore`: Maintenance tasks
 
 ### Scopes
+
 - `cli`: CLI application
 - `gui`: GUI application
 - `wd`: WD archive module
@@ -251,6 +263,7 @@ We use **Conventional Commits** for clear, structured commit history.
 ### Examples
 
 **Good commits:**
+
 ```bash
 feat(cli): add batch processing for extract command
 fix(gui): resolve memory leak in archive loading
@@ -261,6 +274,7 @@ refactor(common): extract base reader class
 ```
 
 **Bad commits:**
+
 ```bash
 Update stuff                    # No type, vague
 Fixed bug                       # No scope, not descriptive
@@ -288,17 +302,20 @@ See [Conventional Commits Guide](docs/ci-cd/conventional-commits.md) for details
 ### Before Creating a PR
 
 1. **Update your branch**
+
    ```bash
    git fetch upstream
    git rebase upstream/main
    ```
 
 2. **Run tests**
+
    ```bash
    dotnet test
    ```
 
 3. **Format code**
+
    ```bash
    dotnet format
    ```
@@ -308,6 +325,7 @@ See [Conventional Commits Guide](docs/ci-cd/conventional-commits.md) for details
 ### Creating the PR
 
 1. **Push to your fork**
+
    ```bash
    git push origin your-branch-name
    ```
@@ -318,6 +336,7 @@ See [Conventional Commits Guide](docs/ci-cd/conventional-commits.md) for details
    - Link related issues
 
 3. **PR Title Format**
+
    ```
    feat(cli): add support for wildcards in extract command
    fix(gui): prevent crash when opening corrupted archives
@@ -390,6 +409,7 @@ Relates to #456
 ### Writing Tests
 
 **Structure**:
+
 ```csharp
 public class FeatureTests
 {
@@ -409,6 +429,7 @@ public class FeatureTests
 ```
 
 **Guidelines**:
+
 - Use `xUnit` test framework
 - Use `FluentAssertions` for assertions
 - Follow AAA pattern (Arrange-Act-Assert)
@@ -416,6 +437,7 @@ public class FeatureTests
 - Use descriptive test names
 
 **Run tests**:
+
 ```bash
 # All tests
 dotnet test
@@ -430,6 +452,7 @@ dotnet test --collect:"XPlat Code Coverage"
 ### Test Documentation
 
 See [Testing Guide](docs/development/testing.md) for:
+
 - Test patterns and best practices
 - How to write effective tests
 - Mocking strategies
@@ -465,6 +488,7 @@ See [Testing Guide](docs/development/testing.md) for:
 ## Recognition
 
 Contributors will be:
+
 - Listed in release notes
 - Credited in commit history
 - Mentioned in project README (for significant contributions)
@@ -475,13 +499,14 @@ Contributors will be:
 - **Discussion**: Open a [GitHub Discussion](https://github.com/Arkezar/EarthTool/discussions)
 - **Chat**: Join Inside Earth Discord (community)
 
-## Thank You!
+## Thank You
 
 Your contributions make EarthTool better for everyone. Whether it's code, documentation, bug reports, or feedback - we appreciate your help! 🎉
 
 ---
 
-**Ready to contribute?** 
+**Ready to contribute?**
+
 1. Review [AGENTS.md](AGENTS.md) for detailed guidelines
 2. Check [good first issues](https://github.com/Arkezar/EarthTool/labels/good%20first%20issue)
 3. Read the [Development Guide](docs/development/README.md)
