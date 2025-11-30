@@ -169,7 +169,7 @@ jobs:
           cd ../..
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: EarthTool.CLI-${{ matrix.platform_name }}
           path: EarthTool.CLI-${{ matrix.platform_name }}${{ matrix.os == 'windows-latest' && '.zip' || '.tar.gz' }}
@@ -278,7 +278,7 @@ jobs:
           cd ../..
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: EarthTool.WD.GUI-${{ matrix.platform_name }}
           path: EarthTool.WD.GUI-${{ matrix.platform_name }}${{ matrix.os == 'windows-latest' && '.zip' || '.tar.gz' }}
@@ -372,7 +372,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload code quality report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: code-quality-report
@@ -482,7 +482,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload security report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: security-scan-report
@@ -530,7 +530,7 @@ jobs:
           cd ..
 
       - name: Upload preview artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: EarthTool.CLI-Preview
           path: EarthTool.CLI-Preview.zip
@@ -589,7 +589,7 @@ jobs:
           cd ..
 
       - name: Upload preview artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: EarthTool.WD.GUI-Preview
           path: EarthTool.WD.GUI-Preview.zip
