@@ -336,8 +336,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
       _currentArchive = reopenedArchive;
 
-      // Refresh UI to reflect the reopened archive
-      LoadArchiveItems();
+      // Refresh UI to reflect the reopened archive, preserving selection and expansion state
+      LoadArchiveItemsPreservingState();
 
       HasUnsavedChanges = false;
       _notificationService.ShowSuccess($"Archive saved: {Path.GetFileName(filePath)}");
@@ -607,7 +607,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         });
       }
 
-      LoadArchiveItems();
+      LoadArchiveItemsPreservingState();
       HasUnsavedChanges = true;
 
       _notificationService.ShowSuccess($"Added {files.Count} file(s) {targetMessage}");
@@ -712,7 +712,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         });
       }
 
-      LoadArchiveItems();
+      LoadArchiveItemsPreservingState();
       HasUnsavedChanges = true;
 
       _notificationService.ShowSuccess($"Added folder '{folderName}' with {allFiles.Length} file(s) {targetMessage}");
@@ -829,7 +829,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         }
       }
 
-      LoadArchiveItems();
+      LoadArchiveItemsPreservingState();
       HasUnsavedChanges = true;
 
       _notificationService.ShowSuccess($"Created folder '{folderName}' at {(string.IsNullOrEmpty(targetFolder) ? "root" : targetFolder)}");
