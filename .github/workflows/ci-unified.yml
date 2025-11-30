@@ -111,6 +111,26 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v1.1.1
+        with:
+          versionSpec: '5.x'
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v1.1.1
+        with:
+          useConfigFile: true
+
+      - name: Display version information
+        shell: bash
+        run: |
+          echo "📦 Version Information:"
+          echo "  SemVer: ${{ steps.gitversion.outputs.semVer }}"
+          echo "  AssemblySemVer: ${{ steps.gitversion.outputs.assemblySemVer }}"
+          echo "  InformationalVersion: ${{ steps.gitversion.outputs.informationalVersion }}"
+          echo "  BranchName: ${{ steps.gitversion.outputs.branchName }}"
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -128,7 +148,7 @@ jobs:
         run: dotnet restore ${{ env.SOLUTION_FILE }}
 
       - name: Build solution
-        run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore
+        run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore -p:Version=${{ steps.gitversion.outputs.semVer }} -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
 
       - name: Run tests
         run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
@@ -155,7 +175,11 @@ jobs:
             -p:IncludeNativeLibrariesForSelfExtract=true \
             -p:EnableCompressionInSingleFile=true \
             -p:DebugType=none \
-            -p:DebugSymbols=false
+            -p:DebugSymbols=false \
+            -p:Version=${{ steps.gitversion.outputs.semVer }} \
+            -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} \
+            -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} \
+            -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
 
       - name: Create artifact archive
         shell: bash
@@ -220,6 +244,26 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v1.1.1
+        with:
+          versionSpec: '5.x'
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v1.1.1
+        with:
+          useConfigFile: true
+
+      - name: Display version information
+        shell: bash
+        run: |
+          echo "📦 Version Information:"
+          echo "  SemVer: ${{ steps.gitversion.outputs.semVer }}"
+          echo "  AssemblySemVer: ${{ steps.gitversion.outputs.assemblySemVer }}"
+          echo "  InformationalVersion: ${{ steps.gitversion.outputs.informationalVersion }}"
+          echo "  BranchName: ${{ steps.gitversion.outputs.branchName }}"
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -237,7 +281,7 @@ jobs:
         run: dotnet restore ${{ env.SOLUTION_FILE }}
 
       - name: Build solution
-        run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore
+        run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore -p:Version=${{ steps.gitversion.outputs.semVer }} -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
 
       - name: Run tests
         run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
@@ -264,7 +308,11 @@ jobs:
             -p:IncludeNativeLibrariesForSelfExtract=true \
             -p:EnableCompressionInSingleFile=true \
             -p:DebugType=none \
-            -p:DebugSymbols=false
+            -p:DebugSymbols=false \
+            -p:Version=${{ steps.gitversion.outputs.semVer }} \
+            -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} \
+            -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} \
+            -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
 
       - name: Create artifact archive
         shell: bash
@@ -501,6 +549,19 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v1.1.1
+        with:
+          versionSpec: '5.x'
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v1.1.1
+        with:
+          useConfigFile: true
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -520,7 +581,10 @@ jobs:
             --output ./preview \
             -p:PublishSingleFile=true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
-            -p:VersionSuffix=preview-${{ github.run_number }}
+            -p:Version=${{ steps.gitversion.outputs.semVer }} \
+            -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} \
+            -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} \
+            -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
 
       - name: Create preview artifact
         shell: bash
@@ -560,6 +624,19 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v1.1.1
+        with:
+          versionSpec: '5.x'
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v1.1.1
+        with:
+          useConfigFile: true
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -579,7 +656,10 @@ jobs:
             --output ./preview \
             -p:PublishSingleFile=true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
-            -p:VersionSuffix=preview-${{ github.run_number }}
+            -p:Version=${{ steps.gitversion.outputs.semVer }} \
+            -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} \
+            -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} \
+            -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
 
       - name: Create preview artifact
         shell: bash

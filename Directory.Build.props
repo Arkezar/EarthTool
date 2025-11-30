@@ -1,2 +1,10 @@
 <Project>
+  <PropertyGroup>
+    <!-- Version will be set by GitVersion in CI/CD -->
+    <!-- Default version for local development -->
+    <Version Condition="'$(Version)' == ''">0.0.1-dev</Version>
+    <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">0.0.1.0</AssemblyVersion>
+    <FileVersion Condition="'$(FileVersion)' == ''">0.0.1.0</FileVersion>
+    <InformationalVersion Condition="'$(InformationalVersion)' == ''">0.0.1-dev+local</InformationalVersion>
+  </PropertyGroup>
 </Project>

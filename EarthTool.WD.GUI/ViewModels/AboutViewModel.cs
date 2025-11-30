@@ -15,7 +15,7 @@ public class AboutViewModel : ViewModelBase
     {
       var assembly = Assembly.GetExecutingAssembly();
       var version = assembly.GetName().Version;
-      return version?.ToString(4) ?? "1.0.0.0";
+      return version?.ToString(3) ?? "1.0.0";
     }
   }
 

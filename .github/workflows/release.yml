@@ -63,6 +63,26 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v1.1.1
+        with:
+          versionSpec: '5.x'
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v1.1.1
+        with:
+          useConfigFile: true
+
+      - name: Display version information
+        shell: bash
+        run: |
+          echo "📦 Release Version Information:"
+          echo "  SemVer: ${{ steps.gitversion.outputs.semVer }}"
+          echo "  AssemblySemVer: ${{ steps.gitversion.outputs.assemblySemVer }}"
+          echo "  InformationalVersion: ${{ steps.gitversion.outputs.informationalVersion }}"
+          echo "  Major.Minor.Patch: ${{ steps.gitversion.outputs.majorMinorPatch }}"
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -80,7 +100,7 @@ jobs:
         run: dotnet restore ${{ env.SOLUTION_FILE }}
 
       - name: Build solution
-        run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore
+        run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore -p:Version=${{ steps.gitversion.outputs.semVer }} -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
 
       - name: Run tests
         run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
@@ -107,7 +127,11 @@ jobs:
             -p:IncludeNativeLibrariesForSelfExtract=true \
             -p:EnableCompressionInSingleFile=true \
             -p:DebugType=none \
-            -p:DebugSymbols=false
+            -p:DebugSymbols=false \
+            -p:Version=${{ steps.gitversion.outputs.semVer }} \
+            -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} \
+            -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} \
+            -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
 
       - name: Create artifact archive
         shell: bash
@@ -321,6 +345,24 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v1.1.1
+        with:
+          versionSpec: '5.x'
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v1.1.1
+        with:
+          useConfigFile: true
+
+      - name: Display release version
+        shell: bash
+        run: |
+          echo "📦 Creating Release:"
+          echo "  Version: ${{ steps.gitversion.outputs.semVer }}"
+          echo "  Full SemVer: ${{ steps.gitversion.outputs.fullSemVer }}"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -665,10 +707,11 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: EarthTool ${{ github.ref_name }}
+          name: EarthTool v${{ steps.gitversion.outputs.semVer }}
+          tag_name: v${{ steps.gitversion.outputs.semVer }}
           body_path: CHANGELOG.md
           draft: false
-          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+          prerelease: ${{ contains(steps.gitversion.outputs.semVer, 'alpha') || contains(steps.gitversion.outputs.semVer, 'beta') || contains(steps.gitversion.outputs.semVer, 'rc') }}
           generate_release_notes: false
           files: |
             artifacts/EarthTool.CLI-Windows-x64/EarthTool.CLI-Windows-x64.zip
