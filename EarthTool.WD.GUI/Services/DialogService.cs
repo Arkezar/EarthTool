@@ -279,4 +279,23 @@ public class DialogService : IDialogService
     await dialog.ShowDialog(window);
     return dialog.Tag as string;
   }
+
+  public async Task ShowCustomDialogAsync(object content, string title, double width = 500, double height = 450)
+  {
+    var window = GetMainWindow();
+    if (window == null)
+      return;
+
+    var dialog = new Window
+    {
+      Title = title,
+      Width = width,
+      Height = height,
+      CanResize = false,
+      WindowStartupLocation = WindowStartupLocation.CenterOwner,
+      Content = content
+    };
+
+    await dialog.ShowDialog(window);
+  }
 }

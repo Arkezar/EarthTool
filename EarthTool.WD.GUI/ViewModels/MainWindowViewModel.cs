@@ -1013,7 +1013,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         app.RequestedThemeVariant = currentTheme == Avalonia.Styling.ThemeVariant.Dark
           ? Avalonia.Styling.ThemeVariant.Light
           : Avalonia.Styling.ThemeVariant.Dark;
-        
+
         _logger.LogInformation("Theme toggled to: {Theme}", app.RequestedThemeVariant);
       }
     }
@@ -1029,10 +1029,16 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     try
     {
       var aboutViewModel = new AboutViewModel();
-      var result = await _dialogService.ShowMessageBoxAsync(
-        aboutViewModel.FullAboutText,
-        "About EarthTool WD Archive Manager",
-        MessageBoxType.Ok);
+      var aboutView = new Views.AboutView
+      {
+        DataContext = aboutViewModel
+      };
+
+      await _dialogService.ShowCustomDialogAsync(
+        aboutView,
+        "About EarthTool",
+        width: 550,
+        height: 550);
 
       _logger.LogInformation("About dialog shown");
     }

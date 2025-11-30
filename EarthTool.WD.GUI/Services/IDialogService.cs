@@ -50,6 +50,16 @@ public interface IDialogService
   /// <param name="defaultValue">Default value for the input.</param>
   /// <returns>The entered text, or null if cancelled.</returns>
   Task<string?> ShowInputDialogAsync(string message, string title, string? defaultValue = null);
+
+  /// <summary>
+  /// Shows a custom dialog with the specified content.
+  /// </summary>
+  /// <param name="content">The content control to display in the dialog.</param>
+  /// <param name="title">The title of the dialog.</param>
+  /// <param name="width">The width of the dialog.</param>
+  /// <param name="height">The height of the dialog.</param>
+  /// <returns>A task representing the asynchronous operation.</returns>
+  Task ShowCustomDialogAsync(object content, string title, double width = 500, double height = 450);
 }
 
 /// <summary>
