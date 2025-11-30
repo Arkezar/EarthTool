@@ -385,7 +385,7 @@ If you have questions or problems:
 
 1. Check this guide
 2. See README.md for technical information
-3. See ARCHITECTURE.md for implementation details
+3. See ../../docs/architecture.md for implementation details
 4. Report issue on GitHub
 
 ## Changelog
