@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace EarthTool.CLI.Commands.WD;
 
@@ -17,7 +18,7 @@ public sealed class ExtractCommand : Command<ExtractSettings>
     _archiver = archiver;
   }
 
-  public override int Execute(CommandContext context, ExtractSettings settings)
+  public override int Execute(CommandContext context, ExtractSettings settings, CancellationToken cancellationToken)
   {
     if (settings.ArchivePaths == null || !settings.ArchivePaths.Any())
     {

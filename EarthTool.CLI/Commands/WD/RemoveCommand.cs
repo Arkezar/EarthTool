@@ -4,6 +4,7 @@ using Spectre.Console.Cli;
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace EarthTool.CLI.Commands.WD;
 
@@ -16,7 +17,7 @@ public sealed class RemoveCommand : WdCommandBase<RemoveSettings>
     _archiver = archiver;
   }
 
-  public override int Execute(CommandContext context, RemoveSettings settings)
+  public override int Execute(CommandContext context, RemoveSettings settings, CancellationToken cancellationToken)
   {
     if (string.IsNullOrEmpty(settings.Filter) && string.IsNullOrEmpty(settings.FileList))
     {

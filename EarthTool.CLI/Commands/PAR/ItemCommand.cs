@@ -7,6 +7,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace EarthTool.CLI.Commands.PAR;
 
@@ -19,7 +20,7 @@ public sealed class ItemCommand : Command<ItemSettings>
     _reader = reader;
   }
 
-  public override int Execute(CommandContext context, ItemSettings settings)
+  public override int Execute(CommandContext context, ItemSettings settings, CancellationToken cancellationToken)
   {
     var parFile = _reader.Read(settings.ParFilePath);
     if (parFile == null)

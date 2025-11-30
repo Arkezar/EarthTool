@@ -4,6 +4,7 @@ using Spectre.Console.Cli;
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace EarthTool.CLI.Commands;
@@ -31,7 +32,7 @@ public abstract class CommonCommand<TSettings> : AsyncCommand<TSettings> where T
     return Path.Combine(outputDirectory, outputFileName);
   }
 
-  public sealed override async Task<int> ExecuteAsync(CommandContext context, TSettings settings)
+  public sealed override async Task<int> ExecuteAsync(CommandContext context, TSettings settings, CancellationToken cancellationToken)
   {
     var path = Path.GetDirectoryName(settings.InputFilePath);
     if (string.IsNullOrEmpty(path))

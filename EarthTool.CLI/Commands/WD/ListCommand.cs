@@ -3,6 +3,7 @@ using Spectre.Console;
 using Spectre.Console.Cli;
 using System;
 using System.Linq;
+using System.Threading;
 
 namespace EarthTool.CLI.Commands.WD;
 
@@ -15,7 +16,7 @@ public sealed class ListCommand : WdCommandBase<ListSettings>
     _archiver = archiver;
   }
 
-  public override int Execute(CommandContext context, ListSettings settings)
+  public override int Execute(CommandContext context, ListSettings settings, CancellationToken cancellationToken)
   {
     using var archive = _archiver.OpenArchive(settings.ArchivePath);
 

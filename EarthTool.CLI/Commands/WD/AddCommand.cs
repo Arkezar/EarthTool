@@ -4,6 +4,7 @@ using Spectre.Console.Cli;
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace EarthTool.CLI.Commands.WD;
 
@@ -16,7 +17,7 @@ public sealed class AddCommand : WdCommandBase<AddSettings>
     _archiver = archiver;
   }
 
-  public override int Execute(CommandContext context, AddSettings settings)
+  public override int Execute(CommandContext context, AddSettings settings, CancellationToken cancellationToken)
   {
     if (settings.Files == null || !settings.Files.Any())
     {

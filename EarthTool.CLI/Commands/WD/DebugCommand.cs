@@ -5,6 +5,7 @@ using Spectre.Console.Cli;
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace EarthTool.CLI.Commands.WD;
 
@@ -17,7 +18,7 @@ public sealed class DebugCommand : WdCommandBase<WdSettings>
     _archiver = archiver;
   }
 
-  public override int Execute(CommandContext context, WdSettings settings)
+  public override int Execute(CommandContext context, WdSettings settings, CancellationToken cancellationToken)
   {
     if (!File.Exists(settings.ArchivePath))
     {
