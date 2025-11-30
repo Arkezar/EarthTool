@@ -8,6 +8,7 @@ branches:
     increment: Patch
     prevent-increment-of-merged-branch-version: true
     track-merge-target: false
+    source-branches: []
   dev:
     regex: ^dev$|^develop$
     mode: ContinuousDeployment
@@ -15,24 +16,28 @@ branches:
     increment: Minor
     prevent-increment-of-merged-branch-version: false
     track-merge-target: true
+    source-branches: ['main']
   feature:
     regex: ^feature(s)?[/-]
     mode: ContinuousDeployment
     tag: 'alpha.{BranchName}'
     increment: Inherit
     prevent-increment-of-merged-branch-version: false
+    source-branches: ['dev', 'main']
   release:
     regex: ^release(s)?[/-]
     mode: ContinuousDeployment
     tag: 'beta'
     increment: None
     prevent-increment-of-merged-branch-version: true
+    source-branches: ['dev', 'main']
   hotfix:
     regex: ^hotfix(es)?[/-]
     mode: ContinuousDeployment
     tag: 'beta'
     increment: Patch
     prevent-increment-of-merged-branch-version: true
+    source-branches: ['main']
 ignore:
   sha: []
 merge-message-formats: {}
