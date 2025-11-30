@@ -24,8 +24,20 @@ public class AboutViewModel : ViewModelBase
     get
     {
       var assembly = Assembly.GetExecutingAssembly();
+      
+      // Try to get InformationalVersion first (full SemVer from GitVersion)
+      var infoVersion = assembly
+        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+        .InformationalVersion;
+      
+      if (!string.IsNullOrEmpty(infoVersion))
+      {
+        return infoVersion;
+      }
+      
+      // Fallback to standard version
       var version = assembly.GetName().Version;
-      return version?.ToString(3) ?? "1.0.0";
+      return version?.ToString(3) ?? "0.0.1-dev";
     }
   }
 

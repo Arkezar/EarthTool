@@ -116,34 +116,114 @@ public class DialogService : IDialogService
     var window = GetMainWindow();
     if (window == null) return MessageBoxResult.Cancel;
 
-    // Create a simple dialog window
+    // Create a modern dialog window
     var dialog = new Window
     {
       Title = title,
-      Width = 400,
-      Height = 200,
-      CanResize = false,
-      WindowStartupLocation = WindowStartupLocation.CenterOwner
+      Width = 450,
+      MinWidth = 500,
+      MinHeight = 220,
+      SizeToContent = SizeToContent.WidthAndHeight,
+      MaxHeight = 600,
+      CanResize = true,
+      WindowStartupLocation = WindowStartupLocation.CenterOwner,
+      SystemDecorations = SystemDecorations.BorderOnly
     };
 
-    var textBlock = new TextBlock
+    // Main border with rounded corners
+    var mainBorder = new Border
+    {
+      CornerRadius = new CornerRadius(8),
+      ClipToBounds = true
+    };
+
+    // Main grid with header, content, and footer sections
+    var mainGrid = new Grid();
+    mainGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+    mainGrid.RowDefinitions.Add(new RowDefinition(GridLength.Star));
+    mainGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+    // Set background for main grid
+    if (Application.Current?.Resources.TryGetResource("SystemControlBackgroundAltHighBrush", null, out var bgBrush) == true)
+    {
+      mainGrid.Background = bgBrush as Avalonia.Media.IBrush;
+    }
+
+    // Header section with accent color
+    var headerBorder = new Border
+    {
+      Padding = new Thickness(30, 20),
+      CornerRadius = new CornerRadius(8, 8, 0, 0)
+    };
+    Grid.SetRow(headerBorder, 0);
+
+    if (Application.Current?.Resources.TryGetResource("SystemAccentColor", null, out var accentColor) == true)
+    {
+      headerBorder.Background = accentColor as Avalonia.Media.IBrush;
+    }
+
+    var headerText = new TextBlock
+    {
+      Text = title,
+      FontSize = 18,
+      FontWeight = Avalonia.Media.FontWeight.SemiBold,
+      Foreground = Avalonia.Media.Brushes.White,
+      TextAlignment = Avalonia.Media.TextAlignment.Left
+    };
+    headerBorder.Child = headerText;
+    mainGrid.Children.Add(headerBorder);
+
+    // Content section with message
+    var contentScrollViewer = new ScrollViewer
+    {
+      HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+      VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+      Padding = new Thickness(30, 25)
+    };
+    Grid.SetRow(contentScrollViewer, 1);
+
+    var messageText = new TextBlock
     {
       Text = message,
+      FontSize = 13,
       TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-      VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+      LineHeight = 20
     };
+
+    if (Application.Current?.Resources.TryGetResource("SystemControlForegroundBaseHighBrush", null, out var fgBrush) == true)
+    {
+      messageText.Foreground = fgBrush as Avalonia.Media.IBrush;
+    }
+
+    contentScrollViewer.Content = messageText;
+    mainGrid.Children.Add(contentScrollViewer);
+
+    // Footer section with buttons
+    var footerBorder = new Border
+    {
+      Padding = new Thickness(30, 20),
+      CornerRadius = new CornerRadius(0, 0, 8, 8),
+      BorderThickness = new Thickness(0, 1, 0, 0)
+    };
+    Grid.SetRow(footerBorder, 2);
+
+    if (Application.Current?.Resources.TryGetResource("SystemControlBackgroundChromeMediumBrush", null, out var footerBg) == true)
+    {
+      footerBorder.Background = footerBg as Avalonia.Media.IBrush;
+    }
+
+    if (Application.Current?.Resources.TryGetResource("SystemControlForegroundBaseLowBrush", null, out var borderBrush) == true)
+    {
+      footerBorder.BorderBrush = borderBrush as Avalonia.Media.IBrush;
+    }
 
     var buttonPanel = CreateButtonPanel(messageBoxType, dialog);
+    buttonPanel.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right;
+    footerBorder.Child = buttonPanel;
+    mainGrid.Children.Add(footerBorder);
 
-    var stackPanel = new StackPanel
-    {
-      Margin = new Thickness(20),
-      Spacing = 15
-    };
-    stackPanel.Children.Add(textBlock);
-    stackPanel.Children.Add(buttonPanel);
-
-    dialog.Content = stackPanel;
+    mainBorder.Child = mainGrid;
+    dialog.Content = mainBorder;
 
     await dialog.ShowDialog(window);
     return dialog.Tag as MessageBoxResult? ?? MessageBoxResult.Cancel;
@@ -186,8 +266,12 @@ public class DialogService : IDialogService
     var button = new Button
     {
       Content = content,
-      Width = 80,
-      IsDefault = isDefault
+      MinWidth = 100,
+      Height = 36,
+      IsDefault = isDefault,
+      Padding = new Thickness(20, 8),
+      HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+      VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center
     };
 
     button.Click += (_, _) =>
@@ -205,35 +289,125 @@ public class DialogService : IDialogService
     if (window == null)
       return null;
 
+    // Create a modern dialog window
     var dialog = new Window
     {
       Title = title,
-      Width = 400,
-      Height = 180,
-      CanResize = false,
-      WindowStartupLocation = WindowStartupLocation.CenterOwner
+      Width = 450,
+      MinWidth = 450,
+      MinHeight = 240,
+      SizeToContent = SizeToContent.Height,
+      MaxHeight = 500,
+      CanResize = true,
+      WindowStartupLocation = WindowStartupLocation.CenterOwner,
+      SystemDecorations = SystemDecorations.BorderOnly
     };
 
-    var textBlock = new TextBlock
+    // Main border with rounded corners
+    var mainBorder = new Border
+    {
+      CornerRadius = new CornerRadius(8),
+      ClipToBounds = true
+    };
+
+    // Main grid with header, content, and footer sections
+    var mainGrid = new Grid();
+    mainGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+    mainGrid.RowDefinitions.Add(new RowDefinition(GridLength.Star));
+    mainGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+    // Set background for main grid
+    if (Application.Current?.Resources.TryGetResource("SystemControlBackgroundAltHighBrush", null, out var bgBrush) == true)
+    {
+      mainGrid.Background = bgBrush as Avalonia.Media.IBrush;
+    }
+
+    // Header section with accent color
+    var headerBorder = new Border
+    {
+      Padding = new Thickness(30, 20),
+      CornerRadius = new CornerRadius(8, 8, 0, 0)
+    };
+    Grid.SetRow(headerBorder, 0);
+
+    if (Application.Current?.Resources.TryGetResource("SystemAccentColor", null, out var accentColor) == true)
+    {
+      headerBorder.Background = accentColor as Avalonia.Media.IBrush;
+    }
+
+    var headerText = new TextBlock
+    {
+      Text = title,
+      FontSize = 18,
+      FontWeight = Avalonia.Media.FontWeight.SemiBold,
+      Foreground = Avalonia.Media.Brushes.White,
+      TextAlignment = Avalonia.Media.TextAlignment.Left
+    };
+    headerBorder.Child = headerText;
+    mainGrid.Children.Add(headerBorder);
+
+    // Content section with message and input
+    var contentPanel = new StackPanel
+    {
+      Spacing = 15,
+      Margin = new Thickness(30, 25)
+    };
+    Grid.SetRow(contentPanel, 1);
+
+    var messageText = new TextBlock
     {
       Text = message,
+      FontSize = 13,
       TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-      Margin = new Avalonia.Thickness(0, 0, 0, 10)
+      LineHeight = 20
     };
+
+    if (Application.Current?.Resources.TryGetResource("SystemControlForegroundBaseHighBrush", null, out var fgBrush) == true)
+    {
+      messageText.Foreground = fgBrush as Avalonia.Media.IBrush;
+    }
 
     var textBox = new TextBox
     {
       Text = defaultValue ?? "",
-      Watermark = "Enter folder name...",
-      Margin = new Avalonia.Thickness(0, 0, 0, 15)
+      Watermark = "Enter value...",
+      MinHeight = 32,
+      Padding = new Thickness(10, 6)
     };
 
+    contentPanel.Children.Add(messageText);
+    contentPanel.Children.Add(textBox);
+    mainGrid.Children.Add(contentPanel);
+
+    // Footer section with buttons
+    var footerBorder = new Border
+    {
+      Padding = new Thickness(30, 20),
+      CornerRadius = new CornerRadius(0, 0, 8, 8),
+      BorderThickness = new Thickness(0, 1, 0, 0)
+    };
+    Grid.SetRow(footerBorder, 2);
+
+    if (Application.Current?.Resources.TryGetResource("SystemControlBackgroundChromeMediumBrush", null, out var footerBg) == true)
+    {
+      footerBorder.Background = footerBg as Avalonia.Media.IBrush;
+    }
+
+    if (Application.Current?.Resources.TryGetResource("SystemControlForegroundBaseLowBrush", null, out var borderBrush) == true)
+    {
+      footerBorder.BorderBrush = borderBrush as Avalonia.Media.IBrush;
+    }
+
+    // Create buttons
     var okButton = new Button
     {
       Content = "OK",
-      Width = 80,
+      MinWidth = 100,
+      Height = 36,
       IsDefault = true,
-      Margin = new Avalonia.Thickness(0, 0, 10, 0)
+      Padding = new Thickness(20, 8),
+      HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+      VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center
     };
     okButton.Click += (_, _) =>
     {
@@ -244,8 +418,12 @@ public class DialogService : IDialogService
     var cancelButton = new Button
     {
       Content = "Cancel",
-      Width = 80,
-      IsCancel = true
+      MinWidth = 100,
+      Height = 36,
+      IsCancel = true,
+      Padding = new Thickness(20, 8),
+      HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+      VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center
     };
     cancelButton.Click += (_, _) =>
     {
@@ -262,19 +440,18 @@ public class DialogService : IDialogService
     buttonPanel.Children.Add(okButton);
     buttonPanel.Children.Add(cancelButton);
 
-    var stackPanel = new StackPanel
+    footerBorder.Child = buttonPanel;
+    mainGrid.Children.Add(footerBorder);
+
+    mainBorder.Child = mainGrid;
+    dialog.Content = mainBorder;
+
+    // Focus the textbox when dialog opens and select all text
+    dialog.Opened += (_, _) =>
     {
-      Margin = new Avalonia.Thickness(20),
-      Spacing = 10
+      textBox.Focus();
+      textBox.SelectAll();
     };
-    stackPanel.Children.Add(textBlock);
-    stackPanel.Children.Add(textBox);
-    stackPanel.Children.Add(buttonPanel);
-
-    dialog.Content = stackPanel;
-
-    // Focus the textbox when dialog opens
-    dialog.Opened += (_, _) => textBox.Focus();
 
     await dialog.ShowDialog(window);
     return dialog.Tag as string;
