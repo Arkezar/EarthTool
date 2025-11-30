@@ -22,11 +22,13 @@ public class AboutViewModel : ViewModelBase
   public string Description => "A graphical tool for managing Earth 2150 WD archive files.";
   public string Copyright => "© 2025 EarthTool Project";
   public string Author => "Arkezar";
+  public string ProjectUrl => "https://github.com/Arkezar/EarthTool";
 
   public string FullAboutText =>
     $"{ApplicationName}\n" +
     $"Version {Version}\n\n" +
     $"{Description}\n\n" +
     $"{Copyright}\n" +
-    $"By {Author}";
+    $"By {Author}\n\n" +
+    $"{ProjectUrl}";
 }
