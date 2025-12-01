@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace EarthTool.PAR.Models.Abstracts
 {
-  public class TypedEntity : Entity
+  public abstract class TypedEntity : Entity
   {
     public TypedEntity()
     {
