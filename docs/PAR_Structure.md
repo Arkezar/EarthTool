@@ -1,11 +1,12 @@
-# EarthTool.PAR Module - Inheritance Hierarchy
+# EarthTool.PAR Module - Entities Inheritance Hierarchy
 
-This document provides a comprehensive overview of the inheritance structure in the `EarthTool.PAR.Models` namespace, with all 44 entity types and their relationships.
+This document provides a comprehensive overview of the inheritance structure in the `EarthTool.PAR.Models.Entities` namespace, with all 44 entity types and their relationships.
 
 ## Quick Reference
 
-- **Total Entity Types**: 36 concrete + 8 abstract = 44 entity classes
-- **Other Classes**: Research (1 concrete), EntityGroup (1 concrete), ParFile (1 concrete)
+- **Total Classes in Entities Folder**: 44 classes
+- **Abstract Classes**: 9
+- **Concrete Classes**: 35
 - **Root Abstract Class**: `ParameterEntry`
 - **Main Entity Base**: `Entity`
 - **Primary Inheritance Branches**: TypedEntity, TypelessEntity
@@ -58,24 +59,21 @@ ParameterEntry (abstract)
 │       ├── SoundPack [concrete]
 │       └── SpecialUpdateLink [concrete]
 └── Research (concrete) [IBinarySerializable]
-
-EntityGroup (concrete) [model]
-ParFile (concrete) [model]
 ```
 
 ## Class Categories by Function
 
-### A. Core Abstract Classes
+### A. Core Abstract Classes (9 total)
 
 #### `ParameterEntry`
 - **Purpose**: Root base class for all parameter entries
-- **Location**: `Models/Entities/Abstracts/ParameterEntry.cs`
+- **Location**: `Abstracts/ParameterEntry.cs`
 - **Key Properties**: `Name` (string)
-- **Children**: Entity, Research
+- **Direct Children**: Entity, Research
 
 #### `Entity` *(abstract)*
 - **Purpose**: Base entity class with type name tracking for JSON serialization
-- **Location**: `Models/Entities/Abstracts/Entity.cs`
+- **Location**: `Abstracts/Entity.cs`
 - **Implements**: `IBinarySerializable`
 - **Key Properties**:
   - `TypeName` (string) - Full type name for polymorphic deserialization
@@ -85,17 +83,17 @@ ParFile (concrete) [model]
 - **Key Methods**: `ToByteArray(Encoding)` - Serialization
 - **Direct Children**: TypedEntity, TypelessEntity
 
-### B. Primary Branching Classes
-
 #### `TypedEntity` *(concrete)*
 - **Purpose**: Entity with a specific type classification
-- **Location**: `Models/Entities/Abstracts/TypedEntity.cs`
+- **Location**: `Abstracts/TypedEntity.cs`
 - **Key Features**: Implements `FieldTypes` based on ClassId
+- **Parent**: Entity
 - **Children**: InteractableEntity
 
 #### `TypelessEntity` *(abstract)*
 - **Purpose**: Entity without type classification (ClassId = None)
-- **Location**: `Models/Entities/Abstracts/TypelessEntity.cs`
+- **Location**: `Abstracts/TypelessEntity.cs`
+- **Parent**: Entity
 - **Concrete Implementations**:
   - ShieldGenerator
   - PlayerTalkPack
@@ -104,12 +102,10 @@ ParFile (concrete) [model]
   - SoundPack
   - SpecialUpdateLink
 
-### C. Destructible Entity Branch
-
 #### `InteractableEntity` *(abstract)*
 - **Purpose**: Entities with visual/interactive properties (mesh, shadow, sound, etc.)
 - **Parent**: TypedEntity
-- **Location**: `Models/Entities/Abstracts/InteractableEntity.cs`
+- **Location**: `Abstracts/InteractableEntity.cs`
 - **Key Properties**:
   - `Mesh` (string) - 3D mesh reference
   - `ShadowType` (ShadowType) - Shadow rendering type
@@ -125,7 +121,7 @@ ParFile (concrete) [model]
 #### `DestructibleEntity` *(abstract)*
 - **Purpose**: Entities with health, armor, and physical destruction
 - **Parent**: InteractableEntity
-- **Location**: `Models/Entities/Abstracts/DestructibleEntity.cs`
+- **Location**: `Abstracts/DestructibleEntity.cs`
 - **Key Properties**:
   - `HP` (int) - Health points
   - `HpRegeneration` (int) - Health regeneration rate
@@ -144,12 +140,10 @@ ParFile (concrete) [model]
   - Explosion
   - BuilderLine
 
-### D. Equipable Entities
-
 #### `EquipableEntity` *(abstract)*
 - **Purpose**: Entities that can equip weapons and equipment
 - **Parent**: DestructibleEntity
-- **Location**: `Models/Entities/Abstracts/EquipableEntity.cs`
+- **Location**: `Abstracts/EquipableEntity.cs`
 - **Key Properties**:
   - `SightRange` (int) - Vision range
   - `TalkPackId` (string) - Reference to talk pack
@@ -158,10 +152,36 @@ ParFile (concrete) [model]
   - `Slot1Type-Slot4Type` (ConnectorType) - Equipment slot types
 - **Children**: Vehicle, VerticalTransporter, Platoon, Building, StartingPosition
 
-#### `Vehicle` *(concrete)*
-- **Purpose**: Mobile units with terrain-specific speed properties
+#### `VerticalTransporter` *(abstract)*
+- **Purpose**: Entities that can transport units vertically
 - **Parent**: EquipableEntity
-- **Location**: `Models/Entities/Entities/Vehicle.cs`
+- **Location**: `Abstracts/VerticalTransporter.cs`
+- **Key Properties**:
+  - `VehicleSpeed` (int) - Movement speed
+  - `VerticalVehicleAnimationType` (VerticalVehicleAnimationType) - Animation type
+- **Concrete Children**:
+  - BuildingTransporter
+  - ResourceTransporter
+  - UnitTransporter
+
+#### `PassiveEntity` *(abstract)*
+- **Purpose**: Stationary, non-combative entities
+- **Parent**: DestructibleEntity
+- **Location**: `Abstracts/PassiveEntity.cs`
+- **Key Properties**:
+  - `PassiveMask` (PassiveMask) - Passive behavior flags
+  - `WallCopulaId` (string) - Reference to wall copula
+- **Concrete Children**:
+  - Passive
+  - Artifact
+
+### B. Concrete Entity Classes (34)
+
+#### TypedEntity Branch - Equipable Vehicles (5)
+
+**Vehicle** *(concrete)*
+- **Parent**: EquipableEntity
+- **Location**: `Vehicle.cs`
 - **Key Properties**:
   - `SoilSpeed` (int) - Speed on soil terrain
   - `RoadSpeed` (int) - Speed on road terrain
@@ -176,204 +196,342 @@ ParFile (concrete) [model]
   - `BillowId` (string) - Reference to billow effect
   - `StandBillowId` (string) - Reference to stand billow effect
   - `TrackId` (string) - Reference to track/trail effect
-- **Concrete Children**:
-  - Sapper
-  - Harvester
-  - Builder
-  - SupplyTransporter
 
-#### `VerticalTransporter` *(abstract)*
-- **Purpose**: Entities that can transport units vertically
+**Sapper** *(concrete)*
+- **Parent**: Vehicle
+- **Location**: `Sapper.cs`
+
+**Harvester** *(concrete)*
+- **Parent**: Vehicle
+- **Location**: `Harvester.cs`
+
+**Builder** *(concrete)*
+- **Parent**: Vehicle
+- **Location**: `Builder.cs`
+
+**SupplyTransporter** *(concrete)*
+- **Parent**: Vehicle
+- **Location**: `SupplyTransporter.cs`
+
+#### TypedEntity Branch - Vertical Transporters (4)
+
+**BuildingTransporter** *(concrete)*
+- **Parent**: VerticalTransporter
+- **Location**: `BuildingTransporter.cs`
+
+**ResourceTransporter** *(concrete)*
+- **Parent**: VerticalTransporter
+- **Location**: `ResourceTransporter.cs`
+
+**UnitTransporter** *(concrete)*
+- **Parent**: VerticalTransporter
+- **Location**: `UnitTransporter.cs`
+
+#### TypedEntity Branch - Equipable Structures (3)
+
+**Platoon** *(concrete)*
 - **Parent**: EquipableEntity
-- **Location**: `Models/Entities/Abstracts/VerticalTransporter.cs`
-- **Key Properties**:
-  - `VehicleSpeed` (int) - Movement speed
-  - `VerticalVehicleAnimationType` (VerticalVehicleAnimationType) - Animation type
-- **Concrete Children**:
-  - BuildingTransporter
-  - ResourceTransporter
-  - UnitTransporter
-
-#### Platoon *(concrete)*
+- **Location**: `Platoon.cs`
 - **Purpose**: Military unit grouping/platoon structure
-- **Parent**: EquipableEntity
-- **Location**: `Models/Entities/Entities/Platoon.cs`
 
-#### Building *(concrete)*
+**Building** *(concrete)*
+- **Parent**: EquipableEntity
+- **Location**: `Building.cs`
 - **Purpose**: Stationary structures
-- **Parent**: EquipableEntity
-- **Location**: `Models/Entities/Entities/Building.cs`
 
-#### StartingPosition *(concrete)*
+**StartingPosition** *(concrete)*
+- **Parent**: EquipableEntity
+- **Location**: `StartingPosition.cs`
 - **Purpose**: Starting positions for units/buildings in maps
-- **Parent**: EquipableEntity
-- **Location**: `Models/Entities/Entities/StartingPosition.cs`
 
-### E. Passive Entities
+#### TypedEntity Branch - Destructible Direct Children (8)
 
-#### `PassiveEntity` *(abstract)*
-- **Purpose**: Stationary, non-combative entities
+**Missile** *(concrete)*
 - **Parent**: DestructibleEntity
-- **Location**: `Models/Entities/Abstracts/PassiveEntity.cs`
-- **Key Properties**:
-  - `PassiveMask` (PassiveMask) - Passive behavior flags
-  - `WallCopulaId` (string) - Reference to wall copula
-- **Concrete Children**:
-  - Passive
-  - Artifact
+- **Location**: `Missile.cs`
 
-### F. Equipment Entities
+**Mine** *(concrete)*
+- **Parent**: DestructibleEntity
+- **Location**: `Mine.cs`
 
-#### `Equipment` *(concrete)*
+**Smoke** *(concrete)*
+- **Parent**: DestructibleEntity
+- **Location**: `Smoke.cs`
+
+**WallLaser** *(concrete)*
+- **Parent**: DestructibleEntity
+- **Location**: `WallLaser.cs`
+
+**FlyingWaste** *(concrete)*
+- **Parent**: DestructibleEntity
+- **Location**: `FlyingWaste.cs`
+
+**Explosion** *(concrete)*
+- **Parent**: DestructibleEntity
+- **Location**: `Explosion.cs`
+
+**BuilderLine** *(concrete)*
+- **Parent**: DestructibleEntity
+- **Location**: `BuilderLine.cs`
+
+#### TypedEntity Branch - Passive Entities (2)
+
+**Passive** *(concrete)*
+- **Parent**: PassiveEntity
+- **Location**: `Passive.cs`
+
+**Artifact** *(concrete)*
+- **Parent**: PassiveEntity
+- **Location**: `Artifact.cs`
+
+#### TypedEntity Branch - Equipment (6)
+
+**Equipment** *(concrete)*
+- **Parent**: InteractableEntity
+- **Location**: `Equipment.cs`
 - **Purpose**: Standalone equipment/weapon components
+
+**UpgradeCopula** *(concrete)*
+- **Parent**: Equipment
+- **Location**: `UpgradeCopula.cs`
+
+**TransporterHook** *(concrete)*
+- **Parent**: Equipment
+- **Location**: `TransporterHook.cs`
+
+**Repairer** *(concrete)*
+- **Parent**: Equipment
+- **Location**: `Repairer.cs`
+
+**ContainerTransporter** *(concrete)*
+- **Parent**: Equipment
+- **Location**: `ContainerTransporter.cs`
+
+**OmnidirectionalEquipment** *(concrete)*
+- **Parent**: Equipment
+- **Location**: `OmnidirectionalEquipment.cs`
+
+#### TypedEntity Branch - Special Interactable (3)
+
+**Weapon** *(concrete)*
 - **Parent**: InteractableEntity
-- **Location**: `Models/Entities/Entities/Equipment.cs`
-- **Concrete Children**:
-  - UpgradeCopula
-  - TransporterHook
-  - Repairer
-  - ContainerTransporter
-  - OmnidirectionalEquipment
-
-### G. Special/Utility Entities
-
-#### `Weapon` *(concrete)*
+- **Location**: `Weapon.cs`
 - **Purpose**: Weapons that can be equipped by units
-- **Parent**: InteractableEntity
-- **Location**: `Models/Entities/Entities/Weapon.cs`
 
-#### `Special` *(concrete)*
+**Special** *(concrete)*
+- **Parent**: InteractableEntity
+- **Location**: `Special.cs`
 - **Purpose**: Special structures or effects
-- **Parent**: InteractableEntity
-- **Location**: `Models/Entities/Entities/Special.cs`
 
-#### `MultiExplosion` *(concrete)*
+**MultiExplosion** *(concrete)*
+- **Parent**: InteractableEntity
+- **Location**: `MultiExplosion.cs`
 - **Purpose**: Multi-target explosion effects
-- **Parent**: InteractableEntity
-- **Location**: `Models/Entities/Entities/MultiExplosion.cs`
 
-## Complete Entity Type Listing
+#### TypelessEntity Branch (6)
 
-### Concrete Implementations (36)
+**ShieldGenerator** *(concrete)*
+- **Parent**: TypelessEntity
+- **Location**: `ShieldGenerator.cs`
 
-**TypedEntity Branch (34):**
-- `Vehicle` + children: Sapper, Harvester, Builder, SupplyTransporter (5)
-- `VerticalTransporter` + children: BuildingTransporter, ResourceTransporter, UnitTransporter (4)
-- `PassiveEntity` + children: Passive, Artifact (3)
-- `Equipment` + children: UpgradeCopula, TransporterHook, Repairer, ContainerTransporter, OmnidirectionalEquipment (6)
-- Direct DestructibleEntity: Missile, Mine, Smoke, WallLaser, FlyingWaste, Explosion, BuilderLine (7)
-- Direct InteractableEntity: Weapon, Special, MultiExplosion (3)
-- Direct EquipableEntity: Platoon, Building, StartingPosition (3)
+**PlayerTalkPack** *(concrete)*
+- **Parent**: TypelessEntity
+- **Location**: `PlayerTalkPack.cs`
 
-**TypelessEntity Branch (6):**
-- ShieldGenerator
-- PlayerTalkPack
-- TalkPack
-- Parameter
-- SoundPack
-- SpecialUpdateLink
+**TalkPack** *(concrete)*
+- **Parent**: TypelessEntity
+- **Location**: `TalkPack.cs`
 
-**Other:**
-- `Research` (ParameterEntry child)
+**Parameter** *(concrete)*
+- **Parent**: TypelessEntity
+- **Location**: `Parameter.cs`
 
-### Model/Container Classes (2)
-- `EntityGroup` - Grouping container for entities
-- `ParFile` - Parameter file container
+**SoundPack** *(concrete)*
+- **Parent**: TypelessEntity
+- **Location**: `SoundPack.cs`
+
+**SpecialUpdateLink** *(concrete)*
+- **Parent**: TypelessEntity
+- **Location**: `SpecialUpdateLink.cs`
+
+### C. Direct ParameterEntry Child (1)
+
+**Research** *(concrete)*
+- **Parent**: ParameterEntry
+- **Location**: `Research.cs`
+- **Implements**: `IBinarySerializable`
+- **Purpose**: Research/technology definition
 
 ## Inheritance Statistics
 
-| Statistic | Count |
-|-----------|-------|
-| Total Abstract Classes | 8 |
-| Total Concrete Entity Classes | 36 |
-| Total Concrete Other Classes | 2 |
-| Maximum Inheritance Depth | 6 levels |
-| Classes with No Children | 23 |
-| Classes with 1-2 Children | 10 |
-| Classes with 3-6 Children | 5 |
+| Metric | Value |
+|--------|-------|
+| Total Classes | 44 |
+| Abstract Classes | 9 |
+| Concrete Classes | 35 |
+| Maximum Inheritance Depth | 7 levels |
+| Root Classes | 1 (ParameterEntry) |
+| Intermediate Abstract | 8 |
+| Leaf Nodes (No Children) | 23 |
 
 ### Inheritance Depth Distribution
+
 - **Depth 1**: ParameterEntry
 - **Depth 2**: Entity, Research
 - **Depth 3**: TypedEntity, TypelessEntity
-- **Depth 4**: InteractableEntity (concrete classes), DestructibleEntity
-- **Depth 5**: EquipableEntity, PassiveEntity
-- **Depth 6**: Vehicle, VerticalTransporter, their children (max depth: 7 for Vehicle descendants)
+- **Depth 4**: InteractableEntity
+- **Depth 5**: DestructibleEntity
+- **Depth 6**: EquipableEntity, PassiveEntity
+- **Depth 7**: Vehicle, VerticalTransporter, Platoon, Building, StartingPosition, Passive, Artifact
+- **Depth 8**: Sapper, Harvester, Builder, SupplyTransporter, BuildingTransporter, ResourceTransporter, UnitTransporter (max depth from ParameterEntry)
 
-## Structural Notes
+### Children Count Distribution
 
-### Key Design Patterns
+| Class | Direct Children | Total Descendants |
+|-------|-----------------|------------------|
+| ParameterEntry | 2 | 42 |
+| Entity | 2 | 41 |
+| TypedEntity | 1 | 33 |
+| TypelessEntity | 6 | 6 |
+| InteractableEntity | 5 | 15 |
+| DestructibleEntity | 8 | 20 |
+| EquipableEntity | 5 | 15 |
+| VerticalTransporter | 3 | 3 |
+| PassiveEntity | 2 | 2 |
+| Equipment | 5 | 5 |
+| Vehicle | 4 | 4 |
 
-1. **Type Classification**: Entities are split into TypedEntity (with ClassId) and TypelessEntity (ClassId = None)
-2. **Capability Stacking**: Multiple parallel hierarchies add features:
-   - `DestructibleEntity`: Adds health/armor
-   - `InteractableEntity`: Adds visuals/sound
-   - `EquipableEntity`: Adds equipment slots
-   - `PassiveEntity`: Adds passive properties
-   - `Vehicle`: Adds terrain-specific speeds
-   - `VerticalTransporter`: Adds vertical transport capability
-3. **Binary Serialization**: All entities implement `IBinarySerializable` and define `FieldTypes` for binary encoding
-4. **Polymorphic JSON**: Uses `TypeName` property for runtime type resolution during deserialization
+## Design Patterns & Principles
 
-### File Organization
-- **Location**: `/EarthTool.PAR/Models/`
-- **Structure**:
-  - `Entities/` - All concrete entity classes
-  - `Entities/Abstracts/` - Abstract base classes (8 total)
-  - `ParFile.cs` - Container for entities and research
-  - `EntityGroup.cs` - Group container for entities
-  - `Collections/` - Collection classes (ModelTree, ModelTreeEnumerator)
+### 1. Type Classification System
+- **TypedEntity**: Entities with explicit EntityClassType (most game entities)
+- **TypelessEntity**: Entities without type classification (utility/support)
 
-## Entity Coverage
+### 2. Capability Stacking Architecture
+The design uses multiple parallel hierarchies to compose features:
+- **InteractableEntity**: Adds visual/audio properties (mesh, shadow, sound)
+- **DestructibleEntity**: Adds health/armor/destruction (combatable entities)
+- **EquipableEntity**: Adds equipment slots/shield/sight (units)
+- **PassiveEntity**: Adds passive properties (stationary buildings)
+- **Vehicle**: Adds terrain-specific speeds
+- **VerticalTransporter**: Adds vertical transport capability
 
-**All 44 entity classes accounted for:**
-- ParameterEntry ✓
-- Entity ✓
-- TypedEntity ✓
-- TypelessEntity ✓
-- InteractableEntity ✓
-- DestructibleEntity ✓
-- EquipableEntity ✓
-- PassiveEntity ✓
-- VerticalTransporter ✓
-- Vehicle ✓
-- Sapper ✓
-- Harvester ✓
-- Builder ✓
-- SupplyTransporter ✓
-- BuildingTransporter ✓
-- ResourceTransporter ✓
-- UnitTransporter ✓
-- Platoon ✓
-- Building ✓
-- StartingPosition ✓
-- Passive ✓
-- Artifact ✓
-- Missile ✓
-- Mine ✓
-- Smoke ✓
-- WallLaser ✓
-- FlyingWaste ✓
-- Explosion ✓
-- BuilderLine ✓
-- Equipment ✓
-- UpgradeCopula ✓
-- TransporterHook ✓
-- Repairer ✓
-- ContainerTransporter ✓
-- OmnidirectionalEquipment ✓
-- Weapon ✓
-- Special ✓
-- MultiExplosion ✓
-- ShieldGenerator ✓
-- PlayerTalkPack ✓
-- TalkPack ✓
-- Parameter ✓
-- SoundPack ✓
-- SpecialUpdateLink ✓
-- Research ✓
+### 3. Binary Serialization
+- All entities implement `IBinarySerializable`
+- Each entity defines `FieldTypes` (boolean array) indicating which fields are strings
+- Supports efficient binary encoding/decoding for file I/O
 
-## References
-- See `/EarthTool.PAR/Serialization/EntityConverter.cs` for JSON deserialization logic
-- See `/EarthTool.PAR/Enums/` for enum definitions (EntityClassType, ShadowType, VehicleObjectType, etc.)
-- See `/EarthTool.PAR/Extensions/BinaryExtensions.cs` for binary I/O helpers
+### 4. Polymorphic JSON Deserialization
+- Entities track `TypeName` property for runtime type resolution
+- Used by `EntityConverter` for deserializing polymorphic entities from JSON
+- Enables proper type reconstruction during deserialization
+
+## Complete Entity Checklist
+
+**Abstract Classes (9):**
+- ✓ ParameterEntry
+- ✓ Entity
+- ✓ TypedEntity (concrete as a base)
+- ✓ TypelessEntity
+- ✓ InteractableEntity
+- ✓ DestructibleEntity
+- ✓ EquipableEntity
+- ✓ VerticalTransporter
+- ✓ PassiveEntity
+
+**Concrete Classes (35):**
+- ✓ Artifact
+- ✓ Builder
+- ✓ BuilderLine
+- ✓ Building
+- ✓ BuildingTransporter
+- ✓ ContainerTransporter
+- ✓ Equipment
+- ✓ Explosion
+- ✓ FlyingWaste
+- ✓ Harvester
+- ✓ Mine
+- ✓ Missile
+- ✓ MultiExplosion
+- ✓ OmnidirectionalEquipment
+- ✓ Parameter
+- ✓ Passive
+- ✓ Platoon
+- ✓ PlayerTalkPack
+- ✓ Repairer
+- ✓ Research
+- ✓ ResourceTransporter
+- ✓ Sapper
+- ✓ ShieldGenerator
+- ✓ Smoke
+- ✓ SoundPack
+- ✓ Special
+- ✓ SpecialUpdateLink
+- ✓ StartingPosition
+- ✓ SupplyTransporter
+- ✓ TalkPack
+- ✓ TransporterHook
+- ✓ UnitTransporter
+- ✓ UpgradeCopula
+- ✓ Vehicle
+- ✓ WallLaser
+- ✓ Weapon
+
+## File Organization
+
+```
+EarthTool.PAR/Models/Entities/
+├── Abstracts/
+│   ├── DestructibleEntity.cs
+│   ├── Entity.cs
+│   ├── EquipableEntity.cs
+│   ├── InteractableEntity.cs
+│   ├── ParameterEntry.cs
+│   ├── PassiveEntity.cs
+│   ├── TypedEntity.cs
+│   ├── TypelessEntity.cs
+│   └── VerticalTransporter.cs
+├── Artifact.cs
+├── Builder.cs
+├── BuilderLine.cs
+├── Building.cs
+├── BuildingTransporter.cs
+├── ContainerTransporter.cs
+├── Equipment.cs
+├── Explosion.cs
+├── FlyingWaste.cs
+├── Harvester.cs
+├── Mine.cs
+├── Missile.cs
+├── MultiExplosion.cs
+├── OmnidirectionalEquipment.cs
+├── Parameter.cs
+├── Passive.cs
+├── Platoon.cs
+├── PlayerTalkPack.cs
+├── Repairer.cs
+├── Research.cs
+├── ResourceTransporter.cs
+├── Sapper.cs
+├── ShieldGenerator.cs
+├── Smoke.cs
+├── SoundPack.cs
+├── Special.cs
+├── SpecialUpdateLink.cs
+├── StartingPosition.cs
+├── SupplyTransporter.cs
+├── TalkPack.cs
+├── TransporterHook.cs
+├── UnitTransporter.cs
+├── UpgradeCopula.cs
+├── Vehicle.cs
+├── WallLaser.cs
+└── Weapon.cs
+```
+
+## Related Resources
+
+- **Serialization**: See `/EarthTool.PAR/Serialization/EntityConverter.cs` for JSON polymorphic deserialization
+- **Enums**: See `/EarthTool.PAR/Enums/` for entity-related enumerations
+- **Binary I/O**: See `/EarthTool.PAR/Extensions/BinaryExtensions.cs` for binary read/write helpers
+- **Collections**: See `/EarthTool.PAR/Models/Collections/` for collection management classes
