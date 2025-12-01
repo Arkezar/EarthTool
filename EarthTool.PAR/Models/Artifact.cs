@@ -18,14 +18,14 @@ namespace EarthTool.PAR.Models
     public Artifact(string name, IEnumerable<int> requiredResearch, EntityClassType type, BinaryReader data)
       : base(name, requiredResearch, type, data)
     {
-      ArtefactMask = (ArtifactType)data.ReadInteger();
-      ArtefactParam = data.ReadInteger();
+      ArtifactMask = (ArtifactType)data.ReadInteger();
+      ArtifactParam = data.ReadInteger();
       RespawnTime = data.ReadInteger();
     }
 
-    public ArtifactType ArtefactMask { get; set; }
+    public ArtifactType ArtifactMask { get; set; }
 
-    public int ArtefactParam { get; set; }
+    public int ArtifactParam { get; set; }
 
     public int RespawnTime { get; set; }
 
@@ -34,8 +34,8 @@ namespace EarthTool.PAR.Models
     {
       get
         => base.FieldTypes.Concat(IsStringMember(
-          () => ArtefactMask,
-          () => ArtefactParam,
+          () => ArtifactMask,
+          () => ArtifactParam,
           () => RespawnTime
         ));
       set => base.FieldTypes = value;
@@ -47,8 +47,8 @@ namespace EarthTool.PAR.Models
 
       using var bw = new BinaryWriter(output, encoding);
       bw.Write(base.ToByteArray(encoding));
-      bw.Write((int)ArtefactMask);
-      bw.Write(ArtefactParam);
+      bw.Write((int)ArtifactMask);
+      bw.Write(ArtifactParam);
       bw.Write(RespawnTime);
 
       return output.ToArray();

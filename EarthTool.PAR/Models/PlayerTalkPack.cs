@@ -33,8 +33,8 @@ namespace EarthTool.PAR.Models
       PlatoonDisbanded = data.ReadParameterString();
       UnitLost = data.ReadParameterString();
       TransporterArrived = data.ReadParameterString();
-      ArtefactLocated = data.ReadParameterString();
-      ArtefactRecovered = data.ReadParameterString();
+      ArtifactLocated = data.ReadParameterString();
+      ArtifactRecovered = data.ReadParameterString();
       NewAreaLocationFound = data.ReadParameterString();
       EnemyMainBaseLocated = data.ReadParameterString();
       NewSourceFieldLocated = data.ReadParameterString();
@@ -76,9 +76,9 @@ namespace EarthTool.PAR.Models
 
     public string TransporterArrived { get; set; }
 
-    public string ArtefactLocated { get; set; }
+    public string ArtifactLocated { get; set; }
 
-    public string ArtefactRecovered { get; set; }
+    public string ArtifactRecovered { get; set; }
 
     public string NewAreaLocationFound { get; set; }
 
@@ -111,8 +111,8 @@ namespace EarthTool.PAR.Models
         () => PlatoonDisbanded,
         () => UnitLost,
         () => TransporterArrived,
-        () => ArtefactLocated,
-        () => ArtefactRecovered,
+        () => ArtifactLocated,
+        () => ArtifactRecovered,
         () => NewAreaLocationFound,
         () => EnemyMainBaseLocated,
         () => NewSourceFieldLocated,
@@ -145,8 +145,8 @@ namespace EarthTool.PAR.Models
       bw.WriteParameterString(PlatoonDisbanded, encoding);
       bw.WriteParameterString(UnitLost, encoding);
       bw.WriteParameterString(TransporterArrived, encoding);
-      bw.WriteParameterString(ArtefactLocated, encoding);
-      bw.WriteParameterString(ArtefactRecovered, encoding);
+      bw.WriteParameterString(ArtifactLocated, encoding);
+      bw.WriteParameterString(ArtifactRecovered, encoding);
       bw.WriteParameterString(NewAreaLocationFound, encoding);
       bw.WriteParameterString(EnemyMainBaseLocated, encoding);
       bw.WriteParameterString(NewSourceFieldLocated, encoding);

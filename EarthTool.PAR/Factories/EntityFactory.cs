@@ -55,7 +55,7 @@ namespace EarthTool.PAR.Factories
         (EntityGroupType.Special, EntityClassType.Passive) => new Passive(name, requiredResearch, type, data),
         (EntityGroupType.Special, EntityClassType.TransientPassive) => new Passive(name, requiredResearch, type, data),
         (EntityGroupType.Special, EntityClassType.BuildPassive) => new Passive(name, requiredResearch, type, data),
-        (EntityGroupType.Special, EntityClassType.Artefact) => new Artifact(name, requiredResearch, type, data),
+        (EntityGroupType.Special, EntityClassType.Artifact) => new Artifact(name, requiredResearch, type, data),
         (EntityGroupType.Special, EntityClassType.StartingPositionMark) => new StartingPosition(name, requiredResearch,
           type, data),
         (EntityGroupType.Special, EntityClassType.MultiExplosion) => new MultiExplosion(name, requiredResearch, type,

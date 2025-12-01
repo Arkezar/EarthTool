@@ -24,7 +24,7 @@ namespace EarthTool.PAR.Enums
     Missile                  = 0x00010401,
     
     TransientPassive         = 0x00020201,
-    Artefact                 = 0x01020201,
+    Artifact                 = 0x01020201,
     
     Explosion                = 0x00020401,
     ExplosionEx              = 0x01020401,
