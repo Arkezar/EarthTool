@@ -24,13 +24,13 @@ namespace EarthTool.PAR.Models
       bw.Write(FileHeader.ToByteArray(encoding));
       bw.Write(Identifiers.Paramters);
       bw.Write((long)Groups.Count());
-      foreach (EntityGroup group in Groups)
+      foreach (var group in Groups)
       {
         bw.Write(group.ToByteArray(encoding));
       }
 
       bw.Write((long)Research.Count());
-      foreach (Research research in Research)
+      foreach (var research in Research)
       {
         bw.Write(research.ToByteArray(encoding));
       }
