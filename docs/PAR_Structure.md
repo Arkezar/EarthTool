@@ -373,6 +373,7 @@ ParameterEntry (abstract)
 | Root Classes | 1 (ParameterEntry) |
 | Intermediate Abstract | 9 |
 | Leaf Nodes (No Children) | 23 |
+| Direct Entity Children | 2 (TypedEntity, TypelessEntity) |
 
 ### Inheritance Depth Distribution
 
@@ -431,7 +432,7 @@ The design uses multiple parallel hierarchies to compose features:
 **Abstract Classes (10):**
 - ✓ ParameterEntry
 - ✓ Entity
-- ✓ TypedEntity (concrete as a base)
+- ✓ TypedEntity
 - ✓ TypelessEntity
 - ✓ InteractableEntity
 - ✓ DestructibleEntity
