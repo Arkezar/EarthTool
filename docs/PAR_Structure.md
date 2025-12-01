@@ -5,8 +5,8 @@ This document provides a comprehensive overview of the inheritance structure in 
 ## Quick Reference
 
 - **Total Classes in Entities Folder**: 44 classes
-- **Abstract Classes**: 9
-- **Concrete Classes**: 35
+- **Abstract Classes**: 10
+- **Concrete Classes**: 34
 - **Root Abstract Class**: `ParameterEntry`
 - **Main Entity Base**: `Entity`
 - **Primary Inheritance Branches**: TypedEntity, TypelessEntity
@@ -16,7 +16,7 @@ This document provides a comprehensive overview of the inheritance structure in 
 ```
 ParameterEntry (abstract)
 ├── Entity (abstract) [IBinarySerializable]
-│   ├── TypedEntity (concrete)
+│   ├── TypedEntity (abstract)
 │   │   ├── InteractableEntity (abstract)
 │   │   │   ├── DestructibleEntity (abstract)
 │   │   │   │   ├── EquipableEntity (abstract)
@@ -63,7 +63,7 @@ ParameterEntry (abstract)
 
 ## Class Categories by Function
 
-### A. Core Abstract Classes (9 total)
+### A. Core Abstract Classes (10 total)
 
 #### `ParameterEntry`
 - **Purpose**: Root base class for all parameter entries
@@ -83,7 +83,7 @@ ParameterEntry (abstract)
 - **Key Methods**: `ToByteArray(Encoding)` - Serialization
 - **Direct Children**: TypedEntity, TypelessEntity
 
-#### `TypedEntity` *(concrete)*
+#### `TypedEntity` *(abstract)*
 - **Purpose**: Entity with a specific type classification
 - **Location**: `Abstracts/TypedEntity.cs`
 - **Key Features**: Implements `FieldTypes` based on ClassId
@@ -175,7 +175,7 @@ ParameterEntry (abstract)
   - Passive
   - Artifact
 
-### B. Concrete Entity Classes (34)
+### B. Concrete Entity Classes (33)
 
 #### TypedEntity Branch - Equipable Vehicles (5)
 
@@ -367,11 +367,11 @@ ParameterEntry (abstract)
 | Metric | Value |
 |--------|-------|
 | Total Classes | 44 |
-| Abstract Classes | 9 |
-| Concrete Classes | 35 |
-| Maximum Inheritance Depth | 7 levels |
+| Abstract Classes | 10 |
+| Concrete Classes | 34 |
+| Maximum Inheritance Depth | 8 levels |
 | Root Classes | 1 (ParameterEntry) |
-| Intermediate Abstract | 8 |
+| Intermediate Abstract | 9 |
 | Leaf Nodes (No Children) | 23 |
 
 ### Inheritance Depth Distribution
@@ -428,7 +428,7 @@ The design uses multiple parallel hierarchies to compose features:
 
 ## Complete Entity Checklist
 
-**Abstract Classes (9):**
+**Abstract Classes (10):**
 - ✓ ParameterEntry
 - ✓ Entity
 - ✓ TypedEntity (concrete as a base)
@@ -439,7 +439,7 @@ The design uses multiple parallel hierarchies to compose features:
 - ✓ VerticalTransporter
 - ✓ PassiveEntity
 
-**Concrete Classes (35):**
+**Concrete Classes (34):**
 - ✓ Artifact
 - ✓ Builder
 - ✓ BuilderLine
