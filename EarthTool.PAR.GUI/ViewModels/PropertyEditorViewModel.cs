@@ -1,6 +1,7 @@
 using EarthTool.PAR.GUI.Models;
 using ReactiveUI;
 using System;
+using System.Reactive;
 
 namespace EarthTool.PAR.GUI.ViewModels;
 
@@ -16,6 +17,20 @@ public abstract class PropertyEditorViewModel : ViewModelBase
   private bool _isRequired;
   private string? _errorMessage;
   private ValidationSeverity _validationSeverity = ValidationSeverity.Error;
+
+  /// <summary>
+  /// Gets the command to copy the property value to clipboard.
+  /// </summary>
+  public ReactiveCommand<Unit, Unit> CopyValueCommand { get; }
+
+  public PropertyEditorViewModel()
+  {
+    CopyValueCommand = ReactiveCommand.Create(() =>
+    {
+      // Clipboard will be accessed from UI layer via Interaction
+      // For now, just expose the command
+    });
+  }
 
   /// <summary>
   /// Gets or sets the property name (as it appears in the Entity class).
