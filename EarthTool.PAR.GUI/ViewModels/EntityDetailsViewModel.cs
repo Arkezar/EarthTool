@@ -9,6 +9,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
+using System.Reflection;
 
 namespace EarthTool.PAR.GUI.ViewModels;
 
@@ -163,51 +164,55 @@ public class EntityDetailsViewModel : ViewModelBase
 
   private IEnumerable<PropertyGroupViewModel> GroupResearchProperties(IEnumerable<PropertyEditorViewModel> editors)
   {
-    var groups = new Dictionary<string, List<PropertyEditorViewModel>>();
-    
+    if (_currentResearch == null)
+      return Enumerable.Empty<PropertyGroupViewModel>();
+
+    // Group properties by declaring type using reflection
+    var researchType = _currentResearch.GetType();
+    var propertiesByType = new Dictionary<Type, List<PropertyEditorViewModel>>();
+
     foreach (var editor in editors)
     {
-      var groupName = DetermineResearchPropertyGroup(editor.PropertyName);
+      // Find which type in the hierarchy declares this property
+      var declaringType = FindDeclaringType(researchType, editor.PropertyName);
       
-      if (!groups.ContainsKey(groupName))
+      if (declaringType != null)
       {
-        groups[groupName] = new List<PropertyEditorViewModel>();
+        if (!propertiesByType.ContainsKey(declaringType))
+        {
+          propertiesByType[declaringType] = new List<PropertyEditorViewModel>();
+        }
+        propertiesByType[declaringType].Add(editor);
       }
-      
-      groups[groupName].Add(editor);
     }
-    
-    // Define group order for Research
-    var groupOrder = new[] { "Basic", "Costs", "Timing", "Requirements", "References", "Other" };
-    
-    var groupViewModels = new List<PropertyGroupViewModel>();
-    
-    foreach (var groupName in groupOrder)
+
+    // Build inheritance hierarchy from base to derived
+    var hierarchy = new List<Type>();
+    var currentType = researchType;
+    while (currentType != null && currentType != typeof(object))
     {
-      if (groups.TryGetValue(groupName, out var groupEditors))
+      hierarchy.Add(currentType);
+      currentType = currentType.BaseType;
+    }
+    hierarchy.Reverse(); // Now ordered from base to derived
+
+    // Create groups in hierarchy order
+    var groupViewModels = new List<PropertyGroupViewModel>();
+    foreach (var type in hierarchy)
+    {
+      if (propertiesByType.TryGetValue(type, out var properties) && properties.Any())
       {
+        var groupName = FormatTypeName(type);
         groupViewModels.Add(new PropertyGroupViewModel
         {
           GroupName = groupName,
-          Properties = new ObservableCollection<PropertyEditorViewModel>(groupEditors)
+          IsExpanded = type == researchType, // Expand only the most derived type
+          Properties = new ObservableCollection<PropertyEditorViewModel>(properties)
         });
       }
     }
-    
-    return groupViewModels;
-  }
 
-  private string DetermineResearchPropertyGroup(string propertyName)
-  {
-    return propertyName switch
-    {
-      "Name" or "Id" or "Faction" or "Type" => "Basic",
-      "CampaignCost" or "SkirmishCost" => "Costs", 
-      "CampaignTime" or "SkirmishTime" => "Timing",
-      "RequiredResearch" => "Requirements",
-      "Video" or "Mesh" or "MeshParamsIndex" => "References",
-      _ => "Other"
-    };
+    return groupViewModels;
   }
 
   private void LoadEntity()
@@ -258,34 +263,50 @@ public class EntityDetailsViewModel : ViewModelBase
   
   private IEnumerable<PropertyGroupViewModel> GroupProperties(IEnumerable<PropertyEditorViewModel> editors)
   {
-    var groups = new Dictionary<string, List<PropertyEditorViewModel>>();
+    if (_currentEntity == null)
+      return Enumerable.Empty<PropertyGroupViewModel>();
+
+    // Group properties by declaring type using reflection
+    var entityType = _currentEntity.Entity.GetType();
+    var propertiesByType = new Dictionary<Type, List<PropertyEditorViewModel>>();
 
     foreach (var editor in editors)
     {
-      var groupName = DeterminePropertyGroup(editor.PropertyName);
-
-      if (!groups.ContainsKey(groupName))
+      // Find which type in the hierarchy declares this property
+      var declaringType = FindDeclaringType(entityType, editor.PropertyName);
+      
+      if (declaringType != null)
       {
-        groups[groupName] = new List<PropertyEditorViewModel>();
+        if (!propertiesByType.ContainsKey(declaringType))
+        {
+          propertiesByType[declaringType] = new List<PropertyEditorViewModel>();
+        }
+        propertiesByType[declaringType].Add(editor);
       }
-
-      groups[groupName].Add(editor);
     }
 
-    // Create ViewModels for each group
-    var groupViewModels = new List<PropertyGroupViewModel>();
-
-    // Define group order
-    var groupOrder = new[] { "Basic", "Combat", "Movement", "Equipment", "Building", "Special", "References", "Other" };
-
-    foreach (var groupName in groupOrder)
+    // Build inheritance hierarchy from base to derived
+    var hierarchy = new List<Type>();
+    var currentType = entityType;
+    while (currentType != null && currentType != typeof(object))
     {
-      if (groups.TryGetValue(groupName, out var groupEditors))
+      hierarchy.Add(currentType);
+      currentType = currentType.BaseType;
+    }
+    hierarchy.Reverse(); // Now ordered from base (Entity) to derived (Vehicle, etc.)
+
+    // Create groups in hierarchy order
+    var groupViewModels = new List<PropertyGroupViewModel>();
+    foreach (var type in hierarchy)
+    {
+      if (propertiesByType.TryGetValue(type, out var properties) && properties.Any())
       {
+        var groupName = FormatTypeName(type);
         groupViewModels.Add(new PropertyGroupViewModel
         {
           GroupName = groupName,
-          Properties = new ObservableCollection<PropertyEditorViewModel>(groupEditors)
+          IsExpanded = type == entityType, // Expand only the most derived type
+          Properties = new ObservableCollection<PropertyEditorViewModel>(properties)
         });
       }
     }
@@ -293,32 +314,33 @@ public class EntityDetailsViewModel : ViewModelBase
     return groupViewModels;
   }
 
-  private string DeterminePropertyGroup(string propertyName)
+  private Type? FindDeclaringType(Type type, string propertyName)
   {
-    // Group properties by logical categories
-    if (propertyName is "Name" or "Cost" or "TimeOfBuild" or "Mesh")
-      return "Basic";
-
-    if (propertyName is "HP" or "Armor" or "HpRegeneration" or "CalorificCapacity" or "DisableResist")
-      return "Combat";
-
-    if (propertyName.Contains("Speed") || propertyName.Contains("Range"))
-      return "Movement";
-
-    if (propertyName.Contains("Slot") || propertyName.Contains("Equipment") || propertyName.Contains("Cannon"))
-      return "Equipment";
-
-    if (propertyName.Contains("Building") || propertyName.Contains("Power") || propertyName.Contains("Resource"))
-      return "Building";
-
-    if (propertyName.EndsWith("Id") || propertyName.Contains("Ref"))
-      return "References";
-
-    if (propertyName.Contains("Explosion") || propertyName.Contains("Smoke") || propertyName.Contains("Effect"))
-      return "Special";
-
-    return "Other";
+    var property = type.GetProperty(propertyName);
+    return property?.DeclaringType;
   }
+
+  private string FormatTypeName(Type type)
+  {
+    var name = type.Name;
+    
+    // Remove "Entity" suffix if present
+    if (name.EndsWith("Entity"))
+    {
+      name = name.Substring(0, name.Length - 6);
+    }
+    
+    // Convert PascalCase to "Pascal Case"
+    if (string.IsNullOrEmpty(name))
+      return name;
+      
+    var result = string.Concat(name.Select((c, i) =>
+      i > 0 && char.IsUpper(c) && !char.IsUpper(name[i - 1]) ? " " + c : c.ToString()));
+    
+    return result;
+  }
+
+
 
   private void RevertChanges()
   {
