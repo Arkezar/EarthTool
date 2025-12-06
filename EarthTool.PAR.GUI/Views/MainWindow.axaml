@@ -96,12 +96,8 @@
                    VerticalAlignment="Center" />
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
           <TextBlock VerticalAlignment="Center">
-            <Run Text="Groups:" />
-            <Run Text="{Binding EntityGroups.Count}" FontWeight="Bold" />
-          </TextBlock>
-          <TextBlock VerticalAlignment="Center">
-            <Run Text="Entities:" />
-            <Run Text="{Binding EntityGroups.Count}" FontWeight="Bold" />
+            <Run Text="Factions:" />
+            <Run Text="{Binding FactionNodes.Count}" FontWeight="Bold" />
           </TextBlock>
           <TextBlock VerticalAlignment="Center"
                      IsVisible="{Binding HasUnsavedChanges}">
@@ -113,9 +109,9 @@
     </Border>
 
     <!-- Main Content Area -->
-    <Grid ColumnDefinitions="250,4,300,4,*">
-      
-      <!-- Left Panel: Entity Groups Tree -->
+    <Grid ColumnDefinitions="350,4,*">
+
+      <!-- Left Panel: Entity Tree -->
       <Border Grid.Column="0" 
               BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
               BorderThickness="0,0,1,0"
@@ -128,33 +124,57 @@
                      Margin="0,0,0,8" />
           
           <TextBox DockPanel.Dock="Top"
-                   Watermark="Search groups..."
+                   Watermark="Search entities..."
                    Text="{Binding SearchText}"
                    Margin="0,0,0,8" />
 
           <ScrollViewer>
-            <ItemsControl ItemsSource="{Binding EntityGroups}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Expander Header="{Binding GroupName}" IsExpanded="{Binding IsExpanded}">
-                    <StackPanel Margin="16,4,0,4">
-                      <TextBlock>
-                        <Run Text="Type: " />
-                        <Run Text="{Binding GroupTypeDisplay}" FontWeight="Bold" />
-                      </TextBlock>
-                      <TextBlock>
-                        <Run Text="Faction: " />
-                        <Run Text="{Binding FactionDisplay}" />
-                      </TextBlock>
-                      <TextBlock>
-                        <Run Text="Entities: " />
-                        <Run Text="{Binding EntityCount}" FontWeight="Bold" />
-                      </TextBlock>
-                    </StackPanel>
-                  </Expander>
+            <TreeView ItemsSource="{Binding FactionNodes}"
+                      SelectedItem="{Binding SelectedNode}">
+              
+              <TreeView.DataTemplates>
+                
+                <!-- Faction Node Template -->
+                <TreeDataTemplate DataType="vm:FactionNodeViewModel" 
+                                ItemsSource="{Binding Children}">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </StackPanel>
+                </TreeDataTemplate>
+                
+                <!-- GroupType Node Template -->
+                <TreeDataTemplate DataType="vm:GroupTypeNodeViewModel" 
+                                ItemsSource="{Binding Children}">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </StackPanel>
+                </TreeDataTemplate>
+                
+                <!-- EntityGroup Node Template -->
+                <TreeDataTemplate DataType="vm:EntityGroupNodeViewModel" 
+                                ItemsSource="{Binding Children}">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </StackPanel>
+                </TreeDataTemplate>
+                
+                <!-- Entity (Leaf) Template -->
+                <DataTemplate DataType="vm:EntityListItemViewModel">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding Name}" />
+                    <TextBlock Text="●" 
+                              Foreground="Orange" 
+                              FontSize="12"
+                              IsVisible="{Binding IsDirty}" />
+                  </StackPanel>
                 </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                
+              </TreeView.DataTemplates>
+            </TreeView>
           </ScrollViewer>
         </DockPanel>
       </Border>
@@ -163,64 +183,8 @@
                     ResizeDirection="Columns" 
                     Background="Transparent" />
 
-      <!-- Middle Panel: Entity List -->
-      <Border Grid.Column="2" 
-              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-              BorderThickness="0,0,1,0"
-              Padding="8">
-        <DockPanel>
-          <TextBlock DockPanel.Dock="Top" 
-                     Text="Entities" 
-                     FontSize="14" 
-                     FontWeight="Bold"
-                     Margin="0,0,0,8" />
-
-          <TextBlock DockPanel.Dock="Top"
-                     Text="Select a group to view entities"
-                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
-                     Margin="0,0,0,8"
-                     IsVisible="{Binding !SelectedGroup}" />
-
-          <ScrollViewer IsVisible="{Binding !!SelectedGroup}">
-            <ItemsControl ItemsSource="{Binding SelectedGroup.Entities}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                          BorderThickness="0,0,0,1"
-                          Padding="4"
-                          Background="Transparent"
-                          PointerPressed="Entity_PointerPressed">
-                    <Grid ColumnDefinitions="Auto,*,Auto">
-                      <TextBlock Grid.Column="0" 
-                                 Text="{Binding Icon}" 
-                                 FontSize="16"
-                                 Margin="0,0,8,0" />
-                      <StackPanel Grid.Column="1">
-                        <TextBlock Text="{Binding Name}" FontWeight="Bold" />
-                        <TextBlock Text="{Binding TypeDisplayName}" 
-                                   FontSize="10"
-                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-                      </StackPanel>
-                      <TextBlock Grid.Column="2" 
-                                 Text="●" 
-                                 Foreground="Orange"
-                                 FontSize="16"
-                                 IsVisible="{Binding IsDirty}" />
-                    </Grid>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </ScrollViewer>
-        </DockPanel>
-      </Border>
-
-      <GridSplitter Grid.Column="3" 
-                    ResizeDirection="Columns" 
-                    Background="Transparent" />
-
       <!-- Right Panel: Entity Details -->
-      <Border Grid.Column="4" Padding="8">
+      <Border Grid.Column="2" Padding="8">
         <DockPanel>
           <TextBlock DockPanel.Dock="Top" 
                      Text="Entity Details" 

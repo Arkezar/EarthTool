@@ -1,16 +1,17 @@
 using EarthTool.PAR.Enums;
 using EarthTool.PAR.GUI.Models;
 using ReactiveUI;
+using System.Collections.ObjectModel;
 
 namespace EarthTool.PAR.GUI.ViewModels;
 
 /// <summary>
 /// ViewModel for an entity in the list.
+/// Represents a leaf node in the entity tree hierarchy.
 /// </summary>
-public class EntityListItemViewModel : ViewModelBase
+public class EntityListItemViewModel : TreeNodeViewModelBase
 {
   private readonly EditableEntity _editableEntity;
-  private bool _isSelected;
 
   public EntityListItemViewModel(EditableEntity editableEntity)
   {
@@ -43,18 +44,24 @@ public class EntityListItemViewModel : ViewModelBase
   public bool IsDirty => _editableEntity.IsDirty;
 
   /// <summary>
-  /// Gets or sets whether the item is selected.
-  /// </summary>
-  public bool IsSelected
-  {
-    get => _isSelected;
-    set => this.RaiseAndSetIfChanged(ref _isSelected, value);
-  }
-
-  /// <summary>
   /// Gets an icon for the entity type.
   /// </summary>
-  public string Icon => GetIconForType(ClassType);
+  public override string Icon => GetIconForType(ClassType);
+
+  /// <summary>
+  /// Gets the display name for the tree node.
+  /// </summary>
+  public override string DisplayName => Name;
+
+  /// <summary>
+  /// Gets the children (null for leaf nodes).
+  /// </summary>
+  public override ObservableCollection<TreeNodeViewModelBase>? Children => null;
+
+  /// <summary>
+  /// Gets the child count (0 for leaf nodes).
+  /// </summary>
+  public override int ChildCount => 0;
 
   /// <summary>
   /// Gets a tooltip with entity information.

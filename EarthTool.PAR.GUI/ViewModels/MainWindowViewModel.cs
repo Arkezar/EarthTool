@@ -29,7 +29,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   private bool _isBusy;
   private string _statusMessage = "Ready";
   private string _searchText = string.Empty;
-  private EntityGroupViewModel? _selectedGroup;
+  private TreeNodeViewModelBase? _selectedNode;
   private EntityListItemViewModel? _selectedEntity;
 
   public MainWindowViewModel(
@@ -49,7 +49,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     _entityDetailsViewModel = entityDetailsViewModel ?? throw new ArgumentNullException(nameof(entityDetailsViewModel));
 
-    EntityGroups = new ObservableCollection<EntityGroupViewModel>();
+    FactionNodes = new ObservableCollection<FactionNodeViewModel>();
     ResearchList = new ObservableCollection<ResearchViewModel>();
 
     InitializeCommands();
@@ -60,9 +60,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   #region Properties
 
   /// <summary>
-  /// Gets the collection of entity groups.
+  /// Gets the collection of faction nodes (top level of entity tree).
   /// </summary>
-  public ObservableCollection<EntityGroupViewModel> EntityGroups { get; }
+  public ObservableCollection<FactionNodeViewModel> FactionNodes { get; }
 
   /// <summary>
   /// Gets the collection of research entries.
@@ -70,12 +70,29 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   public ObservableCollection<ResearchViewModel> ResearchList { get; }
 
   /// <summary>
-  /// Gets or sets the currently selected group.
+  /// Gets or sets the currently selected tree node.
   /// </summary>
-  public EntityGroupViewModel? SelectedGroup
+  public TreeNodeViewModelBase? SelectedNode
   {
-    get => _selectedGroup;
-    set => this.RaiseAndSetIfChanged(ref _selectedGroup, value);
+    get => _selectedNode;
+    set
+    {
+      if (_selectedNode == value)
+        return;
+
+      _selectedNode = value;
+      this.RaisePropertyChanged();
+
+      // Update SelectedEntity based on node type
+      if (value is EntityListItemViewModel entityItem)
+      {
+        SelectedEntity = entityItem;
+      }
+      else
+      {
+        SelectedEntity = null;
+      }
+    }
   }
 
   /// <summary>
@@ -86,11 +103,12 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     get => _selectedEntity;
     set
     {
-      if (_selectedEntity == value) return;
-      
+      if (_selectedEntity == value)
+        return;
+
       _selectedEntity = value;
       this.RaisePropertyChanged();
-      
+
       // Update EntityDetailsViewModel
       _entityDetailsViewModel.CurrentEntity = value?.EditableEntity;
     }
@@ -300,8 +318,12 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       LoadParFile();
 
       _notificationService.ShowSuccess($"Opened {System.IO.Path.GetFileName(filePath)}");
-      StatusMessage = $"Loaded {EntityGroups.Sum(g => g.EntityCount)} entities";
-      _logger.LogInformation("Opened PAR file with {GroupCount} groups", EntityGroups.Count);
+      int totalEntities = FactionNodes
+        .SelectMany(f => f.GroupTypes)
+        .SelectMany(gt => gt.EntityGroups)
+        .Sum(eg => eg.Entities.Count);
+      StatusMessage = $"Loaded {totalEntities} entities in {FactionNodes.Count} factions";
+      _logger.LogInformation("Opened PAR file with {FactionCount} factions", FactionNodes.Count);
     }
     catch (Exception ex)
     {
@@ -403,9 +425,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       _currentFilePath = null;
       HasUnsavedChanges = false;
 
-      EntityGroups.Clear();
+      FactionNodes.Clear();
       ResearchList.Clear();
-      SelectedGroup = null;
+      SelectedNode = null;
       SelectedEntity = null;
       _undoRedoService.Clear();
 
@@ -495,17 +517,44 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     if (_currentParFile == null)
       return;
 
-    EntityGroups.Clear();
+    FactionNodes.Clear();
     ResearchList.Clear();
 
     // Set validation context
     _validationService.SetContext(_currentParFile);
 
-    // Load entity groups
-    foreach (var group in _currentParFile.Groups)
+    // Build 3-level hierarchy: Faction -> GroupType -> EntityGroup
+    // (Entities are loaded inside EntityGroupNodeViewModel)
+
+    var factionGroups = _currentParFile.Groups
+      .GroupBy(g => g.Faction)
+      .OrderBy(fg => fg.Key);
+
+    foreach (var factionGroup in factionGroups)
     {
-      var groupVm = new EntityGroupViewModel(group);
-      EntityGroups.Add(groupVm);
+      var factionNode = new FactionNodeViewModel(factionGroup.Key);
+
+      var groupTypeGroups = factionGroup
+        .GroupBy(g => g.GroupType)
+        .OrderBy(gtg => gtg.Key);
+
+      foreach (var groupTypeGroup in groupTypeGroups)
+      {
+        var groupTypeNode = new GroupTypeNodeViewModel(groupTypeGroup.Key);
+
+        var sortedEntityGroups = groupTypeGroup
+          .OrderBy(eg => eg.Name);
+
+        foreach (var entityGroup in sortedEntityGroups)
+        {
+          var entityGroupNode = new EntityGroupNodeViewModel(entityGroup);
+          groupTypeNode.EntityGroups.Add(entityGroupNode);
+        }
+
+        factionNode.GroupTypes.Add(groupTypeNode);
+      }
+
+      FactionNodes.Add(factionNode);
     }
 
     // Load research
@@ -516,16 +565,15 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     }
 
     this.RaisePropertyChanged(nameof(IsFileOpen));
-    _logger.LogDebug("Loaded PAR file: {GroupCount} groups, {ResearchCount} research",
-      EntityGroups.Count, ResearchList.Count);
+    _logger.LogDebug("Loaded PAR file: {FactionCount} factions, {ResearchCount} research",
+      FactionNodes.Count, ResearchList.Count);
   }
 
   private void ApplyFilter()
   {
-    // TODO: Implement filtering in Sprint 2
-    foreach (var group in EntityGroups)
+    foreach (var factionNode in FactionNodes)
     {
-      // group.ApplyFilter(_searchText);
+      factionNode.ApplyFilter(_searchText);
     }
   }
 
