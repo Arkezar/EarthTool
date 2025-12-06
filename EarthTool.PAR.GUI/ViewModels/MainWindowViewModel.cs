@@ -49,8 +49,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     _entityDetailsViewModel = entityDetailsViewModel ?? throw new ArgumentNullException(nameof(entityDetailsViewModel));
 
-    FactionNodes = new ObservableCollection<FactionNodeViewModel>();
-    ResearchList = new ObservableCollection<ResearchViewModel>();
+    RootNodes = new ObservableCollection<TreeNodeViewModelBase>();
 
     InitializeCommands();
 
@@ -60,14 +59,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   #region Properties
 
   /// <summary>
-  /// Gets the collection of faction nodes (top level of entity tree).
+  /// Gets the collection of root nodes for the main tree (Entity Groups + Research).
   /// </summary>
-  public ObservableCollection<FactionNodeViewModel> FactionNodes { get; }
-
-  /// <summary>
-  /// Gets the collection of research entries.
-  /// </summary>
-  public ObservableCollection<ResearchViewModel> ResearchList { get; }
+  public ObservableCollection<TreeNodeViewModelBase> RootNodes { get; }
 
   /// <summary>
   /// Gets or sets the currently selected tree node.
@@ -318,12 +312,19 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       LoadParFile();
 
       _notificationService.ShowSuccess($"Opened {System.IO.Path.GetFileName(filePath)}");
-      int totalEntities = FactionNodes
+
+      var entityGroupsRoot = RootNodes.OfType<EntityGroupsRootNodeViewModel>().FirstOrDefault();
+      var researchRoot = RootNodes.OfType<ResearchRootNodeViewModel>().FirstOrDefault();
+
+      int totalEntities = entityGroupsRoot?.Factions
         .SelectMany(f => f.GroupTypes)
         .SelectMany(gt => gt.EntityGroups)
-        .Sum(eg => eg.Entities.Count);
-      StatusMessage = $"Loaded {totalEntities} entities in {FactionNodes.Count} factions";
-      _logger.LogInformation("Opened PAR file with {FactionCount} factions", FactionNodes.Count);
+        .Sum(eg => eg.Entities.Count) ?? 0;
+      int totalResearch = researchRoot?.ChildCount ?? 0;
+
+      StatusMessage = $"Loaded {totalEntities} entities and {totalResearch} research items";
+      _logger.LogInformation("Opened PAR file with {EntityCount} entities, {ResearchCount} research",
+        totalEntities, totalResearch);
     }
     catch (Exception ex)
     {
@@ -425,8 +426,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       _currentFilePath = null;
       HasUnsavedChanges = false;
 
-      FactionNodes.Clear();
-      ResearchList.Clear();
+      RootNodes.Clear();
       SelectedNode = null;
       SelectedEntity = null;
       _undoRedoService.Clear();
@@ -517,14 +517,13 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     if (_currentParFile == null)
       return;
 
-    FactionNodes.Clear();
-    ResearchList.Clear();
+    RootNodes.Clear();
 
     // Set validation context
     _validationService.SetContext(_currentParFile);
 
-    // Build 3-level hierarchy: Faction -> GroupType -> EntityGroup
-    // (Entities are loaded inside EntityGroupNodeViewModel)
+    // Build Entity Groups hierarchy: Root -> Faction -> GroupType -> EntityGroup -> Entity
+    var entityGroupsRoot = new EntityGroupsRootNodeViewModel();
 
     var factionGroups = _currentParFile.Groups
       .GroupBy(g => g.Faction)
@@ -554,26 +553,57 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         factionNode.GroupTypes.Add(groupTypeNode);
       }
 
-      FactionNodes.Add(factionNode);
+      entityGroupsRoot.Factions.Add(factionNode);
     }
 
-    // Load research
-    foreach (var research in _currentParFile.Research)
+    RootNodes.Add(entityGroupsRoot);
+
+    // Build Research hierarchy: Root -> Faction -> ResearchType -> Research
+    var researchRoot = new ResearchRootNodeViewModel();
+
+    var researchFactionGroups = _currentParFile.Research
+      .GroupBy(r => r.Faction)
+      .OrderBy(fg => fg.Key);
+
+    foreach (var researchFactionGroup in researchFactionGroups)
     {
-      var researchVm = new ResearchViewModel(research);
-      ResearchList.Add(researchVm);
+      var factionResearchNode = new FactionResearchNodeViewModel(researchFactionGroup.Key);
+
+      var researchTypeGroups = researchFactionGroup
+        .GroupBy(r => r.Type)
+        .OrderBy(rtg => rtg.Key);
+
+      foreach (var researchTypeGroup in researchTypeGroups)
+      {
+        var researchTypeNode = new ResearchTypeNodeViewModel(researchTypeGroup.Key);
+
+        var sortedResearch = researchTypeGroup
+          .OrderBy(r => r.Name);
+
+        foreach (var research in sortedResearch)
+        {
+          var researchVm = new ResearchViewModel(research);
+          researchTypeNode.ResearchItems.Add(researchVm);
+        }
+
+        factionResearchNode.ResearchTypes.Add(researchTypeNode);
+      }
+
+      researchRoot.Factions.Add(factionResearchNode);
     }
+
+    RootNodes.Add(researchRoot);
 
     this.RaisePropertyChanged(nameof(IsFileOpen));
-    _logger.LogDebug("Loaded PAR file: {FactionCount} factions, {ResearchCount} research",
-      FactionNodes.Count, ResearchList.Count);
+    _logger.LogDebug("Loaded PAR file: {EntityGroupCount} entity groups, {ResearchCount} research",
+      entityGroupsRoot.ChildCount, researchRoot.ChildCount);
   }
 
   private void ApplyFilter()
   {
-    foreach (var factionNode in FactionNodes)
+    foreach (var rootNode in RootNodes)
     {
-      factionNode.ApplyFilter(_searchText);
+      rootNode.ApplyFilter(_searchText);
     }
   }
 

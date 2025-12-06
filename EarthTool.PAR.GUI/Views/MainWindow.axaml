@@ -95,10 +95,6 @@
                    Text="{Binding StatusMessage}" 
                    VerticalAlignment="Center" />
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
-          <TextBlock VerticalAlignment="Center">
-            <Run Text="Factions:" />
-            <Run Text="{Binding FactionNodes.Count}" FontWeight="Bold" />
-          </TextBlock>
           <TextBlock VerticalAlignment="Center"
                      IsVisible="{Binding HasUnsavedChanges}">
             <Run Text="●" Foreground="Orange" />
@@ -129,12 +125,30 @@
                    Margin="0,0,0,8" />
 
           <ScrollViewer>
-            <TreeView ItemsSource="{Binding FactionNodes}"
+            <TreeView ItemsSource="{Binding RootNodes}"
                       SelectedItem="{Binding SelectedNode}">
               
               <TreeView.DataTemplates>
                 
-                <!-- Faction Node Template -->
+                <!-- Entity Groups Root Template -->
+                <TreeDataTemplate DataType="vm:EntityGroupsRootNodeViewModel" 
+                                ItemsSource="{Binding Children}">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" />
+                  </StackPanel>
+                </TreeDataTemplate>
+                
+                <!-- Research Root Template -->
+                <TreeDataTemplate DataType="vm:ResearchRootNodeViewModel" 
+                                ItemsSource="{Binding Children}">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" />
+                  </StackPanel>
+                </TreeDataTemplate>
+                
+                <!-- Faction Node Template (for Entity Groups) -->
                 <TreeDataTemplate DataType="vm:FactionNodeViewModel" 
                                 ItemsSource="{Binding Children}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
@@ -170,6 +184,32 @@
                               Foreground="Orange" 
                               FontSize="12"
                               IsVisible="{Binding IsDirty}" />
+                  </StackPanel>
+                </DataTemplate>
+                
+                <!-- Faction Research Node Template -->
+                <TreeDataTemplate DataType="vm:FactionResearchNodeViewModel" 
+                                ItemsSource="{Binding Children}">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </StackPanel>
+                </TreeDataTemplate>
+                
+                <!-- Research Type Node Template -->
+                <TreeDataTemplate DataType="vm:ResearchTypeNodeViewModel" 
+                                ItemsSource="{Binding Children}">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </StackPanel>
+                </TreeDataTemplate>
+                
+                <!-- Research (Leaf) Template -->
+                <DataTemplate DataType="vm:ResearchViewModel">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding Name}" />
                   </StackPanel>
                 </DataTemplate>
                 
