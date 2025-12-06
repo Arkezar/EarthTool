@@ -675,4 +675,70 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   }
 
   #endregion
+
+  #region Entity Navigation
+
+  /// <summary>
+  /// Finds and selects an entity by name in the tree.
+  /// </summary>
+  public bool NavigateToEntity(string entityName)
+  {
+    if (string.IsNullOrEmpty(entityName))
+      return false;
+
+    foreach (var rootNode in RootNodes)
+    {
+      var foundNode = FindEntityInNode(rootNode, entityName);
+      if (foundNode != null)
+      {
+        ExpandPathToNode(foundNode);
+        SelectedNode = foundNode;
+        _logger.LogDebug("Navigated to entity '{EntityName}'", entityName);
+        return true;
+      }
+    }
+
+    _logger.LogWarning("Entity '{EntityName}' not found in tree", entityName);
+    return false;
+  }
+
+  private TreeNodeViewModelBase? FindEntityInNode(TreeNodeViewModelBase node, string entityName)
+  {
+    if (node is EntityListItemViewModel entityItem && 
+        entityItem.Name.Equals(entityName, StringComparison.OrdinalIgnoreCase))
+      return node;
+
+    if (node.Children != null)
+    {
+      foreach (var child in node.Children)
+      {
+        var found = FindEntityInNode(child, entityName);
+        if (found != null)
+          return found;
+      }
+    }
+
+    return null;
+  }
+
+  private void ExpandPathToNode(TreeNodeViewModelBase targetNode)
+  {
+    foreach (var rootNode in RootNodes)
+    {
+      if (rootNode.Children != null)
+        ExpandNodesRecursively(rootNode);
+    }
+  }
+
+  private void ExpandNodesRecursively(TreeNodeViewModelBase node)
+  {
+    if (node.Children != null && node.Children.Any())
+    {
+      node.IsExpanded = true;
+      foreach (var child in node.Children)
+        ExpandNodesRecursively(child);
+    }
+  }
+
+  #endregion
 }
