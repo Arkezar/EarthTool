@@ -375,7 +375,8 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
                     <Expander IsExpanded="{Binding IsExpanded}"
-                              Margin="0,4">
+                              Margin="0,4"
+                              HorizontalAlignment="Stretch">
                       <Expander.Header>
                         <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
                           <!-- Group Icon -->
