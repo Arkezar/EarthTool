@@ -30,7 +30,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   private string _statusMessage = "Ready";
   private string _searchText = string.Empty;
   private TreeNodeViewModelBase? _selectedNode;
-  private EntityListItemViewModel? _selectedEntity;
+  private TreeNodeViewModelBase? _selectedEntity;
+  private ResearchViewModel? _selectedResearch;
 
   public MainWindowViewModel(
     IParFileService parFileService,
@@ -77,10 +78,14 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       _selectedNode = value;
       this.RaisePropertyChanged();
 
-      // Update SelectedEntity based on node type
+      // Update SelectedEntity/SelectedResearch based on node type
       if (value is EntityListItemViewModel entityItem)
       {
         SelectedEntity = entityItem;
+      }
+      else if (value is ResearchViewModel researchItem)
+      {
+        SelectedEntity = researchItem;
       }
       else
       {
@@ -92,7 +97,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   /// <summary>
   /// Gets or sets the currently selected entity.
   /// </summary>
-  public EntityListItemViewModel? SelectedEntity
+  public TreeNodeViewModelBase? SelectedEntity
   {
     get => _selectedEntity;
     set
@@ -104,7 +109,21 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       this.RaisePropertyChanged();
 
       // Update EntityDetailsViewModel
-      _entityDetailsViewModel.CurrentEntity = value?.EditableEntity;
+      if (value is EntityListItemViewModel entityItem)
+      {
+        _entityDetailsViewModel.CurrentEntity = entityItem?.EditableEntity;
+        _entityDetailsViewModel.CurrentResearch = null;
+      }
+      else if (value is ResearchViewModel researchItem)
+      {
+        _entityDetailsViewModel.CurrentEntity = null;
+        _entityDetailsViewModel.CurrentResearch = researchItem?.Research;
+      }
+      else
+      {
+        _entityDetailsViewModel.CurrentEntity = null;
+        _entityDetailsViewModel.CurrentResearch = null;
+      }
     }
   }
 
@@ -194,7 +213,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   /// Gets the entity details ViewModel.
   /// </summary>
   public EntityDetailsViewModel EntityDetailsViewModel => _entityDetailsViewModel;
-
+  
   #endregion
 
   #region Commands

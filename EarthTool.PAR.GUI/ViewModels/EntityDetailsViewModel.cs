@@ -1,5 +1,6 @@
 using EarthTool.PAR.GUI.Models;
 using EarthTool.PAR.GUI.Services;
+using EarthTool.PAR.Models;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using System;
@@ -20,6 +21,7 @@ public class EntityDetailsViewModel : ViewModelBase
   private readonly IEntityValidationService _validationService;
   private readonly ILogger<EntityDetailsViewModel> _logger;
   private EditableEntity? _currentEntity;
+  private Research? _currentResearch;
   private string _entityName = string.Empty;
 
   public EntityDetailsViewModel(
@@ -49,7 +51,23 @@ public class EntityDetailsViewModel : ViewModelBase
       
       _currentEntity = value;
       this.RaisePropertyChanged();
-      LoadEntity();
+      LoadEntityOrResearch();
+    }
+  }
+
+  /// <summary>
+  /// Gets or sets the current research being edited.
+  /// </summary>
+  public Research? CurrentResearch
+  {
+    get => _currentResearch;
+    set
+    {
+      if (_currentResearch == value) return;
+      
+      _currentResearch = value;
+      this.RaisePropertyChanged();
+      LoadEntityOrResearch();
     }
   }
 
@@ -77,12 +95,12 @@ public class EntityDetailsViewModel : ViewModelBase
   /// <summary>
   /// Gets the entity type display name.
   /// </summary>
-  public string EntityType => _currentEntity?.TypeName ?? string.Empty;
+  public string EntityType => _currentEntity?.TypeName ?? _currentResearch?.Type.ToString() ?? string.Empty;
 
   /// <summary>
   /// Gets the entity class type display.
   /// </summary>
-  public string ClassType => _currentEntity?.ClassType.ToString() ?? string.Empty;
+  public string ClassType => _currentEntity?.ClassType.ToString() ?? _currentResearch?.Faction.ToString() ?? string.Empty;
 
   /// <summary>
   /// Gets the collection of property groups.
@@ -118,17 +136,82 @@ public class EntityDetailsViewModel : ViewModelBase
     ValidateCommand = ReactiveCommand.Create(Validate, hasEntity);
   }
 
-  private void LoadEntity()
+  private void LoadEntityOrResearch()
   {
     PropertyGroups.Clear();
     ValidationErrors.Clear();
 
-    if (_currentEntity == null)
+    if (_currentEntity != null)
     {
-      _logger.LogDebug("Entity details cleared");
-      return;
+      // Istniejąca logika dla encji
+      LoadEntity();
     }
+    else if (_currentResearch != null)
+    {
+      // Nowa logika dla badań
+      LoadResearch();
+    }
+    else
+    {
+      _logger.LogDebug("Details cleared");
+      _entityName = string.Empty;
+      this.RaisePropertyChanged(nameof(EntityName));
+      this.RaisePropertyChanged(nameof(EntityType));
+      this.RaisePropertyChanged(nameof(ClassType));
+    }
+  }
 
+  private IEnumerable<PropertyGroupViewModel> GroupResearchProperties(IEnumerable<PropertyEditorViewModel> editors)
+  {
+    var groups = new Dictionary<string, List<PropertyEditorViewModel>>();
+    
+    foreach (var editor in editors)
+    {
+      var groupName = DetermineResearchPropertyGroup(editor.PropertyName);
+      
+      if (!groups.ContainsKey(groupName))
+      {
+        groups[groupName] = new List<PropertyEditorViewModel>();
+      }
+      
+      groups[groupName].Add(editor);
+    }
+    
+    // Define group order for Research
+    var groupOrder = new[] { "Basic", "Costs", "Timing", "Requirements", "References", "Other" };
+    
+    var groupViewModels = new List<PropertyGroupViewModel>();
+    
+    foreach (var groupName in groupOrder)
+    {
+      if (groups.TryGetValue(groupName, out var groupEditors))
+      {
+        groupViewModels.Add(new PropertyGroupViewModel
+        {
+          GroupName = groupName,
+          Properties = new ObservableCollection<PropertyEditorViewModel>(groupEditors)
+        });
+      }
+    }
+    
+    return groupViewModels;
+  }
+
+  private string DetermineResearchPropertyGroup(string propertyName)
+  {
+    return propertyName switch
+    {
+      "Name" or "Id" or "Faction" or "Type" => "Basic",
+      "CampaignCost" or "SkirmishCost" => "Costs", 
+      "CampaignTime" or "SkirmishTime" => "Timing",
+      "RequiredResearch" => "Requirements",
+      "Video" or "Mesh" or "MeshParamsIndex" => "References",
+      _ => "Other"
+    };
+  }
+
+  private void LoadEntity()
+  {
     _entityName = _currentEntity.DisplayName;
     this.RaisePropertyChanged(nameof(EntityName));
     this.RaisePropertyChanged(nameof(EntityType));
@@ -150,6 +233,29 @@ public class EntityDetailsViewModel : ViewModelBase
       _currentEntity.DisplayName, _currentEntity.TypeName, editors.Count());
   }
 
+  private void LoadResearch()
+  {
+    _entityName = _currentResearch.Name;
+    this.RaisePropertyChanged(nameof(EntityName));
+    this.RaisePropertyChanged(nameof(EntityType));
+    this.RaisePropertyChanged(nameof(ClassType));
+
+    // Create property editors for Research
+    var editors = _propertyEditorFactory.CreateEditorsForResearch(_currentResearch);
+    var groupedEditors = GroupResearchProperties(editors);
+
+    foreach (var group in groupedEditors)
+    {
+      PropertyGroups.Add(group);
+    }
+
+    // Validate
+    Validate();
+
+    _logger.LogInformation("Loaded research details for '{Name}' ({Type}) with {PropertyCount} properties",
+      _currentResearch.Name, _currentResearch.Type, editors.Count());
+  }
+  
   private IEnumerable<PropertyGroupViewModel> GroupProperties(IEnumerable<PropertyEditorViewModel> editors)
   {
     var groups = new Dictionary<string, List<PropertyEditorViewModel>>();

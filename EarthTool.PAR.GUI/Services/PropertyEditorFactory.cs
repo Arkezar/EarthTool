@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json.Serialization;
+using EarthTool.PAR.Models;
 
 namespace EarthTool.PAR.GUI.Services;
 
@@ -63,8 +64,71 @@ public class PropertyEditorFactory : IPropertyEditorFactory
     return editors;
   }
 
+  public IEnumerable<PropertyEditorViewModel> CreateEditorsForResearch(Research entity)
+  {
+    if (entity == null)
+      throw new ArgumentNullException(nameof(entity));
+    
+    var properties = entity.GetType()
+      .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+      .Where(p => p.CanRead && p.CanWrite)
+      .Where(p => !ExcludedProperties.Contains(p.Name))
+      .Where(p => p.GetCustomAttribute<JsonIgnoreAttribute>() == null);
+    
+    var editors = new List<PropertyEditorViewModel>();
+    
+    foreach (var property in properties)
+    {
+      var editor = CreateEditorForProperty(entity, property);
+      if (editor != null)
+      {
+        editors.Add(editor);
+      }
+    }
+
+    _logger.LogDebug("Created {EditorCount} property editors for research '{EntityName}'",
+      editors.Count, entity.Name);
+
+    return editors;
+    
+    /*
+       
+       // Basic properties
+       editors.Add(CreateEditor(research, nameof(research.Id), "ID"));
+       editors.Add(CreateEditor(research, nameof(research.Name), "Name"));
+       editors.Add(CreateEditor(research, nameof(research.Faction), "Faction"));
+       editors.Add(CreateEditor(research, nameof(research.Type), "Type"));
+       
+       // Cost properties
+       editors.Add(CreateEditor(research, nameof(research.CampaignCost), "Campaign Cost"));
+       editors.Add(CreateEditor(research, nameof(research.SkirmishCost), "Skirmish Cost"));
+       
+       // Timing properties
+       editors.Add(CreateEditor(research, nameof(research.CampaignTime), "Campaign Time"));
+       editors.Add(CreateEditor(research, nameof(research.SkirmishTime), "Skirmish Time"));
+       
+       // Reference properties
+       editors.Add(CreateEditor(research, nameof(research.Video), "Video"));
+       editors.Add(CreateEditor(research, nameof(research.Mesh), "Mesh"));
+       editors.Add(CreateEditor(research, nameof(research.MeshParamsIndex), "Mesh Params Index"));
+       
+       // Requirements (special handling)
+       var requiredResearchValue = string.Join(", ", research.RequiredResearch);
+       editors.Add(new PropertyEditorViewModel
+       {
+         PropertyName = "RequiredResearch",
+         DisplayName = "Required Research",
+         Value = requiredResearchValue,
+         PropertyType = typeof(string),
+         IsReadOnly = true
+       });
+       
+       return editors;
+     */
+  }
+
   /// <inheritdoc/>
-  public PropertyEditorViewModel? CreateEditorForProperty(Entity entity, PropertyInfo property)
+  public PropertyEditorViewModel? CreateEditorForProperty(object entity, PropertyInfo property)
   {
     if (entity == null || property == null)
       return null;
