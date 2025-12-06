@@ -95,7 +95,12 @@ public class StringPropertyEditorViewModel : PropertyEditorViewModel
   /// <summary>
   /// Gets or sets whether this is an entity reference.
   /// </summary>
-  public bool IsEntityReference
+  public override bool IsEntityReference => _isEntityReference;
+  
+  /// <summary>
+  /// Sets whether this is an entity reference.
+  /// </summary>
+  public bool IsEntityReferenceValue
   {
     get => _isEntityReference;
     set => this.RaiseAndSetIfChanged(ref _isEntityReference, value);

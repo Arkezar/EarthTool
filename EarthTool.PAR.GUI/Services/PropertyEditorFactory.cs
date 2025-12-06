@@ -151,7 +151,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
       editor = new StringPropertyEditorViewModel(_undoRedoService)
       {
         StringValue = (string)(propertyValue ?? string.Empty),
-        IsEntityReference = property.Name.EndsWith("Id")
+        IsEntityReferenceValue = property.Name.EndsWith("Id")
       };
     }
     else if (propertyType.IsEnum)
