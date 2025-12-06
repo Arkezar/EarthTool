@@ -2,6 +2,7 @@ using EarthTool.PAR.GUI.Models;
 using ReactiveUI;
 using System;
 using System.Reactive;
+using System.Reactive.Linq;
 
 namespace EarthTool.PAR.GUI.ViewModels;
 
@@ -26,7 +27,7 @@ public abstract class PropertyEditorViewModel : ViewModelBase
   /// <summary>
   /// Gets the command to navigate to the referenced entity.
   /// </summary>
-  public ReactiveCommand<Unit, Unit> NavigateToReferenceCommand { get; }
+  public ReactiveCommand<Unit, Unit> NavigateToReferenceCommand { get; protected set; }
 
   /// <summary>
   /// Gets whether this property is an entity reference (e.g., ends with "Id").
@@ -41,15 +42,8 @@ public abstract class PropertyEditorViewModel : ViewModelBase
       // For now, just expose the command
     });
 
-    var canNavigate = this.WhenAnyValue(
-      x => x.IsEntityReference,
-      x => x.Value,
-      (isRef, val) => isRef && !string.IsNullOrEmpty(val?.ToString()));
-
-    NavigateToReferenceCommand = ReactiveCommand.Create(() =>
-    {
-      // Navigation will be handled in UI layer
-    }, canNavigate);
+    // Default disabled command - derived classes can override
+    NavigateToReferenceCommand = ReactiveCommand.Create(() => { }, Observable.Return(false));
   }
 
   /// <summary>
