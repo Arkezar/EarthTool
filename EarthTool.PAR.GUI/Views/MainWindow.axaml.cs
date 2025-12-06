@@ -36,18 +36,28 @@ public partial class MainWindow : Window
   private void NavigateToReference(string referenceName)
   {
     if (string.IsNullOrEmpty(referenceName))
+    {
+      System.Diagnostics.Debug.WriteLine("NavigateToReference called with empty name");
       return;
+    }
+
+    System.Diagnostics.Debug.WriteLine($"NavigateToReference called with: {referenceName}");
 
     // Get MainWindowViewModel from DataContext
     if (DataContext is MainWindowViewModel mainViewModel)
     {
       // Navigate to the referenced entity
       var found = mainViewModel.NavigateToEntity(referenceName);
+      System.Diagnostics.Debug.WriteLine($"Navigation result: {found}");
+      
       if (!found)
       {
-        // Show notification that entity wasn't found
         System.Diagnostics.Debug.WriteLine($"Reference '{referenceName}' not found in tree");
       }
+    }
+    else
+    {
+      System.Diagnostics.Debug.WriteLine("DataContext is not MainWindowViewModel");
     }
   }
 
