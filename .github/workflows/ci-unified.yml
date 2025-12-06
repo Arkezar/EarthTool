@@ -6,6 +6,7 @@ on:
     paths:
       - "EarthTool.CLI/**"
       - "EarthTool.WD.GUI/**"
+      - "EarthTool.PAR.GUI/**"
       - "EarthTool.Common/**"
       - "EarthTool.WD/**"
       - "EarthTool.MSH/**"
@@ -18,6 +19,7 @@ on:
     paths:
       - "EarthTool.CLI/**"
       - "EarthTool.WD.GUI/**"
+      - "EarthTool.PAR.GUI/**"
       - "EarthTool.Common/**"
       - "EarthTool.WD/**"
       - "EarthTool.MSH/**"
@@ -37,6 +39,7 @@ jobs:
     outputs:
       cli: ${{ steps.filter.outputs.cli }}
       gui: ${{ steps.filter.outputs.gui }}
+      par_gui: ${{ steps.filter.outputs.par_gui }}
       libraries: ${{ steps.filter.outputs.libraries }}
     steps:
       - name: Checkout code
@@ -57,6 +60,10 @@ jobs:
             gui:
               - 'EarthTool.WD.GUI/**'
               - 'EarthTool.WD/**'
+              - 'EarthTool.Common/**'
+            par_gui:
+              - 'EarthTool.PAR.GUI/**'
+              - 'EarthTool.PAR/**'
               - 'EarthTool.Common/**'
             libraries:
               - 'EarthTool.WD/**'
@@ -330,6 +337,139 @@ jobs:
         with:
           name: EarthTool.WD.GUI-${{ matrix.platform_name }}
           path: EarthTool.WD.GUI-${{ matrix.platform_name }}${{ matrix.os == 'windows-latest' && '.zip' || '.tar.gz' }}
+          retention-days: 7
+
+  build-par-gui:
+    name: Build PAR GUI (${{ matrix.os }})
+    needs: detect-changes
+    runs-on: ${{ matrix.os }}
+    if: needs.detect-changes.outputs.par_gui == 'true' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - os: windows-latest
+            runtime: win-x64
+            platform_name: Windows-x64
+          - os: ubuntu-latest
+            runtime: linux-x64
+            platform_name: Linux-x64
+          - os: macos-latest
+            runtime: osx-x64
+            platform_name: macOS-x64
+
+    steps:
+      - name: Display build context
+        shell: bash
+        run: |
+          echo "🚀 Building EarthTool.PAR.GUI (CI)"
+          echo "Platform: ${{ matrix.os }}"
+          echo "Runtime: ${{ matrix.runtime }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Branch: ${{ github.ref_name }}"
+          
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "🔍 This is a PR build for review"
+          elif [[ "${{ github.ref_name }}" == "dev" ]]; then
+            echo "🧪 This is a DEV build"
+          elif [[ "${{ startsWith(github.ref, 'refs/heads/feature/') }}" == "true" ]]; then
+            echo "🚧 This is a FEATURE build"
+          else
+            echo "🔧 This is a CI build for branch: ${{ github.ref_name }}"
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v1.1.1
+        with:
+          versionSpec: '5.x'
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v1.1.1
+        with:
+          useConfigFile: true
+
+      - name: Display version information
+        shell: bash
+        run: |
+          echo "📦 Version Information:"
+          echo "  SemVer: ${{ steps.gitversion.outputs.semVer }}"
+          echo "  AssemblySemVer: ${{ steps.gitversion.outputs.assemblySemVer }}"
+          echo "  InformationalVersion: ${{ steps.gitversion.outputs.informationalVersion }}"
+          echo "  BranchName: ${{ steps.gitversion.outputs.branchName }}"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Build solution
+        run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore -p:Version=${{ steps.gitversion.outputs.semVer }} -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
+
+      - name: Run tests
+        run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
+        continue-on-error: false
+
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        if: success() || failure()
+        with:
+          name: Test Results (PAR GUI - ${{ matrix.os }})
+          path: "**/*.trx"
+          reporter: dotnet-trx
+          fail-on-error: false
+
+      - name: Publish PAR GUI application
+        shell: bash
+        run: |
+          dotnet publish EarthTool.PAR.GUI/EarthTool.PAR.GUI.csproj \
+            --configuration Release \
+            --runtime ${{ matrix.runtime }} \
+            --self-contained true \
+            --output ./publish/${{ matrix.runtime }} \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true \
+            -p:DebugType=none \
+            -p:DebugSymbols=false \
+            -p:Version=${{ steps.gitversion.outputs.semVer }} \
+            -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} \
+            -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} \
+            -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
+
+      - name: Create artifact archive
+        shell: bash
+        run: |
+          cd "publish/${{ matrix.runtime }}"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            7z a -tzip "../../EarthTool.PAR.GUI-${{ matrix.platform_name }}.zip" *
+          else
+            tar -czf "../../EarthTool.PAR.GUI-${{ matrix.platform_name }}.tar.gz" *
+          fi
+          cd ../..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: EarthTool.PAR.GUI-${{ matrix.platform_name }}
+          path: EarthTool.PAR.GUI-${{ matrix.platform_name }}${{ matrix.os == 'windows-latest' && '.zip' || '.tar.gz' }}
           retention-days: 7
 
   code-quality:
@@ -686,6 +826,81 @@ jobs:
               body: `🚀 Preview build completed successfully for **GUI**!
               
               📦 **Download**: [EarthTool.WD.GUI-Preview.zip](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+              
+              ✅ This is a preview build from the dev branch. Test it out and report any issues!`
+            })
+
+  publish-preview-par-gui:
+    name: Publish PAR GUI Preview Build
+    needs: [detect-changes, build-par-gui, code-quality]
+    runs-on: windows-latest
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push' && needs.detect-changes.outputs.par_gui == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v1.1.1
+        with:
+          versionSpec: '5.x'
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v1.1.1
+        with:
+          useConfigFile: true
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Build and publish preview
+        shell: bash
+        run: |
+          dotnet publish EarthTool.PAR.GUI/EarthTool.PAR.GUI.csproj \
+            --configuration Release \
+            --runtime win-x64 \
+            --self-contained true \
+            --output ./preview \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:Version=${{ steps.gitversion.outputs.semVer }} \
+            -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} \
+            -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} \
+            -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
+
+      - name: Create preview artifact
+        shell: bash
+        run: |
+          cd preview
+          powershell "Compress-Archive -Path '.' -DestinationPath '../EarthTool.PAR.GUI-Preview.zip' -Force"
+          cd ..
+
+      - name: Upload preview artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: EarthTool.PAR.GUI-Preview
+          path: EarthTool.PAR.GUI-Preview.zip
+          retention-days: 30
+
+      - name: Comment on commit
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: `🚀 Preview build completed successfully for **PAR GUI**!
+              
+              📦 **Download**: [EarthTool.PAR.GUI-Preview.zip](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
               
               ✅ This is a preview build from the dev branch. Test it out and report any issues!`
             })

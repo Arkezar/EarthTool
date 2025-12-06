@@ -26,16 +26,20 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
-        project: [cli, gui]
+        project: [cli, gui, par-gui]
         include:
           # CLI configurations
           - project: cli
             project_path: "EarthTool.CLI/EarthTool.CLI.csproj"
             artifact_prefix: "EarthTool.CLI"
-          # GUI configurations
+          # WD GUI configurations
           - project: gui
             project_path: "EarthTool.WD.GUI/EarthTool.WD.GUI.csproj"
             artifact_prefix: "EarthTool.WD.GUI"
+          # PAR GUI configurations
+          - project: par-gui
+            project_path: "EarthTool.PAR.GUI/EarthTool.PAR.GUI.csproj"
+            artifact_prefix: "EarthTool.PAR.GUI"
           # Platform configurations
           - os: windows-latest
             runtime: win-x64
@@ -635,7 +639,7 @@ jobs:
           echo "" >> CHANGELOG.md
           echo "## 📦 EarthTool Release" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
-          echo "This release includes both the **CLI** and **GUI** applications for working with Earth 2150 files." >> CHANGELOG.md
+          echo "This release includes the **CLI** and **GUI** applications for working with Earth 2150 files." >> CHANGELOG.md
           echo "" >> CHANGELOG.md
           
           echo "### 🌟 Common Features" >> CHANGELOG.md
@@ -653,12 +657,20 @@ jobs:
           echo "- Scriptable workflows" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
           
-          echo "### 🖥️ GUI (Graphical User Interface)" >> CHANGELOG.md
-          echo "User-friendly application for interactive work:" >> CHANGELOG.md
+          echo "### 🖥️ WD GUI (Archive Manager)" >> CHANGELOG.md
+          echo "User-friendly application for interactive work with WD archives:" >> CHANGELOG.md
           echo "- Drag & drop support" >> CHANGELOG.md
           echo "- Visual archive browser" >> CHANGELOG.md
           echo "- Real-time preview and statistics" >> CHANGELOG.md
           echo "- Intuitive file management" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          
+          echo "### 🎮 PAR GUI (Parameter Editor)" >> CHANGELOG.md
+          echo "Specialized editor for Earth 2150 parameter files:" >> CHANGELOG.md
+          echo "- Visual parameter editing with validation" >> CHANGELOG.md
+          echo "- Entity browsing and grouping" >> CHANGELOG.md
+          echo "- Undo/redo support" >> CHANGELOG.md
+          echo "- Research and faction management" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
           
           echo "### 📦 Downloads" >> CHANGELOG.md
@@ -669,16 +681,24 @@ jobs:
           echo "- **Linux (x64)**: \`EarthTool.CLI-Linux-x64.tar.gz\`" >> CHANGELOG.md
           echo "- **macOS (x64)**: \`EarthTool.CLI-macOS-x64.tar.gz\`" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
-          echo "#### GUI (Graphical)" >> CHANGELOG.md
+          echo "#### WD GUI (Archive Manager)" >> CHANGELOG.md
           echo "- **Windows (x64)**: \`EarthTool.WD.GUI-Windows-x64.zip\`" >> CHANGELOG.md
           echo "- **Linux (x64)**: \`EarthTool.WD.GUI-Linux-x64.tar.gz\`" >> CHANGELOG.md
           echo "- **macOS (x64)**: \`EarthTool.WD.GUI-macOS-x64.tar.gz\`" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
+          echo "#### PAR GUI (Parameter Editor)" >> CHANGELOG.md
+          echo "- **Windows (x64)**: \`EarthTool.PAR.GUI-Windows-x64.zip\`" >> CHANGELOG.md
+          echo "- **Linux (x64)**: \`EarthTool.PAR.GUI-Linux-x64.tar.gz\`" >> CHANGELOG.md
+          echo "- **macOS (x64)**: \`EarthTool.PAR.GUI-macOS-x64.tar.gz\`" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
           
           echo "### 💿 Installation" >> CHANGELOG.md
-          echo "1. Download the appropriate file for your operating system and preferred interface" >> CHANGELOG.md
+          echo "1. Download the appropriate file for your operating system and preferred tool" >> CHANGELOG.md
           echo "2. Extract the archive" >> CHANGELOG.md
-          echo "3. Run the executable (CLI: add to PATH for easy access, GUI: run directly)" >> CHANGELOG.md
+          echo "3. Run the executable:" >> CHANGELOG.md
+          echo "   - **CLI**: Add to PATH for command-line access" >> CHANGELOG.md
+          echo "   - **WD GUI**: Run directly for archive management" >> CHANGELOG.md
+          echo "   - **PAR GUI**: Run directly for parameter editing" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
           
           echo "### 💻 System Requirements" >> CHANGELOG.md
@@ -689,16 +709,17 @@ jobs:
           echo "" >> CHANGELOG.md
           
           echo "### ℹ️ Notes" >> CHANGELOG.md
-          echo "- Both applications are self-contained and include all necessary dependencies" >> CHANGELOG.md
+          echo "- All applications are self-contained and include all necessary dependencies" >> CHANGELOG.md
           echo "- No additional .NET installation required" >> CHANGELOG.md
           echo "- Single-file executables for easy distribution" >> CHANGELOG.md
-          echo "- CLI and GUI share the same version for compatibility" >> CHANGELOG.md
+          echo "- All applications share the same version for compatibility" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
           
           echo "### 📚 Documentation" >> CHANGELOG.md
           echo "- [CLI Documentation](https://github.com/${{ github.repository }}/tree/main/EarthTool.CLI)" >> CHANGELOG.md
-          echo "- [GUI User Guide](https://github.com/${{ github.repository }}/blob/main/EarthTool.WD.GUI/USER_GUIDE.md)" >> CHANGELOG.md
+          echo "- [WD GUI User Guide](https://github.com/${{ github.repository }}/blob/main/EarthTool.WD.GUI/USER_GUIDE.md)" >> CHANGELOG.md
           echo "- [WD Format Documentation](https://github.com/${{ github.repository }}/blob/main/docs/WD_FORMAT.md)" >> CHANGELOG.md
+          echo "- [PAR Structure Documentation](https://github.com/${{ github.repository }}/blob/main/docs/PAR_Structure.md)" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
           
           echo "---" >> CHANGELOG.md
@@ -726,5 +747,8 @@ jobs:
             artifacts/EarthTool.WD.GUI-Windows-x64/EarthTool.WD.GUI-Windows-x64.zip
             artifacts/EarthTool.WD.GUI-Linux-x64/EarthTool.WD.GUI-Linux-x64.tar.gz
             artifacts/EarthTool.WD.GUI-macOS-x64/EarthTool.WD.GUI-macOS-x64.tar.gz
+            artifacts/EarthTool.PAR.GUI-Windows-x64/EarthTool.PAR.GUI-Windows-x64.zip
+            artifacts/EarthTool.PAR.GUI-Linux-x64/EarthTool.PAR.GUI-Linux-x64.tar.gz
+            artifacts/EarthTool.PAR.GUI-macOS-x64/EarthTool.PAR.GUI-macOS-x64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
