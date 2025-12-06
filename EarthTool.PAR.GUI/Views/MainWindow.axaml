@@ -126,7 +126,14 @@
 
           <ScrollViewer>
             <TreeView ItemsSource="{Binding RootNodes}"
-                      SelectedItem="{Binding SelectedNode}">
+                      SelectedItem="{Binding SelectedNode}"
+                      AutoScrollToSelectedItem="True">
+              
+              <TreeView.Styles>
+                <Style Selector="TreeViewItem" x:DataType="vm:TreeNodeViewModelBase">
+                  <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                </Style>
+              </TreeView.Styles>
               
               <TreeView.DataTemplates>
                 
