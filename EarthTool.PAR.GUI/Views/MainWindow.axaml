@@ -240,25 +240,44 @@
 
           <ScrollViewer IsVisible="{Binding !!SelectedEntity}">
             <StackPanel Spacing="12" DataContext="{Binding EntityDetailsViewModel}">
-              <!-- Entity Header -->
-              <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                      BorderThickness="0,0,0,1"
-                      Padding="0,0,0,8">
-                <StackPanel Spacing="4">
-                  <TextBox Text="{Binding EntityName}" 
-                           FontSize="16" 
-                           FontWeight="Bold"
-                           Watermark="Entity Name" />
-                  <TextBlock>
-                    <Run Text="Type: " />
-                    <Run Text="{Binding EntityType}" FontWeight="Bold" />
-                  </TextBlock>
-                  <TextBlock>
-                    <Run Text="Class: " />
-                    <Run Text="{Binding ClassType}" />
-                  </TextBlock>
-                </StackPanel>
-              </Border>
+      <!-- Entity Header -->
+      <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+              BorderThickness="0,0,0,1"
+              Padding="0,0,0,8">
+        <StackPanel Spacing="4">
+          <!-- Entity Header -->
+          <StackPanel Spacing="4" IsVisible="{Binding !!CurrentEntity}">
+            <TextBox Text="{Binding EntityName}" 
+                     FontSize="16" 
+                     FontWeight="Bold"
+                     Watermark="Entity Name" />
+            <TextBlock>
+              <Run Text="Type: " />
+              <Run Text="{Binding EntityType}" FontWeight="Bold" />
+            </TextBlock>
+            <TextBlock>
+              <Run Text="Class: " />
+              <Run Text="{Binding ClassType}" />
+            </TextBlock>
+          </StackPanel>
+          
+          <!-- Research Header -->
+          <StackPanel Spacing="4" IsVisible="{Binding !!CurrentResearch}">
+            <TextBox Text="{Binding EntityName}" 
+                     FontSize="16" 
+                     FontWeight="Bold"
+                     Watermark="Research Name" />
+            <TextBlock>
+              <Run Text="Type: " />
+              <Run Text="{Binding EntityType}" FontWeight="Bold" />
+            </TextBlock>
+            <TextBlock>
+              <Run Text="Faction: " />
+              <Run Text="{Binding ClassType}" FontWeight="Bold" />
+            </TextBlock>
+          </StackPanel>
+        </StackPanel>
+      </Border>
 
               <!-- Validation Errors -->
               <Border IsVisible="{Binding HasValidationIssues}"
