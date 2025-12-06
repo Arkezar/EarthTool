@@ -344,9 +344,65 @@
               <ItemsControl ItemsSource="{Binding PropertyGroups}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
-                    <Expander Header="{Binding GroupName}" 
-                              IsExpanded="{Binding IsExpanded}"
+                    <Expander IsExpanded="{Binding IsExpanded}"
                               Margin="0,4">
+                      <Expander.Header>
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+                          <!-- Group Icon -->
+                          <Border Grid.Column="0"
+                                  Width="28" Height="28"
+                                  Background="{DynamicResource SystemControlBackgroundAccentBrush}"
+                                  CornerRadius="6"
+                                  Margin="0,0,10,0">
+                            <TextBlock Text="{Binding GroupName, Converter={StaticResource GroupNameToIconConverter}}"
+                                       FontSize="14"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                          </Border>
+                          
+                          <!-- Group Name -->
+                          <TextBlock Grid.Column="1"
+                                     Text="{Binding GroupName}"
+                                     FontWeight="SemiBold"
+                                     FontSize="14"
+                                     VerticalAlignment="Center"
+                                     Margin="0,0,8,0" />
+                          
+                          <!-- Spacer -->
+                          <Border Grid.Column="2" />
+                          
+                          <!-- Property Count Badge -->
+                          <Border Grid.Column="3"
+                                  Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                                  CornerRadius="10"
+                                  Padding="8,2"
+                                  Margin="0,0,6,0">
+                            <TextBlock Text="{Binding PropertyCount}"
+                                       FontSize="11"
+                                       FontWeight="Medium"
+                                       Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+                          </Border>
+                          
+                          <!-- Error Indicator -->
+                          <Border Grid.Column="4"
+                                  Background="#FFDC3545"
+                                  CornerRadius="10"
+                                  Padding="6,2"
+                                  IsVisible="{Binding HasErrors}">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                              <TextBlock Text="⚠"
+                                         Foreground="White"
+                                         FontSize="11"
+                                         VerticalAlignment="Center" />
+                              <TextBlock Text="{Binding ErrorCount}"
+                                         Foreground="White"
+                                         FontSize="11"
+                                         FontWeight="Medium"
+                                         VerticalAlignment="Center" />
+                            </StackPanel>
+                          </Border>
+                        </Grid>
+                      </Expander.Header>
                       <StackPanel Spacing="4" Margin="8">
                         <ItemsControl ItemsSource="{Binding Properties}">
                           <ItemsControl.ItemTemplate>

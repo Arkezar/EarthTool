@@ -13,6 +13,7 @@
     <Application.Resources>
         <converters:ValidationSeverityToBrushConverter x:Key="SeverityToBrushConverter"/>
         <converters:ValidationSeverityToIconConverter x:Key="SeverityToIconConverter"/>
+        <converters:GroupNameToIconConverter x:Key="GroupNameToIconConverter"/>
     </Application.Resources>
   
     <Application.Styles>
