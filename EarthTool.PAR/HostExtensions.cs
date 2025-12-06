@@ -11,7 +11,7 @@ namespace EarthTool.PAR
     public static IServiceCollection AddParServices(this IServiceCollection services)
       => services
         .AddCommonServices()
-        .AddScoped<IReader<ParFile>, ParameterReader>()
-        .AddScoped<IWriter<ParFile>, ParameterWriter>();
+        .AddSingleton<IReader<ParFile>, ParameterReader>()
+        .AddSingleton<IWriter<ParFile>, ParameterWriter>();
   }
 }

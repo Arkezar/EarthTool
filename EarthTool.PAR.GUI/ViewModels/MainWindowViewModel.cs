@@ -1,0 +1,575 @@
+using EarthTool.PAR.GUI.Services;
+using EarthTool.PAR.Models;
+using Microsoft.Extensions.Logging;
+using ReactiveUI;
+using System;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Reactive;
+using System.Threading.Tasks;
+
+namespace EarthTool.PAR.GUI.ViewModels;
+
+/// <summary>
+/// Main ViewModel for the PAR Editor.
+/// </summary>
+public class MainWindowViewModel : ViewModelBase, IDisposable
+{
+  private readonly IParFileService _parFileService;
+  private readonly IDialogService _dialogService;
+  private readonly INotificationService _notificationService;
+  private readonly IUndoRedoService _undoRedoService;
+  private readonly IEntityValidationService _validationService;
+  private readonly ILogger<MainWindowViewModel> _logger;
+  private readonly EntityDetailsViewModel _entityDetailsViewModel;
+
+  private ParFile? _currentParFile;
+  private string? _currentFilePath;
+  private bool _hasUnsavedChanges;
+  private bool _isBusy;
+  private string _statusMessage = "Ready";
+  private string _searchText = string.Empty;
+  private EntityGroupViewModel? _selectedGroup;
+  private EntityListItemViewModel? _selectedEntity;
+
+  public MainWindowViewModel(
+    IParFileService parFileService,
+    IDialogService dialogService,
+    INotificationService notificationService,
+    IUndoRedoService undoRedoService,
+    IEntityValidationService validationService,
+    ILogger<MainWindowViewModel> logger,
+    EntityDetailsViewModel entityDetailsViewModel)
+  {
+    _parFileService = parFileService ?? throw new ArgumentNullException(nameof(parFileService));
+    _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
+    _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
+    _undoRedoService = undoRedoService ?? throw new ArgumentNullException(nameof(undoRedoService));
+    _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
+    _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    _entityDetailsViewModel = entityDetailsViewModel ?? throw new ArgumentNullException(nameof(entityDetailsViewModel));
+
+    EntityGroups = new ObservableCollection<EntityGroupViewModel>();
+    ResearchList = new ObservableCollection<ResearchViewModel>();
+
+    InitializeCommands();
+
+    _logger.LogInformation("ParEditorViewModel initialized");
+  }
+
+  #region Properties
+
+  /// <summary>
+  /// Gets the collection of entity groups.
+  /// </summary>
+  public ObservableCollection<EntityGroupViewModel> EntityGroups { get; }
+
+  /// <summary>
+  /// Gets the collection of research entries.
+  /// </summary>
+  public ObservableCollection<ResearchViewModel> ResearchList { get; }
+
+  /// <summary>
+  /// Gets or sets the currently selected group.
+  /// </summary>
+  public EntityGroupViewModel? SelectedGroup
+  {
+    get => _selectedGroup;
+    set => this.RaiseAndSetIfChanged(ref _selectedGroup, value);
+  }
+
+  /// <summary>
+  /// Gets or sets the currently selected entity.
+  /// </summary>
+  public EntityListItemViewModel? SelectedEntity
+  {
+    get => _selectedEntity;
+    set
+    {
+      if (_selectedEntity == value) return;
+      
+      _selectedEntity = value;
+      this.RaisePropertyChanged();
+      
+      // Update EntityDetailsViewModel
+      _entityDetailsViewModel.CurrentEntity = value?.EditableEntity;
+    }
+  }
+
+  /// <summary>
+  /// Gets the current PAR file.
+  /// </summary>
+  public ParFile? CurrentParFile => _currentParFile;
+
+  /// <summary>
+  /// Gets the current file path.
+  /// </summary>
+  public string? CurrentFilePath => _currentFilePath;
+
+  /// <summary>
+  /// Gets whether a file is currently open.
+  /// </summary>
+  public bool IsFileOpen => _currentParFile != null;
+
+  /// <summary>
+  /// Gets or sets whether there are unsaved changes.
+  /// </summary>
+  public bool HasUnsavedChanges
+  {
+    get => _hasUnsavedChanges;
+    set => this.RaiseAndSetIfChanged(ref _hasUnsavedChanges, value);
+  }
+
+  /// <summary>
+  /// Gets or sets whether the editor is busy.
+  /// </summary>
+  public bool IsBusy
+  {
+    get => _isBusy;
+    set => this.RaiseAndSetIfChanged(ref _isBusy, value);
+  }
+
+  /// <summary>
+  /// Gets or sets the status message.
+  /// </summary>
+  public string StatusMessage
+  {
+    get => _statusMessage;
+    set => this.RaiseAndSetIfChanged(ref _statusMessage, value);
+  }
+
+  /// <summary>
+  /// Gets or sets the search text for filtering entities.
+  /// </summary>
+  public string SearchText
+  {
+    get => _searchText;
+    set
+    {
+      this.RaiseAndSetIfChanged(ref _searchText, value);
+      ApplyFilter();
+    }
+  }
+
+  /// <summary>
+  /// Gets the window title.
+  /// </summary>
+  public string WindowTitle
+  {
+    get
+    {
+      var title = "PAR Editor";
+      if (!string.IsNullOrEmpty(_currentFilePath))
+      {
+        var fileName = System.IO.Path.GetFileName(_currentFilePath);
+        title = $"{fileName}{(HasUnsavedChanges ? "*" : "")} - {title}";
+      }
+      return title;
+    }
+  }
+
+  /// <summary>
+  /// Gets whether undo is available.
+  /// </summary>
+  public bool CanUndo => _undoRedoService.CanUndo;
+
+  /// <summary>
+  /// Gets whether redo is available.
+  /// </summary>
+  public bool CanRedo => _undoRedoService.CanRedo;
+
+  /// <summary>
+  /// Gets the entity details ViewModel.
+  /// </summary>
+  public EntityDetailsViewModel EntityDetailsViewModel => _entityDetailsViewModel;
+
+  #endregion
+
+  #region Commands
+
+  public ReactiveCommand<Unit, Unit> NewFileCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> OpenFileCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> SaveFileCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> SaveAsCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> CloseFileCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> UndoCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> RedoCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> AddEntityCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> CloneEntityCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> DeleteEntityCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> CopyEntityCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> PasteEntityCommand { get; private set; } = null!;
+
+  private void InitializeCommands()
+  {
+    // File commands
+    NewFileCommand = ReactiveCommand.CreateFromTask(NewFileAsync);
+    OpenFileCommand = ReactiveCommand.CreateFromTask(OpenFileAsync);
+
+    var canSave = this.WhenAnyValue(
+      x => x.IsFileOpen,
+      x => x.HasUnsavedChanges,
+      (isOpen, hasChanges) => isOpen && hasChanges);
+    SaveFileCommand = ReactiveCommand.CreateFromTask(SaveFileAsync, canSave);
+
+    var canSaveAs = this.WhenAnyValue(x => x.IsFileOpen);
+    SaveAsCommand = ReactiveCommand.CreateFromTask(SaveAsAsync, canSaveAs);
+    CloseFileCommand = ReactiveCommand.CreateFromTask(CloseFileAsync, canSaveAs);
+
+    // Edit commands
+    var canUndo = this.WhenAnyValue(x => x.CanUndo);
+    UndoCommand = ReactiveCommand.Create(Undo, canUndo);
+
+    var canRedo = this.WhenAnyValue(x => x.CanRedo);
+    RedoCommand = ReactiveCommand.Create(Redo, canRedo);
+
+    // Entity commands
+    var canAddEntity = this.WhenAnyValue(x => x.IsFileOpen);
+    AddEntityCommand = ReactiveCommand.CreateFromTask(AddEntityAsync, canAddEntity);
+
+    var canModifyEntity = this.WhenAnyValue(
+      x => x.IsFileOpen,
+      x => x.SelectedEntity,
+      (isOpen, entity) => isOpen && entity != null);
+    CloneEntityCommand = ReactiveCommand.CreateFromTask(CloneEntityAsync, canModifyEntity);
+    DeleteEntityCommand = ReactiveCommand.CreateFromTask(DeleteEntityAsync, canModifyEntity);
+    CopyEntityCommand = ReactiveCommand.Create(CopyEntity, canModifyEntity);
+    PasteEntityCommand = ReactiveCommand.CreateFromTask(PasteEntityAsync, canAddEntity);
+
+    // Subscribe to property changes for WindowTitle
+    this.WhenAnyValue(x => x.HasUnsavedChanges, x => x.CurrentFilePath)
+      .Subscribe(_ => this.RaisePropertyChanged(nameof(WindowTitle)));
+  }
+
+  #endregion
+
+  #region Command Implementations
+
+  private async Task NewFileAsync()
+  {
+    try
+    {
+      if (!await PromptSaveChangesAsync())
+        return;
+
+      _logger.LogInformation("Creating new PAR file");
+      IsBusy = true;
+      StatusMessage = "Creating new file...";
+
+      _currentParFile = await _parFileService.CreateNewAsync();
+      _currentFilePath = null;
+      HasUnsavedChanges = true;
+
+      LoadParFile();
+
+      _notificationService.ShowSuccess("New PAR file created");
+      StatusMessage = "New file ready";
+      _logger.LogInformation("Created new PAR file");
+    }
+    catch (Exception ex)
+    {
+      _logger.LogError(ex, "Failed to create new PAR file");
+      _notificationService.ShowError("Failed to create new file", ex);
+      StatusMessage = "Failed to create file";
+    }
+    finally
+    {
+      IsBusy = false;
+    }
+  }
+
+  private async Task OpenFileAsync()
+  {
+    try
+    {
+      if (!await PromptSaveChangesAsync())
+        return;
+
+      var filePath = await _dialogService.ShowOpenFileDialogAsync("Open PAR File", ("PAR Files", "*.par"));
+      if (string.IsNullOrEmpty(filePath))
+        return;
+
+      _logger.LogInformation("Opening PAR file: {FilePath}", filePath);
+      IsBusy = true;
+      StatusMessage = "Loading file...";
+
+      _currentParFile = await _parFileService.LoadAsync(filePath);
+      _currentFilePath = filePath;
+      HasUnsavedChanges = false;
+
+      LoadParFile();
+
+      _notificationService.ShowSuccess($"Opened {System.IO.Path.GetFileName(filePath)}");
+      StatusMessage = $"Loaded {EntityGroups.Sum(g => g.EntityCount)} entities";
+      _logger.LogInformation("Opened PAR file with {GroupCount} groups", EntityGroups.Count);
+    }
+    catch (Exception ex)
+    {
+      _logger.LogError(ex, "Failed to open PAR file");
+      _notificationService.ShowError("Failed to open file", ex);
+      StatusMessage = "Failed to open file";
+    }
+    finally
+    {
+      IsBusy = false;
+    }
+  }
+
+  private async Task SaveFileAsync()
+  {
+    if (_currentParFile == null)
+      return;
+
+    try
+    {
+      if (string.IsNullOrEmpty(_currentFilePath))
+      {
+        await SaveAsAsync();
+        return;
+      }
+
+      _logger.LogInformation("Saving PAR file: {FilePath}", _currentFilePath);
+      IsBusy = true;
+      StatusMessage = "Saving file...";
+
+      await _parFileService.SaveAsync(_currentParFile, _currentFilePath);
+
+      HasUnsavedChanges = false;
+      _notificationService.ShowSuccess($"Saved {System.IO.Path.GetFileName(_currentFilePath)}");
+      StatusMessage = "File saved";
+      _logger.LogInformation("Saved PAR file");
+    }
+    catch (Exception ex)
+    {
+      _logger.LogError(ex, "Failed to save PAR file");
+      _notificationService.ShowError("Failed to save file", ex);
+      StatusMessage = "Failed to save file";
+    }
+    finally
+    {
+      IsBusy = false;
+    }
+  }
+
+  private async Task SaveAsAsync()
+  {
+    if (_currentParFile == null)
+      return;
+
+    try
+    {
+      var defaultFileName = !string.IsNullOrEmpty(_currentFilePath)
+        ? System.IO.Path.GetFileName(_currentFilePath)
+        : "parameters.par";
+
+      var filePath = await _dialogService.ShowSaveFileDialogAsync(defaultFileName);
+      if (string.IsNullOrEmpty(filePath))
+        return;
+
+      _logger.LogInformation("Saving PAR file as: {FilePath}", filePath);
+      IsBusy = true;
+      StatusMessage = "Saving file...";
+
+      await _parFileService.SaveAsync(_currentParFile, filePath);
+
+      _currentFilePath = filePath;
+      HasUnsavedChanges = false;
+      _notificationService.ShowSuccess($"Saved as {System.IO.Path.GetFileName(filePath)}");
+      StatusMessage = "File saved";
+      _logger.LogInformation("Saved PAR file as new file");
+    }
+    catch (Exception ex)
+    {
+      _logger.LogError(ex, "Failed to save PAR file");
+      _notificationService.ShowError("Failed to save file", ex);
+      StatusMessage = "Failed to save file";
+    }
+    finally
+    {
+      IsBusy = false;
+    }
+  }
+
+  private async Task CloseFileAsync()
+  {
+    try
+    {
+      if (!await PromptSaveChangesAsync())
+        return;
+
+      _logger.LogInformation("Closing PAR file");
+
+      _currentParFile = null;
+      _currentFilePath = null;
+      HasUnsavedChanges = false;
+
+      EntityGroups.Clear();
+      ResearchList.Clear();
+      SelectedGroup = null;
+      SelectedEntity = null;
+      _undoRedoService.Clear();
+
+      StatusMessage = "File closed";
+      this.RaisePropertyChanged(nameof(IsFileOpen));
+      _logger.LogInformation("Closed PAR file");
+    }
+    catch (Exception ex)
+    {
+      _logger.LogError(ex, "Failed to close PAR file");
+      _notificationService.ShowError("Failed to close file", ex);
+    }
+  }
+
+  private void Undo()
+  {
+    try
+    {
+      _undoRedoService.Undo();
+      this.RaisePropertyChanged(nameof(CanUndo));
+      this.RaisePropertyChanged(nameof(CanRedo));
+      _logger.LogDebug("Undo executed");
+    }
+    catch (Exception ex)
+    {
+      _logger.LogError(ex, "Failed to undo");
+      _notificationService.ShowError("Failed to undo", ex);
+    }
+  }
+
+  private void Redo()
+  {
+    try
+    {
+      _undoRedoService.Redo();
+      this.RaisePropertyChanged(nameof(CanUndo));
+      this.RaisePropertyChanged(nameof(CanRedo));
+      _logger.LogDebug("Redo executed");
+    }
+    catch (Exception ex)
+    {
+      _logger.LogError(ex, "Failed to redo");
+      _notificationService.ShowError("Failed to redo", ex);
+    }
+  }
+
+  private Task AddEntityAsync()
+  {
+    // TODO: Implement in Sprint 7
+    _notificationService.ShowInfo("Add Entity - Coming soon");
+    return Task.CompletedTask;
+  }
+
+  private Task CloneEntityAsync()
+  {
+    // TODO: Implement in Sprint 7
+    _notificationService.ShowInfo("Clone Entity - Coming soon");
+    return Task.CompletedTask;
+  }
+
+  private Task DeleteEntityAsync()
+  {
+    // TODO: Implement in Sprint 7
+    _notificationService.ShowInfo("Delete Entity - Coming soon");
+    return Task.CompletedTask;
+  }
+
+  private void CopyEntity()
+  {
+    // TODO: Implement in Sprint 7
+    _notificationService.ShowInfo("Copy Entity - Coming soon");
+  }
+
+  private Task PasteEntityAsync()
+  {
+    // TODO: Implement in Sprint 7
+    _notificationService.ShowInfo("Paste Entity - Coming soon");
+    return Task.CompletedTask;
+  }
+
+  #endregion
+
+  #region Helper Methods
+
+  private void LoadParFile()
+  {
+    if (_currentParFile == null)
+      return;
+
+    EntityGroups.Clear();
+    ResearchList.Clear();
+
+    // Set validation context
+    _validationService.SetContext(_currentParFile);
+
+    // Load entity groups
+    foreach (var group in _currentParFile.Groups)
+    {
+      var groupVm = new EntityGroupViewModel(group);
+      EntityGroups.Add(groupVm);
+    }
+
+    // Load research
+    foreach (var research in _currentParFile.Research)
+    {
+      var researchVm = new ResearchViewModel(research);
+      ResearchList.Add(researchVm);
+    }
+
+    this.RaisePropertyChanged(nameof(IsFileOpen));
+    _logger.LogDebug("Loaded PAR file: {GroupCount} groups, {ResearchCount} research",
+      EntityGroups.Count, ResearchList.Count);
+  }
+
+  private void ApplyFilter()
+  {
+    // TODO: Implement filtering in Sprint 2
+    foreach (var group in EntityGroups)
+    {
+      // group.ApplyFilter(_searchText);
+    }
+  }
+
+  private async Task<bool> PromptSaveChangesAsync()
+  {
+    if (!HasUnsavedChanges)
+      return true;
+
+    var result = await _dialogService.ShowMessageBoxAsync(
+      "The current file has unsaved changes. Do you want to save them?",
+      "Unsaved Changes",
+      MessageBoxType.YesNoCancel);
+
+    return result switch
+    {
+      MessageBoxResult.Yes => await TrySaveFileAsync(),
+      MessageBoxResult.No => true,
+      MessageBoxResult.Cancel => false,
+      _ => false
+    };
+  }
+
+  private async Task<bool> TrySaveFileAsync()
+  {
+    try
+    {
+      await SaveFileAsync();
+      return !HasUnsavedChanges; // Only return true if save was successful
+    }
+    catch
+    {
+      return false;
+    }
+  }
+
+  #endregion
+
+  #region IDisposable
+
+  public void Dispose()
+  {
+    _undoRedoService.Clear();
+    GC.SuppressFinalize(this);
+  }
+
+  #endregion
+}

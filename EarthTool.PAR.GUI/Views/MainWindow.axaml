@@ -1,0 +1,328 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:EarthTool.PAR.GUI.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="EarthTool.PAR.GUI.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="EarthTool.PAR.GUI">
+
+    <Design.DataContext>
+        <!-- This only sets the DataContext for the previewer in an IDE,
+             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <DockPanel>
+    <!-- Menu Bar -->
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="_File">
+        <MenuItem Header="_New PAR File" Command="{Binding NewFileCommand}" HotKey="Ctrl+N" />
+        <MenuItem Header="_Open PAR File..." Command="{Binding OpenFileCommand}" HotKey="Ctrl+O" />
+        <Separator />
+        <MenuItem Header="_Save" Command="{Binding SaveFileCommand}" HotKey="Ctrl+S" />
+        <MenuItem Header="Save _As..." Command="{Binding SaveAsCommand}" HotKey="Ctrl+Shift+S" />
+        <Separator />
+        <MenuItem Header="_Close" Command="{Binding CloseFileCommand}" />
+      </MenuItem>
+
+      <MenuItem Header="_Edit">
+        <MenuItem Header="_Undo" Command="{Binding UndoCommand}" HotKey="Ctrl+Z" />
+        <MenuItem Header="_Redo" Command="{Binding RedoCommand}" HotKey="Ctrl+Y" />
+        <Separator />
+        <MenuItem Header="_Add Entity..." Command="{Binding AddEntityCommand}" HotKey="Ctrl+A" />
+        <MenuItem Header="_Clone Entity" Command="{Binding CloneEntityCommand}" HotKey="Ctrl+D" />
+        <MenuItem Header="_Delete Entity" Command="{Binding DeleteEntityCommand}" HotKey="Delete" />
+        <Separator />
+        <MenuItem Header="C_opy" Command="{Binding CopyEntityCommand}" HotKey="Ctrl+C" />
+        <MenuItem Header="_Paste" Command="{Binding PasteEntityCommand}" HotKey="Ctrl+V" />
+      </MenuItem>
+
+      <MenuItem Header="_Help">
+        <MenuItem Header="_About PAR Editor" />
+      </MenuItem>
+    </Menu>
+
+    <!-- Toolbar -->
+    <Border DockPanel.Dock="Top" 
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            BorderThickness="0,0,0,1" 
+            Padding="8,4">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Command="{Binding NewFileCommand}" ToolTip.Tip="New PAR File (Ctrl+N)">
+          <TextBlock Text="📄" FontSize="16" />
+        </Button>
+        <Button Command="{Binding OpenFileCommand}" ToolTip.Tip="Open PAR File (Ctrl+O)">
+          <TextBlock Text="📂" FontSize="16" />
+        </Button>
+        <Button Command="{Binding SaveFileCommand}" ToolTip.Tip="Save (Ctrl+S)">
+          <TextBlock Text="💾" FontSize="16" />
+        </Button>
+
+        <Separator Width="1" Height="24" />
+
+        <Button Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)">
+          <TextBlock Text="↶" FontSize="16" />
+        </Button>
+        <Button Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)">
+          <TextBlock Text="↷" FontSize="16" />
+        </Button>
+
+        <Separator Width="1" Height="24" />
+
+        <Button Command="{Binding AddEntityCommand}" ToolTip.Tip="Add Entity (Ctrl+A)">
+          <TextBlock Text="➕" FontSize="16" />
+        </Button>
+        <Button Command="{Binding CloneEntityCommand}" ToolTip.Tip="Clone Entity (Ctrl+D)">
+          <TextBlock Text="📋" FontSize="16" />
+        </Button>
+        <Button Command="{Binding DeleteEntityCommand}" ToolTip.Tip="Delete Entity (Delete)">
+          <TextBlock Text="🗑️" FontSize="16" />
+        </Button>
+      </StackPanel>
+    </Border>
+
+    <!-- Status Bar -->
+    <Border DockPanel.Dock="Bottom" 
+            Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            BorderThickness="0,1,0,0"
+            Padding="8,4">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" 
+                   Text="{Binding StatusMessage}" 
+                   VerticalAlignment="Center" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
+          <TextBlock VerticalAlignment="Center">
+            <Run Text="Groups:" />
+            <Run Text="{Binding EntityGroups.Count}" FontWeight="Bold" />
+          </TextBlock>
+          <TextBlock VerticalAlignment="Center">
+            <Run Text="Entities:" />
+            <Run Text="{Binding EntityGroups.Count}" FontWeight="Bold" />
+          </TextBlock>
+          <TextBlock VerticalAlignment="Center"
+                     IsVisible="{Binding HasUnsavedChanges}">
+            <Run Text="●" Foreground="Orange" />
+            <Run Text="Modified" />
+          </TextBlock>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Main Content Area -->
+    <Grid ColumnDefinitions="250,4,300,4,*">
+      
+      <!-- Left Panel: Entity Groups Tree -->
+      <Border Grid.Column="0" 
+              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+              BorderThickness="0,0,1,0"
+              Padding="8">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" 
+                     Text="Entity Groups" 
+                     FontSize="14" 
+                     FontWeight="Bold"
+                     Margin="0,0,0,8" />
+          
+          <TextBox DockPanel.Dock="Top"
+                   Watermark="Search groups..."
+                   Text="{Binding SearchText}"
+                   Margin="0,0,0,8" />
+
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding EntityGroups}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Expander Header="{Binding GroupName}" IsExpanded="{Binding IsExpanded}">
+                    <StackPanel Margin="16,4,0,4">
+                      <TextBlock>
+                        <Run Text="Type: " />
+                        <Run Text="{Binding GroupTypeDisplay}" FontWeight="Bold" />
+                      </TextBlock>
+                      <TextBlock>
+                        <Run Text="Faction: " />
+                        <Run Text="{Binding FactionDisplay}" />
+                      </TextBlock>
+                      <TextBlock>
+                        <Run Text="Entities: " />
+                        <Run Text="{Binding EntityCount}" FontWeight="Bold" />
+                      </TextBlock>
+                    </StackPanel>
+                  </Expander>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+
+      <GridSplitter Grid.Column="1" 
+                    ResizeDirection="Columns" 
+                    Background="Transparent" />
+
+      <!-- Middle Panel: Entity List -->
+      <Border Grid.Column="2" 
+              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+              BorderThickness="0,0,1,0"
+              Padding="8">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" 
+                     Text="Entities" 
+                     FontSize="14" 
+                     FontWeight="Bold"
+                     Margin="0,0,0,8" />
+
+          <TextBlock DockPanel.Dock="Top"
+                     Text="Select a group to view entities"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                     Margin="0,0,0,8"
+                     IsVisible="{Binding !SelectedGroup}" />
+
+          <ScrollViewer IsVisible="{Binding !!SelectedGroup}">
+            <ItemsControl ItemsSource="{Binding SelectedGroup.Entities}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                          BorderThickness="0,0,0,1"
+                          Padding="4"
+                          Background="Transparent"
+                          PointerPressed="Entity_PointerPressed">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <TextBlock Grid.Column="0" 
+                                 Text="{Binding Icon}" 
+                                 FontSize="16"
+                                 Margin="0,0,8,0" />
+                      <StackPanel Grid.Column="1">
+                        <TextBlock Text="{Binding Name}" FontWeight="Bold" />
+                        <TextBlock Text="{Binding TypeDisplayName}" 
+                                   FontSize="10"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="2" 
+                                 Text="●" 
+                                 Foreground="Orange"
+                                 FontSize="16"
+                                 IsVisible="{Binding IsDirty}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+
+      <GridSplitter Grid.Column="3" 
+                    ResizeDirection="Columns" 
+                    Background="Transparent" />
+
+      <!-- Right Panel: Entity Details -->
+      <Border Grid.Column="4" Padding="8">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" 
+                     Text="Entity Details" 
+                     FontSize="14" 
+                     FontWeight="Bold"
+                     Margin="0,0,0,8" />
+
+          <TextBlock DockPanel.Dock="Top"
+                     Text="Select an entity to view details"
+                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                     Margin="0,0,0,8"
+                     IsVisible="{Binding !SelectedEntity}" />
+
+          <ScrollViewer IsVisible="{Binding !!SelectedEntity}">
+            <StackPanel Spacing="12" DataContext="{Binding EntityDetailsViewModel}">
+              <!-- Entity Header -->
+              <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                      BorderThickness="0,0,0,1"
+                      Padding="0,0,0,8">
+                <StackPanel Spacing="4">
+                  <TextBox Text="{Binding EntityName}" 
+                           FontSize="16" 
+                           FontWeight="Bold"
+                           Watermark="Entity Name" />
+                  <TextBlock>
+                    <Run Text="Type: " />
+                    <Run Text="{Binding EntityType}" FontWeight="Bold" />
+                  </TextBlock>
+                  <TextBlock>
+                    <Run Text="Class: " />
+                    <Run Text="{Binding ClassType}" />
+                  </TextBlock>
+                </StackPanel>
+              </Border>
+
+              <!-- Validation Errors -->
+              <Border IsVisible="{Binding HasValidationIssues}"
+                      Background="#FFFFEAA7"
+                      BorderBrush="#FFFDCB6E"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="8">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="⚠️ Validation Issues" FontWeight="Bold" />
+                  <ItemsControl ItemsSource="{Binding ValidationErrors}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <TextBlock>
+                          <Run Text="•" />
+                          <Run Text="{Binding PropertyName}" FontWeight="Bold" />
+                          <Run Text=": " />
+                          <Run Text="{Binding ErrorMessage}" />
+                        </TextBlock>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
+
+              <!-- Property Groups -->
+              <ItemsControl ItemsSource="{Binding PropertyGroups}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Expander Header="{Binding GroupName}" 
+                              IsExpanded="{Binding IsExpanded}"
+                              Margin="0,4">
+                      <StackPanel Spacing="8" Margin="8">
+                        <ItemsControl ItemsSource="{Binding Properties}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <StackPanel Spacing="4" Margin="0,4">
+                                <TextBlock Text="{Binding DisplayName}" 
+                                           FontWeight="SemiBold"
+                                           FontSize="12" />
+                                <TextBlock Text="{Binding Value}" 
+                                           FontSize="11"
+                                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                                <TextBlock Text="{Binding ErrorMessage}"
+                                           Foreground="Red"
+                                           FontSize="10"
+                                           IsVisible="{Binding !IsValid}" />
+                              </StackPanel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </Expander>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <!-- Action Buttons -->
+              <StackPanel Spacing="8" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Revert Changes" 
+                        Command="{Binding RevertChangesCommand}" />
+                <Button Content="Validate" 
+                        Command="{Binding ValidateCommand}" />
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+    </Grid>
+  </DockPanel>
+</Window>
