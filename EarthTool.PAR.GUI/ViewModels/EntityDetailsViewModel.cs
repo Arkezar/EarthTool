@@ -414,4 +414,19 @@ public class PropertyGroupViewModel : ViewModelBase
   /// Gets the collection of properties in this group.
   /// </summary>
   public ObservableCollection<PropertyEditorViewModel> Properties { get; set; } = new();
+
+  /// <summary>
+  /// Gets the number of properties in this group.
+  /// </summary>
+  public int PropertyCount => Properties?.Count ?? 0;
+
+  /// <summary>
+  /// Gets the number of invalid properties in this group.
+  /// </summary>
+  public int ErrorCount => Properties?.Count(p => !p.IsValid) ?? 0;
+
+  /// <summary>
+  /// Gets whether this group has any invalid properties.
+  /// </summary>
+  public bool HasErrors => ErrorCount > 0;
 }
