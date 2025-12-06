@@ -2,12 +2,18 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="EarthTool.PAR.GUI.App"
              xmlns:local="using:EarthTool.PAR.GUI"
+             xmlns:converters="using:EarthTool.PAR.GUI.Converters"
              RequestedThemeVariant="Default">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.DataTemplates>
         <local:ViewLocator/>
     </Application.DataTemplates>
+  
+    <Application.Resources>
+        <converters:ValidationSeverityToBrushConverter x:Key="SeverityToBrushConverter"/>
+        <converters:ValidationSeverityToIconConverter x:Key="SeverityToIconConverter"/>
+    </Application.Resources>
   
     <Application.Styles>
         <FluentTheme />
