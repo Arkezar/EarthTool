@@ -25,6 +25,28 @@ public partial class MainWindow : Window
         var valueText = viewModel.Value?.ToString() ?? string.Empty;
         await CopyToClipboardAsync(valueText);
       }
+      else if (button.Command == viewModel.NavigateToReferenceCommand)
+      {
+        var referenceValue = viewModel.Value?.ToString() ?? string.Empty;
+        NavigateToReference(referenceValue);
+      }
+    }
+  }
+
+  private void NavigateToReference(string referenceName)
+  {
+    if (string.IsNullOrEmpty(referenceName))
+      return;
+
+    // Get MainWindowViewModel from DataContext
+    if (DataContext is MainWindowViewModel mainViewModel)
+    {
+      // Find entity by name in the tree
+      // For now, just log - proper implementation would search through RootNodes
+      System.Diagnostics.Debug.WriteLine($"Navigate to reference: {referenceName}");
+      
+      // TODO: Implement actual navigation by searching tree and selecting the node
+      // This would require exposing a search method in MainWindowViewModel
     }
   }
 

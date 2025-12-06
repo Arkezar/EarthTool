@@ -492,6 +492,22 @@
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center" />
                                   </Button>
+                                  
+                                  <!-- Navigate to Reference Button -->
+                                  <Button Command="{Binding NavigateToReferenceCommand}"
+                                          ToolTip.Tip="Navigate to referenced entity"
+                                          Width="28"
+                                          Height="28"
+                                          Padding="0"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          IsVisible="{Binding IsEntityReference}">
+                                    <TextBlock Text="→"
+                                               FontSize="16"
+                                               FontWeight="Bold"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                  </Button>
                                 </StackPanel>
                               </Grid>
                             </DataTemplate>

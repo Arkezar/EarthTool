@@ -23,6 +23,16 @@ public abstract class PropertyEditorViewModel : ViewModelBase
   /// </summary>
   public ReactiveCommand<Unit, Unit> CopyValueCommand { get; }
 
+  /// <summary>
+  /// Gets the command to navigate to the referenced entity.
+  /// </summary>
+  public ReactiveCommand<Unit, Unit> NavigateToReferenceCommand { get; }
+
+  /// <summary>
+  /// Gets whether this property is an entity reference (e.g., ends with "Id").
+  /// </summary>
+  public virtual bool IsEntityReference => false;
+
   public PropertyEditorViewModel()
   {
     CopyValueCommand = ReactiveCommand.Create(() =>
@@ -30,6 +40,16 @@ public abstract class PropertyEditorViewModel : ViewModelBase
       // Clipboard will be accessed from UI layer via Interaction
       // For now, just expose the command
     });
+
+    var canNavigate = this.WhenAnyValue(
+      x => x.IsEntityReference,
+      x => x.Value,
+      (isRef, val) => isRef && !string.IsNullOrEmpty(val?.ToString()));
+
+    NavigateToReferenceCommand = ReactiveCommand.Create(() =>
+    {
+      // Navigation will be handled in UI layer
+    }, canNavigate);
   }
 
   /// <summary>
