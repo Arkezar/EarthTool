@@ -101,13 +101,42 @@ public class EnumPropertyEditorViewModel : PropertyEditorViewModel
     {
       ErrorMessage = $"{DisplayName} is required";
     }
-    else if (_enumType != null && _value != null && !Enum.IsDefined(_enumType, _value))
+    else if (_enumType != null && _value != null && !IsValidEnumValue(_enumType, _value))
     {
       ErrorMessage = $"Invalid value for {DisplayName}";
     }
     else
     {
       ErrorMessage = null;
+    }
+  }
+
+  private static bool IsValidEnumValue(Type enumType, object value)
+  {
+    if (!enumType.IsEnum)
+      return false;
+
+    // Check if enum has [Flags] attribute
+    var isFlagsEnum = enumType.GetCustomAttributes(typeof(FlagsAttribute), false).Length > 0;
+
+    if (isFlagsEnum)
+    {
+      // For flags enums, check if the value is a valid combination of defined flags
+      var underlyingValue = Convert.ToInt64(value);
+      
+      // Get all defined values
+      var allFlags = Enum.GetValues(enumType)
+        .Cast<object>()
+        .Select(Convert.ToInt64)
+        .Aggregate(0L, (current, flag) => current | flag);
+
+      // Check if value contains only valid flags
+      return (underlyingValue & ~allFlags) == 0;
+    }
+    else
+    {
+      // For regular enums, use Enum.IsDefined
+      return Enum.IsDefined(enumType, value);
     }
   }
 
