@@ -43,7 +43,9 @@ public abstract class PropertyEditorViewModel : ViewModelBase
     });
 
     // Default disabled command - derived classes can override
-    NavigateToReferenceCommand = ReactiveCommand.Create(() => { }, Observable.Return(false));
+    NavigateToReferenceCommand = ReactiveCommand.Create(
+      () => { }, 
+      Observable.Return(false));
   }
 
   /// <summary>

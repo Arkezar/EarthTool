@@ -106,14 +106,13 @@ public class StringPropertyEditorViewModel : PropertyEditorViewModel
     get => _isEntityReference;
     set
     {
-      this.RaiseAndSetIfChanged(ref _isEntityReference, value);
-      
-      // Reinitialize navigate command when reference status changes
-      if (_isEntityReference)
+      if (this.RaiseAndSetIfChanged(ref _isEntityReference, value) && _isEntityReference)
       {
+        // Reinitialize navigate command when reference status changes to true
         var canNavigate = this.WhenAnyValue(
           x => x.StringValue,
-          val => !string.IsNullOrEmpty(val));
+          val => !string.IsNullOrEmpty(val))
+          .StartWith(!string.IsNullOrEmpty(_value)); // Emit initial value immediately
 
         NavigateToReferenceCommand = ReactiveCommand.Create(() =>
         {
