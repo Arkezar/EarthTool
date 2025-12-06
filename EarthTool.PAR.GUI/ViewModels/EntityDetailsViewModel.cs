@@ -212,7 +212,7 @@ public class EntityDetailsViewModel : ViewModelBase
 
   private void LoadEntity()
   {
-    _entityName = _currentEntity.DisplayName;
+    _entityName = _currentEntity!.DisplayName;
     this.RaisePropertyChanged(nameof(EntityName));
     this.RaisePropertyChanged(nameof(EntityType));
     this.RaisePropertyChanged(nameof(ClassType));
@@ -235,7 +235,7 @@ public class EntityDetailsViewModel : ViewModelBase
 
   private void LoadResearch()
   {
-    _entityName = _currentResearch.Name;
+    _entityName = _currentResearch!.Name;
     this.RaisePropertyChanged(nameof(EntityName));
     this.RaisePropertyChanged(nameof(EntityType));
     this.RaisePropertyChanged(nameof(ClassType));
