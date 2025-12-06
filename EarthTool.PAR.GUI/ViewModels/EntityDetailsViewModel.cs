@@ -196,10 +196,14 @@ public class EntityDetailsViewModel : ViewModelBase
     }
     hierarchy.Reverse(); // Now ordered from base to derived
 
-    // Create groups in hierarchy order
+    // Create groups in hierarchy order (skip ParameterEntry - it only contains Name)
     var groupViewModels = new List<PropertyGroupViewModel>();
     foreach (var type in hierarchy)
     {
+      // Skip ParameterEntry group as Name is already shown in entity header
+      if (type.Name == "ParameterEntry")
+        continue;
+
       if (propertiesByType.TryGetValue(type, out var properties) && properties.Any())
       {
         var groupName = FormatTypeName(type);
@@ -295,10 +299,14 @@ public class EntityDetailsViewModel : ViewModelBase
     }
     hierarchy.Reverse(); // Now ordered from base (Entity) to derived (Vehicle, etc.)
 
-    // Create groups in hierarchy order
+    // Create groups in hierarchy order (skip ParameterEntry - it only contains Name)
     var groupViewModels = new List<PropertyGroupViewModel>();
     foreach (var type in hierarchy)
     {
+      // Skip ParameterEntry group as Name is already shown in entity header
+      if (type.Name == "ParameterEntry")
+        continue;
+
       if (propertiesByType.TryGetValue(type, out var properties) && properties.Any())
       {
         var groupName = FormatTypeName(type);
