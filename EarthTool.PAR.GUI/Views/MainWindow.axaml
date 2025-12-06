@@ -52,34 +52,34 @@
             Padding="8,4">
       <StackPanel Orientation="Horizontal" Spacing="8">
         <Button Command="{Binding NewFileCommand}" ToolTip.Tip="New PAR File (Ctrl+N)">
-          <TextBlock Text="📄" FontSize="16" />
+          <TextBlock Text="📄" FontSize="{StaticResource FontSize.Icon}" />
         </Button>
         <Button Command="{Binding OpenFileCommand}" ToolTip.Tip="Open PAR File (Ctrl+O)">
-          <TextBlock Text="📂" FontSize="16" />
+          <TextBlock Text="📂" FontSize="{StaticResource FontSize.Icon}" />
         </Button>
         <Button Command="{Binding SaveFileCommand}" ToolTip.Tip="Save (Ctrl+S)">
-          <TextBlock Text="💾" FontSize="16" />
+          <TextBlock Text="💾" FontSize="{StaticResource FontSize.Icon}" />
         </Button>
 
         <Separator Width="1" Height="24" />
 
         <Button Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)">
-          <TextBlock Text="↶" FontSize="16" />
+          <TextBlock Text="↶" FontSize="{StaticResource FontSize.Icon}" />
         </Button>
         <Button Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)">
-          <TextBlock Text="↷" FontSize="16" />
+          <TextBlock Text="↷" FontSize="{StaticResource FontSize.Icon}" />
         </Button>
 
         <Separator Width="1" Height="24" />
 
         <Button Command="{Binding AddEntityCommand}" ToolTip.Tip="Add Entity (Ctrl+A)">
-          <TextBlock Text="➕" FontSize="16" />
+          <TextBlock Text="➕" FontSize="{StaticResource FontSize.Icon}" />
         </Button>
         <Button Command="{Binding CloneEntityCommand}" ToolTip.Tip="Clone Entity (Ctrl+D)">
-          <TextBlock Text="📋" FontSize="16" />
+          <TextBlock Text="📋" FontSize="{StaticResource FontSize.Icon}" />
         </Button>
         <Button Command="{Binding DeleteEntityCommand}" ToolTip.Tip="Delete Entity (Delete)">
-          <TextBlock Text="🗑️" FontSize="16" />
+          <TextBlock Text="🗑️" FontSize="{StaticResource FontSize.Icon}" />
         </Button>
       </StackPanel>
     </Border>
@@ -115,7 +115,7 @@
         <DockPanel>
           <TextBlock DockPanel.Dock="Top" 
                      Text="Entity Groups" 
-                     FontSize="14" 
+                     FontSize="{StaticResource FontSize.SectionHeader}" 
                      FontWeight="Bold"
                      Margin="0,0,0,8" />
           
@@ -134,7 +134,7 @@
                 <TreeDataTemplate DataType="vm:EntityGroupsRootNodeViewModel" 
                                 ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
                     <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" />
                   </StackPanel>
                 </TreeDataTemplate>
@@ -143,7 +143,7 @@
                 <TreeDataTemplate DataType="vm:ResearchRootNodeViewModel" 
                                 ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
                     <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" />
                   </StackPanel>
                 </TreeDataTemplate>
@@ -152,7 +152,7 @@
                 <TreeDataTemplate DataType="vm:FactionNodeViewModel" 
                                 ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
                     <TextBlock Text="{Binding DisplayName}" />
                   </StackPanel>
                 </TreeDataTemplate>
@@ -161,7 +161,7 @@
                 <TreeDataTemplate DataType="vm:GroupTypeNodeViewModel" 
                                 ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
                     <TextBlock Text="{Binding DisplayName}" />
                   </StackPanel>
                 </TreeDataTemplate>
@@ -170,7 +170,7 @@
                 <TreeDataTemplate DataType="vm:EntityGroupNodeViewModel" 
                                 ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
                     <TextBlock Text="{Binding DisplayName}" />
                   </StackPanel>
                 </TreeDataTemplate>
@@ -178,11 +178,11 @@
                 <!-- Entity (Leaf) Template -->
                 <DataTemplate DataType="vm:EntityListItemViewModel">
                   <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
                     <TextBlock Text="{Binding Name}" />
                     <TextBlock Text="●" 
                               Foreground="Orange" 
-                              FontSize="12"
+                              FontSize="{StaticResource FontSize.Badge}"
                               IsVisible="{Binding IsDirty}" />
                   </StackPanel>
                 </DataTemplate>
@@ -191,7 +191,7 @@
                 <TreeDataTemplate DataType="vm:FactionResearchNodeViewModel" 
                                 ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
                     <TextBlock Text="{Binding DisplayName}" />
                   </StackPanel>
                 </TreeDataTemplate>
@@ -200,7 +200,7 @@
                 <TreeDataTemplate DataType="vm:ResearchTypeNodeViewModel" 
                                 ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
                     <TextBlock Text="{Binding DisplayName}" />
                   </StackPanel>
                 </TreeDataTemplate>
@@ -208,7 +208,7 @@
                 <!-- Research (Leaf) Template -->
                 <DataTemplate DataType="vm:ResearchViewModel">
                   <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{Binding Icon}" FontSize="16" />
+                    <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
                     <TextBlock Text="{Binding Name}" />
                   </StackPanel>
                 </DataTemplate>
@@ -228,7 +228,7 @@
         <DockPanel>
           <TextBlock DockPanel.Dock="Top" 
                      Text="Entity Details" 
-                     FontSize="14" 
+                     FontSize="{StaticResource FontSize.SectionHeader}" 
                      FontWeight="Bold"
                      Margin="0,0,0,8" />
 
@@ -248,7 +248,7 @@
           <!-- Entity Header -->
           <StackPanel Spacing="4" IsVisible="{Binding !!CurrentEntity}">
             <TextBox Text="{Binding EntityName}" 
-                     FontSize="16" 
+                     FontSize="{StaticResource FontSize.EntityName}" 
                      FontWeight="Bold"
                      Watermark="Entity Name" />
             <TextBlock>
@@ -264,7 +264,7 @@
           <!-- Research Header -->
           <StackPanel Spacing="4" IsVisible="{Binding !!CurrentResearch}">
             <TextBox Text="{Binding EntityName}" 
-                     FontSize="16" 
+                     FontSize="{StaticResource FontSize.EntityName}" 
                      FontWeight="Bold"
                      Watermark="Research Name" />
             <TextBlock>
@@ -287,7 +287,7 @@
                   <Grid ColumnDefinitions="Auto,*,Auto">
                     <TextBlock Grid.Column="0"
                                Text="⚠"
-                               FontSize="16"
+                               FontSize="{StaticResource FontSize.ValidationSummary}"
                                Margin="0,0,8,0"
                                VerticalAlignment="Center" />
                     <TextBlock Grid.Column="1"
@@ -298,7 +298,7 @@
                     </TextBlock>
                     <TextBlock Grid.Column="2"
                                Text="Click to expand"
-                               FontSize="11"
+                               FontSize="{StaticResource FontSize.Helper}"
                                Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
                                VerticalAlignment="Center"
                                IsVisible="{Binding !$parent[Expander].IsExpanded}" />
@@ -317,20 +317,20 @@
                                      Text="{Binding Severity, Converter={StaticResource SeverityToIconConverter}}"
                                      Foreground="White"
                                      FontWeight="Bold"
-                                     FontSize="12"
+                                     FontSize="{StaticResource FontSize.ValidationIcon}"
                                      Margin="0,0,6,0"
                                      VerticalAlignment="Center" />
                           <TextBlock Grid.Column="1"
                                      Text="{Binding PropertyName}"
                                      Foreground="White"
                                      FontWeight="SemiBold"
-                                     FontSize="11"
+                                     FontSize="{StaticResource FontSize.Helper}"
                                      Margin="0,0,6,0"
                                      VerticalAlignment="Center" />
                           <TextBlock Grid.Column="2"
                                      Text="{Binding ErrorMessage}"
                                      Foreground="White"
-                                     FontSize="11"
+                                     FontSize="{StaticResource FontSize.Helper}"
                                      TextWrapping="Wrap"
                                      VerticalAlignment="Center" />
                         </Grid>
@@ -355,7 +355,7 @@
                                   CornerRadius="6"
                                   Margin="0,0,10,0">
                             <TextBlock Text="{Binding GroupName, Converter={StaticResource GroupNameToIconConverter}}"
-                                       FontSize="14"
+                                       FontSize="{StaticResource FontSize.GroupIcon}"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center" />
                           </Border>
@@ -364,7 +364,7 @@
                           <TextBlock Grid.Column="1"
                                      Text="{Binding GroupName}"
                                      FontWeight="SemiBold"
-                                     FontSize="14"
+                                     FontSize="{StaticResource FontSize.GroupName}"
                                      VerticalAlignment="Center"
                                      Margin="0,0,8,0" />
                           
@@ -378,7 +378,7 @@
                                   Padding="8,2"
                                   Margin="0,0,6,0">
                             <TextBlock Text="{Binding PropertyCount}"
-                                       FontSize="11"
+                                       FontSize="{StaticResource FontSize.GroupBadge}"
                                        FontWeight="Medium"
                                        Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
                           </Border>
@@ -392,11 +392,11 @@
                             <StackPanel Orientation="Horizontal" Spacing="4">
                               <TextBlock Text="⚠"
                                          Foreground="White"
-                                         FontSize="11"
+                                         FontSize="{StaticResource FontSize.GroupBadge}"
                                          VerticalAlignment="Center" />
                               <TextBlock Text="{Binding ErrorCount}"
                                          Foreground="White"
-                                         FontSize="11"
+                                         FontSize="{StaticResource FontSize.GroupBadge}"
                                          FontWeight="Medium"
                                          VerticalAlignment="Center" />
                             </StackPanel>
@@ -412,7 +412,7 @@
                                 <TextBlock Grid.Column="0"
                                            Text="{Binding DisplayName}"
                                            FontWeight="Medium"
-                                           FontSize="13"
+                                           FontSize="{StaticResource FontSize.PropertyLabel}"
                                            Margin="0,0,16,0"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
@@ -424,7 +424,7 @@
                                         Padding="8,4">
                                   <StackPanel Spacing="2">
                                     <TextBlock Text="{Binding Value}"
-                                               FontSize="13"
+                                               FontSize="{StaticResource FontSize.PropertyValue}"
                                                TextWrapping="Wrap"
                                                Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
                                     
@@ -438,11 +438,11 @@
                                         <TextBlock Text="{Binding ValidationSeverity, Converter={StaticResource SeverityToIconConverter}}"
                                                    Foreground="White"
                                                    FontWeight="Bold"
-                                                   FontSize="11"
+                                                   FontSize="{StaticResource FontSize.ValidationIcon}"
                                                    VerticalAlignment="Center" />
                                         <TextBlock Text="{Binding ErrorMessage}"
                                                    Foreground="White"
-                                                   FontSize="11"
+                                                   FontSize="{StaticResource FontSize.ValidationError}"
                                                    FontWeight="Medium"
                                                    TextWrapping="Wrap" />
                                       </StackPanel>
