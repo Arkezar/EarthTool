@@ -132,7 +132,7 @@
                 
                 <!-- Entity Groups Root Template -->
                 <TreeDataTemplate DataType="vm:EntityGroupsRootNodeViewModel" 
-                                ItemsSource="{Binding Children}">
+                                ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="16" />
                     <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" />
@@ -141,7 +141,7 @@
                 
                 <!-- Research Root Template -->
                 <TreeDataTemplate DataType="vm:ResearchRootNodeViewModel" 
-                                ItemsSource="{Binding Children}">
+                                ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="16" />
                     <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" />
@@ -150,7 +150,7 @@
                 
                 <!-- Faction Node Template (for Entity Groups) -->
                 <TreeDataTemplate DataType="vm:FactionNodeViewModel" 
-                                ItemsSource="{Binding Children}">
+                                ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="16" />
                     <TextBlock Text="{Binding DisplayName}" />
@@ -159,7 +159,7 @@
                 
                 <!-- GroupType Node Template -->
                 <TreeDataTemplate DataType="vm:GroupTypeNodeViewModel" 
-                                ItemsSource="{Binding Children}">
+                                ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="16" />
                     <TextBlock Text="{Binding DisplayName}" />
@@ -168,7 +168,7 @@
                 
                 <!-- EntityGroup Node Template -->
                 <TreeDataTemplate DataType="vm:EntityGroupNodeViewModel" 
-                                ItemsSource="{Binding Children}">
+                                ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="16" />
                     <TextBlock Text="{Binding DisplayName}" />
@@ -189,7 +189,7 @@
                 
                 <!-- Faction Research Node Template -->
                 <TreeDataTemplate DataType="vm:FactionResearchNodeViewModel" 
-                                ItemsSource="{Binding Children}">
+                                ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="16" />
                     <TextBlock Text="{Binding DisplayName}" />
@@ -198,7 +198,7 @@
                 
                 <!-- Research Type Node Template -->
                 <TreeDataTemplate DataType="vm:ResearchTypeNodeViewModel" 
-                                ItemsSource="{Binding Children}">
+                                ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="16" />
                     <TextBlock Text="{Binding DisplayName}" />

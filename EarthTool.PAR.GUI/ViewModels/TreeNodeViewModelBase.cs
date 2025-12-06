@@ -1,6 +1,7 @@
 using ReactiveUI;
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace EarthTool.PAR.GUI.ViewModels;
 
@@ -27,6 +28,22 @@ public abstract class TreeNodeViewModelBase : ViewModelBase
   /// Child nodes (null for leaf nodes like Entity)
   /// </summary>
   public abstract ObservableCollection<TreeNodeViewModelBase>? Children { get; }
+
+  /// <summary>
+  /// Filtered child nodes (only visible children)
+  /// </summary>
+  public ObservableCollection<TreeNodeViewModelBase>? FilteredChildren
+  {
+    get
+    {
+      if (Children == null)
+        return null;
+      
+      var filtered = new ObservableCollection<TreeNodeViewModelBase>(
+        Children.Where(c => c.IsVisible));
+      return filtered;
+    }
+  }
 
   /// <summary>
   /// Total count of descendants (used in DisplayName)
@@ -65,6 +82,7 @@ public abstract class TreeNodeViewModelBase : ViewModelBase
       {
         foreach (var child in Children)
           child.ApplyFilter(searchText);
+        this.RaisePropertyChanged(nameof(FilteredChildren));
       }
       return true;
     }
@@ -77,6 +95,7 @@ public abstract class TreeNodeViewModelBase : ViewModelBase
         if (child.ApplyFilter(searchText))
           hasMatchingChild = true;
       }
+      this.RaisePropertyChanged(nameof(FilteredChildren));
     }
 
     // Check if node's display name matches
