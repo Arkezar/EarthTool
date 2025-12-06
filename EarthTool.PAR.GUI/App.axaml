@@ -11,9 +11,37 @@
     </Application.DataTemplates>
   
     <Application.Resources>
+        <!-- Converters -->
         <converters:ValidationSeverityToBrushConverter x:Key="SeverityToBrushConverter"/>
         <converters:ValidationSeverityToIconConverter x:Key="SeverityToIconConverter"/>
         <converters:GroupNameToIconConverter x:Key="GroupNameToIconConverter"/>
+        
+        <!-- Typography Scale -->
+        <!-- Entity Header -->
+        <x:Double x:Key="FontSize.EntityName">18</x:Double>
+        <x:Double x:Key="FontSize.EntityMeta">12</x:Double>
+        
+        <!-- Section Headers -->
+        <x:Double x:Key="FontSize.SectionHeader">14</x:Double>
+        
+        <!-- Group Headers -->
+        <x:Double x:Key="FontSize.GroupName">14</x:Double>
+        <x:Double x:Key="FontSize.GroupIcon">14</x:Double>
+        <x:Double x:Key="FontSize.GroupBadge">11</x:Double>
+        
+        <!-- Property Display -->
+        <x:Double x:Key="FontSize.PropertyLabel">13</x:Double>
+        <x:Double x:Key="FontSize.PropertyValue">13</x:Double>
+        
+        <!-- Validation -->
+        <x:Double x:Key="FontSize.ValidationError">11</x:Double>
+        <x:Double x:Key="FontSize.ValidationIcon">11</x:Double>
+        <x:Double x:Key="FontSize.ValidationSummary">16</x:Double>
+        
+        <!-- UI Elements -->
+        <x:Double x:Key="FontSize.Icon">16</x:Double>
+        <x:Double x:Key="FontSize.Badge">11</x:Double>
+        <x:Double x:Key="FontSize.Helper">11</x:Double>
     </Application.Resources>
   
     <Application.Styles>
