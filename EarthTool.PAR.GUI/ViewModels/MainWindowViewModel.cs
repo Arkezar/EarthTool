@@ -686,14 +686,16 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     if (string.IsNullOrEmpty(entityName))
       return false;
 
+    _logger.LogInformation("Searching for entity '{EntityName}' in tree...", entityName);
+
     foreach (var rootNode in RootNodes)
     {
       var foundNode = FindEntityInNode(rootNode, entityName);
       if (foundNode != null)
       {
+        _logger.LogInformation("Found entity '{EntityName}', selecting node", entityName);
         ExpandPathToNode(foundNode);
         SelectedNode = foundNode;
-        _logger.LogDebug("Navigated to entity '{EntityName}'", entityName);
         return true;
       }
     }
@@ -716,7 +718,11 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         if (found != null)
         {
           // Expand this node as it's on the path to target
-          node.IsExpanded = true;
+          if (!node.IsExpanded)
+          {
+            node.IsExpanded = true;
+            _logger.LogDebug("Expanded node '{NodeName}' on path to target", node.DisplayName);
+          }
           return found;
         }
       }
