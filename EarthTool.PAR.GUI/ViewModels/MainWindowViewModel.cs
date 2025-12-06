@@ -714,7 +714,11 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       {
         var found = FindEntityInNode(child, entityName);
         if (found != null)
+        {
+          // Expand this node as it's on the path to target
+          node.IsExpanded = true;
           return found;
+        }
       }
     }
 
@@ -723,21 +727,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
   private void ExpandPathToNode(TreeNodeViewModelBase targetNode)
   {
-    foreach (var rootNode in RootNodes)
-    {
-      if (rootNode.Children != null)
-        ExpandNodesRecursively(rootNode);
-    }
-  }
-
-  private void ExpandNodesRecursively(TreeNodeViewModelBase node)
-  {
-    if (node.Children != null && node.Children.Any())
-    {
-      node.IsExpanded = true;
-      foreach (var child in node.Children)
-        ExpandNodesRecursively(child);
-    }
+    // The FindEntityInNode already expands the path
+    // This method is now a no-op but kept for clarity
   }
 
   #endregion
