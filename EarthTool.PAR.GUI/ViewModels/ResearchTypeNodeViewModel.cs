@@ -31,7 +31,7 @@ public class ResearchTypeNodeViewModel : TreeNodeViewModelBase
 
   public override string Icon => "📂";
 
-  public override string DisplayName => $"{_researchType} ({ResearchItems.Count} research)";
+  public override string DisplayName => $"{_researchType} ({VisibleChildCount} research)";
 
   public override ObservableCollection<TreeNodeViewModelBase>? Children
   {

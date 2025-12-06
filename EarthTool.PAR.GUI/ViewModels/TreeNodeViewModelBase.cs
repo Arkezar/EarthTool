@@ -51,6 +51,20 @@ public abstract class TreeNodeViewModelBase : ViewModelBase
   public abstract int ChildCount { get; }
 
   /// <summary>
+  /// Count of visible descendants (used in DisplayName when filtered)
+  /// </summary>
+  public virtual int VisibleChildCount
+  {
+    get
+    {
+      if (Children == null)
+        return 0;
+      
+      return Children.Count(c => c.IsVisible);
+    }
+  }
+
+  /// <summary>
   /// Whether the node is expanded in the tree
   /// </summary>
   public bool IsExpanded
@@ -83,6 +97,8 @@ public abstract class TreeNodeViewModelBase : ViewModelBase
         foreach (var child in Children)
           child.ApplyFilter(searchText);
         this.RaisePropertyChanged(nameof(FilteredChildren));
+        this.RaisePropertyChanged(nameof(VisibleChildCount));
+        this.RaisePropertyChanged(nameof(DisplayName));
       }
       return true;
     }
@@ -96,6 +112,8 @@ public abstract class TreeNodeViewModelBase : ViewModelBase
           hasMatchingChild = true;
       }
       this.RaisePropertyChanged(nameof(FilteredChildren));
+      this.RaisePropertyChanged(nameof(VisibleChildCount));
+      this.RaisePropertyChanged(nameof(DisplayName));
     }
 
     // Check if node's display name matches

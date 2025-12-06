@@ -36,7 +36,9 @@ public class FactionNodeViewModel : TreeNodeViewModelBase
   {
     get
     {
-      int totalGroups = GroupTypes.Sum(gt => gt.ChildCount);
+      int totalGroups = GroupTypes
+        .Where(gt => gt.IsVisible)
+        .Sum(gt => gt.VisibleChildCount);
       return $"{_faction} ({totalGroups} groups)";
     }
   }
@@ -54,4 +56,8 @@ public class FactionNodeViewModel : TreeNodeViewModelBase
   }
 
   public override int ChildCount => GroupTypes.Sum(gt => gt.ChildCount);
+
+  public override int VisibleChildCount => GroupTypes
+    .Where(gt => gt.IsVisible)
+    .Sum(gt => gt.VisibleChildCount);
 }

@@ -31,7 +31,7 @@ public class GroupTypeNodeViewModel : TreeNodeViewModelBase
 
   public override string Icon => "📂";
 
-  public override string DisplayName => $"{_groupType} ({EntityGroups.Count} groups)";
+  public override string DisplayName => $"{_groupType} ({VisibleChildCount} groups)";
 
   public override ObservableCollection<TreeNodeViewModelBase>? Children
   {
