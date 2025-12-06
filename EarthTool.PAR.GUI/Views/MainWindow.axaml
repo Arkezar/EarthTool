@@ -407,7 +407,7 @@
                         <ItemsControl ItemsSource="{Binding Properties}">
                           <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                              <Grid ColumnDefinitions="Auto,*" Margin="0,6">
+                              <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,6">
                                 <!-- Label Column -->
                                 <TextBlock Grid.Column="0"
                                            Text="{Binding DisplayName}"
@@ -449,6 +449,27 @@
                                     </Border>
                                   </StackPanel>
                                 </Border>
+                                
+                                <!-- Action Buttons Column -->
+                                <StackPanel Grid.Column="2"
+                                           Orientation="Horizontal"
+                                           Spacing="4"
+                                           Margin="8,0,0,0"
+                                           VerticalAlignment="Center">
+                                  <!-- Copy Button -->
+                                  <Button Command="{Binding CopyValueCommand}"
+                                          ToolTip.Tip="Copy value to clipboard"
+                                          Width="28"
+                                          Height="28"
+                                          Padding="0"
+                                          Background="Transparent"
+                                          BorderThickness="0">
+                                    <TextBlock Text="📋"
+                                               FontSize="14"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                  </Button>
+                                </StackPanel>
                               </Grid>
                             </DataTemplate>
                           </ItemsControl.ItemTemplate>
