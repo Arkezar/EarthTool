@@ -41,12 +41,13 @@ public partial class MainWindow : Window
     // Get MainWindowViewModel from DataContext
     if (DataContext is MainWindowViewModel mainViewModel)
     {
-      // Find entity by name in the tree
-      // For now, just log - proper implementation would search through RootNodes
-      System.Diagnostics.Debug.WriteLine($"Navigate to reference: {referenceName}");
-      
-      // TODO: Implement actual navigation by searching tree and selecting the node
-      // This would require exposing a search method in MainWindowViewModel
+      // Navigate to the referenced entity
+      var found = mainViewModel.NavigateToEntity(referenceName);
+      if (!found)
+      {
+        // Show notification that entity wasn't found
+        System.Diagnostics.Debug.WriteLine($"Reference '{referenceName}' not found in tree");
+      }
     }
   }
 
