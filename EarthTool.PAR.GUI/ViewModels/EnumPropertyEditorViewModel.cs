@@ -156,7 +156,7 @@ public class EnumPropertyEditorViewModel : PropertyEditorViewModel
       {
         Value = value,
         DisplayName = FormatEnumName(name),
-        NumericValue = Convert.ToUInt32(value),
+        NumericValue = Convert.ToInt64(value),
         Description = name // TODO: Get from Description attribute if available
       };
 
@@ -193,9 +193,9 @@ public class EnumValueViewModel
   public string DisplayName { get; set; } = string.Empty;
 
   /// <summary>
-  /// Gets or sets the numeric value.
+  /// Gets or sets the numeric value (supports all enum underlying types).
   /// </summary>
-  public uint NumericValue { get; set; }
+  public long NumericValue { get; set; }
 
   /// <summary>
   /// Gets or sets the description.
