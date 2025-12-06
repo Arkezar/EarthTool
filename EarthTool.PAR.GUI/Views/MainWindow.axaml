@@ -457,6 +457,7 @@
                                     <TextBlock Text="{Binding Value}"
                                                FontSize="{StaticResource FontSize.PropertyValue}"
                                                TextWrapping="Wrap"
+                                               TextAlignment="Right"
                                                Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
                                     
                                     <!-- Validation Message with Severity Indicator -->
