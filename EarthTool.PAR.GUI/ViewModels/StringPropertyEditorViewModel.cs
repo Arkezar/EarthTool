@@ -26,17 +26,6 @@ public class StringPropertyEditorViewModel : PropertyEditorViewModel
   public StringPropertyEditorViewModel(IUndoRedoService undoRedoService) : this()
   {
     _undoRedoService = undoRedoService;
-    
-    // Initialize navigate command with proper observable
-    var canNavigate = this.WhenAnyValue(
-      x => x.IsEntityReference,
-      x => x.StringValue,
-      (isRef, val) => isRef && !string.IsNullOrEmpty(val));
-
-    NavigateToReferenceCommand = ReactiveCommand.Create(() =>
-    {
-      // Navigation will be handled in UI layer
-    }, canNavigate);
   }
 
   /// <summary>
@@ -115,7 +104,23 @@ public class StringPropertyEditorViewModel : PropertyEditorViewModel
   public bool IsEntityReferenceValue
   {
     get => _isEntityReference;
-    set => this.RaiseAndSetIfChanged(ref _isEntityReference, value);
+    set
+    {
+      this.RaiseAndSetIfChanged(ref _isEntityReference, value);
+      
+      // Reinitialize navigate command when reference status changes
+      if (_isEntityReference)
+      {
+        var canNavigate = this.WhenAnyValue(
+          x => x.StringValue,
+          val => !string.IsNullOrEmpty(val));
+
+        NavigateToReferenceCommand = ReactiveCommand.Create(() =>
+        {
+          // Navigation will be handled in UI layer
+        }, canNavigate);
+      }
+    }
   }
 
   /// <summary>
