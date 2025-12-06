@@ -1,6 +1,7 @@
 using EarthTool.PAR.GUI.Services;
 using ReactiveUI;
 using System.Collections.ObjectModel;
+using System.Reactive.Linq;
 
 namespace EarthTool.PAR.GUI.ViewModels;
 
@@ -25,6 +26,17 @@ public class StringPropertyEditorViewModel : PropertyEditorViewModel
   public StringPropertyEditorViewModel(IUndoRedoService undoRedoService) : this()
   {
     _undoRedoService = undoRedoService;
+    
+    // Initialize navigate command with proper observable
+    var canNavigate = this.WhenAnyValue(
+      x => x.IsEntityReference,
+      x => x.StringValue,
+      (isRef, val) => isRef && !string.IsNullOrEmpty(val));
+
+    NavigateToReferenceCommand = ReactiveCommand.Create(() =>
+    {
+      // Navigation will be handled in UI layer
+    }, canNavigate);
   }
 
   /// <summary>
