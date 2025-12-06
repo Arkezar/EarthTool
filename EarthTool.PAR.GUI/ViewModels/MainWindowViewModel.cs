@@ -31,7 +31,6 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   private string _searchText = string.Empty;
   private TreeNodeViewModelBase? _selectedNode;
   private TreeNodeViewModelBase? _selectedEntity;
-  private ResearchViewModel? _selectedResearch;
 
   public MainWindowViewModel(
     IParFileService parFileService,
