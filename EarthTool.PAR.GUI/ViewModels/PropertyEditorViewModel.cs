@@ -1,3 +1,4 @@
+using EarthTool.PAR.GUI.Models;
 using ReactiveUI;
 using System;
 
@@ -14,6 +15,7 @@ public abstract class PropertyEditorViewModel : ViewModelBase
   private bool _isReadOnly;
   private bool _isRequired;
   private string? _errorMessage;
+  private ValidationSeverity _validationSeverity = ValidationSeverity.Error;
 
   /// <summary>
   /// Gets or sets the property name (as it appears in the Entity class).
@@ -72,6 +74,15 @@ public abstract class PropertyEditorViewModel : ViewModelBase
   {
     get => _errorMessage;
     protected set => this.RaiseAndSetIfChanged(ref _errorMessage, value);
+  }
+
+  /// <summary>
+  /// Gets or sets the validation severity (Error, Warning, Info).
+  /// </summary>
+  public ValidationSeverity ValidationSeverity
+  {
+    get => _validationSeverity;
+    set => this.RaiseAndSetIfChanged(ref _validationSeverity, value);
   }
 
   /// <summary>

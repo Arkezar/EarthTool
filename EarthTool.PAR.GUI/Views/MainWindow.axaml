@@ -279,29 +279,66 @@
         </StackPanel>
       </Border>
 
-              <!-- Validation Errors -->
-              <Border IsVisible="{Binding HasValidationIssues}"
-                      Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                      BorderBrush="{DynamicResource SystemControlBackgroundAccentBrush}"
-                      BorderThickness="1"
-                      CornerRadius="4"
-                      Padding="8">
-                <StackPanel Spacing="4">
-                  <TextBlock Text="⚠️ Validation Issues" FontWeight="Bold" />
-                  <ItemsControl ItemsSource="{Binding ValidationErrors}">
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate>
-                        <TextBlock>
-                          <Run Text="•" />
-                          <Run Text="{Binding PropertyName}" FontWeight="Bold" />
-                          <Run Text=": " />
-                          <Run Text="{Binding ErrorMessage}" />
-                        </TextBlock>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
-                </StackPanel>
-              </Border>
+              <!-- Validation Summary (collapsible) -->
+              <Expander IsVisible="{Binding HasValidationIssues}"
+                        IsExpanded="{Binding HasErrors}"
+                        Margin="0,0,0,8">
+                <Expander.Header>
+                  <Grid ColumnDefinitions="Auto,*,Auto">
+                    <TextBlock Grid.Column="0"
+                               Text="⚠"
+                               FontSize="16"
+                               Margin="0,0,8,0"
+                               VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center">
+                      <Run Text="{Binding ValidationErrors.Count}" />
+                      <Run Text=" validation issue(s)" />
+                    </TextBlock>
+                    <TextBlock Grid.Column="2"
+                               Text="Click to expand"
+                               FontSize="11"
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding !$parent[Expander].IsExpanded}" />
+                  </Grid>
+                </Expander.Header>
+                
+                <ItemsControl ItemsSource="{Binding ValidationErrors}" Margin="24,4,0,0">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{Binding Severity, Converter={StaticResource SeverityToBrushConverter}}"
+                              CornerRadius="3"
+                              Padding="6,4"
+                              Margin="0,2">
+                        <Grid ColumnDefinitions="Auto,Auto,*">
+                          <TextBlock Grid.Column="0"
+                                     Text="{Binding Severity, Converter={StaticResource SeverityToIconConverter}}"
+                                     Foreground="White"
+                                     FontWeight="Bold"
+                                     FontSize="12"
+                                     Margin="0,0,6,0"
+                                     VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="1"
+                                     Text="{Binding PropertyName}"
+                                     Foreground="White"
+                                     FontWeight="SemiBold"
+                                     FontSize="11"
+                                     Margin="0,0,6,0"
+                                     VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="2"
+                                     Text="{Binding ErrorMessage}"
+                                     Foreground="White"
+                                     FontSize="11"
+                                     TextWrapping="Wrap"
+                                     VerticalAlignment="Center" />
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Expander>
 
               <!-- Property Groups -->
               <ItemsControl ItemsSource="{Binding PropertyGroups}">
@@ -334,11 +371,26 @@
                                                FontSize="13"
                                                TextWrapping="Wrap"
                                                Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
-                                    <TextBlock Text="{Binding ErrorMessage}"
-                                               Foreground="{DynamicResource SystemFillColorCriticalBrush}"
-                                               FontSize="11"
-                                               FontWeight="Medium"
-                                               IsVisible="{Binding !IsValid}" />
+                                    
+                                    <!-- Validation Message with Severity Indicator -->
+                                    <Border IsVisible="{Binding !IsValid}"
+                                            Background="{Binding ValidationSeverity, Converter={StaticResource SeverityToBrushConverter}}"
+                                            CornerRadius="3"
+                                            Padding="6,3"
+                                            Margin="0,2,0,0">
+                                      <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="{Binding ValidationSeverity, Converter={StaticResource SeverityToIconConverter}}"
+                                                   Foreground="White"
+                                                   FontWeight="Bold"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding ErrorMessage}"
+                                                   Foreground="White"
+                                                   FontSize="11"
+                                                   FontWeight="Medium"
+                                                   TextWrapping="Wrap" />
+                                      </StackPanel>
+                                    </Border>
                                   </StackPanel>
                                 </Border>
                               </Grid>
