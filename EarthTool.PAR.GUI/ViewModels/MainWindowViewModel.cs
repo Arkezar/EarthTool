@@ -6,6 +6,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reactive;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 
 namespace EarthTool.PAR.GUI.ViewModels;
@@ -52,6 +53,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     RootNodes = new ObservableCollection<TreeNodeViewModelBase>();
 
     InitializeCommands();
+    InitializeSearchDebounce();
 
     _logger.LogInformation("ParEditorViewModel initialized");
   }
@@ -174,11 +176,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   public string SearchText
   {
     get => _searchText;
-    set
-    {
-      this.RaiseAndSetIfChanged(ref _searchText, value);
-      ApplyFilter();
-    }
+    set => this.RaiseAndSetIfChanged(ref _searchText, value);
   }
 
   /// <summary>
@@ -269,6 +267,15 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     // Subscribe to property changes for WindowTitle
     this.WhenAnyValue(x => x.HasUnsavedChanges, x => x.CurrentFilePath)
       .Subscribe(_ => this.RaisePropertyChanged(nameof(WindowTitle)));
+  }
+
+  private void InitializeSearchDebounce()
+  {
+    // Apply filter with 200ms debounce when SearchText changes
+    this.WhenAnyValue(x => x.SearchText)
+      .Throttle(TimeSpan.FromMilliseconds(200))
+      .ObserveOn(RxApp.MainThreadScheduler)
+      .Subscribe(_ => ApplyFilter());
   }
 
   #endregion
