@@ -29,7 +29,9 @@ public class ResearchRootNodeViewModel : TreeNodeViewModelBase
   {
     get
     {
-      int totalResearch = Factions.Sum(f => f.ChildCount);
+      int totalResearch = Factions
+        .Where(f => f.IsVisible)
+        .Sum(f => f.VisibleChildCount);
       return totalResearch > 0 ? $"Research ({totalResearch})" : "Research";
     }
   }
@@ -47,4 +49,8 @@ public class ResearchRootNodeViewModel : TreeNodeViewModelBase
   }
 
   public override int ChildCount => Factions.Sum(f => f.ChildCount);
+
+  public override int VisibleChildCount => Factions
+    .Where(f => f.IsVisible)
+    .Sum(f => f.VisibleChildCount);
 }

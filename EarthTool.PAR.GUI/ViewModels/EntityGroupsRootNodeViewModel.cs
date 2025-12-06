@@ -29,7 +29,9 @@ public class EntityGroupsRootNodeViewModel : TreeNodeViewModelBase
   {
     get
     {
-      int totalGroups = Factions.Sum(f => f.ChildCount);
+      int totalGroups = Factions
+        .Where(f => f.IsVisible)
+        .Sum(f => f.VisibleChildCount);
       return totalGroups > 0 ? $"Entity Groups ({totalGroups})" : "Entity Groups";
     }
   }
@@ -47,4 +49,8 @@ public class EntityGroupsRootNodeViewModel : TreeNodeViewModelBase
   }
 
   public override int ChildCount => Factions.Sum(f => f.ChildCount);
+
+  public override int VisibleChildCount => Factions
+    .Where(f => f.IsVisible)
+    .Sum(f => f.VisibleChildCount);
 }
