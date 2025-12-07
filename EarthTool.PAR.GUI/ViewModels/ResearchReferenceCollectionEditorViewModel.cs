@@ -20,12 +20,18 @@ public class ResearchReferenceCollectionEditorViewModel : PropertyEditorViewMode
   private ParFile? _parFile;
   private bool _isUpdating;
   private Action<string>? _navigateToResearchAction;
+  private ResearchReferenceViewModel? _selectedAvailableResearch;
 
   public ResearchReferenceCollectionEditorViewModel()
   {
     PropertyType = typeof(IEnumerable<int>);
     AvailableResearch = new ObservableCollection<ResearchReferenceViewModel>();
     SelectedResearch = new ObservableCollection<ResearchReferenceViewModel>();
+    
+    // Initialize commands
+    AddResearchCommand = ReactiveCommand.Create<ResearchReferenceViewModel>(AddResearch, 
+      this.WhenAnyValue(x => x.SelectedAvailableResearch).Select(r => r != null));
+    RemoveResearchCommand = ReactiveCommand.Create<ResearchReferenceViewModel>(RemoveResearch);
   }
 
   public ResearchReferenceCollectionEditorViewModel(IUndoRedoService undoRedoService) : this()
@@ -59,6 +65,25 @@ public class ResearchReferenceCollectionEditorViewModel : PropertyEditorViewMode
   /// Gets the collection of currently selected research items.
   /// </summary>
   public ObservableCollection<ResearchReferenceViewModel> SelectedResearch { get; }
+
+  /// <summary>
+  /// Gets or sets the selected research from the available list (for adding).
+  /// </summary>
+  public ResearchReferenceViewModel? SelectedAvailableResearch
+  {
+    get => _selectedAvailableResearch;
+    set => this.RaiseAndSetIfChanged(ref _selectedAvailableResearch, value);
+  }
+
+  /// <summary>
+  /// Gets the command to add a research to the selected list.
+  /// </summary>
+  public ReactiveCommand<ResearchReferenceViewModel, Unit> AddResearchCommand { get; }
+
+  /// <summary>
+  /// Gets the command to remove a research from the selected list.
+  /// </summary>
+  public ReactiveCommand<ResearchReferenceViewModel, Unit> RemoveResearchCommand { get; }
 
   /// <summary>
   /// Sets the ParFile context to enable research name lookup.
@@ -137,10 +162,6 @@ public class ResearchReferenceCollectionEditorViewModel : PropertyEditorViewMode
         Faction = research.Faction.ToString()
       };
 
-      // Subscribe to selection changes
-      vm.WhenAnyValue(r => r.IsSelected)
-        .Subscribe(_ => OnResearchSelectionChanged());
-
       // Set up navigate command
       UpdateNavigateCommand(vm);
 
@@ -159,71 +180,87 @@ public class ResearchReferenceCollectionEditorViewModel : PropertyEditorViewMode
     }
   }
 
+  private void AddResearch(ResearchReferenceViewModel? research)
+  {
+    if (research == null || _isUpdating)
+      return;
+
+    // Check if already selected
+    if (SelectedResearch.Any(r => r.Id == research.Id))
+      return;
+
+    var oldValue = _collectionValue;
+    var newList = (oldValue?.ToList() ?? new List<int>());
+    newList.Add(research.Id);
+    var newValue = newList.AsEnumerable();
+
+    // Record undo action
+    _undoRedoService?.RecordAction(
+      description: $"Add {research.Name} to {DisplayName}",
+      undoCallback: () => { _collectionValue = oldValue; UpdateSelectedResearch(); this.RaisePropertyChanged(nameof(Value)); NotifyValueChanged(); },
+      redoCallback: () => { _collectionValue = newValue; UpdateSelectedResearch(); this.RaisePropertyChanged(nameof(Value)); NotifyValueChanged(); }
+    );
+
+    _collectionValue = newValue;
+    UpdateSelectedResearch();
+    this.RaisePropertyChanged(nameof(Value));
+    NotifyValueChanged();
+
+    // Clear selection
+    SelectedAvailableResearch = null;
+  }
+
+  private void RemoveResearch(ResearchReferenceViewModel? research)
+  {
+    if (research == null || _isUpdating)
+      return;
+
+    var oldValue = _collectionValue;
+    var newList = (oldValue?.ToList() ?? new List<int>());
+    newList.Remove(research.Id);
+    var newValue = newList.AsEnumerable();
+
+    // Record undo action
+    _undoRedoService?.RecordAction(
+      description: $"Remove {research.Name} from {DisplayName}",
+      undoCallback: () => { _collectionValue = oldValue; UpdateSelectedResearch(); this.RaisePropertyChanged(nameof(Value)); NotifyValueChanged(); },
+      redoCallback: () => { _collectionValue = newValue; UpdateSelectedResearch(); this.RaisePropertyChanged(nameof(Value)); NotifyValueChanged(); }
+    );
+
+    _collectionValue = newValue;
+    UpdateSelectedResearch();
+    this.RaisePropertyChanged(nameof(Value));
+    NotifyValueChanged();
+  }
+
   private void UpdateSelectedResearch()
   {
     _isUpdating = true;
     try
     {
+      SelectedResearch.Clear();
+
       if (_parFile == null || _collectionValue == null)
-      {
-        foreach (var research in AvailableResearch)
-        {
-          research.IsSelected = false;
-        }
-        SelectedResearch.Clear();
         return;
-      }
 
       var selectedIds = new HashSet<int>(_collectionValue);
 
-      foreach (var research in AvailableResearch)
+      // Find research items by ID and add to selected list
+      foreach (var id in _collectionValue)
       {
-        research.IsSelected = selectedIds.Contains(research.Id);
-      }
-
-      // Update SelectedResearch collection for display
-      SelectedResearch.Clear();
-      foreach (var research in AvailableResearch.Where(r => r.IsSelected).OrderBy(r => r.Name))
-      {
-        SelectedResearch.Add(research);
+        var research = AvailableResearch.FirstOrDefault(r => r.Id == id);
+        if (research != null)
+        {
+          // Set up remove command for this selected item
+          research.RemoveCommand = ReactiveCommand.Create(() => RemoveResearch(research));
+          SelectedResearch.Add(research);
+        }
       }
     }
     finally
     {
       _isUpdating = false;
     }
-  }
-
-  private void OnResearchSelectionChanged()
-  {
-    // Don't process changes during programmatic updates
-    if (_isUpdating)
-      return;
-
-    var oldValue = _collectionValue;
-    var newValue = AvailableResearch.Where(r => r.IsSelected).Select(r => r.Id).ToList();
-
-    if (oldValue != null && oldValue.SequenceEqual(newValue))
-      return;
-
-    // Record undo action
-    _undoRedoService?.RecordAction(
-      description: $"Change {DisplayName}",
-      undoCallback: () => { _collectionValue = oldValue; UpdateSelectedResearch(); this.RaisePropertyChanged(nameof(Value)); NotifyValueChanged(); },
-      redoCallback: () => { _collectionValue = newValue; UpdateSelectedResearch(); this.RaisePropertyChanged(nameof(Value)); NotifyValueChanged(); }
-    );
-
-    _collectionValue = newValue;
-    
-    // Update SelectedResearch collection
-    SelectedResearch.Clear();
-    foreach (var research in AvailableResearch.Where(r => r.IsSelected).OrderBy(r => r.Name))
-    {
-      SelectedResearch.Add(research);
-    }
-
-    this.RaisePropertyChanged(nameof(Value));
-    NotifyValueChanged();
   }
 }
 
@@ -237,6 +274,7 @@ public class ResearchReferenceViewModel : ReactiveObject
   public ResearchReferenceViewModel()
   {
     NavigateCommand = ReactiveCommand.Create(() => { });
+    RemoveCommand = ReactiveCommand.Create(() => { });
   }
 
   /// <summary>
@@ -282,4 +320,14 @@ public class ResearchReferenceViewModel : ReactiveObject
   /// Gets the command to navigate to this research.
   /// </summary>
   public ReactiveCommand<Unit, Unit> NavigateCommand { get; set; }
+
+  /// <summary>
+  /// Gets the command to remove this research from the selected list.
+  /// </summary>
+  public ReactiveCommand<Unit, Unit> RemoveCommand { get; set; }
+
+  /// <summary>
+  /// Returns the display text for AutoCompleteBox.
+  /// </summary>
+  public override string ToString() => DisplayText;
 }
