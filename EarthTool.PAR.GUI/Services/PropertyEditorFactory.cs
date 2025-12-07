@@ -288,6 +288,12 @@ public class PropertyEditorFactory : IPropertyEditorFactory
       editor.PropertyName = property.Name;
       editor.DisplayName = FormatPropertyName(property.Name);
       editor.Description = $"{property.Name} ({propertyType.Name})";
+      
+      // Mark Id property as read-only for Research entities
+      if (property.Name == "Id" && entity is Research)
+      {
+        editor.IsReadOnly = true;
+      }
     }
 
     return editor;
