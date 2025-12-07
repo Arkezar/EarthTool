@@ -7,7 +7,7 @@
         mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
         x:Class="EarthTool.WD.GUI.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/ucs-logo.ico"
         Title="{Binding WindowTitle}"
         Width="1000" Height="700"
         MinWidth="800" MinHeight="600">
