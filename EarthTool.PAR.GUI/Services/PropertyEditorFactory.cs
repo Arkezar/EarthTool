@@ -38,7 +38,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
   }
 
   /// <inheritdoc/>
-  public IEnumerable<PropertyEditorViewModel> CreateEditorsForEntity(Entity entity, Action? onPropertyChanged = null, ParFile? parFile = null)
+  public IEnumerable<PropertyEditorViewModel> CreateEditorsForEntity(Entity entity, Action? onPropertyChanged = null, ParFile? parFile = null, Action<string>? navigateToResearch = null)
   {
     if (entity == null)
       throw new ArgumentNullException(nameof(entity));
@@ -53,7 +53,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
 
     foreach (var property in properties)
     {
-      var editor = CreateEditorForProperty(entity, property, onPropertyChanged, parFile);
+      var editor = CreateEditorForProperty(entity, property, onPropertyChanged, parFile, navigateToResearch);
       if (editor != null)
       {
         editors.Add(editor);
@@ -66,7 +66,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
     return editors;
   }
 
-  public IEnumerable<PropertyEditorViewModel> CreateEditorsForResearch(Research entity, Action? onPropertyChanged = null, ParFile? parFile = null)
+  public IEnumerable<PropertyEditorViewModel> CreateEditorsForResearch(Research entity, Action? onPropertyChanged = null, ParFile? parFile = null, Action<string>? navigateToResearch = null)
   {
     if (entity == null)
       throw new ArgumentNullException(nameof(entity));
@@ -81,7 +81,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
     
     foreach (var property in properties)
     {
-      var editor = CreateEditorForProperty(entity, property, onPropertyChanged, parFile);
+      var editor = CreateEditorForProperty(entity, property, onPropertyChanged, parFile, navigateToResearch);
       if (editor != null)
       {
         editors.Add(editor);
@@ -129,7 +129,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
      */
   }
 
-  private PropertyEditorViewModel? CreateEditorForProperty(object entity, PropertyInfo property, Action? onPropertyChanged = null, ParFile? parFile = null)
+  private PropertyEditorViewModel? CreateEditorForProperty(object entity, PropertyInfo property, Action? onPropertyChanged = null, ParFile? parFile = null, Action<string>? navigateToResearch = null)
   {
     if (entity == null || property == null)
       return null;
@@ -236,6 +236,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
         
         // Set ParFileContext FIRST, then Value to ensure research list is loaded
         researchEditor.ParFileContext = parFile;
+        researchEditor.NavigateToResearchAction = navigateToResearch;
         researchEditor.Value = propertyValue;
         
         // Subscribe to value changes to update the entity

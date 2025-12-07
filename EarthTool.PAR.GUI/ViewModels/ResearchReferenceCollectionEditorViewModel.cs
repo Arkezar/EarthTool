@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Reactive;
 using System.Reactive.Linq;
 
 namespace EarthTool.PAR.GUI.ViewModels;
@@ -18,6 +19,7 @@ public class ResearchReferenceCollectionEditorViewModel : PropertyEditorViewMode
   private IEnumerable<int>? _collectionValue;
   private ParFile? _parFile;
   private bool _isUpdating;
+  private Action<string>? _navigateToResearchAction;
 
   public ResearchReferenceCollectionEditorViewModel()
   {
@@ -29,6 +31,23 @@ public class ResearchReferenceCollectionEditorViewModel : PropertyEditorViewMode
   public ResearchReferenceCollectionEditorViewModel(IUndoRedoService undoRedoService) : this()
   {
     _undoRedoService = undoRedoService;
+  }
+
+  /// <summary>
+  /// Sets the navigation action for navigating to research by name.
+  /// </summary>
+  public Action<string>? NavigateToResearchAction
+  {
+    get => _navigateToResearchAction;
+    set
+    {
+      _navigateToResearchAction = value;
+      // Update navigate commands for existing items
+      foreach (var research in AvailableResearch)
+      {
+        UpdateNavigateCommand(research);
+      }
+    }
   }
 
   /// <summary>
@@ -122,7 +141,21 @@ public class ResearchReferenceCollectionEditorViewModel : PropertyEditorViewMode
       vm.WhenAnyValue(r => r.IsSelected)
         .Subscribe(_ => OnResearchSelectionChanged());
 
+      // Set up navigate command
+      UpdateNavigateCommand(vm);
+
       AvailableResearch.Add(vm);
+    }
+  }
+
+  private void UpdateNavigateCommand(ResearchReferenceViewModel research)
+  {
+    if (_navigateToResearchAction != null)
+    {
+      research.NavigateCommand = ReactiveCommand.Create(() =>
+      {
+        _navigateToResearchAction?.Invoke(research.Name);
+      });
     }
   }
 
@@ -201,6 +234,11 @@ public class ResearchReferenceViewModel : ReactiveObject
 {
   private bool _isSelected;
 
+  public ResearchReferenceViewModel()
+  {
+    NavigateCommand = ReactiveCommand.Create(() => { });
+  }
+
   /// <summary>
   /// Gets or sets the research ID.
   /// </summary>
@@ -239,4 +277,9 @@ public class ResearchReferenceViewModel : ReactiveObject
   /// Gets the tooltip text.
   /// </summary>
   public string ToolTipText => $"{Name}\nID: {Id}\nType: {Type}\nFaction: {Faction}";
+
+  /// <summary>
+  /// Gets the command to navigate to this research.
+  /// </summary>
+  public ReactiveCommand<Unit, Unit> NavigateCommand { get; set; }
 }

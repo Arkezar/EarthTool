@@ -635,6 +635,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
     // Set ParFile context in EntityDetailsViewModel for research lookups
     _entityDetailsViewModel.ParFile = _currentParFile;
+    _entityDetailsViewModel.NavigateToResearch = (researchName) => NavigateToResearch(researchName);
 
     this.RaisePropertyChanged(nameof(IsFileOpen));
     _logger.LogDebug("Loaded PAR file: {EntityGroupCount} entity groups, {ResearchCount} research",
@@ -796,6 +797,58 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   {
     // The FindEntityInNode already expands the path
     // This method is now a no-op but kept for clarity
+  }
+
+  /// <summary>
+  /// Finds and selects a research by name in the tree.
+  /// </summary>
+  public bool NavigateToResearch(string researchName)
+  {
+    if (string.IsNullOrEmpty(researchName))
+      return false;
+
+    _logger.LogInformation("Searching for research '{ResearchName}' in tree...", researchName);
+
+    foreach (var rootNode in RootNodes)
+    {
+      var foundNode = FindResearchInNode(rootNode, researchName);
+      if (foundNode != null)
+      {
+        _logger.LogInformation("Found research '{ResearchName}', selecting node", researchName);
+        SelectedNode = foundNode;
+        return true;
+      }
+    }
+
+    _logger.LogWarning("Research '{ResearchName}' not found in tree", researchName);
+    return false;
+  }
+
+  private TreeNodeViewModelBase? FindResearchInNode(TreeNodeViewModelBase node, string researchName)
+  {
+    if (node is ResearchViewModel researchItem && 
+        researchItem.Name.Equals(researchName, StringComparison.OrdinalIgnoreCase))
+      return node;
+
+    if (node.Children != null)
+    {
+      foreach (var child in node.Children)
+      {
+        var found = FindResearchInNode(child, researchName);
+        if (found != null)
+        {
+          // Expand this node as it's on the path to target
+          if (!node.IsExpanded)
+          {
+            node.IsExpanded = true;
+            _logger.LogDebug("Expanded node '{NodeName}' on path to target", node.DisplayName);
+          }
+          return found;
+        }
+      }
+    }
+
+    return null;
   }
 
   #endregion

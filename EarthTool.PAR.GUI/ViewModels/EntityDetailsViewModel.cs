@@ -25,6 +25,7 @@ public class EntityDetailsViewModel : ViewModelBase
   private Research? _currentResearch;
   private string _entityName = string.Empty;
   private ParFile? _parFile;
+  private Action<string>? _navigateToResearch;
 
   public EntityDetailsViewModel(
     IPropertyEditorFactory propertyEditorFactory,
@@ -91,6 +92,21 @@ public class EntityDetailsViewModel : ViewModelBase
       {
         LoadEntityOrResearch();
       }
+    }
+  }
+
+  /// <summary>
+  /// Gets or sets the callback for navigating to research by name.
+  /// </summary>
+  public Action<string>? NavigateToResearch
+  {
+    get => _navigateToResearch;
+    set
+    {
+      if (_navigateToResearch == value) return;
+      
+      _navigateToResearch = value;
+      this.RaisePropertyChanged();
     }
   }
 
@@ -263,7 +279,8 @@ public class EntityDetailsViewModel : ViewModelBase
     var editors = _propertyEditorFactory.CreateEditorsForEntity(
       _currentEntity.Entity, 
       () => _currentEntity.MarkDirty(),
-      _parFile);
+      _parFile,
+      _navigateToResearch);
     var groupedEditors = GroupProperties(editors);
 
     foreach (var group in groupedEditors)
@@ -290,7 +307,7 @@ public class EntityDetailsViewModel : ViewModelBase
     this.RaisePropertyChanged(nameof(ClassType));
 
     // Create property editors for Research
-    var editors = _propertyEditorFactory.CreateEditorsForResearch(_currentResearch, null, _parFile);
+    var editors = _propertyEditorFactory.CreateEditorsForResearch(_currentResearch, null, _parFile, _navigateToResearch);
     var groupedEditors = GroupResearchProperties(editors);
 
     foreach (var group in groupedEditors)

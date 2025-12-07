@@ -18,8 +18,9 @@ public interface IPropertyEditorFactory
   /// <param name="entity">The entity to create editors for.</param>
   /// <param name="onPropertyChanged">Optional callback invoked when a property value changes.</param>
   /// <param name="parFile">Optional ParFile context for research name lookups.</param>
+  /// <param name="navigateToResearch">Optional callback for navigating to research by name.</param>
   /// <returns>Collection of property editor ViewModels.</returns>
-  IEnumerable<PropertyEditorViewModel> CreateEditorsForEntity(Entity entity, Action? onPropertyChanged = null, ParFile? parFile = null);
+  IEnumerable<PropertyEditorViewModel> CreateEditorsForEntity(Entity entity, Action? onPropertyChanged = null, ParFile? parFile = null, Action<string>? navigateToResearch = null);
   
   /// <summary>
   /// Creates property editors for all properties of a research.
@@ -27,6 +28,7 @@ public interface IPropertyEditorFactory
   /// <param name="entity">The research to create editors for.</param>
   /// <param name="onPropertyChanged">Optional callback invoked when a property value changes.</param>
   /// <param name="parFile">Optional ParFile context for research name lookups.</param>
+  /// <param name="navigateToResearch">Optional callback for navigating to research by name.</param>
   /// <returns>Collection of property editor ViewModels.</returns>
-  IEnumerable<PropertyEditorViewModel> CreateEditorsForResearch(Research entity, Action? onPropertyChanged = null, ParFile? parFile = null);
+  IEnumerable<PropertyEditorViewModel> CreateEditorsForResearch(Research entity, Action? onPropertyChanged = null, ParFile? parFile = null, Action<string>? navigateToResearch = null);
 }

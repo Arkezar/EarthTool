@@ -560,9 +560,31 @@
                                                 <ItemsControl ItemsSource="{Binding SelectedResearch}">
                                                   <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
-                                                      <TextBlock Text="{Binding DisplayText}" 
-                                                                 FontSize="11"
-                                                                 Margin="4,0,0,0" />
+                                                      <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,0,0,2">
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="→"
+                                                                   FontSize="11"
+                                                                   Margin="0,0,4,0"
+                                                                   VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding DisplayText}" 
+                                                                   FontSize="11"
+                                                                   VerticalAlignment="Center" />
+                                                        <Button Grid.Column="2"
+                                                                Command="{Binding NavigateCommand}"
+                                                                ToolTip.Tip="Navigate to research"
+                                                                Width="24"
+                                                                Height="24"
+                                                                Padding="0"
+                                                                Margin="4,0,0,0"
+                                                                Background="Transparent"
+                                                                BorderThickness="0">
+                                                          <TextBlock Text="🔍"
+                                                                     FontSize="12"
+                                                                     HorizontalAlignment="Center"
+                                                                     VerticalAlignment="Center" />
+                                                        </Button>
+                                                      </Grid>
                                                     </DataTemplate>
                                                   </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
