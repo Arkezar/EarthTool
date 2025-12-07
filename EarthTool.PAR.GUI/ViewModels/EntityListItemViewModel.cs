@@ -1,7 +1,9 @@
 using EarthTool.PAR.Enums;
 using EarthTool.PAR.GUI.Models;
 using ReactiveUI;
+using System;
 using System.Collections.ObjectModel;
+using System.Reactive.Linq;
 
 namespace EarthTool.PAR.GUI.ViewModels;
 
@@ -16,6 +18,14 @@ public class EntityListItemViewModel : TreeNodeViewModelBase
   public EntityListItemViewModel(EditableEntity editableEntity)
   {
     _editableEntity = editableEntity ?? throw new System.ArgumentNullException(nameof(editableEntity));
+    
+    // Subscribe to IsDirty changes to update UI
+    _editableEntity.WhenAnyValue(e => e.IsDirty)
+      .Subscribe(_ => 
+      {
+        this.RaisePropertyChanged(nameof(IsDirty));
+        this.RaisePropertyChanged(nameof(ToolTip));
+      });
   }
 
   /// <summary>

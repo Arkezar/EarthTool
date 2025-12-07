@@ -24,6 +24,8 @@ public class EntityDetailsViewModel : ViewModelBase
   private EditableEntity? _currentEntity;
   private Research? _currentResearch;
   private string _entityName = string.Empty;
+  private ParFile? _parFile;
+  private Action<string>? _navigateToResearch;
 
   public EntityDetailsViewModel(
     IPropertyEditorFactory propertyEditorFactory,
@@ -69,6 +71,42 @@ public class EntityDetailsViewModel : ViewModelBase
       _currentResearch = value;
       this.RaisePropertyChanged();
       LoadEntityOrResearch();
+    }
+  }
+
+  /// <summary>
+  /// Gets or sets the ParFile context for research lookups.
+  /// </summary>
+  public ParFile? ParFile
+  {
+    get => _parFile;
+    set
+    {
+      if (_parFile == value) return;
+      
+      _parFile = value;
+      this.RaisePropertyChanged();
+      
+      // Reload if we have an active entity/research
+      if (_currentEntity != null || _currentResearch != null)
+      {
+        LoadEntityOrResearch();
+      }
+    }
+  }
+
+  /// <summary>
+  /// Gets or sets the callback for navigating to research by name.
+  /// </summary>
+  public Action<string>? NavigateToResearch
+  {
+    get => _navigateToResearch;
+    set
+    {
+      if (_navigateToResearch == value) return;
+      
+      _navigateToResearch = value;
+      this.RaisePropertyChanged();
     }
   }
 
@@ -130,7 +168,13 @@ public class EntityDetailsViewModel : ViewModelBase
   private void InitializeCommands()
   {
     var hasEntity = this.WhenAnyValue(x => x.CurrentEntity).Select(entity => entity != null);
-    var isDirty = this.WhenAnyValue(x => x.CurrentEntity).Select(e => e?.IsDirty ?? false);
+    
+    // Create an observable that monitors IsDirty changes on the CurrentEntity
+    var isDirty = this.WhenAnyValue(x => x.CurrentEntity)
+      .Select(entity => entity != null 
+        ? entity.WhenAnyValue(e => e.IsDirty).StartWith(entity.IsDirty)
+        : Observable.Return(false))
+      .Switch();
 
     RevertChangesCommand = ReactiveCommand.Create(RevertChanges, isDirty);
     ApplyChangesCommand = ReactiveCommand.Create(ApplyChanges, isDirty);
@@ -139,9 +183,6 @@ public class EntityDetailsViewModel : ViewModelBase
 
   private void LoadEntityOrResearch()
   {
-    PropertyGroups.Clear();
-    ValidationErrors.Clear();
-
     if (_currentEntity != null)
     {
       // Istniejąca logika dla encji
@@ -154,6 +195,10 @@ public class EntityDetailsViewModel : ViewModelBase
     }
     else
     {
+      // Clear when no entity/research is selected
+      PropertyGroups.Clear();
+      ValidationErrors.Clear();
+      
       _logger.LogDebug("Details cleared");
       _entityName = string.Empty;
       this.RaisePropertyChanged(nameof(EntityName));
@@ -221,13 +266,21 @@ public class EntityDetailsViewModel : ViewModelBase
 
   private void LoadEntity()
   {
+    // Clear existing groups to prevent duplication
+    PropertyGroups.Clear();
+    ValidationErrors.Clear();
+    
     _entityName = _currentEntity!.DisplayName;
     this.RaisePropertyChanged(nameof(EntityName));
     this.RaisePropertyChanged(nameof(EntityType));
     this.RaisePropertyChanged(nameof(ClassType));
 
-    // Create property editors
-    var editors = _propertyEditorFactory.CreateEditorsForEntity(_currentEntity.Entity);
+    // Create property editors with callback to mark entity as dirty
+    var editors = _propertyEditorFactory.CreateEditorsForEntity(
+      _currentEntity.Entity, 
+      () => _currentEntity.MarkDirty(),
+      _parFile,
+      _navigateToResearch);
     var groupedEditors = GroupProperties(editors);
 
     foreach (var group in groupedEditors)
@@ -244,13 +297,17 @@ public class EntityDetailsViewModel : ViewModelBase
 
   private void LoadResearch()
   {
+    // Clear existing groups to prevent duplication
+    PropertyGroups.Clear();
+    ValidationErrors.Clear();
+    
     _entityName = _currentResearch!.Name;
     this.RaisePropertyChanged(nameof(EntityName));
     this.RaisePropertyChanged(nameof(EntityType));
     this.RaisePropertyChanged(nameof(ClassType));
 
     // Create property editors for Research
-    var editors = _propertyEditorFactory.CreateEditorsForResearch(_currentResearch);
+    var editors = _propertyEditorFactory.CreateEditorsForResearch(_currentResearch, null, _parFile, _navigateToResearch);
     var groupedEditors = GroupResearchProperties(editors);
 
     foreach (var group in groupedEditors)
@@ -333,7 +390,7 @@ public class EntityDetailsViewModel : ViewModelBase
     var name = type.Name;
     
     // Remove "Entity" suffix if present
-    if (name.EndsWith("Entity"))
+    if (name.EndsWith("Entity") && !name.Equals("Entity"))
     {
       name = name.Substring(0, name.Length - 6);
     }

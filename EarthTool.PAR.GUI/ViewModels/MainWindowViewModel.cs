@@ -382,6 +382,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
       await _parFileService.SaveAsync(_currentParFile, _currentFilePath);
 
+      // Accept changes on all modified entities to clear dirty flags
+      AcceptAllEntityChanges();
+
       HasUnsavedChanges = false;
       _notificationService.ShowSuccess($"Saved {System.IO.Path.GetFileName(_currentFilePath)}");
       StatusMessage = "File saved";
@@ -419,6 +422,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       StatusMessage = "Saving file...";
 
       await _parFileService.SaveAsync(_currentParFile, filePath);
+
+      // Accept changes on all modified entities to clear dirty flags
+      AcceptAllEntityChanges();
 
       _currentFilePath = filePath;
       HasUnsavedChanges = false;
@@ -572,6 +578,14 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         foreach (var entityGroup in sortedEntityGroups)
         {
           var entityGroupNode = new EntityGroupNodeViewModel(entityGroup);
+          
+          // Subscribe to IsDirty changes for each entity
+          foreach (var entityItem in entityGroupNode.Entities)
+          {
+            entityItem.EditableEntity.WhenAnyValue(e => e.IsDirty)
+              .Subscribe(_ => UpdateHasUnsavedChanges());
+          }
+          
           groupTypeNode.EntityGroups.Add(entityGroupNode);
         }
 
@@ -619,6 +633,10 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
     RootNodes.Add(researchRoot);
 
+    // Set ParFile context in EntityDetailsViewModel for research lookups
+    _entityDetailsViewModel.ParFile = _currentParFile;
+    _entityDetailsViewModel.NavigateToResearch = (researchName) => NavigateToResearch(researchName);
+
     this.RaisePropertyChanged(nameof(IsFileOpen));
     _logger.LogDebug("Loaded PAR file: {EntityGroupCount} entity groups, {ResearchCount} research",
       entityGroupsRoot.ChildCount, researchRoot.ChildCount);
@@ -630,6 +648,50 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     {
       rootNode.ApplyFilter(_searchText);
     }
+  }
+
+  private void UpdateHasUnsavedChanges()
+  {
+    // Check if any entity has unsaved changes
+    var entityGroupsRoot = RootNodes.OfType<EntityGroupsRootNodeViewModel>().FirstOrDefault();
+    if (entityGroupsRoot == null)
+    {
+      HasUnsavedChanges = false;
+      return;
+    }
+
+    var hasAnyDirtyEntity = entityGroupsRoot.Factions
+      .SelectMany(f => f.GroupTypes)
+      .SelectMany(gt => gt.EntityGroups)
+      .SelectMany(eg => eg.Entities)
+      .Any(e => e.IsDirty);
+
+    HasUnsavedChanges = hasAnyDirtyEntity;
+  }
+
+  private void AcceptAllEntityChanges()
+  {
+    // Accept changes on all entities to clear dirty flags and update baseline
+    var entityGroupsRoot = RootNodes.OfType<EntityGroupsRootNodeViewModel>().FirstOrDefault();
+    if (entityGroupsRoot == null)
+      return;
+
+    var allEntities = entityGroupsRoot.Factions
+      .SelectMany(f => f.GroupTypes)
+      .SelectMany(gt => gt.EntityGroups)
+      .SelectMany(eg => eg.Entities)
+      .Select(e => e.EditableEntity);
+
+    foreach (var entity in allEntities)
+    {
+      if (entity.IsDirty)
+      {
+        entity.AcceptChanges();
+        _logger.LogDebug("Accepted changes for entity '{Name}'", entity.DisplayName);
+      }
+    }
+
+    _logger.LogInformation("Accepted changes for all modified entities");
   }
 
   private async Task<bool> PromptSaveChangesAsync()
@@ -735,6 +797,58 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   {
     // The FindEntityInNode already expands the path
     // This method is now a no-op but kept for clarity
+  }
+
+  /// <summary>
+  /// Finds and selects a research by name in the tree.
+  /// </summary>
+  public bool NavigateToResearch(string researchName)
+  {
+    if (string.IsNullOrEmpty(researchName))
+      return false;
+
+    _logger.LogInformation("Searching for research '{ResearchName}' in tree...", researchName);
+
+    foreach (var rootNode in RootNodes)
+    {
+      var foundNode = FindResearchInNode(rootNode, researchName);
+      if (foundNode != null)
+      {
+        _logger.LogInformation("Found research '{ResearchName}', selecting node", researchName);
+        SelectedNode = foundNode;
+        return true;
+      }
+    }
+
+    _logger.LogWarning("Research '{ResearchName}' not found in tree", researchName);
+    return false;
+  }
+
+  private TreeNodeViewModelBase? FindResearchInNode(TreeNodeViewModelBase node, string researchName)
+  {
+    if (node is ResearchViewModel researchItem && 
+        researchItem.Name.Equals(researchName, StringComparison.OrdinalIgnoreCase))
+      return node;
+
+    if (node.Children != null)
+    {
+      foreach (var child in node.Children)
+      {
+        var found = FindResearchInNode(child, researchName);
+        if (found != null)
+        {
+          // Expand this node as it's on the path to target
+          if (!node.IsExpanded)
+          {
+            node.IsExpanded = true;
+            _logger.LogDebug("Expanded node '{NodeName}' on path to target", node.DisplayName);
+          }
+          return found;
+        }
+      }
+    }
+
+    return null;
   }
 
   #endregion
