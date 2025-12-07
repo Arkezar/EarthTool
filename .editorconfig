@@ -1,6 +1,15 @@
 root = true
 # Remove the line below if you want to inherit .editorconfig settings from higher directories
 
+# All files
+[*]
+charset = utf-8-bom
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 2
+tab_width = 2
+
 # C# files
 [*.cs]
 
@@ -20,10 +29,8 @@ insert_final_newline = true
 # Organize usings
 dotnet_separate_import_directive_groups = false
 dotnet_sort_system_directives_first = false
-file_header_template = # this. and Me. preferences
 
-
-
+# this. and Me. preferences
 dotnet_style_qualification_for_event = false
 dotnet_style_qualification_for_field = false
 dotnet_style_qualification_for_method = false
