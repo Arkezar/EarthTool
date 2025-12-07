@@ -124,7 +124,8 @@
                    Text="{Binding SearchText}"
                    Margin="0,0,0,8" />
 
-          <ScrollViewer>
+          <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Auto">
             <TreeView ItemsSource="{Binding RootNodes}"
                       SelectedItem="{Binding SelectedNode}"
                       AutoScrollToSelectedItem="True">
@@ -142,7 +143,10 @@
                                 ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
-                    <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" />
+                    <TextBlock Text="{Binding DisplayName}" 
+                               FontWeight="Bold"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding DisplayName}" />
                   </StackPanel>
                 </TreeDataTemplate>
                 
@@ -151,7 +155,10 @@
                                 ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
-                    <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" />
+                    <TextBlock Text="{Binding DisplayName}" 
+                               FontWeight="Bold"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding DisplayName}" />
                   </StackPanel>
                 </TreeDataTemplate>
                 
@@ -160,7 +167,9 @@
                                 ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
-                    <TextBlock Text="{Binding DisplayName}" />
+                    <TextBlock Text="{Binding DisplayName}"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding DisplayName}" />
                   </StackPanel>
                 </TreeDataTemplate>
                 
@@ -169,7 +178,9 @@
                                 ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
-                    <TextBlock Text="{Binding DisplayName}" />
+                    <TextBlock Text="{Binding DisplayName}"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding DisplayName}" />
                   </StackPanel>
                 </TreeDataTemplate>
                 
@@ -178,7 +189,9 @@
                                 ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
-                    <TextBlock Text="{Binding DisplayName}" />
+                    <TextBlock Text="{Binding DisplayName}"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding DisplayName}" />
                   </StackPanel>
                 </TreeDataTemplate>
                 
@@ -186,7 +199,9 @@
                 <DataTemplate DataType="vm:EntityListItemViewModel">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
-                    <TextBlock Text="{Binding Name}" />
+                    <TextBlock Text="{Binding Name}"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding ToolTip}" />
                     <TextBlock Text="●" 
                               Foreground="Orange" 
                               FontSize="{StaticResource FontSize.Badge}"
@@ -199,7 +214,9 @@
                                 ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
-                    <TextBlock Text="{Binding DisplayName}" />
+                    <TextBlock Text="{Binding DisplayName}"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding DisplayName}" />
                   </StackPanel>
                 </TreeDataTemplate>
                 
@@ -208,7 +225,9 @@
                                 ItemsSource="{Binding FilteredChildren}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
-                    <TextBlock Text="{Binding DisplayName}" />
+                    <TextBlock Text="{Binding DisplayName}"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding DisplayName}" />
                   </StackPanel>
                 </TreeDataTemplate>
                 
@@ -216,7 +235,9 @@
                 <DataTemplate DataType="vm:ResearchViewModel">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Icon}" FontSize="{StaticResource FontSize.Icon}" />
-                    <TextBlock Text="{Binding Name}" />
+                    <TextBlock Text="{Binding Name}"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding Name}" />
                   </StackPanel>
                 </DataTemplate>
                 
