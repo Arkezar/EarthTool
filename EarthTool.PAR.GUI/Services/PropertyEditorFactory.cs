@@ -227,6 +227,27 @@ public class PropertyEditorFactory : IPropertyEditorFactory
         editor = enumEditor;
       }
     }
+    else if (IsIntCollectionType(propertyType))
+    {
+      var collectionEditor = new IntCollectionPropertyEditorViewModel(_undoRedoService)
+      {
+        Value = propertyValue
+      };
+      
+      // Subscribe to value changes to update the entity
+      collectionEditor.WhenAnyValue(x => x.Value)
+        .Skip(1) // Skip initial value
+        .Subscribe(newValue =>
+        {
+          if (newValue != null)
+          {
+            property.SetValue(entity, newValue);
+            onPropertyChanged?.Invoke();
+          }
+        });
+      
+      editor = collectionEditor;
+    }
     else
     {
       _logger.LogWarning("No editor available for property '{PropertyName}' of type '{PropertyType}'",
@@ -243,6 +264,29 @@ public class PropertyEditorFactory : IPropertyEditorFactory
     }
 
     return editor;
+  }
+
+  private static bool IsIntCollectionType(Type type)
+  {
+    // Check if type is IEnumerable<int> or similar
+    if (type == typeof(IEnumerable<int>) || type == typeof(List<int>) || type == typeof(int[]))
+      return true;
+
+    // Check if type implements IEnumerable<int>
+    if (type.IsGenericType)
+    {
+      var genericTypeDef = type.GetGenericTypeDefinition();
+      if (genericTypeDef == typeof(IEnumerable<>) || 
+          genericTypeDef == typeof(List<>) ||
+          genericTypeDef == typeof(ICollection<>) ||
+          genericTypeDef == typeof(IList<>))
+      {
+        var genericArg = type.GetGenericArguments()[0];
+        return genericArg == typeof(int);
+      }
+    }
+
+    return false;
   }
 
   private static string FormatPropertyName(string propertyName)

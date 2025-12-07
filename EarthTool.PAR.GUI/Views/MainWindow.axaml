@@ -545,6 +545,19 @@
                                           </ItemsControl>
                                         </DataTemplate>
                                         
+                                        <!-- IntCollectionPropertyEditor Template -->
+                                        <DataTemplate DataType="vm:IntCollectionPropertyEditorViewModel">
+                                          <TextBox Text="{Binding StringValue}"
+                                                   Watermark="Comma-separated integers (e.g., 1, 2, 3)"
+                                                   IsEnabled="{Binding !IsReadOnly}"
+                                                   FontSize="{StaticResource FontSize.PropertyValue}"
+                                                   HorizontalAlignment="Stretch">
+                                            <ToolTip.Tip>
+                                              <TextBlock Text="Enter comma-separated integers (e.g., 1, 2, 3)" />
+                                            </ToolTip.Tip>
+                                          </TextBox>
+                                        </DataTemplate>
+                                        
                                         <!-- Fallback Template (for unknown types) -->
                                         <DataTemplate DataType="vm:PropertyEditorViewModel">
                                           <TextBlock Text="{Binding Value}"
