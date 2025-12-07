@@ -17,6 +17,7 @@ public class ResearchReferenceCollectionEditorViewModel : PropertyEditorViewMode
   private readonly IUndoRedoService? _undoRedoService;
   private IEnumerable<int>? _collectionValue;
   private ParFile? _parFile;
+  private bool _isUpdating;
 
   public ResearchReferenceCollectionEditorViewModel()
   {
@@ -48,9 +49,17 @@ public class ResearchReferenceCollectionEditorViewModel : PropertyEditorViewMode
     get => _parFile;
     set
     {
+      if (_parFile == value)
+        return;
+        
       _parFile = value;
       LoadAvailableResearch();
-      UpdateSelectedResearch();
+      
+      // Update selection after loading available research
+      if (_collectionValue != null)
+      {
+        UpdateSelectedResearch();
+      }
     }
   }
 
@@ -119,32 +128,45 @@ public class ResearchReferenceCollectionEditorViewModel : PropertyEditorViewMode
 
   private void UpdateSelectedResearch()
   {
-    if (_parFile == null || _collectionValue == null)
+    _isUpdating = true;
+    try
     {
+      if (_parFile == null || _collectionValue == null)
+      {
+        foreach (var research in AvailableResearch)
+        {
+          research.IsSelected = false;
+        }
+        SelectedResearch.Clear();
+        return;
+      }
+
+      var selectedIds = new HashSet<int>(_collectionValue);
+
       foreach (var research in AvailableResearch)
       {
-        research.IsSelected = false;
+        research.IsSelected = selectedIds.Contains(research.Id);
       }
-      return;
+
+      // Update SelectedResearch collection for display
+      SelectedResearch.Clear();
+      foreach (var research in AvailableResearch.Where(r => r.IsSelected).OrderBy(r => r.Name))
+      {
+        SelectedResearch.Add(research);
+      }
     }
-
-    var selectedIds = new HashSet<int>(_collectionValue);
-
-    foreach (var research in AvailableResearch)
+    finally
     {
-      research.IsSelected = selectedIds.Contains(research.Id);
-    }
-
-    // Update SelectedResearch collection for display
-    SelectedResearch.Clear();
-    foreach (var research in AvailableResearch.Where(r => r.IsSelected).OrderBy(r => r.Name))
-    {
-      SelectedResearch.Add(research);
+      _isUpdating = false;
     }
   }
 
   private void OnResearchSelectionChanged()
   {
+    // Don't process changes during programmatic updates
+    if (_isUpdating)
+      return;
+
     var oldValue = _collectionValue;
     var newValue = AvailableResearch.Where(r => r.IsSelected).Select(r => r.Id).ToList();
 

@@ -232,11 +232,11 @@ public class PropertyEditorFactory : IPropertyEditorFactory
       // Special handling for RequiredResearch property
       if (property.Name == "RequiredResearch" && parFile != null)
       {
-        var researchEditor = new ResearchReferenceCollectionEditorViewModel(_undoRedoService)
-        {
-          Value = propertyValue,
-          ParFileContext = parFile
-        };
+        var researchEditor = new ResearchReferenceCollectionEditorViewModel(_undoRedoService);
+        
+        // Set ParFileContext FIRST, then Value to ensure research list is loaded
+        researchEditor.ParFileContext = parFile;
+        researchEditor.Value = propertyValue;
         
         // Subscribe to value changes to update the entity
         researchEditor.WhenAnyValue(x => x.Value)
