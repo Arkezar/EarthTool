@@ -227,6 +227,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   public ReactiveCommand<Unit, Unit> DeleteEntityCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> CopyEntityCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> PasteEntityCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> ShowAboutCommand { get; private set; } = null!;
 
   private void InitializeCommands()
   {
@@ -263,6 +264,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     DeleteEntityCommand = ReactiveCommand.CreateFromTask(DeleteEntityAsync, canModifyEntity);
     CopyEntityCommand = ReactiveCommand.Create(CopyEntity, canModifyEntity);
     PasteEntityCommand = ReactiveCommand.CreateFromTask(PasteEntityAsync, canAddEntity);
+
+    // Help commands
+    ShowAboutCommand = ReactiveCommand.CreateFromTask(ShowAboutAsync);
 
     // Subscribe to property changes for WindowTitle
     this.WhenAnyValue(x => x.HasUnsavedChanges, x => x.CurrentFilePath)
@@ -873,6 +877,33 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     }
 
     return null;
+  }
+
+  #endregion
+
+  #region Help
+
+  private async Task ShowAboutAsync()
+  {
+    try
+    {
+      var aboutViewModel = new AboutViewModel();
+      var aboutView = new Views.AboutView
+      {
+        DataContext = aboutViewModel
+      };
+
+      await _dialogService.ShowCustomDialogAsync(
+        aboutView,
+        "About EarthTool PAR Editor",
+        width: 550,
+        height: 550);
+    }
+    catch (Exception ex)
+    {
+      _logger.LogError(ex, "Failed to show About dialog");
+      _notificationService.ShowError("Failed to show About dialog", ex);
+    }
   }
 
   #endregion

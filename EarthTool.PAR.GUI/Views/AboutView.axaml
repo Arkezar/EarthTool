@@ -1,0 +1,163 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:EarthTool.PAR.GUI.ViewModels"
+             x:Class="EarthTool.PAR.GUI.Views.AboutView"
+             x:DataType="vm:AboutViewModel"
+             MinWidth="500"
+             MinHeight="450">
+  
+  <Design.DataContext>
+    <vm:AboutViewModel />
+  </Design.DataContext>
+
+  <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+          CornerRadius="8"
+          Padding="0">
+    
+    <Grid RowDefinitions="Auto,*,Auto">
+      
+      <!-- Header Section with Gradient Background -->
+      <Border Grid.Row="0"
+              Background="{DynamicResource SystemAccentColor}"
+              CornerRadius="8,8,0,0"
+              Padding="30,25">
+        <StackPanel Spacing="8">
+          <TextBlock Text="{Binding ApplicationName}"
+                     FontSize="24"
+                     FontWeight="SemiBold"
+                     Foreground="White"
+                     TextAlignment="Center" />
+          <TextBlock Text="{Binding FullVersion}"
+                     FontSize="14"
+                     Foreground="#E0FFFFFF"
+                     TextAlignment="Center"
+                     Opacity="0.9" />
+        </StackPanel>
+      </Border>
+
+      <!-- Content Section -->
+      <ScrollViewer Grid.Row="1"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="20"
+                    Margin="30,25">
+          
+          <!-- Description -->
+          <StackPanel Spacing="8">
+            <TextBlock Text="About"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+            <TextBlock Text="{Binding Description}"
+                       FontSize="13"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                       LineHeight="20" />
+          </StackPanel>
+
+          <!-- Separator -->
+          <Border Height="1"
+                  Background="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                  Opacity="0.3" />
+
+          <!-- Features -->
+          <StackPanel Spacing="8">
+            <TextBlock Text="Features"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+            <TextBlock Text="{Binding Features}"
+                       FontSize="13"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                       LineHeight="20" />
+          </StackPanel>
+
+          <!-- Separator -->
+          <Border Height="1"
+                  Background="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                  Opacity="0.3" />
+
+          <!-- Project Information -->
+          <StackPanel Spacing="12">
+            <TextBlock Text="Project Information"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+            
+            <!-- Author -->
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Author:"
+                         FontSize="13"
+                         FontWeight="Medium"
+                         Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                         Width="80" />
+              <TextBlock Text="{Binding Author}"
+                         FontSize="13"
+                         Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+            </StackPanel>
+
+            <!-- License -->
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="License:"
+                         FontSize="13"
+                         FontWeight="Medium"
+                         Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                         Width="80" />
+              <TextBlock Text="{Binding LicenseInfo}"
+                         FontSize="13"
+                         Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+            </StackPanel>
+
+            <!-- GitHub Link -->
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="GitHub:"
+                         FontSize="13"
+                         FontWeight="Medium"
+                         Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                         Width="80" />
+              <Button Content="{Binding ProjectUrl}"
+                      Command="{Binding OpenUrlCommand}"
+                      CommandParameter="{Binding ProjectUrl}"
+                      Background="Transparent"
+                      BorderThickness="0"
+                      Padding="0"
+                      Cursor="Hand"
+                      HorizontalAlignment="Left">
+                <Button.Styles>
+                  <Style Selector="Button">
+                    <Setter Property="Foreground" Value="{DynamicResource SystemAccentColor}" />
+                  </Style>
+                  <Style Selector="Button:pointerover">
+                    <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorLight1}" />
+                    <Setter Property="TextBlock.TextDecorations" Value="Underline" />
+                  </Style>
+                  <Style Selector="Button:pressed">
+                    <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorDark1}" />
+                  </Style>
+                </Button.Styles>
+              </Button>
+            </StackPanel>
+          </StackPanel>
+
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- Footer Section -->
+      <Border Grid.Row="2"
+              Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}"
+              CornerRadius="0,0,8,8"
+              Padding="30,20"
+              BorderThickness="0,1,0,0"
+              BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+        <TextBlock Text="{Binding Copyright}"
+                   FontSize="12"
+                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                   TextAlignment="Center"
+                   HorizontalAlignment="Center" />
+      </Border>
+
+    </Grid>
+  </Border>
+
+</UserControl>

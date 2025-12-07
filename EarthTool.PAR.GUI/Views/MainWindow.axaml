@@ -41,7 +41,7 @@
       </MenuItem>
 
       <MenuItem Header="_Help">
-        <MenuItem Header="_About PAR Editor" />
+        <MenuItem Header="_About PAR Editor" Command="{Binding ShowAboutCommand}" />
       </MenuItem>
     </Menu>
 
