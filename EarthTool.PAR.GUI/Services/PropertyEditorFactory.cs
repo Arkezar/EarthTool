@@ -179,25 +179,53 @@ public class PropertyEditorFactory : IPropertyEditorFactory
     }
     else if (propertyType.IsEnum)
     {
-      var enumEditor = new EnumPropertyEditorViewModel(_undoRedoService)
+      // Check if this is a flags enum
+      var isFlagsEnum = propertyType.GetCustomAttributes(typeof(FlagsAttribute), false).Length > 0;
+      
+      if (isFlagsEnum)
       {
-        EnumType = propertyType,
-        Value = propertyValue
-      };
-      
-      // Subscribe to value changes to update the entity
-      enumEditor.WhenAnyValue(x => x.Value)
-        .Skip(1) // Skip initial value
-        .Subscribe(newValue =>
+        var flagsEditor = new FlagsPropertyEditorViewModel(_undoRedoService)
         {
-          if (newValue != null)
+          EnumType = propertyType,
+          Value = propertyValue
+        };
+        
+        // Subscribe to value changes to update the entity
+        flagsEditor.WhenAnyValue(x => x.Value)
+          .Skip(1) // Skip initial value
+          .Subscribe(newValue =>
           {
-            property.SetValue(entity, newValue);
-            onPropertyChanged?.Invoke();
-          }
-        });
-      
-      editor = enumEditor;
+            if (newValue != null)
+            {
+              property.SetValue(entity, newValue);
+              onPropertyChanged?.Invoke();
+            }
+          });
+        
+        editor = flagsEditor;
+      }
+      else
+      {
+        var enumEditor = new EnumPropertyEditorViewModel(_undoRedoService)
+        {
+          EnumType = propertyType,
+          Value = propertyValue
+        };
+        
+        // Subscribe to value changes to update the entity
+        enumEditor.WhenAnyValue(x => x.Value)
+          .Skip(1) // Skip initial value
+          .Subscribe(newValue =>
+          {
+            if (newValue != null)
+            {
+              property.SetValue(entity, newValue);
+              onPropertyChanged?.Invoke();
+            }
+          });
+        
+        editor = enumEditor;
+      }
     }
     else
     {

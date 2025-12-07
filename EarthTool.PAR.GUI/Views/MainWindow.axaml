@@ -495,6 +495,35 @@
                                           </ComboBox>
                                         </DataTemplate>
                                         
+                                        <!-- FlagsPropertyEditor Template -->
+                                        <DataTemplate DataType="vm:FlagsPropertyEditorViewModel">
+                                          <ItemsControl ItemsSource="{Binding AvailableFlags}"
+                                                        IsEnabled="{Binding !IsReadOnly}">
+                                            <ItemsControl.ItemsPanel>
+                                              <ItemsPanelTemplate>
+                                                <WrapPanel Orientation="Horizontal" />
+                                              </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                              <DataTemplate>
+                                                <CheckBox Content="{Binding DisplayName}"
+                                                          IsChecked="{Binding IsSelected}"
+                                                          Margin="0,0,12,4"
+                                                          FontSize="{StaticResource FontSize.PropertyValue}">
+                                                  <ToolTip.Tip>
+                                                    <TextBlock>
+                                                      <Run Text="{Binding Description}" FontWeight="Bold" />
+                                                      <LineBreak />
+                                                      <Run Text="Value: " />
+                                                      <Run Text="{Binding NumericValue}" />
+                                                    </TextBlock>
+                                                  </ToolTip.Tip>
+                                                </CheckBox>
+                                              </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                          </ItemsControl>
+                                        </DataTemplate>
+                                        
                                         <!-- Fallback Template (for unknown types) -->
                                         <DataTemplate DataType="vm:PropertyEditorViewModel">
                                           <TextBlock Text="{Binding Value}"
