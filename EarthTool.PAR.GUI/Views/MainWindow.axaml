@@ -454,11 +454,57 @@
                                         CornerRadius="3"
                                         Padding="8,4">
                                   <StackPanel Spacing="2">
-                                    <TextBlock Text="{Binding Value}"
-                                               FontSize="{StaticResource FontSize.PropertyValue}"
-                                               TextWrapping="Wrap"
-                                               TextAlignment="Right"
-                                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+                                    <!-- Content Control with DataTemplates for different editor types -->
+                                    <ContentControl Content="{Binding}">
+                                      <ContentControl.DataTemplates>
+                                        <!-- IntPropertyEditor Template -->
+                                        <DataTemplate DataType="vm:IntPropertyEditorViewModel">
+                                          <NumericUpDown Value="{Binding IntValue}"
+                                                         Minimum="{Binding MinValue}"
+                                                         Maximum="{Binding MaxValue}"
+                                                         Increment="{Binding Step}"
+                                                         IsEnabled="{Binding !IsReadOnly}"
+                                                         FontSize="{StaticResource FontSize.PropertyValue}"
+                                                         HorizontalAlignment="Stretch" />
+                                        </DataTemplate>
+                                        
+                                        <!-- StringPropertyEditor Template -->
+                                        <DataTemplate DataType="vm:StringPropertyEditorViewModel">
+                                          <TextBox Text="{Binding StringValue}"
+                                                   MaxLength="{Binding MaxLength}"
+                                                   Watermark="{Binding PlaceholderText}"
+                                                   IsEnabled="{Binding !IsReadOnly}"
+                                                   AcceptsReturn="{Binding IsMultiline}"
+                                                   TextWrapping="{Binding IsMultiline}"
+                                                   FontSize="{StaticResource FontSize.PropertyValue}"
+                                                   HorizontalAlignment="Stretch" />
+                                        </DataTemplate>
+                                        
+                                        <!-- EnumPropertyEditor Template -->
+                                        <DataTemplate DataType="vm:EnumPropertyEditorViewModel">
+                                          <ComboBox ItemsSource="{Binding AvailableValues}"
+                                                    SelectedItem="{Binding SelectedValue}"
+                                                    IsEnabled="{Binding !IsReadOnly}"
+                                                    FontSize="{StaticResource FontSize.PropertyValue}"
+                                                    HorizontalAlignment="Stretch">
+                                            <ComboBox.ItemTemplate>
+                                              <DataTemplate>
+                                                <TextBlock Text="{Binding DisplayName}" />
+                                              </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                          </ComboBox>
+                                        </DataTemplate>
+                                        
+                                        <!-- Fallback Template (for unknown types) -->
+                                        <DataTemplate DataType="vm:PropertyEditorViewModel">
+                                          <TextBlock Text="{Binding Value}"
+                                                     TextWrapping="Wrap"
+                                                     FontSize="{StaticResource FontSize.PropertyValue}"
+                                                     Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                                     FontStyle="Italic" />
+                                        </DataTemplate>
+                                      </ContentControl.DataTemplates>
+                                    </ContentControl>
                                     
                                     <!-- Validation Message with Severity Indicator -->
                                     <Border IsVisible="{Binding !IsValid}"

@@ -130,7 +130,13 @@ public class EntityDetailsViewModel : ViewModelBase
   private void InitializeCommands()
   {
     var hasEntity = this.WhenAnyValue(x => x.CurrentEntity).Select(entity => entity != null);
-    var isDirty = this.WhenAnyValue(x => x.CurrentEntity).Select(e => e?.IsDirty ?? false);
+    
+    // Create an observable that monitors IsDirty changes on the CurrentEntity
+    var isDirty = this.WhenAnyValue(x => x.CurrentEntity)
+      .Select(entity => entity != null 
+        ? entity.WhenAnyValue(e => e.IsDirty).StartWith(entity.IsDirty)
+        : Observable.Return(false))
+      .Switch();
 
     RevertChangesCommand = ReactiveCommand.Create(RevertChanges, isDirty);
     ApplyChangesCommand = ReactiveCommand.Create(ApplyChanges, isDirty);
@@ -139,9 +145,6 @@ public class EntityDetailsViewModel : ViewModelBase
 
   private void LoadEntityOrResearch()
   {
-    PropertyGroups.Clear();
-    ValidationErrors.Clear();
-
     if (_currentEntity != null)
     {
       // Istniejąca logika dla encji
@@ -154,6 +157,10 @@ public class EntityDetailsViewModel : ViewModelBase
     }
     else
     {
+      // Clear when no entity/research is selected
+      PropertyGroups.Clear();
+      ValidationErrors.Clear();
+      
       _logger.LogDebug("Details cleared");
       _entityName = string.Empty;
       this.RaisePropertyChanged(nameof(EntityName));
@@ -221,13 +228,19 @@ public class EntityDetailsViewModel : ViewModelBase
 
   private void LoadEntity()
   {
+    // Clear existing groups to prevent duplication
+    PropertyGroups.Clear();
+    ValidationErrors.Clear();
+    
     _entityName = _currentEntity!.DisplayName;
     this.RaisePropertyChanged(nameof(EntityName));
     this.RaisePropertyChanged(nameof(EntityType));
     this.RaisePropertyChanged(nameof(ClassType));
 
-    // Create property editors
-    var editors = _propertyEditorFactory.CreateEditorsForEntity(_currentEntity.Entity);
+    // Create property editors with callback to mark entity as dirty
+    var editors = _propertyEditorFactory.CreateEditorsForEntity(
+      _currentEntity.Entity, 
+      () => _currentEntity.MarkDirty());
     var groupedEditors = GroupProperties(editors);
 
     foreach (var group in groupedEditors)
@@ -244,6 +257,10 @@ public class EntityDetailsViewModel : ViewModelBase
 
   private void LoadResearch()
   {
+    // Clear existing groups to prevent duplication
+    PropertyGroups.Clear();
+    ValidationErrors.Clear();
+    
     _entityName = _currentResearch!.Name;
     this.RaisePropertyChanged(nameof(EntityName));
     this.RaisePropertyChanged(nameof(EntityType));

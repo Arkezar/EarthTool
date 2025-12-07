@@ -572,6 +572,14 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         foreach (var entityGroup in sortedEntityGroups)
         {
           var entityGroupNode = new EntityGroupNodeViewModel(entityGroup);
+          
+          // Subscribe to IsDirty changes for each entity
+          foreach (var entityItem in entityGroupNode.Entities)
+          {
+            entityItem.EditableEntity.WhenAnyValue(e => e.IsDirty)
+              .Subscribe(_ => UpdateHasUnsavedChanges());
+          }
+          
           groupTypeNode.EntityGroups.Add(entityGroupNode);
         }
 
@@ -630,6 +638,25 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     {
       rootNode.ApplyFilter(_searchText);
     }
+  }
+
+  private void UpdateHasUnsavedChanges()
+  {
+    // Check if any entity has unsaved changes
+    var entityGroupsRoot = RootNodes.OfType<EntityGroupsRootNodeViewModel>().FirstOrDefault();
+    if (entityGroupsRoot == null)
+    {
+      HasUnsavedChanges = false;
+      return;
+    }
+
+    var hasAnyDirtyEntity = entityGroupsRoot.Factions
+      .SelectMany(f => f.GroupTypes)
+      .SelectMany(gt => gt.EntityGroups)
+      .SelectMany(eg => eg.Entities)
+      .Any(e => e.IsDirty);
+
+    HasUnsavedChanges = hasAnyDirtyEntity;
   }
 
   private async Task<bool> PromptSaveChangesAsync()
