@@ -12,7 +12,7 @@ A comprehensive suite of tools for working with Earth 2150 game data files.
 - **TEX Textures** - Convert TEX format to PNG and other image formats
 - **MSH Models** - Read and convert MSH 3D models to COLLADA (DAE) format
 - **PAR Parameters** - Parse and edit game parameter files
-- **GUI Application** - User-friendly graphical interface for archive management
+- **GUI Applications** - User-friendly graphical interfaces for archive and parameter management
 
 ## Applications
 
@@ -29,7 +29,7 @@ EarthTool.CLI.exe --help
 
 Download the latest release or build from source.
 
-### EarthTool.WD.GUI (Graphical User Interface)
+### EarthTool.WD.GUI (Archive Manager)
 
 Desktop application with visual interface for managing WD archives.
 
@@ -41,6 +41,17 @@ Desktop application with visual interface for managing WD archives.
 - View file information and statistics
 
 See [EarthTool.WD.GUI/README.md](EarthTool.WD.GUI/README.md) for detailed documentation.
+
+### EarthTool.PAR.GUI (Parameter Editor)
+
+Desktop application for viewing and editing Earth 2150 parameter files.
+
+**Features:**
+- Browse and search parameter entities
+- Edit entity properties with validation
+- View entity relationships and dependencies
+- Save modified parameter files
+- Type-safe editing with real-time validation
 
 ## Building from Source
 
@@ -56,22 +67,30 @@ cd EarthTool.CLI
 dotnet publish -c Release
 ```
 
-**Build GUI:**
+**Build WD GUI:**
 ```bash
 cd EarthTool.WD.GUI
+dotnet publish -c Release
+```
+
+**Build PAR GUI:**
+```bash
+cd EarthTool.PAR.GUI
 dotnet publish -c Release
 ```
 
 ## Project Structure
 
 - **EarthTool.Common** - Shared interfaces and utilities
+- **EarthTool.Common.GUI** - Shared GUI components and services (Avalonia UI)
 - **EarthTool.WD** - WD archive format support
 - **EarthTool.TEX** - TEX texture format support
 - **EarthTool.MSH** - MSH 3D model format support
 - **EarthTool.DAE** - COLLADA export functionality
 - **EarthTool.PAR** - Parameter file support
 - **EarthTool.CLI** - Command-line interface
-- **EarthTool.WD.GUI** - Graphical user interface (Avalonia UI)
+- **EarthTool.WD.GUI** - Archive manager GUI (Avalonia UI)
+- **EarthTool.PAR.GUI** - Parameter editor GUI (Avalonia UI)
 
 ## Testing
 
