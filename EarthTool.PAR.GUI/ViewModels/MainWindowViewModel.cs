@@ -382,6 +382,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
       await _parFileService.SaveAsync(_currentParFile, _currentFilePath);
 
+      // Accept changes on all modified entities to clear dirty flags
+      AcceptAllEntityChanges();
+
       HasUnsavedChanges = false;
       _notificationService.ShowSuccess($"Saved {System.IO.Path.GetFileName(_currentFilePath)}");
       StatusMessage = "File saved";
@@ -419,6 +422,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       StatusMessage = "Saving file...";
 
       await _parFileService.SaveAsync(_currentParFile, filePath);
+
+      // Accept changes on all modified entities to clear dirty flags
+      AcceptAllEntityChanges();
 
       _currentFilePath = filePath;
       HasUnsavedChanges = false;
@@ -657,6 +663,31 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       .Any(e => e.IsDirty);
 
     HasUnsavedChanges = hasAnyDirtyEntity;
+  }
+
+  private void AcceptAllEntityChanges()
+  {
+    // Accept changes on all entities to clear dirty flags and update baseline
+    var entityGroupsRoot = RootNodes.OfType<EntityGroupsRootNodeViewModel>().FirstOrDefault();
+    if (entityGroupsRoot == null)
+      return;
+
+    var allEntities = entityGroupsRoot.Factions
+      .SelectMany(f => f.GroupTypes)
+      .SelectMany(gt => gt.EntityGroups)
+      .SelectMany(eg => eg.Entities)
+      .Select(e => e.EditableEntity);
+
+    foreach (var entity in allEntities)
+    {
+      if (entity.IsDirty)
+      {
+        entity.AcceptChanges();
+        _logger.LogDebug("Accepted changes for entity '{Name}'", entity.DisplayName);
+      }
+    }
+
+    _logger.LogInformation("Accepted changes for all modified entities");
   }
 
   private async Task<bool> PromptSaveChangesAsync()
