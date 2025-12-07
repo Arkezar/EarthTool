@@ -1,6 +1,7 @@
+using EarthTool.Common.GUI.Enums;
 using System;
 
-namespace EarthTool.WD.GUI.Services;
+namespace EarthTool.Common.GUI.Interfaces;
 
 /// <summary>
 /// Service for displaying notifications and status messages to the user.
@@ -53,15 +54,4 @@ public class NotificationEventArgs : EventArgs
     Message = message;
     Exception = exception;
   }
-}
-
-/// <summary>
-/// Type of notification.
-/// </summary>
-public enum NotificationType
-{
-  Error,
-  Warning,
-  Success,
-  Info
 }

@@ -1,7 +1,9 @@
+using EarthTool.Common.GUI.Enums;
+using EarthTool.Common.GUI.Interfaces;
 using Microsoft.Extensions.Logging;
 using System;
 
-namespace EarthTool.PAR.GUI.Services;
+namespace EarthTool.Common.GUI.Services;
 
 /// <summary>
 /// Implementation of INotificationService that logs messages and raises events.

@@ -29,6 +29,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\EarthTool.Common.GUI\EarthTool.Common.GUI.csproj" />
       <ProjectReference Include="..\EarthTool.WD\EarthTool.WD.csproj" />
     </ItemGroup>
 </Project>

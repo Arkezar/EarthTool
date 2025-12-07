@@ -1,3 +1,6 @@
+using EarthTool.Common.GUI.Enums;
+using EarthTool.Common.GUI.Interfaces;
+using EarthTool.Common.GUI.Views;
 using EarthTool.PAR.GUI.Services;
 using EarthTool.PAR.Models;
 using Microsoft.Extensions.Logging;
@@ -16,20 +19,20 @@ namespace EarthTool.PAR.GUI.ViewModels;
 /// </summary>
 public class MainWindowViewModel : ViewModelBase, IDisposable
 {
-  private readonly IParFileService _parFileService;
-  private readonly IDialogService _dialogService;
-  private readonly INotificationService _notificationService;
-  private readonly IUndoRedoService _undoRedoService;
-  private readonly IEntityValidationService _validationService;
+  private readonly IParFileService              _parFileService;
+  private readonly IDialogService               _dialogService;
+  private readonly INotificationService         _notificationService;
+  private readonly IUndoRedoService             _undoRedoService;
+  private readonly IEntityValidationService     _validationService;
   private readonly ILogger<MainWindowViewModel> _logger;
-  private readonly EntityDetailsViewModel _entityDetailsViewModel;
+  private readonly EntityDetailsViewModel       _entityDetailsViewModel;
 
-  private ParFile? _currentParFile;
-  private string? _currentFilePath;
-  private bool _hasUnsavedChanges;
-  private bool _isBusy;
-  private string _statusMessage = "Ready";
-  private string _searchText = string.Empty;
+  private ParFile?               _currentParFile;
+  private string?                _currentFilePath;
+  private bool                   _hasUnsavedChanges;
+  private bool                   _isBusy;
+  private string                 _statusMessage = "Ready";
+  private string                 _searchText    = string.Empty;
   private TreeNodeViewModelBase? _selectedNode;
   private TreeNodeViewModelBase? _selectedEntity;
 
@@ -42,12 +45,12 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     ILogger<MainWindowViewModel> logger,
     EntityDetailsViewModel entityDetailsViewModel)
   {
-    _parFileService = parFileService ?? throw new ArgumentNullException(nameof(parFileService));
-    _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
-    _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
-    _undoRedoService = undoRedoService ?? throw new ArgumentNullException(nameof(undoRedoService));
-    _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
-    _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    _parFileService = parFileService                 ?? throw new ArgumentNullException(nameof(parFileService));
+    _dialogService = dialogService                   ?? throw new ArgumentNullException(nameof(dialogService));
+    _notificationService = notificationService       ?? throw new ArgumentNullException(nameof(notificationService));
+    _undoRedoService = undoRedoService               ?? throw new ArgumentNullException(nameof(undoRedoService));
+    _validationService = validationService           ?? throw new ArgumentNullException(nameof(validationService));
+    _logger = logger                                 ?? throw new ArgumentNullException(nameof(logger));
     _entityDetailsViewModel = entityDetailsViewModel ?? throw new ArgumentNullException(nameof(entityDetailsViewModel));
 
     RootNodes = new ObservableCollection<TreeNodeViewModelBase>();
@@ -192,6 +195,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         var fileName = System.IO.Path.GetFileName(_currentFilePath);
         title = $"{fileName}{(HasUnsavedChanges ? "*" : "")} - {title}";
       }
+
       return title;
     }
   }
@@ -210,7 +214,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   /// Gets the entity details ViewModel.
   /// </summary>
   public EntityDetailsViewModel EntityDetailsViewModel => _entityDetailsViewModel;
-  
+
   #endregion
 
   #region Commands
@@ -266,7 +270,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     PasteEntityCommand = ReactiveCommand.CreateFromTask(PasteEntityAsync, canAddEntity);
 
     // Help commands
-    ShowAboutCommand = ReactiveCommand.CreateFromTask(ShowAboutAsync);
+    ShowAboutCommand = ReactiveCommand.CreateFromTask(() => _dialogService.ShowAboutAsync(new ParAboutViewModel()));
 
     // Subscribe to property changes for WindowTitle
     this.WhenAnyValue(x => x.HasUnsavedChanges, x => x.CurrentFilePath)
@@ -326,7 +330,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       if (!await PromptSaveChangesAsync())
         return;
 
-      var filePath = await _dialogService.ShowOpenFileDialogAsync("Open PAR File", ("PAR Files", "*.par"));
+      var filePath = (await _dialogService.ShowOpenFilesDialogAsync("Open PAR File", false, ("PAR Files", "*.par")))
+        .FirstOrDefault();
       if (string.IsNullOrEmpty(filePath))
         return;
 
@@ -417,7 +422,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         ? System.IO.Path.GetFileName(_currentFilePath)
         : "parameters.par";
 
-      var filePath = await _dialogService.ShowSaveFileDialogAsync(defaultFileName);
+      var filePath = await _dialogService.ShowSaveFileDialogAsync("Save file", defaultFileName, ("PAR Files", "*.par"));
       if (string.IsNullOrEmpty(filePath))
         return;
 
@@ -582,14 +587,14 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         foreach (var entityGroup in sortedEntityGroups)
         {
           var entityGroupNode = new EntityGroupNodeViewModel(entityGroup);
-          
+
           // Subscribe to IsDirty changes for each entity
           foreach (var entityItem in entityGroupNode.Entities)
           {
             entityItem.EditableEntity.WhenAnyValue(e => e.IsDirty)
               .Subscribe(_ => UpdateHasUnsavedChanges());
           }
-          
+
           groupTypeNode.EntityGroups.Add(entityGroupNode);
         }
 
@@ -626,11 +631,11 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         foreach (var research in sortedResearch)
         {
           var researchVm = new ResearchViewModel(research);
-          
+
           // Subscribe to IsDirty changes for each research
           researchVm.EditableResearch.WhenAnyValue(r => r.IsDirty)
             .Subscribe(_ => UpdateHasUnsavedChanges());
-          
+
           researchTypeNode.ResearchItems.Add(researchVm);
         }
 
@@ -734,10 +739,10 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
     return result switch
     {
-      MessageBoxResult.Yes => await TrySaveFileAsync(),
-      MessageBoxResult.No => true,
+      MessageBoxResult.Yes    => await TrySaveFileAsync(),
+      MessageBoxResult.No     => true,
       MessageBoxResult.Cancel => false,
-      _ => false
+      _                       => false
     };
   }
 
@@ -796,7 +801,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
   private TreeNodeViewModelBase? FindEntityInNode(TreeNodeViewModelBase node, string entityName)
   {
-    if (node is EntityListItemViewModel entityItem && 
+    if (node is EntityListItemViewModel entityItem &&
         entityItem.Name.Equals(entityName, StringComparison.OrdinalIgnoreCase))
       return node;
 
@@ -813,6 +818,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
             node.IsExpanded = true;
             _logger.LogDebug("Expanded node '{NodeName}' on path to target", node.DisplayName);
           }
+
           return found;
         }
       }
@@ -854,7 +860,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
   private TreeNodeViewModelBase? FindResearchInNode(TreeNodeViewModelBase node, string researchName)
   {
-    if (node is ResearchViewModel researchItem && 
+    if (node is ResearchViewModel researchItem &&
         researchItem.Name.Equals(researchName, StringComparison.OrdinalIgnoreCase))
       return node;
 
@@ -871,39 +877,13 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
             node.IsExpanded = true;
             _logger.LogDebug("Expanded node '{NodeName}' on path to target", node.DisplayName);
           }
+
           return found;
         }
       }
     }
 
     return null;
-  }
-
-  #endregion
-
-  #region Help
-
-  private async Task ShowAboutAsync()
-  {
-    try
-    {
-      var aboutViewModel = new AboutViewModel();
-      var aboutView = new Views.AboutView
-      {
-        DataContext = aboutViewModel
-      };
-
-      await _dialogService.ShowCustomDialogAsync(
-        aboutView,
-        "About EarthTool PAR Editor",
-        width: 550,
-        height: 550);
-    }
-    catch (Exception ex)
-    {
-      _logger.LogError(ex, "Failed to show About dialog");
-      _notificationService.ShowError("Failed to show About dialog", ex);
-    }
   }
 
   #endregion

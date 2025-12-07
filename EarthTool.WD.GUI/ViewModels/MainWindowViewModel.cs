@@ -1,3 +1,5 @@
+using EarthTool.Common.GUI.Enums;
+using EarthTool.Common.GUI.Interfaces;
 using EarthTool.Common.Interfaces;
 using EarthTool.WD.GUI.Services;
 using Microsoft.Extensions.Logging;
@@ -17,17 +19,17 @@ namespace EarthTool.WD.GUI.ViewModels;
 /// </summary>
 public class MainWindowViewModel : ViewModelBase, IDisposable
 {
-  private readonly IArchiver _archiver;
-  private readonly IDialogService _dialogService;
-  private readonly INotificationService _notificationService;
-  private readonly ITextFlagService _textFlagService;
+  private readonly IArchiver                    _archiver;
+  private readonly IDialogService               _dialogService;
+  private readonly INotificationService         _notificationService;
+  private readonly ITextFlagService             _textFlagService;
   private readonly ILogger<MainWindowViewModel> _logger;
 
   private IArchive? _currentArchive;
-  private string? _currentFilePath;
-  private bool _hasUnsavedChanges;
-  private bool _isBusy;
-  private string _statusMessage = "Ready";
+  private string?   _currentFilePath;
+  private bool      _hasUnsavedChanges;
+  private bool      _isBusy;
+  private string    _statusMessage = "Ready";
 
   public MainWindowViewModel(
     IArchiver archiver,
@@ -36,11 +38,11 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     ITextFlagService textFlagService,
     ILogger<MainWindowViewModel> logger)
   {
-    _archiver = archiver ?? throw new ArgumentNullException(nameof(archiver));
-    _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
+    _archiver = archiver                       ?? throw new ArgumentNullException(nameof(archiver));
+    _dialogService = dialogService             ?? throw new ArgumentNullException(nameof(dialogService));
     _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
-    _textFlagService = textFlagService ?? throw new ArgumentNullException(nameof(textFlagService));
-    _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    _textFlagService = textFlagService         ?? throw new ArgumentNullException(nameof(textFlagService));
+    _logger = logger                           ?? throw new ArgumentNullException(nameof(logger));
 
     ArchiveItems = new ObservableCollection<ArchiveItemViewModel>();
     TreeItems = new ObservableCollection<TreeItemViewModel>();
@@ -97,7 +99,10 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     set => this.RaiseAndSetIfChanged(ref _statusMessage, value);
   }
 
-  public string ArchiveInfoText => IsArchiveOpen ? $"{ArchiveInfo.FilePath} | GUID: {ArchiveInfo.FormattedArchiveGuid} | Modified: {ArchiveInfo.LastModification:u} | Items: {ArchiveInfo.FormattedItemCount} | Total Size: {ArchiveInfo.FormattedTotalSize}" : "";
+  public string ArchiveInfoText
+    => IsArchiveOpen
+      ? $"{ArchiveInfo.FilePath} | GUID: {ArchiveInfo.FormattedArchiveGuid} | Modified: {ArchiveInfo.LastModification:u} | Items: {ArchiveInfo.FormattedItemCount} | Total Size: {ArchiveInfo.FormattedTotalSize}"
+      : "";
 
   public string WindowTitle
   {
@@ -189,7 +194,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     ToggleThemeCommand = ReactiveCommand.Create(ToggleTheme);
 
     // AboutCommand - always enabled
-    AboutCommand = ReactiveCommand.CreateFromTask(ShowAboutAsync);
+    AboutCommand = ReactiveCommand.CreateFromTask(() => _dialogService.ShowAboutAsync(new WdAboutViewModel()));
 
     // ExitCommand - always enabled
     ExitCommand = ReactiveCommand.Create(Exit);
@@ -211,7 +216,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       if (!await PromptSaveChangesAsync())
         return;
 
-      var filePath = await _dialogService.ShowOpenFileDialogAsync();
+      var filePath =
+        (await _dialogService.ShowOpenFilesDialogAsync("Open WD Archive", false, ("WD Archive Files", "*.wd")))
+        .FirstOrDefault();
       if (string.IsNullOrEmpty(filePath))
         return;
 
@@ -347,13 +354,16 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     catch (UnauthorizedAccessException ex)
     {
       _logger.LogError(ex, "Access denied when saving archive to {FilePath}", _currentFilePath);
-      _notificationService.ShowError($"Access denied. Cannot save to: {_currentFilePath}\nTry saving to a different location or run as administrator.", ex);
+      _notificationService.ShowError(
+        $"Access denied. Cannot save to: {_currentFilePath}\nTry saving to a different location or run as administrator.",
+        ex);
       StatusMessage = "Failed to save archive - Access denied";
     }
     catch (IOException ex)
     {
       _logger.LogError(ex, "IO error when saving archive to {FilePath}", _currentFilePath);
-      _notificationService.ShowError($"Cannot save archive. The file may be in use by another program.\n\n{ex.Message}", ex);
+      _notificationService.ShowError($"Cannot save archive. The file may be in use by another program.\n\n{ex.Message}",
+        ex);
       StatusMessage = "Failed to save archive - File in use";
     }
     catch (Exception ex)
@@ -378,7 +388,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         ? Path.GetFileName(_currentFilePath)
         : "archive.wd";
 
-      var filePath = await _dialogService.ShowSaveFileDialogAsync(defaultFileName);
+      var filePath =
+        await _dialogService.ShowSaveFileDialogAsync("Save archive", defaultFileName, ("WD Archive Files", "*.wd"));
       if (string.IsNullOrEmpty(filePath))
         return;
 
@@ -407,13 +418,16 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     catch (UnauthorizedAccessException ex)
     {
       _logger.LogError(ex, "Access denied when saving archive to {FilePath}", _currentFilePath);
-      _notificationService.ShowError($"Access denied. Cannot save to this location.\nTry saving to a different location or run as administrator.", ex);
+      _notificationService.ShowError(
+        $"Access denied. Cannot save to this location.\nTry saving to a different location or run as administrator.",
+        ex);
       StatusMessage = "Failed to save archive - Access denied";
     }
     catch (IOException ex)
     {
       _logger.LogError(ex, "IO error when saving archive");
-      _notificationService.ShowError($"Cannot save archive. The file may be in use by another program.\n\n{ex.Message}", ex);
+      _notificationService.ShowError($"Cannot save archive. The file may be in use by another program.\n\n{ex.Message}",
+        ex);
       StatusMessage = "Failed to save archive - File in use";
     }
     catch (Exception ex)
@@ -468,7 +482,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
     try
     {
-      var outputPath = await _dialogService.ShowFolderBrowserDialogAsync();
+      var outputPath = await _dialogService.ShowFolderBrowserDialogAsync("Select Extraction Folder");
       if (string.IsNullOrEmpty(outputPath))
         return;
 
@@ -500,7 +514,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
     try
     {
-      var outputPath = await _dialogService.ShowFolderBrowserDialogAsync();
+      var outputPath = await _dialogService.ShowFolderBrowserDialogAsync("Select Extraction Folder");
       if (string.IsNullOrEmpty(outputPath))
         return;
 
@@ -531,7 +545,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
     try
     {
-      var files = await _dialogService.ShowOpenFilesDialogAsync();
+      var files = (await _dialogService.ShowOpenFilesDialogAsync("Select Files to Add", true)).ToList();
       if (files.Count == 0)
         return;
 
@@ -632,7 +646,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
     try
     {
-      var folderPath = await _dialogService.ShowFolderBrowserDialogAsync();
+      var folderPath = await _dialogService.ShowFolderBrowserDialogAsync("Select Extraction Folder");
       if (string.IsNullOrEmpty(folderPath))
         return;
 
@@ -792,7 +806,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       {
         // Create temp directory structure
         var tempBaseDir = Path.Combine(Path.GetTempPath(), $"EarthToolTemp_{Guid.NewGuid()}");
-        var placeholderPath = Path.Combine(tempBaseDir, placeholderFileName.Replace("/", Path.DirectorySeparatorChar.ToString()));
+        var placeholderPath = Path.Combine(tempBaseDir,
+          placeholderFileName.Replace("/", Path.DirectorySeparatorChar.ToString()));
         var placeholderDir = Path.GetDirectoryName(placeholderPath);
 
         if (!string.IsNullOrEmpty(placeholderDir))
@@ -832,7 +847,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       LoadArchiveItemsPreservingState();
       HasUnsavedChanges = true;
 
-      _notificationService.ShowSuccess($"Created folder '{folderName}' at {(string.IsNullOrEmpty(targetFolder) ? "root" : targetFolder)}");
+      _notificationService.ShowSuccess(
+        $"Created folder '{folderName}' at {(string.IsNullOrEmpty(targetFolder) ? "root" : targetFolder)}");
       StatusMessage = $"Created folder '{folderName}'";
       _logger.LogInformation("Created folder '{FolderName}' at path '{TargetFolder}'", folderName, targetFolder);
     }
@@ -1024,30 +1040,6 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     }
   }
 
-  private async Task ShowAboutAsync()
-  {
-    try
-    {
-      var aboutViewModel = new AboutViewModel();
-      var aboutView = new Views.AboutView
-      {
-        DataContext = aboutViewModel
-      };
-
-      await _dialogService.ShowCustomDialogAsync(
-        aboutView,
-        "About EarthTool",
-        width: 550,
-        height: 550);
-
-      _logger.LogInformation("About dialog shown");
-    }
-    catch (Exception ex)
-    {
-      _logger.LogError(ex, "Failed to show About dialog");
-    }
-  }
-
   private void Exit()
   {
     // In a real application, this would trigger window close
@@ -1140,7 +1132,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       CollectExpandedPaths(rootItem, expandedPaths);
     }
 
-    System.Diagnostics.Debug.WriteLine($"Collected {expandedPaths.Count} expanded paths: {string.Join(", ", expandedPaths)}");
+    System.Diagnostics.Debug.WriteLine(
+      $"Collected {expandedPaths.Count} expanded paths: {string.Join(", ", expandedPaths)}");
     return expandedPaths;
   }
 
@@ -1232,6 +1225,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         return foundInChildren;
       }
     }
+
     return null;
   }
 
@@ -1249,6 +1243,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     {
       return "/"; // Root
     }
+
     return null;
   }
 
@@ -1282,8 +1277,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
           {
             node = new TreeItemViewModel(part, !isFile)
             {
-              FullPath = currentPath,
-              Item = isFile ? archiveItem.Item : null,
+              FullPath = currentPath, Item = isFile ? archiveItem.Item : null,
             };
             root[part] = node;
             TreeItems.Add(node);
@@ -1301,8 +1295,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
           {
             node = new TreeItemViewModel(part, !isFile)
             {
-              FullPath = currentPath,
-              Item = isFile ? archiveItem.Item : null,
+              FullPath = currentPath, Item = isFile ? archiveItem.Item : null,
             };
             currentParent.Children.Add(node);
           }
@@ -1345,11 +1338,11 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     // Update status message based on notification type
     StatusMessage = e.Type switch
     {
-      NotificationType.Error => $"Error: {e.Message}",
+      NotificationType.Error   => $"Error: {e.Message}",
       NotificationType.Warning => $"Warning: {e.Message}",
       NotificationType.Success => e.Message,
-      NotificationType.Info => e.Message,
-      _ => e.Message
+      NotificationType.Info    => e.Message,
+      _                        => e.Message
     };
   }
 

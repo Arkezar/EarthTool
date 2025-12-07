@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace EarthTool.PAR.GUI.Views;
+namespace EarthTool.Common.GUI.Views;
 
 /// <summary>
 /// View for the About dialog.

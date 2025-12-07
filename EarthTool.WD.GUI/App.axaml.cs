@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using EarthTool.Common;
+using EarthTool.Common.GUI;
 using EarthTool.WD;
 using EarthTool.WD.GUI.Services;
 using EarthTool.WD.GUI.ViewModels;
@@ -56,8 +57,7 @@ public partial class App : Application
     services.AddWdServices();
 
     // GUI services
-    services.AddSingleton<IDialogService, DialogService>();
-    services.AddSingleton<INotificationService, NotificationService>();
+    services.AddCommonGuiServices();
     services.AddSingleton<ITextFlagService, TextFlagService>();
 
     // ViewModels

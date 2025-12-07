@@ -5,36 +5,36 @@ using System.Reactive;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace EarthTool.PAR.GUI.ViewModels;
+namespace EarthTool.Common.GUI.ViewModels;
 
 /// <summary>
 /// ViewModel for the About dialog.
 /// </summary>
-public class AboutViewModel : ViewModelBase
+public abstract class AboutViewModel : ViewModelBase
 {
   public AboutViewModel()
   {
     OpenUrlCommand = ReactiveCommand.Create<string>(OpenUrl);
   }
 
-  public string ApplicationName => "EarthTool PAR Editor";
+  public abstract string ApplicationName { get; }
 
   public string Version
   {
     get
     {
       var assembly = Assembly.GetExecutingAssembly();
-      
+
       // Try to get InformationalVersion first (full SemVer from GitVersion)
       var infoVersion = assembly
         .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
         .InformationalVersion;
-      
+
       if (!string.IsNullOrEmpty(infoVersion))
       {
         return infoVersion;
       }
-      
+
       // Fallback to standard version
       var version = assembly.GetName().Version;
       return version?.ToString(3) ?? "0.0.1-dev";
@@ -43,9 +43,9 @@ public class AboutViewModel : ViewModelBase
 
   public string FullVersion => $"Version {Version}";
 
-  public string Description => "A graphical tool for editing Earth 2150 PAR parameter files.";
+  public abstract string Description { get; }
 
-  public string Features => "Edit entities, research, and parameters with an intuitive interface.\nSupports undo/redo, validation, and advanced property editors.";
+  public abstract string Features { get; }
 
   public string Copyright => "© 2025 EarthTool Project";
 

@@ -1,6 +1,9 @@
+using EarthTool.Common.GUI.Enums;
+using EarthTool.Common.GUI.ViewModels;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace EarthTool.PAR.GUI.Services;
+namespace EarthTool.Common.GUI.Interfaces;
 
 /// <summary>
 /// Service for displaying file dialogs and user interactions.
@@ -11,22 +14,23 @@ public interface IDialogService
   /// Shows a folder browser dialog for selecting the game data directory.
   /// </summary>
   /// <returns>The selected folder path, or null if cancelled.</returns>
-  Task<string?> ShowFolderBrowserDialogAsync();
+  Task<string?> ShowFolderBrowserDialogAsync(string title);
 
   /// <summary>
   /// Shows an open file dialog.
   /// </summary>
   /// <param name="title">Dialog title.</param>
+  /// <param name="allowMultiple"></param>
   /// <param name="filters">File type filters (DisplayName, Pattern).</param>
   /// <returns>The selected file path, or null if cancelled.</returns>
-  Task<string?> ShowOpenFileDialogAsync(string title = "Open File", params (string DisplayName, string Pattern)[] filters);
+  Task<IEnumerable<string?>>  ShowOpenFilesDialogAsync(string title = "Open File", bool allowMultiple = false, params (string DisplayName, string Pattern)[] filters);
 
   /// <summary>
   /// Shows a save file dialog for extracting a file.
   /// </summary>
   /// <param name="defaultFileName">Default file name to suggest.</param>
   /// <returns>The selected file path, or null if cancelled.</returns>
-  Task<string?> ShowSaveFileDialogAsync(string? defaultFileName = null);
+  Task<string?> ShowSaveFileDialogAsync(string title, string defaultFileName, params (string DisplayName, string Pattern)[] fileTypes);
 
   /// <summary>
   /// Shows a message box with the specified message and title.
@@ -46,26 +50,9 @@ public interface IDialogService
   /// <param name="height">The height of the dialog.</param>
   /// <returns>A task representing the asynchronous operation.</returns>
   Task ShowCustomDialogAsync(object content, string title, double width = 500, double height = 450);
-}
 
-/// <summary>
-/// Type of message box to display.
-/// </summary>
-public enum MessageBoxType
-{
-  Ok,
-  OkCancel,
-  YesNo,
-  YesNoCancel
-}
+  Task ShowAboutAsync<TViewModel>(TViewModel viewModel)
+    where TViewModel : AboutViewModel;
 
-/// <summary>
-/// Result of a message box interaction.
-/// </summary>
-public enum MessageBoxResult
-{
-  Ok,
-  Cancel,
-  Yes,
-  No
+  Task<string?> ShowInputDialogAsync(string message, string title, string? defaultValue = null);
 }
