@@ -22,7 +22,7 @@ public class EntityDetailsViewModel : ViewModelBase
   private readonly IEntityValidationService _validationService;
   private readonly ILogger<EntityDetailsViewModel> _logger;
   private EditableEntity? _currentEntity;
-  private Research? _currentResearch;
+  private EditableResearch? _currentResearch;
   private string _entityName = string.Empty;
   private ParFile? _parFile;
   private Action<string>? _navigateToResearch;
@@ -61,7 +61,7 @@ public class EntityDetailsViewModel : ViewModelBase
   /// <summary>
   /// Gets or sets the current research being edited.
   /// </summary>
-  public Research? CurrentResearch
+  public EditableResearch? CurrentResearch
   {
     get => _currentResearch;
     set
@@ -128,18 +128,23 @@ public class EntityDetailsViewModel : ViewModelBase
         _currentEntity.Entity.Name = value;
         _currentEntity.MarkDirty();
       }
+      else if (_currentResearch != null)
+      {
+        _currentResearch.Research.Name = value;
+        _currentResearch.MarkDirty();
+      }
     }
   }
 
   /// <summary>
   /// Gets the entity type display name.
   /// </summary>
-  public string EntityType => _currentEntity?.TypeName ?? _currentResearch?.Type.ToString() ?? string.Empty;
+  public string EntityType => _currentEntity?.TypeName ?? _currentResearch?.Research.Type.ToString() ?? string.Empty;
 
   /// <summary>
   /// Gets the entity class type display.
   /// </summary>
-  public string ClassType => _currentEntity?.ClassType.ToString() ?? _currentResearch?.Faction.ToString() ?? string.Empty;
+  public string ClassType => _currentEntity?.ClassType.ToString() ?? _currentResearch?.Research.Faction.ToString() ?? string.Empty;
 
   /// <summary>
   /// Gets the collection of property groups.
@@ -167,18 +172,28 @@ public class EntityDetailsViewModel : ViewModelBase
 
   private void InitializeCommands()
   {
-    var hasEntity = this.WhenAnyValue(x => x.CurrentEntity).Select(entity => entity != null);
+    var hasEntityOrResearch = this.WhenAnyValue(
+      x => x.CurrentEntity, 
+      x => x.CurrentResearch,
+      (entity, research) => entity != null || research != null);
     
-    // Create an observable that monitors IsDirty changes on the CurrentEntity
-    var isDirty = this.WhenAnyValue(x => x.CurrentEntity)
-      .Select(entity => entity != null 
-        ? entity.WhenAnyValue(e => e.IsDirty).StartWith(entity.IsDirty)
-        : Observable.Return(false))
-      .Switch();
+    // Create an observable that monitors IsDirty changes on CurrentEntity or CurrentResearch
+    var isDirty = Observable.CombineLatest(
+      this.WhenAnyValue(x => x.CurrentEntity)
+        .Select(entity => entity != null 
+          ? entity.WhenAnyValue(e => e.IsDirty).StartWith(entity.IsDirty)
+          : Observable.Return(false))
+        .Switch(),
+      this.WhenAnyValue(x => x.CurrentResearch)
+        .Select(research => research != null 
+          ? research.WhenAnyValue(r => r.IsDirty).StartWith(research.IsDirty)
+          : Observable.Return(false))
+        .Switch(),
+      (entityDirty, researchDirty) => entityDirty || researchDirty);
 
     RevertChangesCommand = ReactiveCommand.Create(RevertChanges, isDirty);
     ApplyChangesCommand = ReactiveCommand.Create(ApplyChanges, isDirty);
-    ValidateCommand = ReactiveCommand.Create(Validate, hasEntity);
+    ValidateCommand = ReactiveCommand.Create(Validate, hasEntityOrResearch);
   }
 
   private void LoadEntityOrResearch()
@@ -213,7 +228,7 @@ public class EntityDetailsViewModel : ViewModelBase
       return Enumerable.Empty<PropertyGroupViewModel>();
 
     // Group properties by declaring type using reflection
-    var researchType = _currentResearch.GetType();
+    var researchType = _currentResearch.Research.GetType();
     var propertiesByType = new Dictionary<Type, List<PropertyEditorViewModel>>();
 
     foreach (var editor in editors)
@@ -301,13 +316,17 @@ public class EntityDetailsViewModel : ViewModelBase
     PropertyGroups.Clear();
     ValidationErrors.Clear();
     
-    _entityName = _currentResearch!.Name;
+    _entityName = _currentResearch!.Research.Name;
     this.RaisePropertyChanged(nameof(EntityName));
     this.RaisePropertyChanged(nameof(EntityType));
     this.RaisePropertyChanged(nameof(ClassType));
 
-    // Create property editors for Research
-    var editors = _propertyEditorFactory.CreateEditorsForResearch(_currentResearch, null, _parFile, _navigateToResearch);
+    // Create property editors for Research with callback to mark as dirty
+    var editors = _propertyEditorFactory.CreateEditorsForResearch(
+      _currentResearch.Research, 
+      () => _currentResearch.MarkDirty(), 
+      _parFile, 
+      _navigateToResearch);
     var groupedEditors = GroupResearchProperties(editors);
 
     foreach (var group in groupedEditors)
@@ -319,7 +338,7 @@ public class EntityDetailsViewModel : ViewModelBase
     Validate();
 
     _logger.LogInformation("Loaded research details for '{Name}' ({Type}) with {PropertyCount} properties",
-      _currentResearch.Name, _currentResearch.Type, editors.Count());
+      _currentResearch.Research.Name, _currentResearch.Research.Type, editors.Count());
   }
   
   private IEnumerable<PropertyGroupViewModel> GroupProperties(IEnumerable<PropertyEditorViewModel> editors)
@@ -409,21 +428,32 @@ public class EntityDetailsViewModel : ViewModelBase
 
   private void RevertChanges()
   {
-    if (_currentEntity == null)
-      return;
-
-    _currentEntity.RevertChanges();
-    LoadEntity(); // Reload to refresh all editors
-    _logger.LogInformation("Reverted changes for entity '{Name}'", _currentEntity.DisplayName);
+    if (_currentEntity != null)
+    {
+      _currentEntity.RevertChanges();
+      LoadEntity(); // Reload to refresh all editors
+      _logger.LogInformation("Reverted changes for entity '{Name}'", _currentEntity.DisplayName);
+    }
+    else if (_currentResearch != null)
+    {
+      _currentResearch.RevertChanges();
+      LoadResearch(); // Reload to refresh all editors
+      _logger.LogInformation("Reverted changes for research '{Name}'", _currentResearch.DisplayName);
+    }
   }
 
   private void ApplyChanges()
   {
-    if (_currentEntity == null)
-      return;
-
-    _currentEntity.AcceptChanges();
-    _logger.LogInformation("Applied changes for entity '{Name}'", _currentEntity.DisplayName);
+    if (_currentEntity != null)
+    {
+      _currentEntity.AcceptChanges();
+      _logger.LogInformation("Applied changes for entity '{Name}'", _currentEntity.DisplayName);
+    }
+    else if (_currentResearch != null)
+    {
+      _currentResearch.AcceptChanges();
+      _logger.LogInformation("Applied changes for research '{Name}'", _currentResearch.DisplayName);
+    }
   }
 
   private void Validate()

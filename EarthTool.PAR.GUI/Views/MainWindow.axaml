@@ -238,6 +238,10 @@
                     <TextBlock Text="{Binding Name}"
                                TextTrimming="CharacterEllipsis"
                                ToolTip.Tip="{Binding Name}" />
+                    <TextBlock Text="●" 
+                               Foreground="Orange" 
+                               FontSize="{StaticResource FontSize.Badge}"
+                               IsVisible="{Binding IsDirty}" />
                   </StackPanel>
                 </DataTemplate>
                 

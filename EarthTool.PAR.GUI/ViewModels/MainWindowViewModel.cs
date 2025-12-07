@@ -118,7 +118,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
       else if (value is ResearchViewModel researchItem)
       {
         _entityDetailsViewModel.CurrentEntity = null;
-        _entityDetailsViewModel.CurrentResearch = researchItem?.Research;
+        _entityDetailsViewModel.CurrentResearch = researchItem?.EditableResearch;
       }
       else
       {
@@ -622,6 +622,11 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
         foreach (var research in sortedResearch)
         {
           var researchVm = new ResearchViewModel(research);
+          
+          // Subscribe to IsDirty changes for each research
+          researchVm.EditableResearch.WhenAnyValue(r => r.IsDirty)
+            .Subscribe(_ => UpdateHasUnsavedChanges());
+          
           researchTypeNode.ResearchItems.Add(researchVm);
         }
 
@@ -654,44 +659,63 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
   {
     // Check if any entity has unsaved changes
     var entityGroupsRoot = RootNodes.OfType<EntityGroupsRootNodeViewModel>().FirstOrDefault();
-    if (entityGroupsRoot == null)
-    {
-      HasUnsavedChanges = false;
-      return;
-    }
-
-    var hasAnyDirtyEntity = entityGroupsRoot.Factions
+    var hasAnyDirtyEntity = entityGroupsRoot?.Factions
       .SelectMany(f => f.GroupTypes)
       .SelectMany(gt => gt.EntityGroups)
       .SelectMany(eg => eg.Entities)
-      .Any(e => e.IsDirty);
+      .Any(e => e.IsDirty) ?? false;
 
-    HasUnsavedChanges = hasAnyDirtyEntity;
+    // Check if any research has unsaved changes
+    var researchRoot = RootNodes.OfType<ResearchRootNodeViewModel>().FirstOrDefault();
+    var hasAnyDirtyResearch = researchRoot?.Factions
+      .SelectMany(f => f.ResearchTypes)
+      .SelectMany(t => t.ResearchItems)
+      .Any(r => r.IsDirty) ?? false;
+
+    HasUnsavedChanges = hasAnyDirtyEntity || hasAnyDirtyResearch;
   }
 
   private void AcceptAllEntityChanges()
   {
     // Accept changes on all entities to clear dirty flags and update baseline
     var entityGroupsRoot = RootNodes.OfType<EntityGroupsRootNodeViewModel>().FirstOrDefault();
-    if (entityGroupsRoot == null)
-      return;
-
-    var allEntities = entityGroupsRoot.Factions
-      .SelectMany(f => f.GroupTypes)
-      .SelectMany(gt => gt.EntityGroups)
-      .SelectMany(eg => eg.Entities)
-      .Select(e => e.EditableEntity);
-
-    foreach (var entity in allEntities)
+    if (entityGroupsRoot != null)
     {
-      if (entity.IsDirty)
+      var allEntities = entityGroupsRoot.Factions
+        .SelectMany(f => f.GroupTypes)
+        .SelectMany(gt => gt.EntityGroups)
+        .SelectMany(eg => eg.Entities)
+        .Select(e => e.EditableEntity);
+
+      foreach (var entity in allEntities)
       {
-        entity.AcceptChanges();
-        _logger.LogDebug("Accepted changes for entity '{Name}'", entity.DisplayName);
+        if (entity.IsDirty)
+        {
+          entity.AcceptChanges();
+          _logger.LogDebug("Accepted changes for entity '{Name}'", entity.DisplayName);
+        }
       }
     }
 
-    _logger.LogInformation("Accepted changes for all modified entities");
+    // Accept changes on all research to clear dirty flags and update baseline
+    var researchRoot = RootNodes.OfType<ResearchRootNodeViewModel>().FirstOrDefault();
+    if (researchRoot != null)
+    {
+      var allResearch = researchRoot.Factions
+        .SelectMany(f => f.ResearchTypes)
+        .SelectMany(t => t.ResearchItems);
+
+      foreach (var research in allResearch)
+      {
+        if (research.IsDirty)
+        {
+          research.EditableResearch.AcceptChanges();
+          _logger.LogDebug("Accepted changes for research '{Name}'", research.DisplayName);
+        }
+      }
+    }
+
+    _logger.LogInformation("Accepted changes for all modified entities and research");
   }
 
   private async Task<bool> PromptSaveChangesAsync()
