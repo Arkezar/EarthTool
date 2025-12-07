@@ -38,7 +38,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
   }
 
   /// <inheritdoc/>
-  public IEnumerable<PropertyEditorViewModel> CreateEditorsForEntity(Entity entity, Action? onPropertyChanged = null)
+  public IEnumerable<PropertyEditorViewModel> CreateEditorsForEntity(Entity entity, Action? onPropertyChanged = null, ParFile? parFile = null)
   {
     if (entity == null)
       throw new ArgumentNullException(nameof(entity));
@@ -53,7 +53,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
 
     foreach (var property in properties)
     {
-      var editor = CreateEditorForProperty(entity, property, onPropertyChanged);
+      var editor = CreateEditorForProperty(entity, property, onPropertyChanged, parFile);
       if (editor != null)
       {
         editors.Add(editor);
@@ -66,7 +66,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
     return editors;
   }
 
-  public IEnumerable<PropertyEditorViewModel> CreateEditorsForResearch(Research entity, Action? onPropertyChanged = null)
+  public IEnumerable<PropertyEditorViewModel> CreateEditorsForResearch(Research entity, Action? onPropertyChanged = null, ParFile? parFile = null)
   {
     if (entity == null)
       throw new ArgumentNullException(nameof(entity));
@@ -81,7 +81,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
     
     foreach (var property in properties)
     {
-      var editor = CreateEditorForProperty(entity, property, onPropertyChanged);
+      var editor = CreateEditorForProperty(entity, property, onPropertyChanged, parFile);
       if (editor != null)
       {
         editors.Add(editor);
@@ -129,7 +129,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
      */
   }
 
-  private PropertyEditorViewModel? CreateEditorForProperty(object entity, PropertyInfo property, Action? onPropertyChanged = null)
+  private PropertyEditorViewModel? CreateEditorForProperty(object entity, PropertyInfo property, Action? onPropertyChanged = null, ParFile? parFile = null)
   {
     if (entity == null || property == null)
       return null;
@@ -229,24 +229,50 @@ public class PropertyEditorFactory : IPropertyEditorFactory
     }
     else if (IsIntCollectionType(propertyType))
     {
-      var collectionEditor = new IntCollectionPropertyEditorViewModel(_undoRedoService)
+      // Special handling for RequiredResearch property
+      if (property.Name == "RequiredResearch" && parFile != null)
       {
-        Value = propertyValue
-      };
-      
-      // Subscribe to value changes to update the entity
-      collectionEditor.WhenAnyValue(x => x.Value)
-        .Skip(1) // Skip initial value
-        .Subscribe(newValue =>
+        var researchEditor = new ResearchReferenceCollectionEditorViewModel(_undoRedoService)
         {
-          if (newValue != null)
+          Value = propertyValue,
+          ParFileContext = parFile
+        };
+        
+        // Subscribe to value changes to update the entity
+        researchEditor.WhenAnyValue(x => x.Value)
+          .Skip(1) // Skip initial value
+          .Subscribe(newValue =>
           {
-            property.SetValue(entity, newValue);
-            onPropertyChanged?.Invoke();
-          }
-        });
-      
-      editor = collectionEditor;
+            if (newValue != null)
+            {
+              property.SetValue(entity, newValue);
+              onPropertyChanged?.Invoke();
+            }
+          });
+        
+        editor = researchEditor;
+      }
+      else
+      {
+        var collectionEditor = new IntCollectionPropertyEditorViewModel(_undoRedoService)
+        {
+          Value = propertyValue
+        };
+        
+        // Subscribe to value changes to update the entity
+        collectionEditor.WhenAnyValue(x => x.Value)
+          .Skip(1) // Skip initial value
+          .Subscribe(newValue =>
+          {
+            if (newValue != null)
+            {
+              property.SetValue(entity, newValue);
+              onPropertyChanged?.Invoke();
+            }
+          });
+        
+        editor = collectionEditor;
+      }
     }
     else
     {

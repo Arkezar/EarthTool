@@ -24,6 +24,7 @@ public class EntityDetailsViewModel : ViewModelBase
   private EditableEntity? _currentEntity;
   private Research? _currentResearch;
   private string _entityName = string.Empty;
+  private ParFile? _parFile;
 
   public EntityDetailsViewModel(
     IPropertyEditorFactory propertyEditorFactory,
@@ -69,6 +70,27 @@ public class EntityDetailsViewModel : ViewModelBase
       _currentResearch = value;
       this.RaisePropertyChanged();
       LoadEntityOrResearch();
+    }
+  }
+
+  /// <summary>
+  /// Gets or sets the ParFile context for research lookups.
+  /// </summary>
+  public ParFile? ParFile
+  {
+    get => _parFile;
+    set
+    {
+      if (_parFile == value) return;
+      
+      _parFile = value;
+      this.RaisePropertyChanged();
+      
+      // Reload if we have an active entity/research
+      if (_currentEntity != null || _currentResearch != null)
+      {
+        LoadEntityOrResearch();
+      }
     }
   }
 
@@ -240,7 +262,8 @@ public class EntityDetailsViewModel : ViewModelBase
     // Create property editors with callback to mark entity as dirty
     var editors = _propertyEditorFactory.CreateEditorsForEntity(
       _currentEntity.Entity, 
-      () => _currentEntity.MarkDirty());
+      () => _currentEntity.MarkDirty(),
+      _parFile);
     var groupedEditors = GroupProperties(editors);
 
     foreach (var group in groupedEditors)
@@ -267,7 +290,7 @@ public class EntityDetailsViewModel : ViewModelBase
     this.RaisePropertyChanged(nameof(ClassType));
 
     // Create property editors for Research
-    var editors = _propertyEditorFactory.CreateEditorsForResearch(_currentResearch);
+    var editors = _propertyEditorFactory.CreateEditorsForResearch(_currentResearch, null, _parFile);
     var groupedEditors = GroupResearchProperties(editors);
 
     foreach (var group in groupedEditors)
@@ -350,7 +373,7 @@ public class EntityDetailsViewModel : ViewModelBase
     var name = type.Name;
     
     // Remove "Entity" suffix if present
-    if (name.EndsWith("Entity"))
+    if (name.EndsWith("Entity") && !name.Equals("Entity"))
     {
       name = name.Substring(0, name.Length - 6);
     }

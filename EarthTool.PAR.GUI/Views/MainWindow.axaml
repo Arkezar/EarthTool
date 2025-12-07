@@ -545,6 +545,53 @@
                                           </ItemsControl>
                                         </DataTemplate>
                                         
+                                        <!-- ResearchReferenceCollectionEditor Template -->
+                                        <DataTemplate DataType="vm:ResearchReferenceCollectionEditorViewModel">
+                                          <StackPanel Spacing="4">
+                                            <!-- Selected Research Summary -->
+                                            <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                                                    CornerRadius="3"
+                                                    Padding="8,4"
+                                                    IsVisible="{Binding SelectedResearch.Count}">
+                                              <StackPanel Spacing="2">
+                                                <TextBlock Text="Selected Research:" 
+                                                           FontWeight="SemiBold"
+                                                           FontSize="11" />
+                                                <ItemsControl ItemsSource="{Binding SelectedResearch}">
+                                                  <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                      <TextBlock Text="{Binding DisplayText}" 
+                                                                 FontSize="11"
+                                                                 Margin="4,0,0,0" />
+                                                    </DataTemplate>
+                                                  </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                              </StackPanel>
+                                            </Border>
+                                            
+                                            <!-- Research Selector -->
+                                            <Expander Header="Select Research" IsExpanded="False">
+                                              <ScrollViewer MaxHeight="200" 
+                                                            VerticalScrollBarVisibility="Auto">
+                                                <ItemsControl ItemsSource="{Binding AvailableResearch}">
+                                                  <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                      <CheckBox Content="{Binding DisplayText}"
+                                                                IsChecked="{Binding IsSelected}"
+                                                                Margin="0,2"
+                                                                FontSize="{StaticResource FontSize.PropertyValue}">
+                                                        <ToolTip.Tip>
+                                                          <TextBlock Text="{Binding ToolTipText}" />
+                                                        </ToolTip.Tip>
+                                                      </CheckBox>
+                                                    </DataTemplate>
+                                                  </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                              </ScrollViewer>
+                                            </Expander>
+                                          </StackPanel>
+                                        </DataTemplate>
+                                        
                                         <!-- IntCollectionPropertyEditor Template -->
                                         <DataTemplate DataType="vm:IntCollectionPropertyEditorViewModel">
                                           <TextBox Text="{Binding StringValue}"

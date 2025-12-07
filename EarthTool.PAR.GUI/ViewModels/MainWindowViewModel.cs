@@ -633,6 +633,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
     RootNodes.Add(researchRoot);
 
+    // Set ParFile context in EntityDetailsViewModel for research lookups
+    _entityDetailsViewModel.ParFile = _currentParFile;
+
     this.RaisePropertyChanged(nameof(IsFileOpen));
     _logger.LogDebug("Loaded PAR file: {EntityGroupCount} entity groups, {ResearchCount} research",
       entityGroupsRoot.ChildCount, researchRoot.ChildCount);
