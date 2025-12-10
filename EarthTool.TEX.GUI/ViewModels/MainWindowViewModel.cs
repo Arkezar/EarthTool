@@ -30,11 +30,21 @@ public class MainWindowViewModel : ViewModelBase
   private          Bitmap?                      _selectedImage;
   private          ObservableCollection<string> _texFiles         = new();
   private          int                          _currentFileIndex = -1;
+  private          string                       _headerInfo       = string.Empty;
 
   /// <summary>
   /// Gets the current file path.
   /// </summary>
   public string? CurrentFilePath => _currentFilePath;
+
+  /// <summary>
+  /// Gets the header information as formatted text.
+  /// </summary>
+  public string HeaderInfo
+  {
+    get => _headerInfo;
+    private set => this.RaiseAndSetIfChanged(ref _headerInfo, value);
+  }
 
   /// <summary>
   /// Gets the current folder path.
@@ -279,6 +289,7 @@ public class MainWindowViewModel : ViewModelBase
       _currentTexFile = _reader.Read(_currentFilePath);
 
       LoadImages();
+      UpdateHeaderInfo();
 
       this.RaisePropertyChanged(nameof(CurrentFilePath));
       _notificationService.ShowSuccess($"Opened {System.IO.Path.GetFileName(filePath)}");
@@ -288,6 +299,83 @@ public class MainWindowViewModel : ViewModelBase
       _logger.LogError(ex, "Failed to load TEX file: {FilePath}", filePath);
       _notificationService.ShowError($"Failed to load {System.IO.Path.GetFileName(filePath)}", ex);
     }
+  }
+
+  private void UpdateHeaderInfo()
+  {
+    if (_currentTexFile?.Header == null)
+    {
+      HeaderInfo = "No file loaded";
+      return;
+    }
+
+    var header = _currentTexFile.Header;
+    var info = new System.Text.StringBuilder();
+    
+    info.AppendLine($"Flags: 0x{(uint)header.Flags:X8}");
+    info.AppendLine();
+    
+    // Flag details
+    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_RGBA32))
+      info.AppendLine("  • RGBA32 Format");
+    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_LOD))
+      info.AppendLine("  • LOD Support");
+    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_STANDARD))
+      info.AppendLine("  • Standard Texture");
+    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_SIDES))
+      info.AppendLine("  • Multi-sided");
+    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_ANIMATED))
+      info.AppendLine("  • Animated");
+    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_RGBA))
+      info.AppendLine("  • RGBA 4-channel");
+    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_SPECIAL))
+      info.AppendLine("  • Special Texture");
+    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_MIPMAP))
+      info.AppendLine("  • Mipmap Present");
+    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_CURSOR))
+      info.AppendLine("  • Cursor Definition");
+    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_SIDECOLOR))
+      info.AppendLine("  • Side Color");
+    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_DESTROYED))
+      info.AppendLine("  • Destroyed States");
+    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_CONTAINER))
+      info.AppendLine("  • Container");
+    
+    info.AppendLine();
+    
+    if (header.Width > 0 || header.Height > 0)
+    {
+      info.AppendLine($"Dimensions: {header.Width} x {header.Height}");
+    }
+    
+    if (header.SlideCount > 1)
+    {
+      info.AppendLine($"Slide Count: {header.SlideCount}");
+    }
+    
+    if (header.DestroyedCount > 1)
+    {
+      info.AppendLine($"Destroyed Count: {header.DestroyedCount}");
+    }
+    
+    if (header.LodCount > 0)
+    {
+      info.AppendLine($"LOD Levels: {header.LodCount}");
+    }
+    
+    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_CURSOR))
+    {
+      info.AppendLine($"Cursor: ({header.CursorX}, {header.CursorY})");
+      info.AppendLine($"Animation Type: {header.CursorAnimationType}");
+      info.AppendLine($"Frame Time: {header.CursorFrameTime}");
+    }
+    
+    if (header.Magic > 0)
+    {
+      info.AppendLine($"Magic: 0x{header.Magic:X4}");
+    }
+    
+    HeaderInfo = info.ToString();
   }
 
   private void LoadPreviousFile()

@@ -110,6 +110,25 @@
               BorderThickness="0,0,1,0"
               Padding="4">
         <DockPanel>
+          <!-- Header Info Panel -->
+          <Expander DockPanel.Dock="Top"
+                    Header="File Header"
+                    IsExpanded="True"
+                    Margin="4">
+            <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                    BorderThickness="1"
+                    Padding="8"
+                    Margin="4">
+              <ScrollViewer MaxHeight="300"
+                            VerticalScrollBarVisibility="Auto">
+                <TextBlock Text="{Binding HeaderInfo}"
+                           FontFamily="Consolas,Courier New,monospace"
+                           FontSize="11"
+                           TextWrapping="Wrap"/>
+              </ScrollViewer>
+            </Border>
+          </Expander>
           <TextBlock DockPanel.Dock="Top" 
                      Text="Images" 
                      FontWeight="Bold" 
@@ -132,15 +151,17 @@
         </DockPanel>
       </Border>
 
-      <!-- Right Panel - Image Viewer -->
-      <Border Grid.Column="2" 
-              Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
-              Padding="8">
-        <Viewbox Stretch="Uniform">
-          <Image Source="{Binding SelectedImage}"
-                 RenderOptions.BitmapInterpolationMode="HighQuality"/>
-        </Viewbox>
-      </Border>
+      <!-- Right Panel - Image Viewer with Header Info -->
+      <DockPanel Grid.Column="2">
+        <!-- Image Viewer -->
+        <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                Padding="8">
+          <Viewbox Stretch="Uniform">
+            <Image Source="{Binding SelectedImage}"
+                   RenderOptions.BitmapInterpolationMode="HighQuality"/>
+          </Viewbox>
+        </Border>
+      </DockPanel>
     </Grid>
   </DockPanel>
 </Window>
