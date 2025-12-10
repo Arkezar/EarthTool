@@ -43,14 +43,14 @@ public class DialogService : IDialogService
     if (window == null) return null;
 
     var fileTypeChoices = filters.Length > 0
-      ? filters.Select(f => new FilePickerFileType(f.DisplayName) { Patterns = new[] { f.Pattern } }).ToList()
+      ? filters.Select(f => new FilePickerFileType(f.DisplayName) { Patterns = new[] { f.Pattern, f.Pattern.ToUpper() } }).ToList()
       : new[] { new FilePickerFileType("All Files") { Patterns = new[] { "*.*" } } }.ToList();
 
     var files = await window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
     {
       Title = title,
       AllowMultiple = allowMultiple,
-      FileTypeFilter = fileTypeChoices
+      FileTypeFilter = fileTypeChoices,
     });
 
     return files.Select(f=> f.Path.LocalPath);

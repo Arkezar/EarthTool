@@ -22,28 +22,19 @@ namespace EarthTool.TEX
     {
       var images = new List<List<TexImage>>();
       IsValidModel(reader);
-      var header = new TexHeader(reader);
-      if (header.SubType.HasFlag(TextureSubType.Grouped) ||
-          header.SubType.HasFlag(TextureSubType.Collection) ||
-          header.SubType.HasFlag(TextureSubType.Sides))
+      Header = new TexHeader(reader);
+      if (Header.Flags.HasFlag(TexFlags.TEX_FLAG_CONTAINER) || Header.Flags.HasFlag(TexFlags.TEX_FLAG_DESTROYED) || Header.Flags.HasFlag(TexFlags.TEX_FLAG_SIDECOLOR))
       {
-        Header = header;
-
-        var group = new List<List<TexImage>>();
-        for (int i = 0; i < Math.Max(header.GroupCount, 1); i++)
+        for(var i = 0; i < Header.SlideCount * Header.DestroyedCount; i++)
         {
-          var groupImages = new List<TexImage>();
-          for (int j = 0; j < Math.Max(header.ElementCount, 1); j++)
-          {
-            groupImages.AddRange(Read(reader).SelectMany(i => i));
-          }
-          group.Add(groupImages);
+          IsValidModel(reader);
+          var slideHeader = new TexHeader(reader);
+          images.Add(new List<TexImage>() {new TexImage(slideHeader, reader)});
         }
-        images.AddRange(group);
       }
       else
       {
-        images.Add(new List<TexImage>() { new TexImage(header, reader) });
+        images.Add(new List<TexImage>() {new TexImage(Header, reader)});
       }
 
       return images;

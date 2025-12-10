@@ -40,6 +40,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EarthTool.PAR.GUI", "EarthT
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EarthTool.Common.GUI", "EarthTool.Common.GUI\EarthTool.Common.GUI.csproj", "{9D69B5EE-7C30-4D1B-8970-746DAF2C65F8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EarthTool.TEX.GUI", "EarthTool.TEX.GUI\EarthTool.TEX.GUI.csproj", "{451235F7-0C1F-49ED-B83A-F6AF2000AB1A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -106,6 +108,10 @@ Global
 		{9D69B5EE-7C30-4D1B-8970-746DAF2C65F8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9D69B5EE-7C30-4D1B-8970-746DAF2C65F8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9D69B5EE-7C30-4D1B-8970-746DAF2C65F8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{451235F7-0C1F-49ED-B83A-F6AF2000AB1A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{451235F7-0C1F-49ED-B83A-F6AF2000AB1A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{451235F7-0C1F-49ED-B83A-F6AF2000AB1A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{451235F7-0C1F-49ED-B83A-F6AF2000AB1A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
