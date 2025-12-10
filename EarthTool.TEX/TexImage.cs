@@ -1,10 +1,6 @@
-using EarthTool.Common;
 using SkiaSharp;
-using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Security.Cryptography;
 
 namespace EarthTool.TEX
 {
@@ -44,22 +40,8 @@ namespace EarthTool.TEX
         images.Add(image);
         width /= 2;
         height /= 2;
-      } while ((width > 0 || height > 0) && HasMoreMaps(reader) && reader.BaseStream.Position < reader.BaseStream.Length);
+      } while (images.Count < Header.LodCount);
       return images;
-    }
-
-    private bool HasMoreMaps(BinaryReader reader)
-    {
-      byte[] buffer = Array.Empty<byte>();
-      try
-      {
-        buffer = reader.ReadBytes(Identifiers.Texture.Length);
-        return !buffer.SequenceEqual(Identifiers.Texture);
-      }
-      finally
-      {
-        reader.BaseStream.Seek(-buffer.Length, SeekOrigin.Current);
-      }
     }
   }
 }

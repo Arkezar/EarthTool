@@ -11,7 +11,7 @@
         Title="EarthTool.TEX.GUI">
 
   <Window.Resources>
-    <converters:FileNameConverter x:Key="FileNameConverter"/>
+    <converters:FileNameConverter x:Key="FileNameConverter" />
   </Window.Resources>
 
   <Design.DataContext>
@@ -45,11 +45,11 @@
         <Button Command="{Binding OpenFolderCommand}" ToolTip.Tip="Open Folder (Ctrl+Shift+O)">
           <TextBlock Text="📁" FontSize="{StaticResource FontSize.Icon}" />
         </Button>
-        <Separator/>
+        <Separator />
         <Button Command="{Binding PreviousFileCommand}" ToolTip.Tip="Previous File">
           <TextBlock Text="◀" FontSize="{StaticResource FontSize.Icon}" />
         </Button>
-        <TextBlock VerticalAlignment="Center" Text="{Binding CurrentFileName}" FontWeight="Bold"/>
+        <TextBlock VerticalAlignment="Center" Text="{Binding CurrentFileName}" FontWeight="Bold" />
         <Button Command="{Binding NextFileCommand}" ToolTip.Tip="Next File">
           <TextBlock Text="▶" FontSize="{StaticResource FontSize.Icon}" />
         </Button>
@@ -63,14 +63,14 @@
             BorderThickness="0,1,0,0"
             Padding="8,4">
       <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Grid.Column="0" 
-                   Text="{Binding CurrentFilePath}" 
-                   VerticalAlignment="Center"/>
-        <TextBlock Grid.Column="1" 
+        <TextBlock Grid.Column="0"
+                   Text="{Binding CurrentFilePath}"
+                   VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1"
                    VerticalAlignment="Center"
                    Margin="8,0,0,0">
-          <Run Text="Images: "/>
-          <Run Text="{Binding Images.Count}"/>
+          <Run Text="Images: " />
+          <Run Text="{Binding Images.Count}" />
         </TextBlock>
       </Grid>
     </Border>
@@ -83,21 +83,41 @@
               BorderThickness="0,0,1,0"
               Padding="4">
         <DockPanel>
-          <TextBlock DockPanel.Dock="Top" 
-                     Text="Files" 
-                     FontWeight="Bold" 
-                     Margin="4,4,4,8"/>
+          <!-- Header Info Panel -->
+          <Expander DockPanel.Dock="Top"
+                    Header="File Header"
+                    IsExpanded="True"
+                    Margin="4"
+                    HorizontalAlignment="Stretch">
+            <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                    BorderThickness="1"
+                    Padding="8"
+                    Margin="4">
+              <ScrollViewer MaxHeight="300"
+                            VerticalScrollBarVisibility="Auto">
+                <TextBlock Text="{Binding HeaderInfo}"
+                           FontFamily="Consolas,Courier New,monospace"
+                           FontSize="11"
+                           TextWrapping="Wrap" />
+              </ScrollViewer>
+            </Border>
+          </Expander>
+          <TextBlock DockPanel.Dock="Top"
+                     Text="Files"
+                     FontWeight="Bold"
+                     Margin="4,4,4,8" />
           <TextBlock DockPanel.Dock="Top"
                      Text="{Binding CurrentFolderPath}"
                      FontSize="10"
                      Foreground="Gray"
                      Margin="4,0,4,8"
-                     TextWrapping="Wrap"/>
+                     TextWrapping="Wrap" />
           <ListBox ItemsSource="{Binding TexFiles}"
                    SelectedIndex="{Binding CurrentFileIndex}">
             <ListBox.ItemTemplate>
               <DataTemplate>
-                <TextBlock Text="{Binding Converter={StaticResource FileNameConverter}}"/>
+                <TextBlock Text="{Binding Converter={StaticResource FileNameConverter}}" />
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
@@ -110,40 +130,42 @@
               BorderThickness="0,0,1,0"
               Padding="4">
         <DockPanel>
-          <!-- Header Info Panel -->
+          <!-- Selected Image Header Info -->
           <Expander DockPanel.Dock="Top"
-                    Header="File Header"
+                    Header="Image Header"
                     IsExpanded="True"
-                    Margin="4">
+                    Margin="4"
+                    HorizontalAlignment="Stretch">
             <Border Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
                     BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
                     BorderThickness="1"
                     Padding="8"
                     Margin="4">
-              <ScrollViewer MaxHeight="300"
+              <ScrollViewer MaxHeight="250"
                             VerticalScrollBarVisibility="Auto">
-                <TextBlock Text="{Binding HeaderInfo}"
+                <TextBlock Text="{Binding SelectedImageHeaderInfo}"
                            FontFamily="Consolas,Courier New,monospace"
-                           FontSize="11"
-                           TextWrapping="Wrap"/>
+                           FontSize="10"
+                           TextWrapping="Wrap" />
               </ScrollViewer>
             </Border>
           </Expander>
-          <TextBlock DockPanel.Dock="Top" 
-                     Text="Images" 
-                     FontWeight="Bold" 
-                     Margin="4,4,4,8"/>
+          <TextBlock DockPanel.Dock="Top"
+                     Text="Images"
+                     FontWeight="Bold"
+                     Margin="4,4,4,8" />
           <ListBox ItemsSource="{Binding Images}"
-                   SelectedIndex="{Binding SelectedImageIndex}">
+                   SelectedIndex="{Binding SelectedImageIndex}"
+                   Margin="0,0,0,4">
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                  <Image Source="{Binding}" 
-                         Width="64" 
-                         Height="64" 
-                         Stretch="Uniform"/>
-                  <TextBlock Text="{Binding PixelSize}" 
-                             VerticalAlignment="Center"/>
+                  <Image Source="{Binding}"
+                         Width="64"
+                         Height="64"
+                         Stretch="Uniform" />
+                  <TextBlock Text="{Binding PixelSize}"
+                             VerticalAlignment="Center" />
                 </StackPanel>
               </DataTemplate>
             </ListBox.ItemTemplate>
@@ -151,17 +173,15 @@
         </DockPanel>
       </Border>
 
-      <!-- Right Panel - Image Viewer with Header Info -->
-      <DockPanel Grid.Column="2">
-        <!-- Image Viewer -->
-        <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
-                Padding="8">
-          <Viewbox Stretch="Uniform">
-            <Image Source="{Binding SelectedImage}"
-                   RenderOptions.BitmapInterpolationMode="HighQuality"/>
-          </Viewbox>
-        </Border>
-      </DockPanel>
+      <!-- Right Panel - Image Viewer -->
+      <Border Grid.Column="2"
+              Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+              Padding="8">
+        <Viewbox Stretch="Uniform">
+          <Image Source="{Binding SelectedImage}"
+                 RenderOptions.BitmapInterpolationMode="HighQuality" />
+        </Viewbox>
+      </Border>
     </Grid>
   </DockPanel>
 </Window>

@@ -26,11 +26,13 @@ public class MainWindowViewModel : ViewModelBase
   private          string?                      _currentFolderPath;
   private          ITexFile?                    _currentTexFile;
   private          ObservableCollection<Bitmap> _images = new();
+  private          List<TexImage>               _texImages        = new();
   private          int                          _selectedImageIndex;
   private          Bitmap?                      _selectedImage;
   private          ObservableCollection<string> _texFiles         = new();
   private          int                          _currentFileIndex = -1;
   private          string                       _headerInfo       = string.Empty;
+  private          string                       _selectedImageHeaderInfo = string.Empty;
 
   /// <summary>
   /// Gets the current file path.
@@ -44,6 +46,15 @@ public class MainWindowViewModel : ViewModelBase
   {
     get => _headerInfo;
     private set => this.RaiseAndSetIfChanged(ref _headerInfo, value);
+  }
+
+  /// <summary>
+  /// Gets the selected image header information as formatted text.
+  /// </summary>
+  public string SelectedImageHeaderInfo
+  {
+    get => _selectedImageHeaderInfo;
+    private set => this.RaiseAndSetIfChanged(ref _selectedImageHeaderInfo, value);
   }
 
   /// <summary>
@@ -117,6 +128,7 @@ public class MainWindowViewModel : ViewModelBase
       if (value >= 0 && value < _images.Count)
       {
         SelectedImage = _images[value];
+        UpdateSelectedImageHeaderInfo(value);
       }
     }
   }
@@ -309,7 +321,31 @@ public class MainWindowViewModel : ViewModelBase
       return;
     }
 
-    var header = _currentTexFile.Header;
+    HeaderInfo = FormatHeaderInfo(_currentTexFile.Header);
+  }
+
+  private void UpdateSelectedImageHeaderInfo(int imageIndex)
+  {
+    if (imageIndex < 0 || imageIndex >= _texImages.Count)
+    {
+      SelectedImageHeaderInfo = "No image selected";
+      return;
+    }
+
+    var texImage = _texImages[imageIndex];
+    var info = new System.Text.StringBuilder();
+    
+    info.AppendLine($"Image #{imageIndex + 1}");
+    info.AppendLine();
+    info.Append(FormatHeaderInfo(texImage.Header));
+    info.AppendLine();
+    info.AppendLine($"Mipmap Count: {texImage.Mipmaps.Count()}");
+    
+    SelectedImageHeaderInfo = info.ToString();
+  }
+
+  private string FormatHeaderInfo(TexHeader header)
+  {
     var info = new System.Text.StringBuilder();
     
     info.AppendLine($"Flags: 0x{(uint)header.Flags:X8}");
@@ -375,7 +411,7 @@ public class MainWindowViewModel : ViewModelBase
       info.AppendLine($"Magic: 0x{header.Magic:X4}");
     }
     
-    HeaderInfo = info.ToString();
+    return info.ToString();
   }
 
   private void LoadPreviousFile()
@@ -397,6 +433,7 @@ public class MainWindowViewModel : ViewModelBase
   private void LoadImages()
   {
     _images.Clear();
+    _texImages.Clear();
 
     if (_currentTexFile == null)
       return;
@@ -405,6 +442,9 @@ public class MainWindowViewModel : ViewModelBase
     {
       foreach (var texImage in imageGroup)
       {
+        // Store the TexImage for header access
+        _texImages.Add(texImage);
+
         // Get the first mipmap (highest resolution)
         var firstMipmap = texImage.Mipmaps.FirstOrDefault();
         if (firstMipmap != null)
