@@ -4,7 +4,7 @@ branches:
   main:
     regex: ^main$|^master$
     mode: ContinuousDeployment
-    tag: ''
+    label: ''
     increment: Patch
     prevent-increment-of-merged-branch-version: true
     track-merge-target: false
@@ -12,7 +12,7 @@ branches:
   dev:
     regex: ^dev$|^develop$
     mode: ContinuousDeployment
-    tag: 'alpha'
+    label: 'alpha'
     increment: Minor
     prevent-increment-of-merged-branch-version: false
     track-merge-target: true
@@ -20,21 +20,21 @@ branches:
   feature:
     regex: ^feature(s)?[/-]
     mode: ContinuousDeployment
-    tag: 'alpha.{BranchName}'
+    label: 'alpha.{BranchName}'
     increment: Inherit
     prevent-increment-of-merged-branch-version: false
     source-branches: ['dev', 'master']
   release:
     regex: ^release(s)?[/-]
     mode: ContinuousDeployment
-    tag: 'beta'
+    label: 'beta'
     increment: None
     prevent-increment-of-merged-branch-version: true
     source-branches: ['dev', 'master']
   hotfix:
     regex: ^hotfix(es)?[/-]
     mode: ContinuousDeployment
-    tag: 'beta'
+    label: 'beta'
     increment: Patch
     prevent-increment-of-merged-branch-version: true
     source-branches: ['master']

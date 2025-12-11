@@ -134,7 +134,7 @@ jobs:
         id: gitversion
         uses: gittools/actions/gitversion/execute@v4.2.0
         with:
-          useConfigFile: true
+          configFilePath: GitVersion.yml
 
       - name: Display version information
         shell: bash
@@ -267,7 +267,7 @@ jobs:
         id: gitversion
         uses: gittools/actions/gitversion/execute@v4.2.0
         with:
-          useConfigFile: true
+          configFilePath: GitVersion.yml
 
       - name: Display version information
         shell: bash
@@ -400,7 +400,7 @@ jobs:
         id: gitversion
         uses: gittools/actions/gitversion/execute@v4.2.0
         with:
-          useConfigFile: true
+          configFilePath: GitVersion.yml
 
       - name: Display version information
         shell: bash
@@ -533,7 +533,7 @@ jobs:
         id: gitversion
         uses: gittools/actions/gitversion/execute@v4.2.0
         with:
-          useConfigFile: true
+          configFilePath: GitVersion.yml
 
       - name: Display version information
         shell: bash
@@ -841,7 +841,7 @@ jobs:
         id: gitversion
         uses: gittools/actions/gitversion/execute@v4.2.0
         with:
-          useConfigFile: true
+          configFilePath: GitVersion.yml
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -916,7 +916,7 @@ jobs:
         id: gitversion
         uses: gittools/actions/gitversion/execute@v4.2.0
         with:
-          useConfigFile: true
+          configFilePath: GitVersion.yml
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -991,7 +991,7 @@ jobs:
         id: gitversion
         uses: gittools/actions/gitversion/execute@v4.2.0
         with:
-          useConfigFile: true
+          configFilePath: GitVersion.yml
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -1066,7 +1066,7 @@ jobs:
         id: gitversion
         uses: gittools/actions/gitversion/execute@v4.2.0
         with:
-          useConfigFile: true
+          configFilePath: GitVersion.yml
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
