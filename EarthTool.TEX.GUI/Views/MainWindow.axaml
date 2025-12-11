@@ -53,6 +53,10 @@
         <Button Command="{Binding NextFileCommand}" ToolTip.Tip="Next File">
           <TextBlock Text="▶" FontSize="{StaticResource FontSize.Icon}" />
         </Button>
+        <Separator />
+        <Button Command="{Binding ExportImageCommand}" ToolTip.Tip="Export Selected Image">
+          <TextBlock Text="💾" FontSize="{StaticResource FontSize.Icon}" />
+        </Button>
       </StackPanel>
     </Border>
 

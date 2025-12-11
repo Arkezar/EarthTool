@@ -156,6 +156,7 @@ public class MainWindowViewModel : ViewModelBase
   public ReactiveCommand<Unit, Unit> ShowAboutCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> NextFileCommand { get; private set; } = null!;
   public ReactiveCommand<Unit, Unit> PreviousFileCommand { get; private set; } = null!;
+  public ReactiveCommand<Unit, Unit> ExportImageCommand { get; private set; } = null!;
 
   public MainWindowViewModel(
     IReader<ITexFile> reader,
@@ -190,8 +191,14 @@ public class MainWindowViewModel : ViewModelBase
       x => x.TexFiles.Count,
       (index, count) => index >= 0 && index < count - 1);
 
+    var canExportImage = this.WhenAnyValue(
+      x => x.SelectedImage,
+      x => x.SelectedImageIndex,
+      (image, index) => image != null && index >= 0);
+
     PreviousFileCommand = ReactiveCommand.Create(LoadPreviousFile, canGoPrevious);
     NextFileCommand = ReactiveCommand.Create(LoadNextFile, canGoNext);
+    ExportImageCommand = ReactiveCommand.CreateFromTask(ExportImageAsync, canExportImage);
 
     ShowAboutCommand = ReactiveCommand.CreateFromTask(() => _dialogService.ShowAboutAsync(new TexAboutViewModel()));
 
@@ -483,6 +490,53 @@ public class MainWindowViewModel : ViewModelBase
     {
       _logger.LogError(ex, "Failed to convert SKBitmap to Avalonia Bitmap");
       return null;
+    }
+  }
+
+  private async Task ExportImageAsync()
+  {
+    try
+    {
+      if (_selectedImageIndex < 0 || _selectedImageIndex >= _texImages.Count)
+      {
+        _notificationService.ShowWarning("No image selected");
+        return;
+      }
+
+      var texImage = _texImages[_selectedImageIndex];
+      var firstMipmap = texImage.Mipmaps.FirstOrDefault();
+      if (firstMipmap == null)
+      {
+        _notificationService.ShowWarning("No mipmap available for export");
+        return;
+      }
+
+      var fileName = string.IsNullOrEmpty(_currentFilePath)
+        ? $"image_{_selectedImageIndex}.png"
+        : $"{System.IO.Path.GetFileNameWithoutExtension(_currentFilePath)}_{_selectedImageIndex}.png";
+
+      var filePath = await _dialogService.ShowSaveFileDialogAsync(
+        "Export Image",
+        fileName,
+        ("PNG Files", "*.png"));
+
+      if (string.IsNullOrEmpty(filePath))
+        return;
+
+      using (var image = SKImage.FromBitmap(firstMipmap))
+      using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
+      using (var stream = File.OpenWrite(filePath))
+      {
+        data.SaveTo(stream);
+      }
+
+      _notificationService.ShowSuccess($"Image exported to {System.IO.Path.GetFileName(filePath)}");
+      _logger.LogInformation("Exported image to: {FilePath}", filePath);
+    }
+    catch (Exception ex)
+    {
+      _logger.LogError(ex, "Failed to export image");
+      _notificationService.ShowError("Failed to export image", ex);
     }
   }
 }
