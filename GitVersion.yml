@@ -6,7 +6,8 @@ branches:
     mode: ContinuousDeployment
     label: ''
     increment: Patch
-    prevent-increment-of-merged-branch-version: true
+    prevent-increment:
+      when-branch-merged: true
     track-merge-target: false
     source-branches: []
   dev:
@@ -14,7 +15,8 @@ branches:
     mode: ContinuousDeployment
     label: 'alpha'
     increment: Minor
-    prevent-increment-of-merged-branch-version: false
+    prevent-increment:
+      when-branch-merged: false
     track-merge-target: true
     source-branches: ['master']
   feature:
@@ -22,21 +24,24 @@ branches:
     mode: ContinuousDeployment
     label: 'alpha.{BranchName}'
     increment: Inherit
-    prevent-increment-of-merged-branch-version: false
+    prevent-increment:
+      when-branch-merged: false
     source-branches: ['dev', 'master']
   release:
     regex: ^release(s)?[/-]
     mode: ContinuousDeployment
     label: 'beta'
     increment: None
-    prevent-increment-of-merged-branch-version: true
+    prevent-increment:
+      when-branch-merged: true
     source-branches: ['dev', 'master']
   hotfix:
     regex: ^hotfix(es)?[/-]
     mode: ContinuousDeployment
     label: 'beta'
     increment: Patch
-    prevent-increment-of-merged-branch-version: true
+    prevent-increment:
+      when-branch-merged: true
     source-branches: ['master']
 ignore:
   sha: []
