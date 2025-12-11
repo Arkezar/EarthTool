@@ -18,7 +18,7 @@ branches:
     prevent-increment:
       when-branch-merged: false
     track-merge-target: true
-    source-branches: ['master']
+    source-branches: ['main']
   feature:
     regex: ^feature(s)?[/-]
     mode: ContinuousDeployment
@@ -26,7 +26,7 @@ branches:
     increment: Inherit
     prevent-increment:
       when-branch-merged: false
-    source-branches: ['dev', 'master']
+    source-branches: ['dev', 'main']
   release:
     regex: ^release(s)?[/-]
     mode: ContinuousDeployment
@@ -34,7 +34,7 @@ branches:
     increment: None
     prevent-increment:
       when-branch-merged: true
-    source-branches: ['dev', 'master']
+    source-branches: ['dev', 'main']
   hotfix:
     regex: ^hotfix(es)?[/-]
     mode: ContinuousDeployment
@@ -42,7 +42,7 @@ branches:
     increment: Patch
     prevent-increment:
       when-branch-merged: true
-    source-branches: ['master']
+    source-branches: ['main']
 ignore:
   sha: []
 merge-message-formats: {}
