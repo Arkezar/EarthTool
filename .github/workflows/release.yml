@@ -26,14 +26,14 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
-        project: [cli, gui, par-gui, tex-gui]
+        project: [cli, wd-gui, par-gui, tex-gui]
         include:
           # CLI configurations
           - project: cli
             project_path: "EarthTool.CLI/EarthTool.CLI.csproj"
             artifact_prefix: "EarthTool.CLI"
           # WD GUI configurations
-          - project: gui
+          - project: wd-gui
             project_path: "EarthTool.WD.GUI/EarthTool.WD.GUI.csproj"
             artifact_prefix: "EarthTool.WD.GUI"
           # PAR GUI configurations

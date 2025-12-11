@@ -213,8 +213,8 @@ jobs:
           path: EarthTool.CLI-${{ matrix.platform_name }}${{ matrix.os == 'windows-latest' && '.zip' || '.tar.gz' }}
           retention-days: 7
 
-  build-gui:
-    name: Build GUI (${{ matrix.os }})
+  build-wd-gui:
+    name: Build WD GUI (${{ matrix.os }})
     needs: detect-changes
     runs-on: ${{ matrix.os }}
     if: needs.detect-changes.outputs.gui == 'true' || github.event_name == 'workflow_dispatch'
@@ -895,9 +895,9 @@ jobs:
               ✅ This is a preview build from the dev branch. Test it out and report any issues!`
             })
 
-  publish-preview-gui:
-    name: Publish GUI Preview Build
-    needs: [detect-changes, build-gui, code-quality]
+  publish-preview-wd-gui:
+    name: Publish WD GUI Preview Build
+    needs: [detect-changes, build-wd-gui, code-quality]
     runs-on: windows-latest
     if: github.ref == 'refs/heads/dev' && github.event_name == 'push' && needs.detect-changes.outputs.gui == 'true'
 
@@ -963,7 +963,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               commit_sha: context.sha,
-              body: `🚀 Preview build completed successfully for **GUI**!
+              body: `🚀 Preview build completed successfully for **WD GUI**!
               
               📦 **Download**: [EarthTool.WD.GUI-Preview.zip](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
               
