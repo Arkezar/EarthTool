@@ -237,7 +237,7 @@ jobs:
       - name: Display build context
         shell: bash
         run: |
-          echo "🚀 Building EarthTool.WD.GUI (CI)"
+          echo "🚀 Building WD.GUI (CI)"
           echo "Platform: ${{ matrix.os }}"
           echo "Runtime: ${{ matrix.runtime }}"
           echo "Event: ${{ github.event_name }}"
@@ -305,7 +305,7 @@ jobs:
         uses: dorny/test-reporter@v1
         if: success() || failure()
         with:
-          name: Test Results (GUI - ${{ matrix.os }})
+          name: Test Results (WD GUI - ${{ matrix.os }})
           path: "**/*.trx"
           reporter: dotnet-trx
           fail-on-error: false
@@ -370,7 +370,7 @@ jobs:
       - name: Display build context
         shell: bash
         run: |
-          echo "🚀 Building EarthTool.PAR.GUI (CI)"
+          echo "🚀 Building PAR.GUI (CI)"
           echo "Platform: ${{ matrix.os }}"
           echo "Runtime: ${{ matrix.runtime }}"
           echo "Event: ${{ github.event_name }}"
@@ -503,7 +503,7 @@ jobs:
       - name: Display build context
         shell: bash
         run: |
-          echo "🚀 Building EarthTool.TEX.GUI (CI)"
+          echo "🚀 Building TEX.GUI (CI)"
           echo "Platform: ${{ matrix.os }}"
           echo "Runtime: ${{ matrix.runtime }}"
           echo "Event: ${{ github.event_name }}"
