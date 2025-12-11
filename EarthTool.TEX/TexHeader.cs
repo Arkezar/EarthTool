@@ -20,17 +20,17 @@ namespace EarthTool.TEX
     public TexHeader(BinaryReader reader)
     {
       Flags = (TexFlags)reader.ReadUInt32();
-      if (Flags.HasFlag(TexFlags.TEX_FLAG_DESTROYED))
+      if (Flags.HasFlag(TexFlags.DamageStates))
       {
         DestroyedCount = reader.ReadInt32();
       }
 
-      if (Flags.HasFlag(TexFlags.TEX_FLAG_CONTAINER) || Flags.HasFlag(TexFlags.TEX_FLAG_SIDECOLOR))
+      if (Flags.HasFlag(TexFlags.Container) || Flags.HasFlag(TexFlags.SideColors))
       {
         SlideCount = reader.ReadInt32();
       }
 
-      if (!Flags.HasFlag(TexFlags.TEX_FLAG_CONTAINER) && !Flags.HasFlag(TexFlags.TEX_FLAG_DESTROYED) && !Flags.HasFlag(TexFlags.TEX_FLAG_SIDECOLOR))
+      if (Flags.HasFlag(TexFlags.Mipmap) && !Flags.HasFlag(TexFlags.DamageStates))
       {
         Magic = reader.ReadInt32();
         Debug.Assert(Magic == 0x8888);
@@ -38,7 +38,7 @@ namespace EarthTool.TEX
         Height = reader.ReadInt32();
       }
 
-      if (Flags.HasFlag(TexFlags.TEX_FLAG_CURSOR))
+      if (Flags.HasFlag(TexFlags.Cursor))
       {
         CursorX = reader.ReadInt32();
         CursorY = reader.ReadInt32();
@@ -46,7 +46,7 @@ namespace EarthTool.TEX
         CursorFrameTime = reader.ReadInt32();
       }
 
-      if (Flags.HasFlag(TexFlags.TEX_FLAG_LOD))
+      if (Flags.HasFlag(TexFlags.Lod))
       {
         LodCount = reader.ReadInt32();
       }
@@ -59,8 +59,8 @@ namespace EarthTool.TEX
         using (var writer = new BinaryWriter(ms))
         {
           writer.Write((uint)Flags);
-          writer.Write(Flags.HasFlag(TexFlags.TEX_FLAG_CONTAINER) ? SlideCount : 0x8888);
-          if (!Flags.HasFlag(TexFlags.TEX_FLAG_CONTAINER))
+          writer.Write(Flags.HasFlag(TexFlags.Container) ? SlideCount : 0x8888);
+          if (!Flags.HasFlag(TexFlags.Container))
           {
             writer.Write(Width);
             writer.Write(Height);

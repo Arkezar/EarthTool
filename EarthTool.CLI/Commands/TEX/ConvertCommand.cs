@@ -73,38 +73,16 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
     var outputPath = GetOutputDirectory(filePath, settings.OutputFolderPath.Value);
     var fileName = Path.GetFileNameWithoutExtension(filePath);
 
-    if (texFile.HasHeader)
-    {
-      SaveHeader(settings, outputPath, fileName, texFile.Header);
-    }
-
     var saved = texFile.Images.SelectMany((group, i) =>
       group.SelectMany((img, j) =>
       {
-        SaveHeader(settings, outputPath, $"{fileName}_{i}_{j}", img.Header);
         return img.Mipmaps.Take(settings.HighResolutionOnly ? 1 : img.Mipmaps.Count())
           .Select(mm => SaveBitmap(outputPath, $"{fileName}_{i}_{j}", mm, settings));
       }));
 
     AnsiConsole.MarkupLine($"[bold green]Saved:\n[/]{string.Join("\n", saved)}");
   }
-
-  private static void SaveHeader(Settings settings, string outputPath, string fileName, TexHeader header)
-  {
-    if (settings.Debug)
-    {
-      if (!Directory.Exists(outputPath))
-      {
-        Directory.CreateDirectory(outputPath);
-      }
-
-      var options = new JsonSerializerOptions() { WriteIndented = true };
-      options.Converters.Add(new JsonStringEnumConverter());
-      File.WriteAllText(Path.Combine(outputPath, $"{fileName}_header.json"), JsonSerializer.Serialize(header, options));
-      File.WriteAllBytes(Path.Combine(outputPath, $"{fileName}_header.raw"), header.GetBytes());
-    }
-  }
-
+  
   private string SaveBitmap(string workDir, string filename, SKBitmap image, Settings settings)
   {
     if (!Directory.Exists(workDir))

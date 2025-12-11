@@ -352,29 +352,29 @@ public class MainWindowViewModel : ViewModelBase
     info.AppendLine();
     
     // Flag details
-    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_RGBA32))
+    if (header.Flags.HasFlag(TexFlags.Rgba32))
       info.AppendLine("  • RGBA32 Format");
-    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_LOD))
+    if (header.Flags.HasFlag(TexFlags.Lod))
       info.AppendLine("  • LOD Support");
-    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_STANDARD))
+    if (header.Flags.HasFlag(TexFlags.Standard))
       info.AppendLine("  • Standard Texture");
-    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_SIDES))
+    if (header.Flags.HasFlag(TexFlags.TgaSpriteSheet))
       info.AppendLine("  • Multi-sided");
-    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_ANIMATED))
+    if (header.Flags.HasFlag(TexFlags.Animated))
       info.AppendLine("  • Animated");
-    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_RGBA))
+    if (header.Flags.HasFlag(TexFlags.PreciseAlpha))
       info.AppendLine("  • RGBA 4-channel");
-    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_SPECIAL))
+    if (header.Flags.HasFlag(TexFlags.Special))
       info.AppendLine("  • Special Texture");
-    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_MIPMAP))
+    if (header.Flags.HasFlag(TexFlags.Mipmap))
       info.AppendLine("  • Mipmap Present");
-    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_CURSOR))
+    if (header.Flags.HasFlag(TexFlags.Cursor))
       info.AppendLine("  • Cursor Definition");
-    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_SIDECOLOR))
+    if (header.Flags.HasFlag(TexFlags.SideColors))
       info.AppendLine("  • Side Color");
-    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_DESTROYED))
+    if (header.Flags.HasFlag(TexFlags.DamageStates))
       info.AppendLine("  • Destroyed States");
-    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_CONTAINER))
+    if (header.Flags.HasFlag(TexFlags.Container))
       info.AppendLine("  • Container");
     
     info.AppendLine();
@@ -399,7 +399,7 @@ public class MainWindowViewModel : ViewModelBase
       info.AppendLine($"LOD Levels: {header.LodCount}");
     }
     
-    if (header.Flags.HasFlag(TexFlags.TEX_FLAG_CURSOR))
+    if (header.Flags.HasFlag(TexFlags.Cursor))
     {
       info.AppendLine($"Cursor: ({header.CursorX}, {header.CursorY})");
       info.AppendLine($"Animation Type: {header.CursorAnimationType}");

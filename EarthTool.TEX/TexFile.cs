@@ -1,4 +1,5 @@
 using EarthTool.Common;
+using EarthTool.Common.Interfaces;
 using EarthTool.TEX.Interfaces;
 using System;
 using System.Collections.Generic;
@@ -9,12 +10,13 @@ namespace EarthTool.TEX
 {
   public class TexFile : ITexFile
   {
-    public bool HasHeader => Header != null;
+    public IEarthInfo FileInfo { get; }
     public TexHeader Header { get; private set; }
     public IEnumerable<IEnumerable<TexImage>> Images { get; }
 
-    public TexFile(BinaryReader reader)
+    public TexFile(BinaryReader reader, IEarthInfo fileInfo)
     {
+      FileInfo = fileInfo;
       Images = Read(reader);
     }
 
@@ -23,7 +25,7 @@ namespace EarthTool.TEX
       var images = new List<List<TexImage>>();
       IsValidModel(reader);
       Header = new TexHeader(reader);
-      if (Header.Flags.HasFlag(TexFlags.TEX_FLAG_CONTAINER) || Header.Flags.HasFlag(TexFlags.TEX_FLAG_DESTROYED) || Header.Flags.HasFlag(TexFlags.TEX_FLAG_SIDECOLOR))
+      if (Header.Flags.HasFlag(TexFlags.Container) || Header.Flags.HasFlag(TexFlags.DamageStates) || Header.Flags.HasFlag(TexFlags.SideColors) || Header.Flags == TexFlags.None)
       {
         for(var i = 0; i < Header.SlideCount * Header.DestroyedCount; i++)
         {
