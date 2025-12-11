@@ -26,20 +26,24 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
-        project: [cli, gui, par-gui]
+        project: [cli, wd-gui, par-gui, tex-gui]
         include:
           # CLI configurations
           - project: cli
             project_path: "EarthTool.CLI/EarthTool.CLI.csproj"
             artifact_prefix: "EarthTool.CLI"
           # WD GUI configurations
-          - project: gui
+          - project: wd-gui
             project_path: "EarthTool.WD.GUI/EarthTool.WD.GUI.csproj"
             artifact_prefix: "EarthTool.WD.GUI"
           # PAR GUI configurations
           - project: par-gui
             project_path: "EarthTool.PAR.GUI/EarthTool.PAR.GUI.csproj"
             artifact_prefix: "EarthTool.PAR.GUI"
+          # TEX GUI configurations
+          - project: tex-gui
+            project_path: "EarthTool.TEX.GUI/EarthTool.TEX.GUI.csproj"
+            artifact_prefix: "EarthTool.TEX.GUI"
           # Platform configurations
           - os: windows-latest
             runtime: win-x64
@@ -673,6 +677,14 @@ jobs:
           echo "- Research and faction management" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
           
+          echo "### 🖼️ TEX GUI (Texture Viewer)" >> CHANGELOG.md
+          echo "Viewer and converter for Earth 2150 texture files:" >> CHANGELOG.md
+          echo "- Visual texture browsing with metadata" >> CHANGELOG.md
+          echo "- Support for animated and multi-sided textures" >> CHANGELOG.md
+          echo "- Export to PNG with mipmap levels" >> CHANGELOG.md
+          echo "- LOD (Level of Detail) inspection" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          
           echo "### 📦 Downloads" >> CHANGELOG.md
           echo "Choose the appropriate version for your operating system:" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
@@ -691,6 +703,11 @@ jobs:
           echo "- **Linux (x64)**: \`EarthTool.PAR.GUI-Linux-x64.tar.gz\`" >> CHANGELOG.md
           echo "- **macOS (x64)**: \`EarthTool.PAR.GUI-macOS-x64.tar.gz\`" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
+          echo "#### TEX GUI (Texture Viewer)" >> CHANGELOG.md
+          echo "- **Windows (x64)**: \`EarthTool.TEX.GUI-Windows-x64.zip\`" >> CHANGELOG.md
+          echo "- **Linux (x64)**: \`EarthTool.TEX.GUI-Linux-x64.tar.gz\`" >> CHANGELOG.md
+          echo "- **macOS (x64)**: \`EarthTool.TEX.GUI-macOS-x64.tar.gz\`" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
           
           echo "### 💿 Installation" >> CHANGELOG.md
           echo "1. Download the appropriate file for your operating system and preferred tool" >> CHANGELOG.md
@@ -699,6 +716,7 @@ jobs:
           echo "   - **CLI**: Add to PATH for command-line access" >> CHANGELOG.md
           echo "   - **WD GUI**: Run directly for archive management" >> CHANGELOG.md
           echo "   - **PAR GUI**: Run directly for parameter editing" >> CHANGELOG.md
+          echo "   - **TEX GUI**: Run directly for texture viewing" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
           
           echo "### 💻 System Requirements" >> CHANGELOG.md
@@ -750,5 +768,8 @@ jobs:
             artifacts/EarthTool.PAR.GUI-Windows-x64/EarthTool.PAR.GUI-Windows-x64.zip
             artifacts/EarthTool.PAR.GUI-Linux-x64/EarthTool.PAR.GUI-Linux-x64.tar.gz
             artifacts/EarthTool.PAR.GUI-macOS-x64/EarthTool.PAR.GUI-macOS-x64.tar.gz
+            artifacts/EarthTool.TEX.GUI-Windows-x64/EarthTool.TEX.GUI-Windows-x64.zip
+            artifacts/EarthTool.TEX.GUI-Linux-x64/EarthTool.TEX.GUI-Linux-x64.tar.gz
+            artifacts/EarthTool.TEX.GUI-macOS-x64/EarthTool.TEX.GUI-macOS-x64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

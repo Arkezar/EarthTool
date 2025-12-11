@@ -1,5 +1,4 @@
 using SkiaSharp;
-using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -25,24 +24,23 @@ namespace EarthTool.TEX
       do
       {
         var image = new SKBitmap(width, height);
-        for (var w = 0; w < image.Width; w++)
+        for (var h = 0; h < image.Height; h++)
         {
-          for (var h = 0; h < image.Height; h++)
+          for (var w = 0; w < image.Width; w++)
           {
             var red = reader.ReadByte();
             var green = reader.ReadByte();
             var blue = reader.ReadByte();
             var alpha = reader.ReadByte();
             var color = new SKColor(red, green, blue, alpha);
-            image.SetPixel(h, w, color);
+            image.SetPixel(w, h, color);
           }
         }
 
         images.Add(image);
         width /= 2;
         height /= 2;
-      } while (images.Count < Math.Max(Header.LodLevels, 1));
-
+      } while (images.Count < Header.LodCount);
       return images;
     }
   }

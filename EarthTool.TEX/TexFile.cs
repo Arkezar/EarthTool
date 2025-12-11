@@ -1,4 +1,5 @@
 using EarthTool.Common;
+using EarthTool.Common.Interfaces;
 using EarthTool.TEX.Interfaces;
 using System;
 using System.Collections.Generic;
@@ -9,12 +10,13 @@ namespace EarthTool.TEX
 {
   public class TexFile : ITexFile
   {
-    public bool HasHeader => Header != null;
+    public IEarthInfo FileInfo { get; }
     public TexHeader Header { get; private set; }
     public IEnumerable<IEnumerable<TexImage>> Images { get; }
 
-    public TexFile(BinaryReader reader)
+    public TexFile(BinaryReader reader, IEarthInfo fileInfo)
     {
+      FileInfo = fileInfo;
       Images = Read(reader);
     }
 
@@ -22,28 +24,19 @@ namespace EarthTool.TEX
     {
       var images = new List<List<TexImage>>();
       IsValidModel(reader);
-      var header = new TexHeader(reader);
-      if (header.SubType.HasFlag(TextureSubType.Grouped) ||
-          header.SubType.HasFlag(TextureSubType.Collection) ||
-          header.SubType.HasFlag(TextureSubType.Sides))
+      Header = new TexHeader(reader);
+      if (Header.Flags.HasFlag(TexFlags.Container) || Header.Flags.HasFlag(TexFlags.DamageStates) || Header.Flags.HasFlag(TexFlags.SideColors) || Header.Flags == TexFlags.None)
       {
-        Header = header;
-
-        var group = new List<List<TexImage>>();
-        for (int i = 0; i < Math.Max(header.GroupCount, 1); i++)
+        for(var i = 0; i < Header.SlideCount * Header.DestroyedCount; i++)
         {
-          var groupImages = new List<TexImage>();
-          for (int j = 0; j < Math.Max(header.ElementCount, 1); j++)
-          {
-            groupImages.AddRange(Read(reader).SelectMany(i => i));
-          }
-          group.Add(groupImages);
+          IsValidModel(reader);
+          var slideHeader = new TexHeader(reader);
+          images.Add(new List<TexImage>() {new TexImage(slideHeader, reader)});
         }
-        images.AddRange(group);
       }
       else
       {
-        images.Add(new List<TexImage>() { new TexImage(header, reader) });
+        images.Add(new List<TexImage>() {new TexImage(Header, reader)});
       }
 
       return images;
