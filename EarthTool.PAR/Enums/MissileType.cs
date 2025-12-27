@@ -2,8 +2,9 @@ namespace EarthTool.PAR.Enums
 {
   public enum MissileType
   {
+    None,
     Laser,
-    SDILaser,
+    SdiLaser,
     Electric,
     MachineGun,
     Cannon,
