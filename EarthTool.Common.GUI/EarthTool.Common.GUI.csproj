@@ -21,6 +21,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
       <Compile Update="Views\AboutView.axaml.cs">
         <DependentUpon>AboutView.axaml</DependentUpon>
         <SubType>Code</SubType>
