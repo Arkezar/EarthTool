@@ -17,7 +17,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Logging" />
-  <PackageReference Include="Microsoft.Extensions.Logging.Console" VersionOverride="10.0.1" />
+  <PackageReference Include="Microsoft.Extensions.Logging.Console" VersionOverride="10.0.2" />
     <ProjectReference Include="..\EarthTool.Common\EarthTool.Common.csproj" />
     <ProjectReference Include="..\EarthTool.DAE\EarthTool.DAE.csproj" />
     <ProjectReference Include="..\EarthTool.PAR\EarthTool.PAR.csproj" />
