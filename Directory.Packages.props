@@ -17,7 +17,7 @@
   <ItemGroup Label="System Packages">
     <PackageVersion Include="System.ComponentModel" Version="4.3.0" />
     <PackageVersion Include="System.ComponentModel.Annotations" Version="5.0.0" />
-    <PackageVersion Include="System.Text.Encoding.CodePages" Version="10.0.1" />
+    <PackageVersion Include="System.Text.Encoding.CodePages" Version="10.0.2" />
     <PackageVersion Include="System.Text.Json" Version="10.0.2" />
   </ItemGroup>
 
