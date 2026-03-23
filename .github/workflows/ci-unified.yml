@@ -169,7 +169,7 @@ jobs:
         continue-on-error: false
 
       - name: Test Report
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: success() || failure()
         with:
           name: Test Results (CLI - ${{ matrix.os }})
@@ -302,7 +302,7 @@ jobs:
         continue-on-error: false
 
       - name: Test Report
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: success() || failure()
         with:
           name: Test Results (WD GUI - ${{ matrix.os }})
@@ -435,7 +435,7 @@ jobs:
         continue-on-error: false
 
       - name: Test Report
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: success() || failure()
         with:
           name: Test Results (PAR GUI - ${{ matrix.os }})
@@ -568,7 +568,7 @@ jobs:
         continue-on-error: false
 
       - name: Test Report
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: success() || failure()
         with:
           name: Test Results (TEX GUI - ${{ matrix.os }})
