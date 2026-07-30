@@ -17,7 +17,7 @@ public sealed class InfoCommand : WdCommandBase<InfoSettings>
     _archiver = archiver;
   }
 
-  public override int Execute(CommandContext context, InfoSettings settings, CancellationToken cancellationToken)
+  protected override int Execute(CommandContext context, InfoSettings settings, CancellationToken cancellationToken)
   {
     if (!File.Exists(settings.ArchivePath))
     {

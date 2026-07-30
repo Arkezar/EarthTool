@@ -2,7 +2,7 @@ using EarthTool.PAR.GUI.Models;
 using EarthTool.PAR.GUI.Services;
 using EarthTool.PAR.Models;
 using Microsoft.Extensions.Logging;
-using ReactiveUI;
+using ReactiveUI.Reactive;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;

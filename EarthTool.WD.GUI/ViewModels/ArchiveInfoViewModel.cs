@@ -1,5 +1,5 @@
 using EarthTool.Common.Interfaces;
-using ReactiveUI;
+using ReactiveUI.Reactive;
 using System;
 
 namespace EarthTool.WD.GUI.ViewModels;

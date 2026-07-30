@@ -3,7 +3,7 @@ using EarthTool.Common.GUI.Interfaces;
 using EarthTool.Common.Interfaces;
 using EarthTool.WD.GUI.Services;
 using Microsoft.Extensions.Logging;
-using ReactiveUI;
+using ReactiveUI.Reactive;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;

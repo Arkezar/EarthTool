@@ -120,7 +120,7 @@
                      Margin="0,0,0,8" />
           
           <TextBox DockPanel.Dock="Top"
-                   Watermark="Search entities..."
+                   PlaceholderText="Search entities..."
                    Text="{Binding SearchText}"
                    Margin="0,0,0,8" />
 
@@ -305,7 +305,7 @@
             <TextBox Text="{Binding EntityName}" 
                      FontSize="{StaticResource FontSize.EntityName}" 
                      FontWeight="Bold"
-                     Watermark="Entity Name" />
+                      PlaceholderText="Entity Name" />
             <TextBlock>
               <Run Text="Type: " />
               <Run Text="{Binding EntityType}" FontWeight="Bold" />
@@ -321,7 +321,7 @@
             <TextBox Text="{Binding EntityName}" 
                      FontSize="{StaticResource FontSize.EntityName}" 
                      FontWeight="Bold"
-                     Watermark="Research Name" />
+                      PlaceholderText="Research Name" />
             <TextBlock>
               <Run Text="Type: " />
               <Run Text="{Binding EntityType}" FontWeight="Bold" />
@@ -498,7 +498,7 @@
                                         <DataTemplate DataType="vm:StringPropertyEditorViewModel">
                                           <TextBox Text="{Binding StringValue}"
                                                    MaxLength="{Binding MaxLength}"
-                                                   Watermark="{Binding PlaceholderText}"
+                                                    PlaceholderText="{Binding PlaceholderText}"
                                                    IsEnabled="{Binding !IsReadOnly}"
                                                    AcceptsReturn="{Binding IsMultiline}"
                                                    TextWrapping="{Binding IsMultiline}"
@@ -563,7 +563,7 @@
                                                                IsEnabled="{Binding !IsReadOnly}"
                                                                FontSize="{StaticResource FontSize.PropertyValue}"
                                                                HorizontalAlignment="Stretch"
-                                                               Watermark="Search research..."
+                                                                PlaceholderText="Search research..."
                                                                FilterMode="Contains" />
                                               <Button Grid.Column="1"
                                                       Command="{Binding AddResearchCommand}"
@@ -641,7 +641,7 @@
                                         <!-- IntCollectionPropertyEditor Template -->
                                         <DataTemplate DataType="vm:IntCollectionPropertyEditorViewModel">
                                           <TextBox Text="{Binding StringValue}"
-                                                   Watermark="Comma-separated integers (e.g., 1, 2, 3)"
+                                                    PlaceholderText="Comma-separated integers (e.g., 1, 2, 3)"
                                                    IsEnabled="{Binding !IsReadOnly}"
                                                    FontSize="{StaticResource FontSize.PropertyValue}"
                                                    HorizontalAlignment="Stretch"

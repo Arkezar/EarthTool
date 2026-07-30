@@ -18,7 +18,7 @@ public sealed class DebugCommand : WdCommandBase<WdSettings>
     _archiver = archiver;
   }
 
-  public override int Execute(CommandContext context, WdSettings settings, CancellationToken cancellationToken)
+  protected override int Execute(CommandContext context, WdSettings settings, CancellationToken cancellationToken)
   {
     if (!File.Exists(settings.ArchivePath))
     {

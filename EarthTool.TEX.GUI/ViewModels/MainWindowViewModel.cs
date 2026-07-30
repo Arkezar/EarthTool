@@ -4,7 +4,7 @@ using EarthTool.Common.GUI.ViewModels;
 using EarthTool.Common.Interfaces;
 using EarthTool.TEX.Interfaces;
 using Microsoft.Extensions.Logging;
-using ReactiveUI;
+using ReactiveUI.Reactive;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;

@@ -20,7 +20,7 @@ public sealed class ItemCommand : Command<ItemSettings>
     _reader = reader;
   }
 
-  public override int Execute(CommandContext context, ItemSettings settings, CancellationToken cancellationToken)
+  protected override int Execute(CommandContext context, ItemSettings settings, CancellationToken cancellationToken)
   {
     var parFile = _reader.Read(settings.ParFilePath);
     if (parFile == null)

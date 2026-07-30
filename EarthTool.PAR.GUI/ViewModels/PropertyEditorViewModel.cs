@@ -1,5 +1,5 @@
 using EarthTool.PAR.GUI.Models;
-using ReactiveUI;
+using ReactiveUI.Reactive;
 using System;
 using System.Reactive;
 using System.Reactive.Linq;

@@ -17,7 +17,7 @@ public sealed class AddCommand : WdCommandBase<AddSettings>
     _archiver = archiver;
   }
 
-  public override int Execute(CommandContext context, AddSettings settings, CancellationToken cancellationToken)
+  protected override int Execute(CommandContext context, AddSettings settings, CancellationToken cancellationToken)
   {
     if (settings.Files == null || !settings.Files.Any())
     {

@@ -37,10 +37,10 @@ public class DialogService : IDialogService
     return null;
   }
 
-  public async Task<IEnumerable<string?>> ShowOpenFilesDialogAsync(string title = "Open File", bool allowMultiple = false, params (string DisplayName, string Pattern)[] filters)
+  public async Task<IEnumerable<string>> ShowOpenFilesDialogAsync(string title = "Open File", bool allowMultiple = false, params (string DisplayName, string Pattern)[] filters)
   {
     var window = GetMainWindow();
-    if (window == null) return null;
+    if (window == null) return [];
 
     var fileTypeChoices = filters.Length > 0
       ? filters.Select(f => new FilePickerFileType(f.DisplayName) { Patterns = new[] { f.Pattern, f.Pattern.ToUpper() } }).ToList()
@@ -53,7 +53,7 @@ public class DialogService : IDialogService
       FileTypeFilter = fileTypeChoices,
     });
 
-    return files.Select(f=> f.Path.LocalPath);
+    return files.Select(f => f.Path.LocalPath);
   }
 
   public async Task<string?> ShowFolderBrowserDialogAsync(string title)
@@ -110,7 +110,7 @@ public class DialogService : IDialogService
       MaxHeight = 600,
       CanResize = false,
       WindowStartupLocation = WindowStartupLocation.CenterOwner,
-      SystemDecorations = SystemDecorations.BorderOnly
+      WindowDecorations = WindowDecorations.BorderOnly
     };
 
     // Main grid with content and buttons
@@ -268,7 +268,7 @@ public class DialogService : IDialogService
       MaxHeight = 500,
       CanResize = true,
       WindowStartupLocation = WindowStartupLocation.CenterOwner,
-      SystemDecorations = SystemDecorations.BorderOnly
+      WindowDecorations = WindowDecorations.BorderOnly
     };
 
     // Main border with rounded corners
@@ -338,7 +338,7 @@ public class DialogService : IDialogService
     var textBox = new TextBox
     {
       Text = defaultValue ?? "",
-      Watermark = "Enter value...",
+      PlaceholderText = "Enter value...",
       MinHeight = 32,
       Padding = new Thickness(10, 6)
     };

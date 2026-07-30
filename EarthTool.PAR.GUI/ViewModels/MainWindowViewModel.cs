@@ -4,7 +4,7 @@ using EarthTool.Common.GUI.Views;
 using EarthTool.PAR.GUI.Services;
 using EarthTool.PAR.Models;
 using Microsoft.Extensions.Logging;
-using ReactiveUI;
+using ReactiveUI.Reactive;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -282,7 +282,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     // Apply filter with 200ms debounce when SearchText changes
     this.WhenAnyValue(x => x.SearchText)
       .Throttle(TimeSpan.FromMilliseconds(200))
-      .ObserveOn(RxApp.MainThreadScheduler)
+      .ObserveOn(RxSchedulers.MainThreadScheduler)
       .Subscribe(_ => ApplyFilter());
   }
 

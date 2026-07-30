@@ -17,7 +17,7 @@ public sealed class CreateCommand : WdCommandBase<CreateSettings>
     _archiver = archiver;
   }
 
-  public override int Execute(CommandContext context, CreateSettings settings, CancellationToken cancellationToken)
+  protected override int Execute(CommandContext context, CreateSettings settings, CancellationToken cancellationToken)
   {
     if (string.IsNullOrEmpty(settings.InputPath))
     {

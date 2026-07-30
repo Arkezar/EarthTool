@@ -1,7 +1,7 @@
 using EarthTool.PAR.GUI.ViewModels;
 using EarthTool.PAR.Models.Abstracts;
 using Microsoft.Extensions.Logging;
-using ReactiveUI;
+using ReactiveUI.Reactive;
 using System;
 using System.Collections.Generic;
 using System.Linq;

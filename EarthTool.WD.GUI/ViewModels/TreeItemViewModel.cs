@@ -1,6 +1,6 @@
 using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
-using ReactiveUI;
+using ReactiveUI.Reactive;
 using System;
 using System.Collections.ObjectModel;
 

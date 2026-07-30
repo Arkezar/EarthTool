@@ -22,8 +22,8 @@ public interface IDialogService
   /// <param name="title">Dialog title.</param>
   /// <param name="allowMultiple"></param>
   /// <param name="filters">File type filters (DisplayName, Pattern).</param>
-  /// <returns>The selected file path, or null if cancelled.</returns>
-  Task<IEnumerable<string?>>  ShowOpenFilesDialogAsync(string title = "Open File", bool allowMultiple = false, params (string DisplayName, string Pattern)[] filters);
+  /// <returns>The selected file paths, or an empty collection if cancelled.</returns>
+  Task<IEnumerable<string>> ShowOpenFilesDialogAsync(string title = "Open File", bool allowMultiple = false, params (string DisplayName, string Pattern)[] filters);
 
   /// <summary>
   /// Shows a save file dialog for extracting a file.

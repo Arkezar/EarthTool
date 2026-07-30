@@ -1,5 +1,5 @@
 using EarthTool.PAR.GUI.Services;
-using ReactiveUI;
+using ReactiveUI.Reactive;
 
 namespace EarthTool.PAR.GUI.ViewModels;
 

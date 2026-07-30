@@ -16,7 +16,7 @@ public sealed class ListCommand : WdCommandBase<ListSettings>
     _archiver = archiver;
   }
 
-  public override int Execute(CommandContext context, ListSettings settings, CancellationToken cancellationToken)
+  protected override int Execute(CommandContext context, ListSettings settings, CancellationToken cancellationToken)
   {
     using var archive = _archiver.OpenArchive(settings.ArchivePath);
 

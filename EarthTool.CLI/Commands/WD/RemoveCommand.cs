@@ -17,7 +17,7 @@ public sealed class RemoveCommand : WdCommandBase<RemoveSettings>
     _archiver = archiver;
   }
 
-  public override int Execute(CommandContext context, RemoveSettings settings, CancellationToken cancellationToken)
+  protected override int Execute(CommandContext context, RemoveSettings settings, CancellationToken cancellationToken)
   {
     if (string.IsNullOrEmpty(settings.Filter) && string.IsNullOrEmpty(settings.FileList))
     {

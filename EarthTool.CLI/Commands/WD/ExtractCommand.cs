@@ -18,7 +18,7 @@ public sealed class ExtractCommand : Command<ExtractSettings>
     _archiver = archiver;
   }
 
-  public override int Execute(CommandContext context, ExtractSettings settings, CancellationToken cancellationToken)
+  protected override int Execute(CommandContext context, ExtractSettings settings, CancellationToken cancellationToken)
   {
     if (settings.ArchivePaths == null || !settings.ArchivePaths.Any())
     {

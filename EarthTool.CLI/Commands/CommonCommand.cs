@@ -32,7 +32,7 @@ public abstract class CommonCommand<TSettings> : AsyncCommand<TSettings> where T
     return Path.Combine(outputDirectory, outputFileName);
   }
 
-  public sealed override async Task<int> ExecuteAsync(CommandContext context, TSettings settings, CancellationToken cancellationToken)
+  protected sealed override async Task<int> ExecuteAsync(CommandContext context, TSettings settings, CancellationToken cancellationToken)
   {
     var path = Path.GetDirectoryName(settings.InputFilePath);
     if (string.IsNullOrEmpty(path))

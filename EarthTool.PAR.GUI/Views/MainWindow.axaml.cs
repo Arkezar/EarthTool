@@ -66,7 +66,9 @@ public partial class MainWindow : Window
     var clipboard = Clipboard;
     if (clipboard != null)
     {
-      await clipboard.SetTextAsync(text);
+      var dataTransfer = new DataTransfer();
+      dataTransfer.Add(DataTransferItem.CreateText(text));
+      await clipboard.SetDataAsync(dataTransfer);
     }
   }
 }

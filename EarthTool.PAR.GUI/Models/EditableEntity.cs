@@ -1,6 +1,6 @@
 using EarthTool.PAR.Enums;
 using EarthTool.PAR.Models.Abstracts;
-using ReactiveUI;
+using ReactiveUI.Reactive;
 using System;
 using System.Collections.Generic;
 using System.Linq;

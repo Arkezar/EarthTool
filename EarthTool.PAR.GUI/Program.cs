@@ -1,5 +1,5 @@
 ﻿using Avalonia;
-using ReactiveUI.Avalonia;
+using ReactiveUI.Avalonia.Reactive;
 using System;
 
 namespace EarthTool.PAR.GUI;
@@ -20,5 +20,5 @@ sealed class Program
       .UsePlatformDetect()
       .WithInterFont()
       .LogToTrace()
-      .UseReactiveUI();
+      .UseReactiveUI(_ => { });
 }
