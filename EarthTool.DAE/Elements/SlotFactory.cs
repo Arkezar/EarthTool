@@ -14,22 +14,28 @@ namespace EarthTool.DAE.Elements
   {
     public IEnumerable<(Light Slot, Node SlotNode)> GetSlots(IMesh model)
     {
-      return model.BaseHeader.Slots.BarrelMuzzels.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "BarrelMuzzle"), GetLightNode(s, i, "BarrelMuzzle")))
-        .Concat(model.BaseHeader.Slots.CenterPivot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "CenterPivot"), GetLightNode(s, i, "CenterPivot"))))
-        .Concat(model.BaseHeader.Slots.Chimneys.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Chimney"), GetLightNode(s, i, "Chimney"))))
-        .Concat(model.BaseHeader.Slots.Exhausts.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Exhaust"), GetLightNode(s, i, "Exhaust"))))
-        .Concat(model.BaseHeader.Slots.HitSpots.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "HitSpot"), GetLightNode(s, i, "HitSpot"))))
-        .Concat(model.BaseHeader.Slots.InterfacePivot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "InterfacePivot"), GetLightNode(s, i, "InterfacePivot"))))
-        .Concat(model.BaseHeader.Slots.KeelTraces.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "KeelTrace"), GetLightNode(s, i, "KeelTrace"))))
-        .Concat(model.BaseHeader.Slots.LandingSpot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "LandingSpot"), GetLightNode(s, i, "LandingSpot"))))
-        .Concat(model.BaseHeader.Slots.ProductionSpotStart.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "ProductionSpotStart"), GetLightNode(s, i, "ProductionSpotStart"))))
-        .Concat(model.BaseHeader.Slots.ProductionSpotEnd.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "ProductionSpotEnd"), GetLightNode(s, i, "ProductionSpotEnd"))))
-        .Concat(model.BaseHeader.Slots.SmokeSpots.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "SmokeSpot"), GetLightNode(s, i, "SmokeSpot"))))
-        .Concat(model.BaseHeader.Slots.SmokeTraces.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "SmokeTrace"), GetLightNode(s, i, "SmokeTrace"))))
-        .Concat(model.BaseHeader.Slots.TurretMuzzels.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "TurretMuzzel"), GetLightNode(s, i, "TurretMuzzel"))))
-        .Concat(model.BaseHeader.Slots.Turrets.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Turret"), GetLightNode(s, i, "Turret"))))
-        .Concat(model.BaseHeader.Slots.UnloadPoints.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "UnloadPoint"), GetLightNode(s, i, "UnloadPoint"))));
+      return GetSlots(model.BaseHeader.Slots.BarrelMuzzels, "BarrelMuzzle")
+        .Concat(GetSlots(model.BaseHeader.Slots.CenterPivot, "CenterPivot"))
+        .Concat(GetSlots(model.BaseHeader.Slots.Chimneys, "Chimney"))
+        .Concat(GetSlots(model.BaseHeader.Slots.Exhausts, "Exhaust"))
+        .Concat(GetSlots(model.BaseHeader.Slots.HitSpots, "HitSpot"))
+        .Concat(GetSlots(model.BaseHeader.Slots.InterfacePivot, "InterfacePivot"))
+        .Concat(GetSlots(model.BaseHeader.Slots.KeelTraces, "KeelTrace"))
+        .Concat(GetSlots(model.BaseHeader.Slots.LandingSpot, "LandingSpot"))
+        .Concat(GetSlots(model.BaseHeader.Slots.ProductionSpotStart, "ProductionSpotStart"))
+        .Concat(GetSlots(model.BaseHeader.Slots.ProductionSpotEnd, "ProductionSpotEnd"))
+        .Concat(GetSlots(model.BaseHeader.Slots.SmokeSpots, "SmokeSpot"))
+        .Concat(GetSlots(model.BaseHeader.Slots.SmokeTraces, "SmokeTrace"))
+        .Concat(GetSlots(model.BaseHeader.Slots.TurretMuzzels, "TurretMuzzel"))
+        .Concat(GetSlots(model.BaseHeader.Slots.Turrets, "Turret"))
+        .Concat(GetSlots(model.BaseHeader.Slots.Unknown, "Unknown"))
+        .Concat(GetSlots(model.BaseHeader.Slots.UnloadPoints, "UnloadPoint"));
     }
+
+    private IEnumerable<(Light Slot, Node SlotNode)> GetSlots(IEnumerable<ISlot> slots, string name)
+      => slots.Select((slot, index) => (Slot: slot, Number: index + 1))
+        .Where(item => item.Slot.IsValid)
+        .Select(item => (GetLight(item.Number, name), GetLightNode(item.Slot, item.Number, name)));
 
     private Node GetLightNode(ISlot slot, int i, string name)
     {

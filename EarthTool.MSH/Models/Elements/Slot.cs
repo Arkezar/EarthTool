@@ -11,17 +11,28 @@ namespace EarthTool.MSH.Models.Elements
 
     public IVector Position { get; set; }
 
-    public double Direction { get; set; }
+    public double Direction
+    {
+      get => Heading / 256.0 * Math.PI * 2.0;
+      set
+      {
+        var turns = value / (Math.PI * 2.0);
+        var normalizedTurns = turns - Math.Floor(turns);
+        Heading = (byte)(normalizedTurns * 256.0);
+      }
+    }
 
-    public byte Flag { get; set; }
+    public byte Heading { get; set; }
+
+    public byte FinalParameter { get; set; }
 
     public bool IsValid
-      => Flag == 128;
+      => Position != null &&
+         (Position.X != -128f || Position.Y != 128f || Position.Z != -128f);
 
     public Slot()
     {
-      var val = short.MinValue / (float)byte.MaxValue;
-      Position = new Vector(val, val, val);
+      Position = new Vector(-128f, 128f, -128f);
     }
 
     public byte[] ToByteArray(Encoding encoding)
@@ -30,11 +41,11 @@ namespace EarthTool.MSH.Models.Elements
       {
         using (var writer = new BinaryWriter(stream))
         {
-          writer.Write((short)(Position.X * 255));
-          writer.Write((short)(-Position.Y * 255));
-          writer.Write((short)(Position.Z * 255));
-          writer.Write((byte)(Direction / 2 / Math.PI * 255));
-          writer.Write(Flag);
+          writer.Write((short)(Position.X * 256));
+          writer.Write((short)(-Position.Y * 256));
+          writer.Write((short)(Position.Z * 256));
+          writer.Write(Heading);
+          writer.Write(FinalParameter);
         }
         return stream.ToArray();
       }

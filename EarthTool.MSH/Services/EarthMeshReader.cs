@@ -241,37 +241,40 @@ namespace EarthTool.MSH.Services
     private IModelSlots LoadModelSlots(BinaryReader reader)
       => new ModelSlots()
       {
-        Turrets = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
-        BarrelMuzzels = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
-        TurretMuzzels = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
-        Headlights = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
-        Omnilights = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
-        UnloadPoints = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
-        HitSpots = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
-        SmokeSpots = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
-        Unknown = LoadSlotList(reader, 4, (r, i) => LoadSlot(r, i)),
-        Chimneys = LoadSlotList(reader, 2, (r, i) => LoadSlot(r, i)),
-        SmokeTraces = LoadSlotList(reader, 2, (r, i) => LoadSlot(r, i)),
-        Exhausts = LoadSlotList(reader, 2, (r, i) => LoadSlot(r, i)),
-        KeelTraces = LoadSlotList(reader, 2, (r, i) => LoadSlot(r, i)),
-        InterfacePivot = LoadSlotList(reader, 1, (r, i) => LoadSlot(r, i)),
-        CenterPivot = LoadSlotList(reader, 1, (r, i) => LoadSlot(r, i)),
-        ProductionSpotStart = LoadSlotList(reader, 1, (r, i) => LoadSlot(r, i)),
-        ProductionSpotEnd = LoadSlotList(reader, 1, (r, i) => LoadSlot(r, i)),
-        LandingSpot = LoadSlotList(reader, 1, (r, i) => LoadSlot(r, i))
+        Turrets = LoadAttachments(reader, 4, 1),
+        BarrelMuzzels = LoadAttachments(reader, 4, 5),
+        TurretMuzzels = LoadAttachments(reader, 4, 9),
+        Headlights = LoadAttachments(reader, 4, 13),
+        Omnilights = LoadAttachments(reader, 4, 17),
+        UnloadPoints = LoadAttachments(reader, 4, 21),
+        HitSpots = LoadAttachments(reader, 4, 25),
+        SmokeSpots = LoadAttachments(reader, 4, 29),
+        Unknown = LoadAttachments(reader, 4, 33),
+        Chimneys = LoadAttachments(reader, 2, 37),
+        SmokeTraces = LoadAttachments(reader, 2, 39),
+        Exhausts = LoadAttachments(reader, 2, 41),
+        KeelTraces = LoadAttachments(reader, 2, 43),
+        InterfacePivot = LoadAttachments(reader, 1, 45),
+        CenterPivot = LoadAttachments(reader, 1, 46),
+        ProductionSpotStart = LoadAttachments(reader, 1, 47),
+        ProductionSpotEnd = LoadAttachments(reader, 1, 48),
+        LandingSpot = LoadAttachments(reader, 1, 49)
       };
+
+    private IEnumerable<ISlot> LoadAttachments(BinaryReader reader, int count, int firstId)
+      => LoadSlotList(reader, count, (r, i) => LoadSlot(r, firstId + i));
 
     private ISlot LoadSlot(BinaryReader reader, int id)
     {
-      var x = reader.ReadInt16() / 255f;
-      var y = -reader.ReadInt16() / 255f;
-      var z = reader.ReadInt16() / 255f;
+      var x = reader.ReadInt16() / 256f;
+      var y = -reader.ReadInt16() / 256f;
+      var z = reader.ReadInt16() / 256f;
       var result = new Slot()
       {
         Id = id,
         Position = new Vector(x, y, z),
-        Direction = reader.ReadByte() / 255.0 * Math.PI * 2.0,
-        Flag = reader.ReadByte()
+        Heading = reader.ReadByte(),
+        FinalParameter = reader.ReadByte()
       };
       return result;
     }

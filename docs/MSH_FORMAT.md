@@ -192,8 +192,9 @@ base + 0x1D0 + 8*i
 ```
 
 The meaningful generated range is `i = 1..49`; it occupies the documented
-`0x1D8..0x35F` area. Unset records contain `0x8000` in each coordinate and zero
-in both bytes.
+`0x1D8..0x35F` area. Unset records are identified only by `0x8000` in all three
+coordinates. Their heading and final parameter remain independent serialized
+values.
 
 The heading is derived from the AOD slot's second point with angular scale
 `128/pi`, equivalent to 256 units per turn. The extended nine-parameter `Slot`

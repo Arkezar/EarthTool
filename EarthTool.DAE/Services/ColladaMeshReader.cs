@@ -306,52 +306,67 @@ namespace EarthTool.DAE.Services
     {
       return new ModelSlots()
       {
-        BarrelMuzzels = LoadSlots(model, "BarrelMuzzle", 4),
-        CenterPivot = LoadSlots(model, "CenterPivot", 1),
-        Chimneys = LoadSlots(model, "Chimney", 2),
-        Exhausts = LoadSlots(model, "Exhaust", 2),
-        HitSpots = LoadSlots(model, "HitSpot", 4),
-        InterfacePivot = LoadSlots(model, "InterfacePivot", 1),
-        KeelTraces = LoadSlots(model, "KeelTrace", 2),
-        LandingSpot = LoadSlots(model, "LandingSpot", 1),
-        ProductionSpotStart = LoadSlots(model, "ProductionSpotStart", 1),
-        ProductionSpotEnd = LoadSlots(model, "ProductionSpotEnd", 1),
-        SmokeSpots = LoadSlots(model, "SmokeSpot", 4),
-        SmokeTraces = LoadSlots(model, "SmokeTrace", 2),
-        TurretMuzzels = LoadSlots(model, "TurretMuzzel", 4),
-        Turrets = LoadSlots(model, "Turret", 4),
-        UnloadPoints = LoadSlots(model, "UnloadPoint", 4),
-        Unknown = LoadSlots(model, "Unknown", 4),
-        Headlights = LoadSpotLightSlots(model, 4),
-        Omnilights = LoadOmniLightSlots(model, 4),
+        Turrets = LoadSlots(model, "Turret", 4, 1),
+        BarrelMuzzels = LoadSlots(model, "BarrelMuzzle", 4, 5),
+        TurretMuzzels = LoadSlots(model, "TurretMuzzel", 4, 9),
+        Headlights = LoadSpotLightSlots(model, 4, 13),
+        Omnilights = LoadOmniLightSlots(model, 4, 17),
+        UnloadPoints = LoadSlots(model, "UnloadPoint", 4, 21),
+        HitSpots = LoadSlots(model, "HitSpot", 4, 25),
+        SmokeSpots = LoadSlots(model, "SmokeSpot", 4, 29),
+        Unknown = LoadSlots(model, "Unknown", 4, 33),
+        Chimneys = LoadSlots(model, "Chimney", 2, 37),
+        SmokeTraces = LoadSlots(model, "SmokeTrace", 2, 39),
+        Exhausts = LoadSlots(model, "Exhaust", 2, 41),
+        KeelTraces = LoadSlots(model, "KeelTrace", 2, 43),
+        InterfacePivot = LoadSlots(model, "InterfacePivot", 1, 45),
+        CenterPivot = LoadSlots(model, "CenterPivot", 1, 46),
+        ProductionSpotStart = LoadSlots(model, "ProductionSpotStart", 1, 47),
+        ProductionSpotEnd = LoadSlots(model, "ProductionSpotEnd", 1, 48),
+        LandingSpot = LoadSlots(model, "LandingSpot", 1, 49)
       };
     }
 
-    private IEnumerable<ISlot> LoadOmniLightSlots(COLLADA model, int count)
+    private IEnumerable<ISlot> LoadOmniLightSlots(COLLADA model, int count, int firstId)
     {
       var lights = LoadOmniLights(model);
-      var meshLightSlots = lights.Select((l, i) => new Slot() { Position = l, Id = i });
-      return Fill(meshLightSlots, count);
+      var meshLightSlots = lights.Select((l, i) => new Slot() { Position = l, Id = firstId + i });
+      return Fill(meshLightSlots, count, firstId);
     }
 
-    private IEnumerable<ISlot> LoadSpotLightSlots(COLLADA model, int count)
+    private IEnumerable<ISlot> LoadSpotLightSlots(COLLADA model, int count, int firstId)
     {
       var lights = LoadSpotLights(model);
-      var meshLightSlots = lights.Select((l, i) => new Slot() { Position = l, Id = i });
-      return Fill(meshLightSlots, count);
+      var meshLightSlots = lights.Select((l, i) => new Slot() { Position = l, Id = firstId + i });
+      return Fill(meshLightSlots, count, firstId);
     }
 
-    private IEnumerable<ISlot> LoadSlots(COLLADA model, string slotName, int count)
+    private IEnumerable<ISlot> LoadSlots(COLLADA model, string slotName, int count, int firstId)
     {
-      var slots = model.Library_Lights.SelectMany(ll =>
+      var lights = model.Library_Lights.SelectMany(ll =>
           ll.Light.Where(l => l.Technique_Common.Directional != null && l.Name.StartsWith($"{slotName}-")))
         .ToLookup(l => l.Name);
-
       var modelTree = new ModelTree(model);
-      var slotsPosition = modelTree.SelectMany(n => n.Node.NodeProperty).Where(n => slots.Contains(n.Name));
+      var slotNodes = modelTree.SelectMany(n => n.Node.NodeProperty).Where(n => lights.Contains(n.Name));
+      var result = Enumerable.Range(0, count).Select(i => (ISlot)new Slot { Id = firstId + i }).ToArray();
+      foreach (var node in slotNodes)
+      {
+        if (!TryGetSlotNumber(node.Name, slotName, count, out var number))
+        {
+          continue;
+        }
 
-      var meshSlots = slotsPosition.Select((n, i) => GetSlot(n, i));
-      return Fill(meshSlots, count, () => new Slot());
+        result[number - 1] = GetSlot(node, firstId + number - 1);
+      }
+
+      return result;
+    }
+
+    private static bool TryGetSlotNumber(string name, string slotName, int count, out int number)
+    {
+      var suffix = name.Substring(slotName.Length + 1);
+      return int.TryParse(suffix, NumberStyles.None, CultureInfo.InvariantCulture, out number) &&
+             number >= 1 && number <= count;
     }
 
     private Slot GetSlot(Node n, int i)
@@ -360,7 +375,14 @@ namespace EarthTool.DAE.Services
       Matrix4x4.Decompose(matrix, out var _, out var q, out var _);
       var direction = Math.Atan2(2.0f * (q.X * q.Y + q.Z * q.W), 1.0f - 2.0f * (q.X * q.X + q.Z * q.Z));
 
-      return new Slot() { Position = GetVector(n), Direction = direction, Flag = 128, Id = i };
+      return new Slot() { Position = GetVector(n), Direction = direction, FinalParameter = 128, Id = i };
+    }
+
+    private IEnumerable<ISlot> Fill(IEnumerable<ISlot> collection, int count, int firstId)
+    {
+      var items = collection.ToList();
+      return items.Concat(Enumerable.Range(items.Count, count - items.Count)
+        .Select(i => (ISlot)new Slot { Id = firstId + i }));
     }
 
     private IEnumerable<T> Fill<T>(IEnumerable<T> collection, int count, Func<T> constructor = null)

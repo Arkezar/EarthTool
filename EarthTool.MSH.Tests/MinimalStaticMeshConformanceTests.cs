@@ -66,6 +66,95 @@ public class MinimalStaticMeshConformanceTests
   }
 
   [Fact]
+  public void PublicReaderAndWriterPreserveAllAttachmentRecords()
+  {
+    const int attachmentOffset = 0x14 + 0x1D8;
+    const int attachmentCount = 49;
+    const int attachmentSize = 8;
+    var fixture = CreateFixture();
+    var headings = new byte[] { 63, 64, 65, 127, 128, 129, 191, 192, 193, 255 };
+    for (var i = 0; i < attachmentCount; i++)
+    {
+      var offset = attachmentOffset + (i * attachmentSize);
+      WriteInt16(fixture, offset, (short)(-12000 + (i * 257)));
+      WriteInt16(fixture, offset + 0x02, (short)(11000 - (i * 193)));
+      WriteInt16(fixture, offset + 0x04, (short)(-9000 + (i * 149)));
+      fixture[offset + 0x06] = headings[i % headings.Length];
+      fixture[offset + 0x07] = (byte)i;
+    }
+
+    const int unsetIndex = 32;
+    var unsetOffset = attachmentOffset + (unsetIndex * attachmentSize);
+    WriteInt16(fixture, unsetOffset, short.MinValue);
+    WriteInt16(fixture, unsetOffset + 0x02, short.MinValue);
+    WriteInt16(fixture, unsetOffset + 0x04, short.MinValue);
+    fixture[unsetOffset + 0x06] = 64;
+    fixture[unsetOffset + 0x07] = 0x37;
+    var inputPath = GetTemporaryPath();
+    var outputPath = GetTemporaryPath();
+
+    try
+    {
+      File.WriteAllBytes(inputPath, fixture);
+
+      var mesh = CreateReader().Read(inputPath);
+      new EarthMeshWriter(Encoding.UTF8).Write(mesh, outputPath);
+
+      var attachments = GetAttachments(mesh.BaseHeader.Slots).ToArray();
+      Assert.Equal(0x188, mesh.BaseHeader.Slots.ToByteArray(Encoding.UTF8).Length);
+      Assert.Equal(Enumerable.Range(1, attachmentCount), attachments.Select(attachment => attachment.Id));
+      for (var i = 0; i < attachmentCount; i++)
+      {
+        var offset = attachmentOffset + (i * attachmentSize);
+        var attachment = attachments[i];
+        Assert.Equal(ReadInt16(fixture, offset) / 256f, attachment.Position.X);
+        Assert.Equal(-ReadInt16(fixture, offset + 0x02) / 256f, attachment.Position.Y);
+        Assert.Equal(ReadInt16(fixture, offset + 0x04) / 256f, attachment.Position.Z);
+        Assert.Equal(fixture[offset + 0x06], attachment.Heading);
+        Assert.Equal(fixture[offset + 0x07], attachment.FinalParameter);
+        Assert.Equal(i != unsetIndex, attachment.IsValid);
+      }
+
+      Assert.Equal(
+        fixture.AsSpan(attachmentOffset, attachmentCount * attachmentSize).ToArray(),
+        File.ReadAllBytes(outputPath).AsSpan(attachmentOffset, attachmentCount * attachmentSize).ToArray());
+    }
+    finally
+    {
+      File.Delete(inputPath);
+      File.Delete(outputPath);
+    }
+  }
+
+  [Fact]
+  public void PublicWriterTruncatesAttachmentCoordinatesAndHeadingToFormatUnits()
+  {
+    const int attachmentOffset = 0x14 + 0x1D8;
+    var mesh = ReadValidMesh();
+    var attachment = Assert.IsType<Slot>(mesh.BaseHeader.Slots.Turrets.First());
+    attachment.Position = new Vector(1.003f, -2.007f, -3.999f);
+    attachment.Direction = 64.999 / 256 * Math.PI * 2;
+    attachment.FinalParameter = 0;
+    var outputPath = GetTemporaryPath();
+
+    try
+    {
+      new EarthMeshWriter(Encoding.UTF8).Write(mesh, outputPath);
+
+      var output = File.ReadAllBytes(outputPath);
+      Assert.Equal((short)256, ReadInt16(output, attachmentOffset));
+      Assert.Equal((short)513, ReadInt16(output, attachmentOffset + 0x02));
+      Assert.Equal((short)-1023, ReadInt16(output, attachmentOffset + 0x04));
+      Assert.Equal((byte)64, output[attachmentOffset + 0x06]);
+      Assert.Equal((byte)0, output[attachmentOffset + 0x07]);
+    }
+    finally
+    {
+      File.Delete(outputPath);
+    }
+  }
+
+  [Fact]
   public void PublicReaderAndWriterPreserveStaticGeometryChannelsAndIgnoreUnusedLanes()
   {
     const int vertexBlockOffset = 0x388;
@@ -844,12 +933,26 @@ public class MinimalStaticMeshConformanceTests
   }
 
   private static int CountAttachments(IModelSlots slots)
-    => slots.Turrets.Count() + slots.BarrelMuzzels.Count() + slots.TurretMuzzels.Count() +
-       slots.Headlights.Count() + slots.Omnilights.Count() + slots.UnloadPoints.Count() +
-       slots.HitSpots.Count() + slots.SmokeSpots.Count() + slots.Unknown.Count() +
-       slots.Chimneys.Count() + slots.SmokeTraces.Count() + slots.Exhausts.Count() +
-       slots.KeelTraces.Count() + slots.InterfacePivot.Count() + slots.CenterPivot.Count() +
-       slots.ProductionSpotStart.Count() + slots.ProductionSpotEnd.Count() + slots.LandingSpot.Count();
+    => GetAttachments(slots).Count();
+
+  private static IEnumerable<ISlot> GetAttachments(IModelSlots slots)
+    => slots.Turrets.Concat(slots.BarrelMuzzels)
+      .Concat(slots.TurretMuzzels)
+      .Concat(slots.Headlights)
+      .Concat(slots.Omnilights)
+      .Concat(slots.UnloadPoints)
+      .Concat(slots.HitSpots)
+      .Concat(slots.SmokeSpots)
+      .Concat(slots.Unknown)
+      .Concat(slots.Chimneys)
+      .Concat(slots.SmokeTraces)
+      .Concat(slots.Exhausts)
+      .Concat(slots.KeelTraces)
+      .Concat(slots.InterfacePivot)
+      .Concat(slots.CenterPivot)
+      .Concat(slots.ProductionSpotStart)
+      .Concat(slots.ProductionSpotEnd)
+      .Concat(slots.LandingSpot);
 
   private static DynamicPart CreateDynamicPart(IEnumerable<IMesh> subMeshes)
     => new()
@@ -877,6 +980,12 @@ public class MinimalStaticMeshConformanceTests
 
   private static void WriteUInt16(byte[] data, int offset, ushort value)
     => BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(offset), value);
+
+  private static void WriteInt16(byte[] data, int offset, short value)
+    => BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(offset), value);
+
+  private static short ReadInt16(byte[] data, int offset)
+    => BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan(offset));
 
   private static void WriteUInt32(byte[] data, int offset, uint value)
     => BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(offset), value);

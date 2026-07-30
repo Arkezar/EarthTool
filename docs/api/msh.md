@@ -25,6 +25,19 @@ Readers require the stored vertex-block count to equal
 range. Unused lanes in a partial final block are not exposed as vertices and
 are normalized to zero when written.
 
+## Attachments
+
+`IMeshBaseHeader.Slots` always contains the 49 physical attachment records.
+Each `ISlot.Id` is its stable one-based global record position. `Heading`
+preserves the exact stored byte using 256 units per turn, while `Direction` is
+the corresponding radian view. `FinalParameter` preserves the independent
+eighth byte, including zero.
+
+`ISlot.IsValid` is false only when all three stored coordinates are the
+`0x8000` sentinel. Coordinate values use signed fixed point with 256 units and
+invert Y between the file and object model. COLLADA conversion retains sparse
+one-based numbers within each attachment range.
+
 ## Footprints and horizontal extents
 
 `IMeshBaseHeader.BoxPresenceMask` exposes the complete 32-bit box presence mask.
@@ -53,6 +66,7 @@ Update callers as follows:
 | `Boundaries.MaxX` | `HorizontalExtents.PositiveX` |
 | `Boundaries.MinX` | `HorizontalExtents.NegativeX` |
 | `Face.UNKNOWN` | `Face.Flags` |
+| `Slot.Flag` | `Slot.FinalParameter` |
 
 Box heights are now `ushort[]`, and horizontal extent properties are `ushort`.
 Coverage values are intentionally raw because their derived bit layout is not a
