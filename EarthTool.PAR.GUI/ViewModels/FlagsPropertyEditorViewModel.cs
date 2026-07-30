@@ -1,4 +1,4 @@
-using EarthTool.PAR.GUI.Services;
+﻿using EarthTool.PAR.GUI.Services;
 using ReactiveUI.Reactive;
 using System;
 using System.Collections.ObjectModel;
@@ -34,7 +34,7 @@ public class FlagsPropertyEditorViewModel : PropertyEditorViewModel
     set
     {
       if (_enumType == value) return;
-      
+
       _enumType = value;
       PropertyType = value ?? typeof(object);
       LoadFlagValues();
@@ -54,7 +54,7 @@ public class FlagsPropertyEditorViewModel : PropertyEditorViewModel
     set
     {
       if (Equals(_value, value)) return;
-      
+
       _value = value;
       UpdateFlagSelections();
       this.RaisePropertyChanged();
@@ -94,7 +94,7 @@ public class FlagsPropertyEditorViewModel : PropertyEditorViewModel
 
     // For flags enums, check if the value is a valid combination of defined flags
     var underlyingValue = Convert.ToInt64(value);
-    
+
     // Get all defined values
     var allFlags = Enum.GetValues(enumType)
       .Cast<object>()
@@ -123,11 +123,11 @@ public class FlagsPropertyEditorViewModel : PropertyEditorViewModel
       if (name == null) continue;
 
       var numericValue = Convert.ToInt64(value);
-      
+
       // Skip "None" or zero values, or composite flags
       if (numericValue == 0)
         continue;
-      
+
       // Only include power-of-two values (individual flags)
       if (!IsPowerOfTwo(numericValue))
         continue;

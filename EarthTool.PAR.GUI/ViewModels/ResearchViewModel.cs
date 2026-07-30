@@ -1,4 +1,4 @@
-using EarthTool.PAR.Enums;
+﻿using EarthTool.PAR.Enums;
 using EarthTool.PAR.GUI.Models;
 using EarthTool.PAR.Models;
 using ReactiveUI.Reactive;
@@ -19,9 +19,9 @@ public class ResearchViewModel : TreeNodeViewModelBase
   {
     if (research == null)
       throw new System.ArgumentNullException(nameof(research));
-      
+
     _editableResearch = new EditableResearch(research);
-    
+
     // Subscribe to dirty changes to trigger UI updates
     _editableResearch.WhenAnyValue(x => x.IsDirty)
       .Subscribe(isDirty => this.RaisePropertyChanged(nameof(IsDirty)));
@@ -31,12 +31,12 @@ public class ResearchViewModel : TreeNodeViewModelBase
   /// Gets the underlying research model.
   /// </summary>
   public Research Research => _editableResearch.Research;
-  
+
   /// <summary>
   /// Gets the editable research wrapper.
   /// </summary>
   public EditableResearch EditableResearch => _editableResearch;
-  
+
   /// <summary>
   /// Gets whether the research has unsaved changes.
   /// </summary>

@@ -1,4 +1,4 @@
-using EarthTool.PAR.Enums;
+﻿using EarthTool.PAR.Enums;
 using EarthTool.PAR.Models;
 using EarthTool.PAR.Models.Abstracts;
 using Microsoft.Extensions.Logging;
@@ -7,8 +7,8 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Reflection;
-using ValidationResult = EarthTool.PAR.GUI.Models.ValidationResult;
 using ValidationError = EarthTool.PAR.GUI.Models.ValidationError;
+using ValidationResult = EarthTool.PAR.GUI.Models.ValidationResult;
 using ValidationSeverity = EarthTool.PAR.GUI.Models.ValidationSeverity;
 
 namespace EarthTool.PAR.GUI.Services;

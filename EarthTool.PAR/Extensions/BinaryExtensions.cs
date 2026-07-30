@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Text;
 
@@ -31,7 +31,7 @@ namespace EarthTool.PAR.Extensions
     {
       var text = data.ReadParameterString();
       var marker = data.ReadInt32();
-      Debug.Assert(marker == ReferenceMarker, 
+      Debug.Assert(marker == ReferenceMarker,
         $"Expected reference marker {ReferenceMarker}, but got {marker}. Binary format may be corrupted.");
       return text;
     }

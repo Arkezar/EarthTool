@@ -1,4 +1,4 @@
-using EarthTool.PAR.Models.Abstracts;
+﻿using EarthTool.PAR.Models.Abstracts;
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;

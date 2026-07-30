@@ -1,4 +1,4 @@
-using EarthTool.PAR.Enums;
+﻿using EarthTool.PAR.Enums;
 using EarthTool.PAR.Extensions;
 using EarthTool.PAR.Models.Abstracts;
 using System.Collections.Generic;

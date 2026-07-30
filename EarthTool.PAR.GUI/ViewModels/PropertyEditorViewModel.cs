@@ -1,4 +1,4 @@
-using EarthTool.PAR.GUI.Models;
+﻿using EarthTool.PAR.GUI.Models;
 using ReactiveUI.Reactive;
 using System;
 using System.Reactive;
@@ -44,7 +44,7 @@ public abstract class PropertyEditorViewModel : ViewModelBase
 
     // Default disabled command - derived classes can override
     NavigateToReferenceCommand = ReactiveCommand.Create(
-      () => { }, 
+      () => { },
       Observable.Return(false));
   }
 

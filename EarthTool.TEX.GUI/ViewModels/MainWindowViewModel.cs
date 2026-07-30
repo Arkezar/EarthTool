@@ -1,4 +1,4 @@
-using Avalonia.Media.Imaging;
+﻿using Avalonia.Media.Imaging;
 using EarthTool.Common.GUI.Interfaces;
 using EarthTool.Common.GUI.ViewModels;
 using EarthTool.Common.Interfaces;
@@ -18,21 +18,21 @@ namespace EarthTool.TEX.GUI.ViewModels;
 
 public class MainWindowViewModel : ViewModelBase
 {
-  private readonly IReader<ITexFile>            _reader;
-  private readonly IDialogService               _dialogService;
-  private readonly INotificationService         _notificationService;
+  private readonly IReader<ITexFile> _reader;
+  private readonly IDialogService _dialogService;
+  private readonly INotificationService _notificationService;
   private readonly ILogger<MainWindowViewModel> _logger;
-  private          string?                      _currentFilePath;
-  private          string?                      _currentFolderPath;
-  private          ITexFile?                    _currentTexFile;
-  private          ObservableCollection<Bitmap> _images = new();
-  private          List<TexImage>               _texImages        = new();
-  private          int                          _selectedImageIndex;
-  private          Bitmap?                      _selectedImage;
-  private          ObservableCollection<string> _texFiles         = new();
-  private          int                          _currentFileIndex = -1;
-  private          string                       _headerInfo       = string.Empty;
-  private          string                       _selectedImageHeaderInfo = string.Empty;
+  private string? _currentFilePath;
+  private string? _currentFolderPath;
+  private ITexFile? _currentTexFile;
+  private ObservableCollection<Bitmap> _images = new();
+  private List<TexImage> _texImages = new();
+  private int _selectedImageIndex;
+  private Bitmap? _selectedImage;
+  private ObservableCollection<string> _texFiles = new();
+  private int _currentFileIndex = -1;
+  private string _headerInfo = string.Empty;
+  private string _selectedImageHeaderInfo = string.Empty;
 
   /// <summary>
   /// Gets the current file path.
@@ -165,9 +165,9 @@ public class MainWindowViewModel : ViewModelBase
     ILogger<MainWindowViewModel> logger)
   {
     _reader = reader;
-    _dialogService = dialogService             ?? throw new ArgumentNullException(nameof(dialogService));
+    _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
     _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
-    _logger = logger                           ?? throw new ArgumentNullException(nameof(logger));
+    _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     InitializeCommands();
     _logger.LogInformation("TexViewModel initialized");
   }
@@ -341,23 +341,23 @@ public class MainWindowViewModel : ViewModelBase
 
     var texImage = _texImages[imageIndex];
     var info = new System.Text.StringBuilder();
-    
+
     info.AppendLine($"Image #{imageIndex + 1}");
     info.AppendLine();
     info.Append(FormatHeaderInfo(texImage.Header));
     info.AppendLine();
     info.AppendLine($"Mipmap Count: {texImage.Mipmaps.Count()}");
-    
+
     SelectedImageHeaderInfo = info.ToString();
   }
 
   private string FormatHeaderInfo(TexHeader header)
   {
     var info = new System.Text.StringBuilder();
-    
+
     info.AppendLine($"Flags: 0x{(uint)header.Flags:X8}");
     info.AppendLine();
-    
+
     // Flag details
     if (header.Flags.HasFlag(TexFlags.Rgba32))
       info.AppendLine("  • RGBA32 Format");
@@ -383,41 +383,41 @@ public class MainWindowViewModel : ViewModelBase
       info.AppendLine("  • Destroyed States");
     if (header.Flags.HasFlag(TexFlags.Container))
       info.AppendLine("  • Container");
-    
+
     info.AppendLine();
-    
+
     if (header.Width > 0 || header.Height > 0)
     {
       info.AppendLine($"Dimensions: {header.Width} x {header.Height}");
     }
-    
+
     if (header.SlideCount > 1)
     {
       info.AppendLine($"Slide Count: {header.SlideCount}");
     }
-    
+
     if (header.DestroyedCount > 1)
     {
       info.AppendLine($"Destroyed Count: {header.DestroyedCount}");
     }
-    
+
     if (header.LodCount > 0)
     {
       info.AppendLine($"LOD Levels: {header.LodCount}");
     }
-    
+
     if (header.Flags.HasFlag(TexFlags.Cursor))
     {
       info.AppendLine($"Cursor: ({header.CursorX}, {header.CursorY})");
       info.AppendLine($"Animation Type: {header.CursorAnimationType}");
       info.AppendLine($"Frame Time: {header.CursorFrameTime}");
     }
-    
+
     if (header.Magic > 0)
     {
       info.AppendLine($"Magic: 0x{header.Magic:X4}");
     }
-    
+
     return info.ToString();
   }
 

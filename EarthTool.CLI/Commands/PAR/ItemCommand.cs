@@ -1,4 +1,4 @@
-using EarthTool.Common.Interfaces;
+﻿using EarthTool.Common.Interfaces;
 using EarthTool.PAR.Models;
 using EarthTool.PAR.Models.Abstracts;
 using Spectre.Console;

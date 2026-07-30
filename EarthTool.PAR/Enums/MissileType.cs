@@ -1,4 +1,4 @@
-namespace EarthTool.PAR.Enums
+﻿namespace EarthTool.PAR.Enums
 {
   public enum MissileType
   {

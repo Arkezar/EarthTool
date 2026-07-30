@@ -1,4 +1,4 @@
-using EarthTool.PAR.GUI.Services;
+﻿using EarthTool.PAR.GUI.Services;
 using ReactiveUI.Reactive;
 using System.Collections.ObjectModel;
 using System.Reactive.Linq;
@@ -37,10 +37,10 @@ public class StringPropertyEditorViewModel : PropertyEditorViewModel
     set
     {
       if (_value == value) return;
-      
+
       var oldValue = _value;
       var newValue = value ?? string.Empty;
-      
+
       // Record undo action
       _undoRedoService?.RecordAction(
         description: $"Change {DisplayName} from '{oldValue}' to '{newValue}'",
@@ -97,7 +97,7 @@ public class StringPropertyEditorViewModel : PropertyEditorViewModel
   /// Gets or sets whether this is an entity reference.
   /// </summary>
   public override bool IsEntityReference => _isEntityReference;
-  
+
   /// <summary>
   /// Sets whether this is an entity reference.
   /// </summary>

@@ -1,4 +1,4 @@
-using EarthTool.Common;
+﻿using EarthTool.Common;
 using EarthTool.Common.Interfaces;
 using EarthTool.TEX.Interfaces;
 using System;
@@ -27,16 +27,16 @@ namespace EarthTool.TEX
       Header = new TexHeader(reader);
       if (Header.Flags.HasFlag(TexFlags.Container) || Header.Flags.HasFlag(TexFlags.DamageStates) || Header.Flags.HasFlag(TexFlags.SideColors) || Header.Flags == TexFlags.None)
       {
-        for(var i = 0; i < Header.SlideCount * Header.DestroyedCount; i++)
+        for (var i = 0; i < Header.SlideCount * Header.DestroyedCount; i++)
         {
           IsValidModel(reader);
           var slideHeader = new TexHeader(reader);
-          images.Add(new List<TexImage>() {new TexImage(slideHeader, reader)});
+          images.Add(new List<TexImage>() { new TexImage(slideHeader, reader) });
         }
       }
       else
       {
-        images.Add(new List<TexImage>() {new TexImage(Header, reader)});
+        images.Add(new List<TexImage>() { new TexImage(Header, reader) });
       }
 
       return images;

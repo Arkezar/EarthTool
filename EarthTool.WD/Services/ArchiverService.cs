@@ -1,4 +1,4 @@
-using EarthTool.Common.Enums;
+﻿using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
 using EarthTool.Common.Validation;
 using EarthTool.WD.Models;
@@ -13,11 +13,11 @@ namespace EarthTool.WD.Services
   public class ArchiverService : IArchiver
   {
     private readonly ILogger<ArchiverService> _logger;
-    private readonly IEarthInfoFactory        _earthInfoFactory;
-    private readonly IArchiveFactory          _archiveFactory;
-    private readonly IDecompressor            _decompressor;
-    private readonly ICompressor              _compressor;
-    private readonly Encoding                 _encoding;
+    private readonly IEarthInfoFactory _earthInfoFactory;
+    private readonly IArchiveFactory _archiveFactory;
+    private readonly IDecompressor _decompressor;
+    private readonly ICompressor _compressor;
+    private readonly Encoding _encoding;
 
     public ArchiverService(
       ILogger<ArchiverService> logger,
@@ -131,7 +131,7 @@ namespace EarthTool.WD.Services
 
       // Use safe file writing pattern for Windows 11 compatibility
       // Write to temporary file first, then replace original
-      var tempFilePath = outputFilePath   + ".tmp";
+      var tempFilePath = outputFilePath + ".tmp";
       var backupFilePath = outputFilePath + ".bak";
 
       try

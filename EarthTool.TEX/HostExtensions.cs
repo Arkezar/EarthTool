@@ -1,4 +1,4 @@
-using EarthTool.Common.Interfaces;
+﻿using EarthTool.Common.Interfaces;
 using EarthTool.TEX.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 

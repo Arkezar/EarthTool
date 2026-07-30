@@ -1,4 +1,4 @@
-using EarthTool.Common.GUI.Enums;
+﻿using EarthTool.Common.GUI.Enums;
 using EarthTool.Common.GUI.Interfaces;
 using Microsoft.Extensions.Logging;
 using System;

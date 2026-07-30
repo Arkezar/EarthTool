@@ -1,4 +1,4 @@
-using EarthTool.CLI.Commands;
+﻿using EarthTool.CLI.Commands;
 using EarthTool.Common;
 using EarthTool.DAE;
 using EarthTool.MSH;

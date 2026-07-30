@@ -1,4 +1,4 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using EarthTool.PAR.GUI.ViewModels;
@@ -11,7 +11,7 @@ public partial class MainWindow : Window
   public MainWindow()
   {
     InitializeComponent();
-    
+
     // Handle copy command
     AddHandler(Button.ClickEvent, OnButtonClick, RoutingStrategies.Bubble);
   }
@@ -49,7 +49,7 @@ public partial class MainWindow : Window
       // Navigate to the referenced entity
       var found = mainViewModel.NavigateToEntity(referenceName);
       System.Diagnostics.Debug.WriteLine($"Navigation result: {found}");
-      
+
       if (!found)
       {
         System.Diagnostics.Debug.WriteLine($"Reference '{referenceName}' not found in tree");

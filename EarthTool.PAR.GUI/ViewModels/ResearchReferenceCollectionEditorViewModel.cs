@@ -1,4 +1,4 @@
-using EarthTool.PAR.GUI.Services;
+﻿using EarthTool.PAR.GUI.Services;
 using EarthTool.PAR.Models;
 using ReactiveUI.Reactive;
 using System;
@@ -27,9 +27,9 @@ public class ResearchReferenceCollectionEditorViewModel : PropertyEditorViewMode
     PropertyType = typeof(IEnumerable<int>);
     AvailableResearch = new ObservableCollection<ResearchReferenceViewModel>();
     SelectedResearch = new ObservableCollection<ResearchReferenceViewModel>();
-    
+
     // Initialize commands
-    AddResearchCommand = ReactiveCommand.Create<ResearchReferenceViewModel>(AddResearch, 
+    AddResearchCommand = ReactiveCommand.Create<ResearchReferenceViewModel>(AddResearch,
       this.WhenAnyValue(x => x.SelectedAvailableResearch).Select(r => r != null));
     RemoveResearchCommand = ReactiveCommand.Create<ResearchReferenceViewModel>(RemoveResearch);
   }
@@ -95,10 +95,10 @@ public class ResearchReferenceCollectionEditorViewModel : PropertyEditorViewMode
     {
       if (_parFile == value)
         return;
-        
+
       _parFile = value;
       LoadAvailableResearch();
-      
+
       // Update selection after loading available research
       if (_collectionValue != null)
       {
@@ -123,7 +123,7 @@ public class ResearchReferenceCollectionEditorViewModel : PropertyEditorViewMode
         _collectionValue = Enumerable.Empty<int>();
         UpdateSelectedResearch();
       }
-      
+
       this.RaisePropertyChanged();
       NotifyValueChanged();
     }

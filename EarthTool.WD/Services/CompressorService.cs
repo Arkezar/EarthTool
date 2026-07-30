@@ -1,4 +1,4 @@
-using EarthTool.Common.Interfaces;
+﻿using EarthTool.Common.Interfaces;
 using Microsoft.Extensions.Logging;
 using System.IO;
 using System.IO.Compression;

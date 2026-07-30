@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
@@ -20,14 +20,14 @@ namespace EarthTool.Common.GUI.Services;
 public class DialogService : IDialogService
 {
   private readonly ILogger<DialogService> _logger;
-  private readonly INotificationService   _notificationService;
+  private readonly INotificationService _notificationService;
 
   public DialogService(ILogger<DialogService> logger, INotificationService notificationService)
   {
     _logger = logger;
     _notificationService = notificationService;
   }
-  
+
   private Window? GetMainWindow()
   {
     if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)

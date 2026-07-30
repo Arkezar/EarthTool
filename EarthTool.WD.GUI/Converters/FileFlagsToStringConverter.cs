@@ -1,4 +1,4 @@
-using Avalonia.Data.Converters;
+﻿using Avalonia.Data.Converters;
 using EarthTool.Common.Enums;
 using System;
 using System.Collections.Generic;

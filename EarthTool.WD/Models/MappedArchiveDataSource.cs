@@ -1,4 +1,4 @@
-using EarthTool.WD.Interfaces;
+﻿using EarthTool.WD.Interfaces;
 using System;
 using System.IO.MemoryMappedFiles;
 

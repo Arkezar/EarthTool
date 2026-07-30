@@ -1,4 +1,4 @@
-using EarthTool.Common.Enums;
+﻿using EarthTool.Common.Enums;
 using EarthTool.Common.Interfaces;
 using System;
 using System.IO;

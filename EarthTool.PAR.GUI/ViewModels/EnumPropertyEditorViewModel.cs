@@ -1,4 +1,4 @@
-using EarthTool.PAR.GUI.Services;
+﻿using EarthTool.PAR.GUI.Services;
 using ReactiveUI.Reactive;
 using System;
 using System.Collections.ObjectModel;
@@ -34,7 +34,7 @@ public class EnumPropertyEditorViewModel : PropertyEditorViewModel
     set
     {
       if (_enumType == value) return;
-      
+
       _enumType = value;
       PropertyType = value ?? typeof(object);
       LoadEnumValues();
@@ -56,12 +56,12 @@ public class EnumPropertyEditorViewModel : PropertyEditorViewModel
     set
     {
       if (value == null) return;
-      
+
       var oldValue = _value;
       var newValue = value.Value;
-      
+
       if (Equals(oldValue, newValue)) return;
-      
+
       // Record undo action
       _undoRedoService?.RecordAction(
         description: $"Change {DisplayName} from {oldValue} to {newValue}",
@@ -83,7 +83,7 @@ public class EnumPropertyEditorViewModel : PropertyEditorViewModel
     set
     {
       if (Equals(_value, value)) return;
-      
+
       _value = value;
       this.RaisePropertyChanged();
       this.RaisePropertyChanged(nameof(SelectedValue));
@@ -123,7 +123,7 @@ public class EnumPropertyEditorViewModel : PropertyEditorViewModel
     {
       // For flags enums, check if the value is a valid combination of defined flags
       var underlyingValue = Convert.ToInt64(value);
-      
+
       // Get all defined values
       var allFlags = Enum.GetValues(enumType)
         .Cast<object>()

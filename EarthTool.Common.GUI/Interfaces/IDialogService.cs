@@ -1,4 +1,4 @@
-using EarthTool.Common.GUI.Enums;
+﻿using EarthTool.Common.GUI.Enums;
 using EarthTool.Common.GUI.ViewModels;
 using System.Collections.Generic;
 using System.Threading.Tasks;

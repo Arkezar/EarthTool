@@ -1,4 +1,4 @@
-using EarthTool.PAR.Enums;
+﻿using EarthTool.PAR.Enums;
 using EarthTool.PAR.Models;
 using EarthTool.PAR.Services;
 using EarthTool.PAR.Tests.TestDoubles;

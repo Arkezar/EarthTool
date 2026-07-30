@@ -1,4 +1,4 @@
-using EarthTool.PAR.GUI.Services;
+﻿using EarthTool.PAR.GUI.Services;
 using ReactiveUI.Reactive;
 using System;
 using System.Collections.Generic;
@@ -35,10 +35,10 @@ public class IntCollectionPropertyEditorViewModel : PropertyEditorViewModel
     set
     {
       if (_stringValue == value) return;
-      
+
       var oldStringValue = _stringValue;
       var newStringValue = value ?? string.Empty;
-      
+
       // Try to parse the string to collection
       var parseSuccess = TryParseStringToCollection(newStringValue, out var newCollection);
       if (!parseSuccess)
@@ -55,21 +55,21 @@ public class IntCollectionPropertyEditorViewModel : PropertyEditorViewModel
       // Record undo action
       _undoRedoService?.RecordAction(
         description: $"Change {DisplayName} from '{oldStringValue}' to '{newStringValue}'",
-        undoCallback: () => 
-        { 
-          _stringValue = oldStringValue; 
+        undoCallback: () =>
+        {
+          _stringValue = oldStringValue;
           _collectionValue = oldCollection;
-          this.RaisePropertyChanged(nameof(StringValue)); 
+          this.RaisePropertyChanged(nameof(StringValue));
           this.RaisePropertyChanged(nameof(Value));
-          NotifyValueChanged(); 
+          NotifyValueChanged();
         },
-        redoCallback: () => 
-        { 
-          _stringValue = newStringValue; 
+        redoCallback: () =>
+        {
+          _stringValue = newStringValue;
           _collectionValue = newCollection;
-          this.RaisePropertyChanged(nameof(StringValue)); 
+          this.RaisePropertyChanged(nameof(StringValue));
           this.RaisePropertyChanged(nameof(Value));
-          NotifyValueChanged(); 
+          NotifyValueChanged();
         }
       );
 
@@ -98,7 +98,7 @@ public class IntCollectionPropertyEditorViewModel : PropertyEditorViewModel
         _stringValue = string.Empty;
         this.RaisePropertyChanged(nameof(StringValue));
       }
-      
+
       this.RaisePropertyChanged();
       NotifyValueChanged();
     }

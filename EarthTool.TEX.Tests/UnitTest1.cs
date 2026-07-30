@@ -1,4 +1,4 @@
-namespace EarthTool.TEX.Tests;
+﻿namespace EarthTool.TEX.Tests;
 
 public class UnitTest1
 {

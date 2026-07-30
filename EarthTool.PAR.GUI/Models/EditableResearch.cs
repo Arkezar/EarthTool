@@ -1,4 +1,4 @@
-using EarthTool.PAR.Models;
+﻿using EarthTool.PAR.Models;
 using ReactiveUI.Reactive;
 using System;
 using System.Collections.Generic;

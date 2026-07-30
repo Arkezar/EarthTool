@@ -1,4 +1,4 @@
-using ReactiveUI.Reactive;
+﻿using ReactiveUI.Reactive;
 using System;
 using System.Diagnostics;
 using System.Reactive;

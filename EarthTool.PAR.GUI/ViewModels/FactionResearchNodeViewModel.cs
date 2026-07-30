@@ -1,4 +1,4 @@
-using EarthTool.PAR.Enums;
+﻿using EarthTool.PAR.Enums;
 using System.Collections.ObjectModel;
 using System.Linq;
 

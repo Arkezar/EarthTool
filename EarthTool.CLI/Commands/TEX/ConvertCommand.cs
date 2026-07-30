@@ -82,7 +82,7 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
 
     AnsiConsole.MarkupLine($"[bold green]Saved:\n[/]{string.Join("\n", saved)}");
   }
-  
+
   private string SaveBitmap(string workDir, string filename, SKBitmap image, Settings settings)
   {
     if (!Directory.Exists(workDir))

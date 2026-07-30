@@ -1,4 +1,4 @@
-using EarthTool.PAR.Enums;
+﻿using EarthTool.PAR.Enums;
 using EarthTool.PAR.Factories;
 using EarthTool.PAR.Models;
 using System.IO;

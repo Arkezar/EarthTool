@@ -1,4 +1,4 @@
-using EarthTool.Common.GUI.Enums;
+﻿using EarthTool.Common.GUI.Enums;
 using EarthTool.Common.GUI.Interfaces;
 using EarthTool.Common.GUI.Views;
 using EarthTool.PAR.GUI.Services;
@@ -19,20 +19,20 @@ namespace EarthTool.PAR.GUI.ViewModels;
 /// </summary>
 public class MainWindowViewModel : ViewModelBase, IDisposable
 {
-  private readonly IParFileService              _parFileService;
-  private readonly IDialogService               _dialogService;
-  private readonly INotificationService         _notificationService;
-  private readonly IUndoRedoService             _undoRedoService;
-  private readonly IEntityValidationService     _validationService;
+  private readonly IParFileService _parFileService;
+  private readonly IDialogService _dialogService;
+  private readonly INotificationService _notificationService;
+  private readonly IUndoRedoService _undoRedoService;
+  private readonly IEntityValidationService _validationService;
   private readonly ILogger<MainWindowViewModel> _logger;
-  private readonly EntityDetailsViewModel       _entityDetailsViewModel;
+  private readonly EntityDetailsViewModel _entityDetailsViewModel;
 
-  private ParFile?               _currentParFile;
-  private string?                _currentFilePath;
-  private bool                   _hasUnsavedChanges;
-  private bool                   _isBusy;
-  private string                 _statusMessage = "Ready";
-  private string                 _searchText    = string.Empty;
+  private ParFile? _currentParFile;
+  private string? _currentFilePath;
+  private bool _hasUnsavedChanges;
+  private bool _isBusy;
+  private string _statusMessage = "Ready";
+  private string _searchText = string.Empty;
   private TreeNodeViewModelBase? _selectedNode;
   private TreeNodeViewModelBase? _selectedEntity;
 
@@ -45,12 +45,12 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     ILogger<MainWindowViewModel> logger,
     EntityDetailsViewModel entityDetailsViewModel)
   {
-    _parFileService = parFileService                 ?? throw new ArgumentNullException(nameof(parFileService));
-    _dialogService = dialogService                   ?? throw new ArgumentNullException(nameof(dialogService));
-    _notificationService = notificationService       ?? throw new ArgumentNullException(nameof(notificationService));
-    _undoRedoService = undoRedoService               ?? throw new ArgumentNullException(nameof(undoRedoService));
-    _validationService = validationService           ?? throw new ArgumentNullException(nameof(validationService));
-    _logger = logger                                 ?? throw new ArgumentNullException(nameof(logger));
+    _parFileService = parFileService ?? throw new ArgumentNullException(nameof(parFileService));
+    _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
+    _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
+    _undoRedoService = undoRedoService ?? throw new ArgumentNullException(nameof(undoRedoService));
+    _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
+    _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     _entityDetailsViewModel = entityDetailsViewModel ?? throw new ArgumentNullException(nameof(entityDetailsViewModel));
 
     RootNodes = new ObservableCollection<TreeNodeViewModelBase>();
@@ -739,10 +739,10 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
 
     return result switch
     {
-      MessageBoxResult.Yes    => await TrySaveFileAsync(),
-      MessageBoxResult.No     => true,
+      MessageBoxResult.Yes => await TrySaveFileAsync(),
+      MessageBoxResult.No => true,
       MessageBoxResult.Cancel => false,
-      _                       => false
+      _ => false
     };
   }
 

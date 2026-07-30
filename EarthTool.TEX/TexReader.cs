@@ -14,7 +14,7 @@ namespace EarthTool.TEX
     {
       _earthInfoFactory = earthInfoFactory;
     }
-    
+
     public ITexFile Read(string filePath)
     {
       using (var stream = File.OpenRead(filePath))

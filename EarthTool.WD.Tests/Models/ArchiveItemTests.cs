@@ -1,4 +1,4 @@
-using EarthTool.Common.Enums;
+﻿using EarthTool.Common.Enums;
 using EarthTool.WD.Interfaces;
 using EarthTool.WD.Models;
 using System;

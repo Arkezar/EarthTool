@@ -1,4 +1,4 @@
-using EarthTool.Common.GUI.Enums;
+﻿using EarthTool.Common.GUI.Enums;
 using EarthTool.Common.GUI.Interfaces;
 using EarthTool.Common.Interfaces;
 using EarthTool.WD.GUI.Services;
@@ -19,17 +19,17 @@ namespace EarthTool.WD.GUI.ViewModels;
 /// </summary>
 public class MainWindowViewModel : ViewModelBase, IDisposable
 {
-  private readonly IArchiver                    _archiver;
-  private readonly IDialogService               _dialogService;
-  private readonly INotificationService         _notificationService;
-  private readonly ITextFlagService             _textFlagService;
+  private readonly IArchiver _archiver;
+  private readonly IDialogService _dialogService;
+  private readonly INotificationService _notificationService;
+  private readonly ITextFlagService _textFlagService;
   private readonly ILogger<MainWindowViewModel> _logger;
 
   private IArchive? _currentArchive;
-  private string?   _currentFilePath;
-  private bool      _hasUnsavedChanges;
-  private bool      _isBusy;
-  private string    _statusMessage = "Ready";
+  private string? _currentFilePath;
+  private bool _hasUnsavedChanges;
+  private bool _isBusy;
+  private string _statusMessage = "Ready";
 
   public MainWindowViewModel(
     IArchiver archiver,
@@ -38,11 +38,11 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     ITextFlagService textFlagService,
     ILogger<MainWindowViewModel> logger)
   {
-    _archiver = archiver                       ?? throw new ArgumentNullException(nameof(archiver));
-    _dialogService = dialogService             ?? throw new ArgumentNullException(nameof(dialogService));
+    _archiver = archiver ?? throw new ArgumentNullException(nameof(archiver));
+    _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
     _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
-    _textFlagService = textFlagService         ?? throw new ArgumentNullException(nameof(textFlagService));
-    _logger = logger                           ?? throw new ArgumentNullException(nameof(logger));
+    _textFlagService = textFlagService ?? throw new ArgumentNullException(nameof(textFlagService));
+    _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     ArchiveItems = new ObservableCollection<ArchiveItemViewModel>();
     TreeItems = new ObservableCollection<TreeItemViewModel>();
@@ -1277,7 +1277,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
           {
             node = new TreeItemViewModel(part, !isFile)
             {
-              FullPath = currentPath, Item = isFile ? archiveItem.Item : null,
+              FullPath = currentPath,
+              Item = isFile ? archiveItem.Item : null,
             };
             root[part] = node;
             TreeItems.Add(node);
@@ -1295,7 +1296,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
           {
             node = new TreeItemViewModel(part, !isFile)
             {
-              FullPath = currentPath, Item = isFile ? archiveItem.Item : null,
+              FullPath = currentPath,
+              Item = isFile ? archiveItem.Item : null,
             };
             currentParent.Children.Add(node);
           }
@@ -1338,11 +1340,11 @@ public class MainWindowViewModel : ViewModelBase, IDisposable
     // Update status message based on notification type
     StatusMessage = e.Type switch
     {
-      NotificationType.Error   => $"Error: {e.Message}",
+      NotificationType.Error => $"Error: {e.Message}",
       NotificationType.Warning => $"Warning: {e.Message}",
       NotificationType.Success => e.Message,
-      NotificationType.Info    => e.Message,
-      _                        => e.Message
+      NotificationType.Info => e.Message,
+      _ => e.Message
     };
   }
 

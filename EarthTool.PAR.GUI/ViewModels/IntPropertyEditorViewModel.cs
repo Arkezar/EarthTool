@@ -1,4 +1,4 @@
-using EarthTool.PAR.GUI.Services;
+﻿using EarthTool.PAR.GUI.Services;
 using ReactiveUI.Reactive;
 
 namespace EarthTool.PAR.GUI.ViewModels;
@@ -34,10 +34,10 @@ public class IntPropertyEditorViewModel : PropertyEditorViewModel
     set
     {
       if (_value == value) return;
-      
+
       var oldValue = _value;
       var newValue = value;
-      
+
       // Record undo action before changing
       _undoRedoService?.RecordAction(
         description: $"Change {DisplayName} from {oldValue} to {newValue}",

@@ -1,4 +1,4 @@
-using EarthTool.PAR.GUI.Models;
+﻿using EarthTool.PAR.GUI.Models;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;

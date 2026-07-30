@@ -1,4 +1,4 @@
-using EarthTool.Common.Interfaces;
+﻿using EarthTool.Common.Interfaces;
 using EarthTool.WD.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using System;

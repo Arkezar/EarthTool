@@ -1,4 +1,4 @@
-using EarthTool.PAR.Enums;
+﻿using EarthTool.PAR.Enums;
 using EarthTool.PAR.Factories;
 using EarthTool.PAR.Models;
 using System.Text;
@@ -59,7 +59,7 @@ namespace EarthTool.PAR.Tests.Models
       var bytes = original.ToByteArray(Encoding.UTF8);
       using var stream = new MemoryStream(bytes);
       using var reader = new BinaryReader(stream, Encoding.UTF8);
-      
+
       // Use EntityFactory to deserialize
       var factory = new EntityFactory();
       var restored = (Vehicle)factory.CreateEntity(reader, EntityGroupType.Vehicle);

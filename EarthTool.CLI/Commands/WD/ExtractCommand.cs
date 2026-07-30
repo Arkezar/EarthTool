@@ -1,4 +1,4 @@
-using EarthTool.Common.Interfaces;
+﻿using EarthTool.Common.Interfaces;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System;
@@ -28,7 +28,7 @@ public sealed class ExtractCommand : Command<ExtractSettings>
 
     // Expand wildcards in archive paths
     var expandedPaths = ExpandWildcards(settings.ArchivePaths);
-    
+
     if (!expandedPaths.Any())
     {
       AnsiConsole.MarkupLine("[red]No archive files found matching the specified patterns[/]");
@@ -105,7 +105,7 @@ public sealed class ExtractCommand : Command<ExtractSettings>
 
           // Search for files matching the pattern
           var matchingFiles = Directory.GetFiles(directory, fileName, SearchOption.TopDirectoryOnly);
-          
+
           if (matchingFiles.Length == 0)
           {
             AnsiConsole.MarkupLine($"[yellow]No files found matching pattern: {path}[/]");

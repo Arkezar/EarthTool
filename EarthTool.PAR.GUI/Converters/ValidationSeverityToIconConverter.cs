@@ -1,4 +1,4 @@
-using Avalonia.Data.Converters;
+﻿using Avalonia.Data.Converters;
 using EarthTool.PAR.GUI.Models;
 using System;
 using System.Globalization;

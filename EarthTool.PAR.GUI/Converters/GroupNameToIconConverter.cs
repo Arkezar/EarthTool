@@ -1,4 +1,4 @@
-using Avalonia.Data.Converters;
+﻿using Avalonia.Data.Converters;
 using System;
 using System.Globalization;
 
@@ -19,13 +19,13 @@ public class GroupNameToIconConverter : IValueConverter
         "Parameter Entry" => "📋",
         "Entity" => "🎯",
         "Typed" or "Typed Entity" => "🏷️",
-        
+
         // Core entity types
         "Interactable" => "🎮",
         "Destructible" => "💥",
         "Equipable" => "🔧",
         "Passive" or "Passive Entity" => "⚪",
-        
+
         // Specific entity types
         "Vehicle" => "🚗",
         "Building" => "🏭",
@@ -36,7 +36,7 @@ public class GroupNameToIconConverter : IValueConverter
         "Artifact" => "💎",
         "Mine" => "⛏️",
         "Research" => "🔬",
-        
+
         // Default
         _ => "📦"
       };

@@ -1,4 +1,4 @@
-using EarthTool.Common.Interfaces;
+﻿using EarthTool.Common.Interfaces;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System;

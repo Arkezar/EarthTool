@@ -1,4 +1,4 @@
-using ReactiveUI.Reactive;
+﻿using ReactiveUI.Reactive;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -38,7 +38,7 @@ public abstract class TreeNodeViewModelBase : ViewModelBase
     {
       if (Children == null)
         return null;
-      
+
       var filtered = new ObservableCollection<TreeNodeViewModelBase>(
         Children.Where(c => c.IsVisible));
       return filtered;
@@ -59,7 +59,7 @@ public abstract class TreeNodeViewModelBase : ViewModelBase
     {
       if (Children == null)
         return 0;
-      
+
       return Children.Count(c => c.IsVisible);
     }
   }

@@ -25,7 +25,7 @@ namespace EarthTool.PAR.Models
       int groupSize = reader.ReadInt32();
       Entities = Enumerable.Range(0, groupSize).Select(i => entityFactory.CreateEntity(reader, GroupType)).ToList();
     }
-    
+
     public string Name => Entities.Select(e => ExtractCommonName(e.Name)).Distinct().Aggregate((a, b) => $"{a}, {b}");
 
     public Faction Faction { get; set; }

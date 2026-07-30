@@ -1,9 +1,9 @@
-using EarthTool.PAR.GUI.ViewModels;
+﻿using EarthTool.PAR.GUI.ViewModels;
+using EarthTool.PAR.Models;
 using EarthTool.PAR.Models.Abstracts;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using EarthTool.PAR.Models;
 
 namespace EarthTool.PAR.GUI.Services;
 
@@ -21,7 +21,7 @@ public interface IPropertyEditorFactory
   /// <param name="navigateToResearch">Optional callback for navigating to research by name.</param>
   /// <returns>Collection of property editor ViewModels.</returns>
   IEnumerable<PropertyEditorViewModel> CreateEditorsForEntity(Entity entity, Action? onPropertyChanged = null, ParFile? parFile = null, Action<string>? navigateToResearch = null);
-  
+
   /// <summary>
   /// Creates property editors for all properties of a research.
   /// </summary>

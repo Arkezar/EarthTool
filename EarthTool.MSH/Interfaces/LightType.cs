@@ -1,4 +1,4 @@
-namespace EarthTool.MSH.Interfaces
+﻿namespace EarthTool.MSH.Interfaces
 {
   public enum LightType
   {

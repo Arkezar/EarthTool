@@ -1,4 +1,5 @@
-using EarthTool.PAR.GUI.ViewModels;
+﻿using EarthTool.PAR.GUI.ViewModels;
+using EarthTool.PAR.Models;
 using EarthTool.PAR.Models.Abstracts;
 using Microsoft.Extensions.Logging;
 using ReactiveUI.Reactive;
@@ -8,7 +9,6 @@ using System.Linq;
 using System.Reactive.Linq;
 using System.Reflection;
 using System.Text.Json.Serialization;
-using EarthTool.PAR.Models;
 
 namespace EarthTool.PAR.GUI.Services;
 
@@ -70,15 +70,15 @@ public class PropertyEditorFactory : IPropertyEditorFactory
   {
     if (entity == null)
       throw new ArgumentNullException(nameof(entity));
-    
+
     var properties = entity.GetType()
       .GetProperties(BindingFlags.Public | BindingFlags.Instance)
       .Where(p => p.CanRead && p.CanWrite)
       .Where(p => !ExcludedProperties.Contains(p.Name))
       .Where(p => p.GetCustomAttribute<JsonIgnoreAttribute>() == null);
-    
+
     var editors = new List<PropertyEditorViewModel>();
-    
+
     foreach (var property in properties)
     {
       var editor = CreateEditorForProperty(entity, property, onPropertyChanged, parFile, navigateToResearch);
@@ -92,7 +92,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
       editors.Count, entity.Name);
 
     return editors;
-    
+
     /*
        
        // Basic properties
@@ -146,7 +146,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
       {
         IntValue = (int)(propertyValue ?? 0)
       };
-      
+
       // Subscribe to value changes to update the entity
       intEditor.WhenAnyValue(x => x.IntValue)
         .Skip(1) // Skip initial value
@@ -155,7 +155,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
           property.SetValue(entity, newValue);
           onPropertyChanged?.Invoke();
         });
-      
+
       editor = intEditor;
     }
     else if (propertyType == typeof(string))
@@ -165,7 +165,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
         StringValue = (string)(propertyValue ?? string.Empty),
         IsEntityReferenceValue = property.Name.EndsWith("Id")
       };
-      
+
       // Subscribe to value changes to update the entity
       stringEditor.WhenAnyValue(x => x.StringValue)
         .Skip(1) // Skip initial value
@@ -174,14 +174,14 @@ public class PropertyEditorFactory : IPropertyEditorFactory
           property.SetValue(entity, newValue);
           onPropertyChanged?.Invoke();
         });
-      
+
       editor = stringEditor;
     }
     else if (propertyType.IsEnum)
     {
       // Check if this is a flags enum
       var isFlagsEnum = propertyType.GetCustomAttributes(typeof(FlagsAttribute), false).Length > 0;
-      
+
       if (isFlagsEnum)
       {
         var flagsEditor = new FlagsPropertyEditorViewModel(_undoRedoService)
@@ -189,7 +189,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
           EnumType = propertyType,
           Value = propertyValue
         };
-        
+
         // Subscribe to value changes to update the entity
         flagsEditor.WhenAnyValue(x => x.Value)
           .Skip(1) // Skip initial value
@@ -201,7 +201,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
               onPropertyChanged?.Invoke();
             }
           });
-        
+
         editor = flagsEditor;
       }
       else
@@ -211,7 +211,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
           EnumType = propertyType,
           Value = propertyValue
         };
-        
+
         // Subscribe to value changes to update the entity
         enumEditor.WhenAnyValue(x => x.Value)
           .Skip(1) // Skip initial value
@@ -223,7 +223,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
               onPropertyChanged?.Invoke();
             }
           });
-        
+
         editor = enumEditor;
       }
     }
@@ -233,12 +233,12 @@ public class PropertyEditorFactory : IPropertyEditorFactory
       if (property.Name == "RequiredResearch" && parFile != null)
       {
         var researchEditor = new ResearchReferenceCollectionEditorViewModel(_undoRedoService);
-        
+
         // Set ParFileContext FIRST, then Value to ensure research list is loaded
         researchEditor.ParFileContext = parFile;
         researchEditor.NavigateToResearchAction = navigateToResearch;
         researchEditor.Value = propertyValue;
-        
+
         // Subscribe to value changes to update the entity
         researchEditor.WhenAnyValue(x => x.Value)
           .Skip(1) // Skip initial value
@@ -250,7 +250,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
               onPropertyChanged?.Invoke();
             }
           });
-        
+
         editor = researchEditor;
       }
       else
@@ -259,7 +259,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
         {
           Value = propertyValue
         };
-        
+
         // Subscribe to value changes to update the entity
         collectionEditor.WhenAnyValue(x => x.Value)
           .Skip(1) // Skip initial value
@@ -271,7 +271,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
               onPropertyChanged?.Invoke();
             }
           });
-        
+
         editor = collectionEditor;
       }
     }
@@ -288,7 +288,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
       editor.PropertyName = property.Name;
       editor.DisplayName = FormatPropertyName(property.Name);
       editor.Description = $"{property.Name} ({propertyType.Name})";
-      
+
       // Mark Id property as read-only for Research entities
       if (property.Name == "Id" && entity is Research)
       {
@@ -309,7 +309,7 @@ public class PropertyEditorFactory : IPropertyEditorFactory
     if (type.IsGenericType)
     {
       var genericTypeDef = type.GetGenericTypeDefinition();
-      if (genericTypeDef == typeof(IEnumerable<>) || 
+      if (genericTypeDef == typeof(IEnumerable<>) ||
           genericTypeDef == typeof(List<>) ||
           genericTypeDef == typeof(ICollection<>) ||
           genericTypeDef == typeof(IList<>))

@@ -1,4 +1,4 @@
-using EarthTool.PAR.Enums;
+﻿using EarthTool.PAR.Enums;
 using EarthTool.PAR.Models.Abstracts;
 using ReactiveUI.Reactive;
 using System;

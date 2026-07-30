@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using EarthTool.Common;
@@ -52,7 +52,7 @@ public partial class App : Application
 
     // PAR services
     services.AddParServices();
-    
+
     // PAR Editor services
     services.AddSingleton<IParFileService, ParFileService>();
     services.AddSingleton<IUndoRedoService, UndoRedoService>();

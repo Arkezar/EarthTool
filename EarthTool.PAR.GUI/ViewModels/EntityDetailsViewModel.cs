@@ -1,4 +1,4 @@
-using EarthTool.PAR.GUI.Models;
+﻿using EarthTool.PAR.GUI.Models;
 using EarthTool.PAR.GUI.Services;
 using EarthTool.PAR.Models;
 using Microsoft.Extensions.Logging;
@@ -51,7 +51,7 @@ public class EntityDetailsViewModel : ViewModelBase
     set
     {
       if (_currentEntity == value) return;
-      
+
       _currentEntity = value;
       this.RaisePropertyChanged();
       LoadEntityOrResearch();
@@ -67,7 +67,7 @@ public class EntityDetailsViewModel : ViewModelBase
     set
     {
       if (_currentResearch == value) return;
-      
+
       _currentResearch = value;
       this.RaisePropertyChanged();
       LoadEntityOrResearch();
@@ -83,10 +83,10 @@ public class EntityDetailsViewModel : ViewModelBase
     set
     {
       if (_parFile == value) return;
-      
+
       _parFile = value;
       this.RaisePropertyChanged();
-      
+
       // Reload if we have an active entity/research
       if (_currentEntity != null || _currentResearch != null)
       {
@@ -104,7 +104,7 @@ public class EntityDetailsViewModel : ViewModelBase
     set
     {
       if (_navigateToResearch == value) return;
-      
+
       _navigateToResearch = value;
       this.RaisePropertyChanged();
     }
@@ -119,10 +119,10 @@ public class EntityDetailsViewModel : ViewModelBase
     set
     {
       if (_entityName == value) return;
-      
+
       _entityName = value;
       this.RaisePropertyChanged();
-      
+
       if (_currentEntity != null)
       {
         _currentEntity.Entity.Name = value;
@@ -173,19 +173,19 @@ public class EntityDetailsViewModel : ViewModelBase
   private void InitializeCommands()
   {
     var hasEntityOrResearch = this.WhenAnyValue(
-      x => x.CurrentEntity, 
+      x => x.CurrentEntity,
       x => x.CurrentResearch,
       (entity, research) => entity != null || research != null);
-    
+
     // Create an observable that monitors IsDirty changes on CurrentEntity or CurrentResearch
     var isDirty = Observable.CombineLatest(
       this.WhenAnyValue(x => x.CurrentEntity)
-        .Select(entity => entity != null 
+        .Select(entity => entity != null
           ? entity.WhenAnyValue(e => e.IsDirty).StartWith(entity.IsDirty)
           : Observable.Return(false))
         .Switch(),
       this.WhenAnyValue(x => x.CurrentResearch)
-        .Select(research => research != null 
+        .Select(research => research != null
           ? research.WhenAnyValue(r => r.IsDirty).StartWith(research.IsDirty)
           : Observable.Return(false))
         .Switch(),
@@ -213,7 +213,7 @@ public class EntityDetailsViewModel : ViewModelBase
       // Clear when no entity/research is selected
       PropertyGroups.Clear();
       ValidationErrors.Clear();
-      
+
       _logger.LogDebug("Details cleared");
       _entityName = string.Empty;
       this.RaisePropertyChanged(nameof(EntityName));
@@ -235,7 +235,7 @@ public class EntityDetailsViewModel : ViewModelBase
     {
       // Find which type in the hierarchy declares this property
       var declaringType = FindDeclaringType(researchType, editor.PropertyName);
-      
+
       if (declaringType != null)
       {
         if (!propertiesByType.ContainsKey(declaringType))
@@ -284,7 +284,7 @@ public class EntityDetailsViewModel : ViewModelBase
     // Clear existing groups to prevent duplication
     PropertyGroups.Clear();
     ValidationErrors.Clear();
-    
+
     _entityName = _currentEntity!.DisplayName;
     this.RaisePropertyChanged(nameof(EntityName));
     this.RaisePropertyChanged(nameof(EntityType));
@@ -292,7 +292,7 @@ public class EntityDetailsViewModel : ViewModelBase
 
     // Create property editors with callback to mark entity as dirty
     var editors = _propertyEditorFactory.CreateEditorsForEntity(
-      _currentEntity.Entity, 
+      _currentEntity.Entity,
       () => _currentEntity.MarkDirty(),
       _parFile,
       _navigateToResearch);
@@ -315,7 +315,7 @@ public class EntityDetailsViewModel : ViewModelBase
     // Clear existing groups to prevent duplication
     PropertyGroups.Clear();
     ValidationErrors.Clear();
-    
+
     _entityName = _currentResearch!.Research.Name;
     this.RaisePropertyChanged(nameof(EntityName));
     this.RaisePropertyChanged(nameof(EntityType));
@@ -323,9 +323,9 @@ public class EntityDetailsViewModel : ViewModelBase
 
     // Create property editors for Research with callback to mark as dirty
     var editors = _propertyEditorFactory.CreateEditorsForResearch(
-      _currentResearch.Research, 
-      () => _currentResearch.MarkDirty(), 
-      _parFile, 
+      _currentResearch.Research,
+      () => _currentResearch.MarkDirty(),
+      _parFile,
       _navigateToResearch);
     var groupedEditors = GroupResearchProperties(editors);
 
@@ -340,7 +340,7 @@ public class EntityDetailsViewModel : ViewModelBase
     _logger.LogInformation("Loaded research details for '{Name}' ({Type}) with {PropertyCount} properties",
       _currentResearch.Research.Name, _currentResearch.Research.Type, editors.Count());
   }
-  
+
   private IEnumerable<PropertyGroupViewModel> GroupProperties(IEnumerable<PropertyEditorViewModel> editors)
   {
     if (_currentEntity == null)
@@ -354,7 +354,7 @@ public class EntityDetailsViewModel : ViewModelBase
     {
       // Find which type in the hierarchy declares this property
       var declaringType = FindDeclaringType(entityType, editor.PropertyName);
-      
+
       if (declaringType != null)
       {
         if (!propertiesByType.ContainsKey(declaringType))
@@ -407,20 +407,20 @@ public class EntityDetailsViewModel : ViewModelBase
   private string FormatTypeName(Type type)
   {
     var name = type.Name;
-    
+
     // Remove "Entity" suffix if present
     if (name.EndsWith("Entity") && !name.Equals("Entity"))
     {
       name = name.Substring(0, name.Length - 6);
     }
-    
+
     // Convert PascalCase to "Pascal Case"
     if (string.IsNullOrEmpty(name))
       return name;
-      
+
     var result = string.Concat(name.Select((c, i) =>
       i > 0 && char.IsUpper(c) && !char.IsUpper(name[i - 1]) ? " " + c : c.ToString()));
-    
+
     return result;
   }
 

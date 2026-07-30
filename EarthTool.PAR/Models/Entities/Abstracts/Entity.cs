@@ -1,4 +1,4 @@
-using EarthTool.Common.Interfaces;
+﻿using EarthTool.Common.Interfaces;
 using EarthTool.PAR.Enums;
 using EarthTool.PAR.Extensions;
 using System;

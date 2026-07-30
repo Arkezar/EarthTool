@@ -1,4 +1,4 @@
-using EarthTool.PAR.Enums;
+﻿using EarthTool.PAR.Enums;
 using System.Collections.ObjectModel;
 
 namespace EarthTool.PAR.GUI.ViewModels;

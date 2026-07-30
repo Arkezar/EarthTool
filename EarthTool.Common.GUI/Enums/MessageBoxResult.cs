@@ -1,4 +1,4 @@
-namespace EarthTool.Common.GUI.Enums;
+﻿namespace EarthTool.Common.GUI.Enums;
 
 /// <summary>
 /// Result of a message box interaction.
