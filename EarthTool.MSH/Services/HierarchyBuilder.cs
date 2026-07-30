@@ -21,7 +21,7 @@ namespace EarthTool.MSH.Services
           parent = parent.Parent;
         }
 
-        if (part.PartType == PartType.Base)
+        if (!part.PartType.HasFlag(PartType.Subpart))
         {
           node = parent;
           node.Parts.Add(part);

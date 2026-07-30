@@ -3,6 +3,7 @@ using EarthTool.Common.Factories;
 using EarthTool.Common.Interfaces;
 using EarthTool.MSH.Interfaces;
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -44,9 +45,8 @@ namespace EarthTool.MSH.Models
           {
             var geometries = Geometries?.ToArray() ?? Array.Empty<IModelPart>();
             var trailingUnwind = GetStaticTrailingHierarchyUnwindCount(geometries);
-            ValidateRecordMarkers(geometries);
             bw.Write(trailingUnwind);
-            bw.Write(geometries.SelectMany(p => p.ToByteArray(encoding)).ToArray());
+            WriteStaticRecords(bw, geometries, encoding);
           }
           else if (BaseHeader.MeshKind == MeshKind.Dynamic)
           {
@@ -119,20 +119,19 @@ namespace EarthTool.MSH.Models
       return sourceDepth - geometry.BackTrackDepth;
     }
 
-    private static void ValidateRecordMarkers(IReadOnlyList<IModelPart> geometries)
+    private static void WriteStaticRecords(BinaryWriter writer, IReadOnlyList<IModelPart> geometries, Encoding encoding)
     {
       for (var i = 0; i < geometries.Count; i++)
       {
-        var isFinal = i == geometries.Count - 1;
-        if (isFinal && geometries[i].NextRecordMarker != 0)
+        var record = geometries[i].ToByteArray(encoding);
+        if (record.Length < sizeof(uint))
         {
-          throw new InvalidOperationException("Final static NextRecordMarker must be zero.");
+          throw new InvalidOperationException("Static render record is too short to contain a NextRecordMarker.");
         }
 
-        if (!isFinal && geometries[i].NextRecordMarker == 0)
-        {
-          throw new InvalidOperationException("Non-final static NextRecordMarker must be nonzero.");
-        }
+        var marker = i == geometries.Count - 1 ? 0u : 1u;
+        BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(record.Length - sizeof(uint)), marker);
+        writer.Write(record);
       }
     }
 

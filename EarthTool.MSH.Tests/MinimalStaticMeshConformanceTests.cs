@@ -108,6 +108,29 @@ public class MinimalStaticMeshConformanceTests
   }
 
   [Fact]
+  public void PublicReaderTreatsAnyNonzeroNextRecordMarkerAsBooleanLink()
+  {
+    var fixture = CreateLinkedFixture(new uint[] { 0, 0 }, uint.MaxValue, 1);
+    var inputPath = GetTemporaryPath();
+
+    try
+    {
+      File.WriteAllBytes(inputPath, fixture);
+
+      var mesh = CreateReader().Read(inputPath);
+
+      var parts = mesh.Geometries.ToArray();
+      Assert.Equal(2, parts.Length);
+      Assert.Equal(uint.MaxValue, parts[0].NextRecordMarker);
+      Assert.Equal(0u, parts[1].NextRecordMarker);
+    }
+    finally
+    {
+      File.Delete(inputPath);
+    }
+  }
+
+  [Fact]
   public void NewlyAuthoredStaticMeshPreservesGeneratedGuidAcrossWrites()
   {
     var fixturePath = GetTemporaryPath();
@@ -258,20 +281,28 @@ public class MinimalStaticMeshConformanceTests
   }
 
   [Fact]
-  public void PublicWriterRejectsNonzeroFinalRecordMarker()
+  public void PublicWriterCanonicalizesRecordMarkersFromSequencePosition()
   {
-    var mesh = ReadValidMesh();
-    Assert.IsType<ModelPart>(Assert.Single(mesh.Geometries)).NextRecordMarker = 1;
+    var inputPath = GetTemporaryPath();
     var outputPath = GetTemporaryPath();
 
     try
     {
-      var exception = Assert.Throws<InvalidOperationException>(() => new EarthMeshWriter(Encoding.UTF8).Write(mesh, outputPath));
+      File.WriteAllBytes(inputPath, CreateLinkedFixture(new uint[] { 0, 0 }, uint.MaxValue, 1));
+      var mesh = CreateReader().Read(inputPath);
+      var parts = mesh.Geometries.Cast<ModelPart>().ToArray();
+      parts[0].NextRecordMarker = 0;
+      parts[1].NextRecordMarker = uint.MaxValue;
 
-      Assert.Contains("Final static NextRecordMarker", exception.Message, StringComparison.Ordinal);
+      new EarthMeshWriter(Encoding.UTF8).Write(mesh, outputPath);
+
+      var output = File.ReadAllBytes(outputPath);
+      Assert.Equal(1u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(0x459)));
+      Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(0x536)));
     }
     finally
     {
+      File.Delete(inputPath);
       File.Delete(outputPath);
     }
   }
@@ -385,6 +416,13 @@ public class MinimalStaticMeshConformanceTests
     WriteUInt32(nonzeroFinalMarker, nonzeroFinalMarker.Length - sizeof(uint), 1);
     yield return new object[] { nonzeroFinalMarker, "NextRecordMarker" };
 
+    var zeroBeforeEnd = CreateLinkedFixture(new uint[] { 0, 0 }, 1, 1);
+    WriteUInt32(zeroBeforeEnd, 0x459, 0);
+    yield return new object[] { zeroBeforeEnd, "trailing data" };
+
+    var truncatedLinkedRecord = CreateLinkedFixture(new uint[] { 0, 0 }, 1, 1)[..0x470];
+    yield return new object[] { truncatedLinkedRecord, "Vertices" };
+
     var trailingData = CreateFixture().Concat(new byte[] { 0xFF }).ToArray();
     yield return new object[] { trailingData, "trailing data" };
   }
@@ -439,6 +477,30 @@ public class MinimalStaticMeshConformanceTests
     data[cursor] = 0;
     cursor++;
     WriteUInt32(data, cursor, 0);
+
+    return data;
+  }
+
+  private static byte[] CreateLinkedFixture(uint[] objectFlags, uint nonfinalMarker, uint trailingUnwind)
+  {
+    const int recordsOffset = 0x380;
+    const int recordSize = 0xDD;
+    const int objectFlagsOffset = 0xA8;
+    const int nextRecordMarkerOffset = 0xD9;
+    var canonical = CreateFixture();
+    var record = canonical.AsSpan(recordsOffset, recordSize).ToArray();
+    var data = new byte[recordsOffset + (recordSize * objectFlags.Length)];
+    canonical.AsSpan(0, recordsOffset).CopyTo(data);
+    WriteUInt32(data, 0x37C, trailingUnwind);
+
+    for (var i = 0; i < objectFlags.Length; i++)
+    {
+      var offset = recordsOffset + (recordSize * i);
+      record.CopyTo(data, offset);
+      WriteUInt32(data, offset + objectFlagsOffset, objectFlags[i]);
+      WriteUInt32(data, offset + nextRecordMarkerOffset,
+        i == objectFlags.Length - 1 ? 0 : nonfinalMarker);
+    }
 
     return data;
   }

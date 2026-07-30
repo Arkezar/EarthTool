@@ -21,4 +21,9 @@
         </PackageReference>
     </ItemGroup>
 
+    <ItemGroup>
+        <ProjectReference Include="..\EarthTool.DAE\EarthTool.DAE.csproj" />
+        <ProjectReference Include="..\EarthTool.MSH\EarthTool.MSH.csproj" />
+    </ItemGroup>
+
 </Project>
