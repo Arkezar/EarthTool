@@ -208,7 +208,7 @@ EarthTool.MSH/
 ├── Interfaces/
 │   ├── IMesh.cs, IMeshPart.cs, IVertex.cs
 │   ├── IMaterial.cs, ITexture.cs
-│   └── IAnimation.cs, ILight.cs
+│   └── IAnimation.cs, IStaticLight.cs
 ├── Models/
 │   ├── Mesh.cs              - Root mesh model
 │   ├── MeshPart.cs          - Geometry parts

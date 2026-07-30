@@ -4,9 +4,9 @@ using System.Text;
 
 namespace EarthTool.MSH.Models.Elements
 {
-  public class OmniLight : Light, IOmniLight
+  public class OmniLight : StaticLight, IOmniLight
   {
-    public float Radius { get; set; }
+    public float FinalParameter { get; set; }
 
     public override byte[] ToByteArray(Encoding encoding)
     {
@@ -15,7 +15,7 @@ namespace EarthTool.MSH.Models.Elements
         using (var writer = new BinaryWriter(stream))
         {
           writer.Write(base.ToByteArray(encoding));
-          writer.Write(Radius);
+          writer.Write(FinalParameter);
         }
         return stream.ToArray();
       }

@@ -1,6 +1,6 @@
 ﻿using Collada141;
+using EarthTool.DAE.Extensions;
 using EarthTool.MSH.Interfaces;
-using EarthTool.MSH.Models.Elements;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -14,139 +14,83 @@ namespace EarthTool.DAE.Elements
   {
     public IEnumerable<(Light Light, Node LightNode)> GetLights(IMesh model)
     {
-      return model.BaseHeader.SpotLights.Where(l => l.IsAvailable).Select((l, i) => (GetLight(l, i), GetLightNode(l, i)))
-        .Concat(model.BaseHeader.OmnidirectionalLights.Where(l => l.IsAvailable).Select((l, i) => (GetLight(l, i), GetLightNode(l, i))));
+      var spotSlots = model.BaseHeader.Slots.Headlights.ToArray();
+      var omniSlots = model.BaseHeader.Slots.Omnilights.ToArray();
+      return model.BaseHeader.SpotLights
+        .Select((light, index) => (Light: (IStaticLight)light, Index: index, Active: spotSlots[index].IsValid))
+        .Concat(model.BaseHeader.OmnidirectionalLights
+          .Select((light, index) => (Light: (IStaticLight)light, Index: index, Active: omniSlots[index].IsValid)))
+        .Where(item => item.Active)
+        .Select(item => (GetLight(item.Light, item.Index + 1), GetLightNode(item.Light, item.Index + 1)));
     }
 
-    private Node GetLightNode(ILight light, int i)
+    private Node GetLightNode(IStaticLight light, int sourceNumber)
     {
-      var id = GetLightName(light, i);
-      var node = new Node()
+      var id = GetLightName(light, sourceNumber);
+      var node = new Node
       {
         Id = id,
         Name = id
       };
-
-      var rotationZrad = light switch
+      var transformMatrix = Matrix4x4.CreateTranslation(light.Position);
+      node.Matrix.Add(new Matrix
       {
-        SpotLight sl => sl.Direction / 255f * Math.PI / 2,
-        _ => 0
-      };
-
-      var rotationYrad = light switch
-      {
-        SpotLight sl => -Math.PI / 2f - sl.Tilt,
-        _ => 0
-      };
-
-      var translation = Matrix4x4.CreateTranslation(light.Value);
-      var rotZ = Matrix4x4.CreateRotationZ((float)rotationZrad);
-      var rotY = Matrix4x4.CreateRotationY((float)rotationYrad);
-      var transformMatrix = rotZ * rotY * translation;
-
-      node.Matrix.Add(new Matrix()
-      {
-        Value = string.Format(CultureInfo.InvariantCulture, "{0} {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11} {12} {13} {14} {15}", transformMatrix.M11,
-                                                                                                                                   transformMatrix.M21,
-                                                                                                                                   transformMatrix.M31,
-                                                                                                                                   transformMatrix.M41,
-                                                                                                                                   transformMatrix.M12,
-                                                                                                                                   transformMatrix.M22,
-                                                                                                                                   transformMatrix.M32,
-                                                                                                                                   transformMatrix.M42,
-                                                                                                                                   transformMatrix.M13,
-                                                                                                                                   transformMatrix.M23,
-                                                                                                                                   transformMatrix.M33,
-                                                                                                                                   transformMatrix.M43,
-                                                                                                                                   transformMatrix.M14,
-                                                                                                                                   transformMatrix.M24,
-                                                                                                                                   transformMatrix.M34,
-                                                                                                                                   transformMatrix.M44)
+        Value = string.Format(CultureInfo.InvariantCulture,
+          "{0} {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11} {12} {13} {14} {15}",
+          transformMatrix.M11, transformMatrix.M21, transformMatrix.M31, transformMatrix.M41,
+          transformMatrix.M12, transformMatrix.M22, transformMatrix.M32, transformMatrix.M42,
+          transformMatrix.M13, transformMatrix.M23, transformMatrix.M33, transformMatrix.M43,
+          transformMatrix.M14, transformMatrix.M24, transformMatrix.M34, transformMatrix.M44)
       });
-
-      var instanceGeometry = new Instance_Light()
-      {
-        Url = $"#{id}"
-      };
-
-      node.Instance_Light.Add(instanceGeometry);
-
+      node.Instance_Light.Add(new Instance_Light { Url = $"#{id}" });
       return node;
     }
 
-    private Light GetLight(ILight light, int i)
+    private Light GetLight(IStaticLight light, int sourceNumber)
     {
-      return new Light()
+      var result = new Light
       {
-        Id = GetLightName(light, i),
-        Name = GetLightName(light, i),
+        Id = GetLightName(light, sourceNumber),
+        Name = GetLightName(light, sourceNumber),
         Technique_Common = light switch
         {
-          SpotLight sl => GetSpotLight(sl),
-          OmniLight ol => GetPointLight(ol),
-          _ => null
+          ISpotLight spot => GetSpotLight(spot),
+          IOmniLight _ => GetPointLight(),
+          _ => throw new InvalidOperationException($"Unsupported static light type {light.GetType().Name}.")
         }
       };
+      result.AddStaticLightMetadata(light, sourceNumber);
+      return result;
     }
 
-    private string GetLightName(ILight light, int i)
-      => $"{light.GetType().Name}-{i}";
-
-    private LightTechnique_Common GetSpotLight(SpotLight light)
-    {
-      return new LightTechnique_Common()
+    private static string GetLightName(IStaticLight light, int sourceNumber)
+      => light switch
       {
-        Spot = new LightTechnique_CommonSpot()
+        ISpotLight _ => $"SpotLight-{sourceNumber}",
+        IOmniLight _ => $"OmniLight-{sourceNumber}",
+        _ => throw new InvalidOperationException($"Unsupported static light type {light.GetType().Name}.")
+      };
+
+    private static LightTechnique_Common GetSpotLight(ISpotLight light)
+      => new LightTechnique_Common
+      {
+        Spot = new LightTechnique_CommonSpot
         {
-          Color = new TargetableFloat3()
+          Color = new TargetableFloat3 { Value = "1 1 1" },
+          Falloff_Angle = new TargetableFloat
           {
-            Value = string.Format(CultureInfo.InvariantCulture, "{0} {1} {2}", light.Color.R / 255f, light.Color.G / 255f, light.Color.B / 255f)
-          },
-          Constant_Attenuation = new TargetableFloat()
-          {
-            Value = light.Length
-          },
-          Linear_Attenuation = new TargetableFloat()
-          {
-            Value = light.Ambience
-          },
-          Quadratic_Attenuation = new TargetableFloat()
-          {
-            Value = 0
-          },
-          Falloff_Angle = new TargetableFloat()
-          {
-            Value = light.Width * 180.0 / Math.PI
+            Value = 2 * Math.Atan(light.ConeHalfAngleTangent) * 180 / Math.PI
           }
         }
       };
-    }
 
-    private LightTechnique_Common GetPointLight(OmniLight light)
-    {
-      return new LightTechnique_Common()
+    private static LightTechnique_Common GetPointLight()
+      => new LightTechnique_Common
       {
-        Point = new LightTechnique_CommonPoint()
+        Point = new LightTechnique_CommonPoint
         {
-          Color = new TargetableFloat3()
-          {
-            Value = string.Format(CultureInfo.InvariantCulture, "{0} {1} {2}", light.Color.R / 255f, light.Color.G / 255f, light.Color.B / 255f)
-          },
-          Constant_Attenuation = new TargetableFloat()
-          {
-            Value = light.Radius
-          },
-          Linear_Attenuation = new TargetableFloat()
-          {
-            Value = 0
-          },
-          Quadratic_Attenuation = new TargetableFloat()
-          {
-            Value = 0
-          }
+          Color = new TargetableFloat3 { Value = "1 1 1" }
         }
       };
-    }
   }
-
 }

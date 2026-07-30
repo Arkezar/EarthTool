@@ -1,6 +1,5 @@
 ﻿using EarthTool.MSH.Interfaces;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -25,9 +24,9 @@ namespace EarthTool.MSH.Models
     public float Radius { get; set; }
     public int Unknown { get; set; }
     public bool Additive { get; set; }
-    public Color LightColor { get; set; }
-    public Color Color { get; set; }
-    public float ColorIntensity { get; set; }
+    public Vector3 LightVector { get; set; }
+    public Vector3 ColorRgb { get; set; }
+    public float ColorParameter { get; set; }
     public int AlphaInt { get; set; }
     public float AlphaB { get; set; }
     public float AlphaA { get; set; }
@@ -59,9 +58,14 @@ namespace EarthTool.MSH.Models
           bw.Write(Radius);
           bw.Write(Unknown);
           bw.Write(Additive);
-          bw.Write(LightColor.ToArgb());
-          bw.Write(Color.ToArgb());
-          bw.Write(ColorIntensity);
+          bw.Write(new byte[3]);
+          bw.Write(LightVector.X);
+          bw.Write(LightVector.Y);
+          bw.Write(LightVector.Z);
+          bw.Write(ColorRgb.X);
+          bw.Write(ColorRgb.Y);
+          bw.Write(ColorRgb.Z);
+          bw.Write(ColorParameter);
           bw.Write(AlphaInt);
           bw.Write(AlphaB);
           bw.Write(AlphaA);

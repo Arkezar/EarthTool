@@ -9,8 +9,8 @@ namespace EarthTool.MSH.Interfaces
     uint BoxPresenceMask { get; }
     IMeshFrames Frames { get; }
     IEnumerable<IVector> MountPoints { get; }
-    IEnumerable<ISpotLight> SpotLights { get; }
-    IEnumerable<IOmniLight> OmnidirectionalLights { get; }
+    IReadOnlyList<ISpotLight> SpotLights { get; }
+    IReadOnlyList<IOmniLight> OmnidirectionalLights { get; }
     IModelSlots Slots { get; }
     /// <summary>Gets the logical box and raw coverage data.</summary>
     IMeshFootprint Footprint { get; }

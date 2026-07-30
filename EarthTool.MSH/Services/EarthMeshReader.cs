@@ -10,7 +10,6 @@ using EarthTool.MSH.Models.Collections;
 using EarthTool.MSH.Models.Elements;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -153,9 +152,9 @@ namespace EarthTool.MSH.Services
         Radius = reader.ReadSingle(),
         Unknown = reader.ReadInt32(),
         Additive = reader.ReadInt32() > 0,
-        LightColor = GetColor(reader),
-        Color = GetColor(reader),
-        ColorIntensity = reader.ReadSingle(),
+        LightVector = GetVector3(reader),
+        ColorRgb = GetVector3(reader),
+        ColorParameter = reader.ReadSingle(),
         AlphaInt = reader.ReadInt32(),
         AlphaB = reader.ReadSingle(),
         AlphaA = reader.ReadSingle(),
@@ -221,8 +220,8 @@ namespace EarthTool.MSH.Services
         Frames = LoadMeshFrames(reader),
         HeaderFlags = reader.ReadInt32(),
         MountPoints = LoadSlotList(reader, 4, (r, _) => LoadVector(r)),
-        SpotLights = LoadSlotList(reader, 4, (r, _) => LoadSpotLight(r)),
-        OmnidirectionalLights = LoadSlotList(reader, 4, (r, _) => LoadOmniLight(r)),
+        SpotLights = LoadSlotList(reader, 4, (r, _) => LoadSpotLight(r)).ToArray(),
+        OmnidirectionalLights = LoadSlotList(reader, 4, (r, _) => LoadOmniLight(r)).ToArray(),
         Footprint = LoadMeshFootprint(reader),
         Slots = LoadModelSlots(reader),
         HorizontalExtents = LoadMeshHorizontalExtents(reader)
@@ -326,29 +325,32 @@ namespace EarthTool.MSH.Services
     {
       return new SpotLight()
       {
-        Value = GetVector(reader),
-        Color = GetColor(reader),
-        Length = reader.ReadSingle(),
-        Direction = reader.ReadInt32(),
-        Width = reader.ReadSingle(),
-        U3 = reader.ReadSingle(),
-        Tilt = reader.ReadSingle(),
-        Ambience = reader.ReadSingle()
+        Position = GetVector(reader),
+        LightParameters = GetVector3(reader),
+        HorizontalTargetDistance = reader.ReadSingle(),
+        TargetHeading = reader.ReadByte(),
+        Reserved1 = reader.ReadByte(),
+        Reserved2 = reader.ReadByte(),
+        Reserved3 = reader.ReadByte(),
+        ConeHalfAngleTangent = reader.ReadSingle(),
+        DistanceScaledCone = reader.ReadSingle(),
+        VerticalTargetSlope = reader.ReadSingle(),
+        FinalParameter = reader.ReadSingle()
       };
     }
 
     private IOmniLight LoadOmniLight(BinaryReader reader)
     {
-      return new OmniLight() { Value = GetVector(reader), Color = GetColor(reader), Radius = reader.ReadSingle() };
+      return new OmniLight()
+      {
+        Position = GetVector(reader),
+        LightParameters = GetVector3(reader),
+        FinalParameter = reader.ReadSingle()
+      };
     }
 
-    private Color GetColor(BinaryReader reader)
-    {
-      var r = reader.ReadSingle() * 255;
-      var g = reader.ReadSingle() * 255;
-      var b = reader.ReadSingle() * 255;
-      return Color.FromArgb((int)r, (int)g, (int)b);
-    }
+    private static Vector3 GetVector3(BinaryReader reader)
+      => new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
 
     #endregion
 

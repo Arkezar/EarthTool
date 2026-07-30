@@ -46,6 +46,50 @@ external COLLADA slot nodes without that metadata use the ordinary `0x80`
 default. Static-light attachment conversion is handled separately from slot
 node metadata.
 
+## Static lights
+
+`IMeshBaseHeader.SpotLights` and `OmnidirectionalLights` are indexed read-only
+lists containing the four physical records in source-number order. A static
+light uses composition through `IStaticLight`: `Position` is its full-precision
+`Vector3`, and `LightParameters` is the raw three-float parameter vector. These
+values are never quantized or restricted to the display-color range.
+
+Spot records expose `HorizontalTargetDistance`, the exact one-byte
+`TargetHeading`, its derived `TargetHeadingRadians` view, `Reserved1` through
+`Reserved3`, `ConeHalfAngleTangent`, `DistanceScaledCone`,
+`VerticalTargetSlope`, and `FinalParameter`. Omni records expose their final
+unidentified float as `FinalParameter`.
+
+Light activity comes only from the corresponding attachment at the same list
+index: spot records use `Slots.Headlights`, and omni records use
+`Slots.Omnilights`. Full-precision light positions and quantized attachment
+positions are independent serialized fields. MSH writing neither synchronizes
+nor rejects differences between them.
+
+Static COLLADA export preserves source numbers in names `SpotLight-1` through
+`SpotLight-4` and `OmniLight-1` through `OmniLight-4`, omitting records whose
+corresponding attachment is inactive. Standard COLLADA fields contain white
+color, position, and the confirmed spot cone angle. The complete active MSH
+record is invariant text in the unqualified version-1 payload
+`<extra><technique profile="EARTHTOOL"><msh_static_light version="1">`.
+
+COLLADA import prefers valid EarthTool metadata. Without metadata, a light must
+still use the numbered name, standard color becomes `LightParameters`, and only
+confirmed standard fields are mapped; other values and reserved bytes become
+zero. Unsupported versions, incomplete or malformed metadata, source-number
+conflicts, duplicates, out-of-range numbers, unnumbered lights, and more than
+four records are invalid input. If an imported active light position would
+quantize to the three-coordinate absence sentinel, EarthTool moves only the
+attachment X coordinate by one fixed-point unit so the light remains active;
+the full-precision light position remains exact.
+
+## Dynamic light vectors
+
+`IDynamicPart.LightVector` and `ColorRgb` expose their serialized three-float
+vectors as `Vector3`. `ColorParameter` preserves the separate fourth color
+float. These fields use their complete 12-byte, 12-byte, and 4-byte widths and
+do not pass through packed or 8-bit color representations.
+
 ## Footprints and horizontal extents
 
 `IMeshBaseHeader.BoxPresenceMask` exposes the complete 32-bit box presence mask.
@@ -75,6 +119,20 @@ Update callers as follows:
 | `Boundaries.MinX` | `HorizontalExtents.NegativeX` |
 | `Face.UNKNOWN` | `Face.Flags` |
 | `Slot.Flag` or `Slot.FinalParameter` | `Slot.ExtraAngle` |
+| `ILight` / `Light` | `IStaticLight` / `StaticLight` |
+| static `Light.Value` | `StaticLight.Position` |
+| static `Light.Color` | `StaticLight.LightParameters` |
+| `Light.IsAvailable` | corresponding `ISlot.IsValid` |
+| `SpotLight.Length` | `SpotLight.HorizontalTargetDistance` |
+| `SpotLight.Direction` | `SpotLight.TargetHeading` and `Reserved1..3` |
+| `SpotLight.Width` | `SpotLight.ConeHalfAngleTangent` |
+| `SpotLight.U3` | `SpotLight.DistanceScaledCone` |
+| `SpotLight.Tilt` | `SpotLight.VerticalTargetSlope` |
+| `SpotLight.Ambience` | `SpotLight.FinalParameter` |
+| `OmniLight.Radius` | `OmniLight.FinalParameter` |
+| `DynamicPart.LightColor` | `DynamicPart.LightVector` |
+| `DynamicPart.Color` | `DynamicPart.ColorRgb` |
+| `DynamicPart.ColorIntensity` | `DynamicPart.ColorParameter` |
 
 Box heights are now `ushort[]`, and horizontal extent properties are `ushort`.
 Coverage values are intentionally raw because their derived bit layout is not a

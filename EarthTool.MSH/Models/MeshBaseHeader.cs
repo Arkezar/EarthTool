@@ -24,9 +24,9 @@ namespace EarthTool.MSH.Models
 
     public IEnumerable<IVector> MountPoints { get; set; }
 
-    public IEnumerable<ISpotLight> SpotLights { get; set; }
+    public IReadOnlyList<ISpotLight> SpotLights { get; set; }
 
-    public IEnumerable<IOmniLight> OmnidirectionalLights { get; set; }
+    public IReadOnlyList<IOmniLight> OmnidirectionalLights { get; set; }
 
     public IMeshFootprint Footprint { get; set; }
 

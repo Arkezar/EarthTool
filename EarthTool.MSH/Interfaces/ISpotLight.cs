@@ -2,13 +2,17 @@
 
 namespace EarthTool.MSH.Interfaces
 {
-  public interface ISpotLight : ILight, IBinarySerializable
+  public interface ISpotLight : IStaticLight, IBinarySerializable
   {
-    float Ambience { get; set; }
-    int Direction { get; set; }
-    float Length { get; set; }
-    float Tilt { get; set; }
-    float U3 { get; set; }
-    float Width { get; set; }
+    float HorizontalTargetDistance { get; set; }
+    byte TargetHeading { get; set; }
+    double TargetHeadingRadians { get; }
+    byte Reserved1 { get; set; }
+    byte Reserved2 { get; set; }
+    byte Reserved3 { get; set; }
+    float ConeHalfAngleTangent { get; set; }
+    float DistanceScaledCone { get; set; }
+    float VerticalTargetSlope { get; set; }
+    float FinalParameter { get; set; }
   }
 }

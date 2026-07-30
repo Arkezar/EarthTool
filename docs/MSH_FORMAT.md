@@ -277,6 +277,11 @@ The exact game-facing names of the secondary light parameters are not present
 in the binary. Their widths, formulas, and positions above are confirmed. The
 documentation describes them as color/brightness/cone/length controls.
 
+The public model preserves the first vector as `Position` and the second as
+`LightParameters`. It exposes the remaining values with neutral format-derived
+names and keeps the heading byte separate from all three reserved bytes. No
+light parameter passes through an 8-bit color representation.
+
 ### Omni form
 
 Omni light number `n` uses a 28-byte record at:
@@ -298,6 +303,29 @@ not only records known to be active. In `edbpp.msh`, unused spot positions 2..4
 are therefore `(-0.5,-0.5,0)` rather than zero. The four unused cannon-position
 vectors in the overlapping first 48 bytes have the same value. Consumers must
 not infer active lights or cannons from these position values alone.
+
+EarthTool determines static light activity from attachment records 13..16 for
+spot lights and 17..20 for omni lights. MSH writing preserves full-precision
+light and quantized attachment positions independently.
+
+### COLLADA static-light contract
+
+Active records export with stable names `SpotLight-1` through `SpotLight-4` and
+`OmniLight-1` through `OmniLight-4`; inactive records are omitted without
+compacting gaps. Standard COLLADA color is white. Position and the spot cone
+angle, calculated as twice the arctangent of the stored half-angle tangent, are
+the only projected standard values.
+
+The complete record is stored as invariant round-trip text in an unqualified
+`msh_static_light` element with `version="1"`, nested under an `EARTHTOOL`
+technique in `extra`. Its `source_number` must agree with the numbered light
+name. Import rejects malformed or incomplete metadata, unsupported versions,
+conflicts, duplicates, out-of-range numbers, and excess records. If metadata is
+absent, import requires the same numbered names, uses standard COLLADA color as
+`LightParameters`, maps only confirmed fields, and zeroes the rest. When an
+active imported position quantizes to all three `0x8000` sentinel coordinates,
+only the attachment X coordinate is moved by one fixed-point unit; the complete
+light record retains its exact position.
 
 `EDBBC` validates multiple spot records and the explicit-box recenter. Its
 light 1 source position `(0.320,-1.390,0.463)` is stored approximately as
@@ -679,6 +707,10 @@ object's `MESH` magic.
 | next | `B` | bytes | Texture path, no NUL |
 | next | 4 | `u32` | Dynamic child count `C` |
 | next | variable | `DynamicObject[C]` | Complete child records, each beginning `MESH` |
+
+The public properties for these three color-related fields are `LightVector`,
+`ColorRgb`, and the separate `ColorParameter`. They preserve raw floating-point
+values, including finite values outside `0..1`.
 
 With empty strings and no children, one dynamic record is `0x410` bytes. Each
 child is a complete record with its own common base header and effect extension,

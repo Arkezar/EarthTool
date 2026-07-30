@@ -131,6 +131,69 @@ public class MinimalStaticMeshConformanceTests
     }
   }
 
+  [Fact]
+  public void PublicReaderAndWriterPreserveRawStaticLightRecords()
+  {
+    const int spotOffset = 0x5C;
+    const int omniOffset = 0x11C;
+    var fixture = CreateFixture();
+    var spotPosition = new System.Numerics.Vector3(12.5f, -7.25f, 0);
+    var spotParameters = new System.Numerics.Vector3(-0.125f, 1.5f, 123.456f);
+    var omniPosition = new System.Numerics.Vector3(-4.75f, 2.5f, 8.125f);
+    var omniParameters = new System.Numerics.Vector3(3.25f, -9.5f, 0.33333334f);
+    WriteVector(fixture, spotOffset, spotPosition, invertY: true);
+    WriteVector(fixture, spotOffset + 0x0C, spotParameters);
+    WriteSingle(fixture, spotOffset + 0x18, 41.5f);
+    fixture[spotOffset + 0x1C] = 0xC1;
+    fixture[spotOffset + 0x1D] = 0xA2;
+    fixture[spotOffset + 0x1E] = 0xB3;
+    fixture[spotOffset + 0x1F] = 0xD4;
+    WriteSingle(fixture, spotOffset + 0x20, 0.75f);
+    WriteSingle(fixture, spotOffset + 0x24, 31.125f);
+    WriteSingle(fixture, spotOffset + 0x28, -0.625f);
+    WriteSingle(fixture, spotOffset + 0x2C, 17.875f);
+    WriteVector(fixture, omniOffset, omniPosition, invertY: true);
+    WriteVector(fixture, omniOffset + 0x0C, omniParameters);
+    WriteSingle(fixture, omniOffset + 0x18, -2.75f);
+    var inputPath = GetTemporaryPath();
+    var outputPath = GetTemporaryPath();
+
+    try
+    {
+      File.WriteAllBytes(inputPath, fixture);
+
+      var mesh = CreateReader().Read(inputPath);
+      new EarthMeshWriter(Encoding.UTF8).Write(mesh, outputPath);
+
+      var spot = mesh.BaseHeader.SpotLights[0];
+      Assert.Equal(spotPosition, spot.Position);
+      Assert.Equal(spotParameters, spot.LightParameters);
+      Assert.Equal(41.5f, spot.HorizontalTargetDistance);
+      Assert.Equal((byte)0xC1, spot.TargetHeading);
+      Assert.Equal((byte)0xA2, spot.Reserved1);
+      Assert.Equal((byte)0xB3, spot.Reserved2);
+      Assert.Equal((byte)0xD4, spot.Reserved3);
+      Assert.Equal(0xC1 * Math.PI / 128, spot.TargetHeadingRadians);
+      Assert.Equal(0.75f, spot.ConeHalfAngleTangent);
+      Assert.Equal(31.125f, spot.DistanceScaledCone);
+      Assert.Equal(-0.625f, spot.VerticalTargetSlope);
+      Assert.Equal(17.875f, spot.FinalParameter);
+      Assert.Equal(0x30, spot.ToByteArray(Encoding.UTF8).Length);
+
+      var omni = mesh.BaseHeader.OmnidirectionalLights[0];
+      Assert.Equal(omniPosition, omni.Position);
+      Assert.Equal(omniParameters, omni.LightParameters);
+      Assert.Equal(-2.75f, omni.FinalParameter);
+      Assert.Equal(0x1C, omni.ToByteArray(Encoding.UTF8).Length);
+      Assert.Equal(fixture, File.ReadAllBytes(outputPath));
+    }
+    finally
+    {
+      File.Delete(inputPath);
+      File.Delete(outputPath);
+    }
+  }
+
   [Theory]
   [InlineData(90.35, (byte)0x40)]
   [InlineData(-111.09, (byte)0xB2)]
@@ -627,10 +690,10 @@ public class MinimalStaticMeshConformanceTests
         baseHeader.MountPoints = baseHeader.MountPoints.Take(3);
         break;
       case "SpotLights":
-        baseHeader.SpotLights = baseHeader.SpotLights.Take(3);
+        baseHeader.SpotLights = baseHeader.SpotLights.Take(3).ToArray();
         break;
       case "OmnidirectionalLights":
-        baseHeader.OmnidirectionalLights = baseHeader.OmnidirectionalLights.Take(3);
+        baseHeader.OmnidirectionalLights = baseHeader.OmnidirectionalLights.Take(3).ToArray();
         break;
       case "BoxHeights":
         footprint.BoxHeights = new ushort[15];
@@ -803,6 +866,67 @@ public class MinimalStaticMeshConformanceTests
     finally
     {
       File.Delete(outputPath);
+    }
+  }
+
+  [Fact]
+  public void PublicDynamicPartWriterPreservesRawLightVectors()
+  {
+    var lightVector = new System.Numerics.Vector3(-1.25f, 2.5f, 300.125f);
+    var colorRgb = new System.Numerics.Vector3(4.75f, -8.5f, 0.12345679f);
+    var part = CreateDynamicPart(Array.Empty<IMesh>());
+    part.Additive = true;
+    part.LightVector = lightVector;
+    part.ColorRgb = colorRgb;
+    part.ColorParameter = -17.625f;
+
+    var data = part.ToByteArray(Encoding.UTF8);
+
+    Assert.Equal(lightVector.X, BitConverter.ToSingle(data, 0x54));
+    Assert.Equal(lightVector.Y, BitConverter.ToSingle(data, 0x58));
+    Assert.Equal(lightVector.Z, BitConverter.ToSingle(data, 0x5C));
+    Assert.Equal(colorRgb.X, BitConverter.ToSingle(data, 0x60));
+    Assert.Equal(colorRgb.Y, BitConverter.ToSingle(data, 0x64));
+    Assert.Equal(colorRgb.Z, BitConverter.ToSingle(data, 0x68));
+    Assert.Equal(-17.625f, BitConverter.ToSingle(data, 0x6C));
+  }
+
+  [Fact]
+  public void PublicReaderAndWriterPreserveRawDynamicLightVectors()
+  {
+    var parsed = ReadValidMesh();
+    var baseHeader = Assert.IsType<MeshBaseHeader>(parsed.BaseHeader);
+    baseHeader.MeshKind = MeshKind.Dynamic;
+    var lightVector = new System.Numerics.Vector3(-1.25f, 2.5f, 300.125f);
+    var colorRgb = new System.Numerics.Vector3(4.75f, -8.5f, 0.12345679f);
+    var dynamicPart = CreateDynamicPart(Array.Empty<IMesh>());
+    dynamicPart.Additive = true;
+    dynamicPart.LightVector = lightVector;
+    dynamicPart.ColorRgb = colorRgb;
+    dynamicPart.ColorParameter = -17.625f;
+    var mesh = new EarthMesh
+    {
+      FileHeader = new EarthInfoFactory(Encoding.UTF8).Get(
+        FileFlags.Resource | FileFlags.Guid, FixtureGuid, ResourceType.Effect),
+      BaseHeader = baseHeader,
+      RootDynamic = dynamicPart
+    };
+    var path = GetTemporaryPath();
+
+    try
+    {
+      new EarthMeshWriter(Encoding.UTF8).Write(mesh, path);
+
+      var converted = CreateReader().Read(path);
+
+      Assert.True(converted.RootDynamic.Additive);
+      Assert.Equal(lightVector, converted.RootDynamic.LightVector);
+      Assert.Equal(colorRgb, converted.RootDynamic.ColorRgb);
+      Assert.Equal(-17.625f, converted.RootDynamic.ColorParameter);
+    }
+    finally
+    {
+      File.Delete(path);
     }
   }
 
@@ -1105,4 +1229,11 @@ public class MinimalStaticMeshConformanceTests
 
   private static void WriteSingle(byte[] data, int offset, float value)
     => WriteUInt32(data, offset, BitConverter.SingleToUInt32Bits(value));
+
+  private static void WriteVector(byte[] data, int offset, System.Numerics.Vector3 value, bool invertY = false)
+  {
+    WriteSingle(data, offset, value.X);
+    WriteSingle(data, offset + sizeof(float), invertY ? -value.Y : value.Y);
+    WriteSingle(data, offset + (2 * sizeof(float)), value.Z);
+  }
 }

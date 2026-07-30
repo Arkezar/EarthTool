@@ -2,8 +2,8 @@
 
 namespace EarthTool.MSH.Interfaces
 {
-  public interface IOmniLight : ILight, IBinarySerializable
+  public interface IOmniLight : IStaticLight, IBinarySerializable
   {
-    float Radius { get; set; }
+    float FinalParameter { get; set; }
   }
 }

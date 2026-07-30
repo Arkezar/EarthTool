@@ -1,6 +1,5 @@
 ﻿using EarthTool.Common.Interfaces;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Numerics;
 
 namespace EarthTool.MSH.Interfaces
@@ -21,9 +20,9 @@ namespace EarthTool.MSH.Interfaces
     float SizeZ { get; }
     float Radius { get; }
     bool Additive { get; }
-    Color LightColor { get; }
-    Color Color { get; }
-    float ColorIntensity { get; }
+    Vector3 LightVector { get; }
+    Vector3 ColorRgb { get; }
+    float ColorParameter { get; }
     int AlphaInt { get; }
     float AlphaB { get; }
     float AlphaA { get; }

@@ -1,22 +1,31 @@
 ﻿using EarthTool.MSH.Interfaces;
+using System;
 using System.IO;
 using System.Text;
 
 namespace EarthTool.MSH.Models.Elements
 {
-  public class SpotLight : Light, ISpotLight
+  public class SpotLight : StaticLight, ISpotLight
   {
-    public float Length { get; set; }
+    public float HorizontalTargetDistance { get; set; }
 
-    public int Direction { get; set; }
+    public byte TargetHeading { get; set; }
 
-    public float Width { get; set; }
+    public double TargetHeadingRadians => TargetHeading * Math.PI / 128.0;
 
-    public float U3 { get; set; }
+    public byte Reserved1 { get; set; }
 
-    public float Tilt { get; set; }
+    public byte Reserved2 { get; set; }
 
-    public float Ambience { get; set; }
+    public byte Reserved3 { get; set; }
+
+    public float ConeHalfAngleTangent { get; set; }
+
+    public float DistanceScaledCone { get; set; }
+
+    public float VerticalTargetSlope { get; set; }
+
+    public float FinalParameter { get; set; }
 
     public override byte[] ToByteArray(Encoding encoding)
     {
@@ -25,12 +34,15 @@ namespace EarthTool.MSH.Models.Elements
         using (var writer = new BinaryWriter(stream))
         {
           writer.Write(base.ToByteArray(encoding));
-          writer.Write(Length);
-          writer.Write(Direction);
-          writer.Write(Width);
-          writer.Write(U3);
-          writer.Write(Tilt);
-          writer.Write(Ambience);
+          writer.Write(HorizontalTargetDistance);
+          writer.Write(TargetHeading);
+          writer.Write(Reserved1);
+          writer.Write(Reserved2);
+          writer.Write(Reserved3);
+          writer.Write(ConeHalfAngleTangent);
+          writer.Write(DistanceScaledCone);
+          writer.Write(VerticalTargetSlope);
+          writer.Write(FinalParameter);
         }
         return stream.ToArray();
       }

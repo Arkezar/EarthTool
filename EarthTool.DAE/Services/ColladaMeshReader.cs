@@ -11,7 +11,6 @@ using EarthTool.MSH.Models.Collections;
 using EarthTool.MSH.Models.Elements;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -280,15 +279,17 @@ namespace EarthTool.DAE.Services
 
     private IMeshBaseHeader LoadBaseHeader(COLLADA model, IEnumerable<IModelPart> geometries)
     {
+      var spotLights = LoadStaticLights(model, true);
+      var omniLights = LoadStaticLights(model, false);
       return new MeshBaseHeader()
       {
         MeshKind = MeshKind.Static, // dynamic not supported yet
         BoxPresenceMask = 1u << DefaultFootprintBoxIndex,
         Frames = LoadFrames(model),
-        SpotLights = LoadSpotLights(model),
-        OmnidirectionalLights = LoadOmniLights(model),
+        SpotLights = CreateSpotLightRecords(spotLights),
+        OmnidirectionalLights = CreateOmniLightRecords(omniLights),
         MountPoints = LoadMountPoints(model),
-        Slots = LoadSlots(model),
+        Slots = LoadSlots(model, spotLights, omniLights),
         HorizontalExtents = LoadHorizontalExtents(geometries),
         Footprint = LoadDefaultFootprint(geometries)
       };
@@ -326,15 +327,15 @@ namespace EarthTool.DAE.Services
       };
     }
 
-    private IModelSlots LoadSlots(COLLADA model)
+    private IModelSlots LoadSlots(COLLADA model, LoadedStaticLight[] spotLights, LoadedStaticLight[] omniLights)
     {
       return new ModelSlots()
       {
         Turrets = LoadSlots(model, "Turret", 4, 1),
         BarrelMuzzels = LoadSlots(model, "BarrelMuzzle", 4, 5),
         TurretMuzzels = LoadSlots(model, "TurretMuzzel", 4, 9),
-        Headlights = LoadSpotLightSlots(model, 4, 13),
-        Omnilights = LoadOmniLightSlots(model, 4, 17),
+        Headlights = CreateLightSlots(spotLights, 4, 13),
+        Omnilights = CreateLightSlots(omniLights, 4, 17),
         UnloadPoints = LoadSlots(model, "UnloadPoint", 4, 21),
         HitSpots = LoadSlots(model, "HitSpot", 4, 25),
         SmokeSpots = LoadSlots(model, "SmokeSpot", 4, 29),
@@ -351,18 +352,29 @@ namespace EarthTool.DAE.Services
       };
     }
 
-    private IEnumerable<ISlot> LoadOmniLightSlots(COLLADA model, int count, int firstId)
+    private static IEnumerable<ISlot> CreateLightSlots(IEnumerable<LoadedStaticLight> lights, int count, int firstId)
     {
-      var lights = LoadOmniLights(model);
-      var meshLightSlots = lights.Select((l, i) => new Slot() { Position = l, Id = firstId + i });
-      return Fill(meshLightSlots, count, firstId);
+      var result = Enumerable.Range(0, count).Select(index => (ISlot)new Slot { Id = firstId + index }).ToArray();
+      foreach (var light in lights)
+      {
+        result[light.SourceNumber - 1] = new Slot
+        {
+          Id = firstId + light.SourceNumber - 1,
+          Position = CreateActiveLightAttachmentPosition(light.Light.Position)
+        };
+      }
+
+      return result;
     }
 
-    private IEnumerable<ISlot> LoadSpotLightSlots(COLLADA model, int count, int firstId)
+    private static IVector CreateActiveLightAttachmentPosition(Vector3 position)
     {
-      var lights = LoadSpotLights(model);
-      var meshLightSlots = lights.Select((l, i) => new Slot() { Position = l, Id = firstId + i });
-      return Fill(meshLightSlots, count, firstId);
+      var rawX = (short)(position.X * FixedPointScale);
+      var rawY = (short)(-position.Y * FixedPointScale);
+      var rawZ = (short)(position.Z * FixedPointScale);
+      return rawX == short.MinValue && rawY == short.MinValue && rawZ == short.MinValue
+        ? new Vector((short.MinValue + 1) / (float)FixedPointScale, position.Y, position.Z)
+        : new Vector { Value = position };
     }
 
     private IEnumerable<ISlot> LoadSlots(COLLADA model, string slotName, int count, int firstId)
@@ -439,65 +451,152 @@ namespace EarthTool.DAE.Services
       return new Vector() { Value = matrix.Translation };
     }
 
-    private IEnumerable<ISpotLight> LoadSpotLights(COLLADA model)
+    private LoadedStaticLight[] LoadStaticLights(COLLADA model, bool isSpot)
     {
-      var spotlights = model.Library_Lights.SelectMany(ll => ll.Light.Where(l => l.Technique_Common.Spot != null))
-        .ToLookup(l => $"#{l.Id}");
-      var spotlightsPosition = model.Library_Visual_Scenes.SelectMany(lvs => lvs.Visual_Scene.SelectMany(vs =>
-        vs.Node.SelectMany(n =>
-          n.NodeProperty.First().NodeProperty
-            .Where(np => spotlights.Contains(np.Instance_Light.FirstOrDefault()?.Url)))));
-      var meshSpotlights = spotlights.GroupJoin(spotlightsPosition, l => l.Key, p => p.Instance_Light.First()?.Url,
-        (l, p) => GetSpotLight(l.First(), p.First())).ToArray();
-      return Fill(meshSpotlights, 4);
-    }
-
-    private IEnumerable<IOmniLight> LoadOmniLights(COLLADA model)
-    {
-      var omnilights = model.Library_Lights.SelectMany(ll => ll.Light.Where(l => l.Technique_Common.Point != null))
-        .ToLookup(l => $"#{l.Id}");
-      var omnilightsPosition = model.Library_Visual_Scenes.SelectMany(lvs => lvs.Visual_Scene.SelectMany(vs =>
-        vs.Node.SelectMany(n =>
-          n.NodeProperty.First().NodeProperty
-            .Where(np => omnilights.Contains(np.Instance_Light.FirstOrDefault()?.Url)))));
-      var meshOmnilights = omnilights.GroupJoin(omnilightsPosition, l => l.Key, p => p.Instance_Light.First()?.Url,
-        (l, p) => GetOmniLight(l.First(), p.First())).ToArray();
-      return Fill(meshOmnilights, 4);
-    }
-
-    private SpotLight GetSpotLight(Light light, Node node)
-    {
-      var color = light.Technique_Common.Spot.Color.Value.Split(' ')
-        .Select(c => (int)(255 * float.Parse(c, System.Globalization.CultureInfo.InvariantCulture))).ToArray();
-      var matrix = GetTransformationMatrix(node.Matrix.First());
-
-      Matrix4x4.Decompose(matrix, out var _, out var q, out var _);
-      var tilt = (float)MathF.Atan2(2.0f * (q.Y * q.W + q.X * q.Z), 1.0f - 2.0f * (q.X * q.X + q.Y * q.Y));
-      var direction = (float)MathF.Atan2(2.0f * (q.X * q.Y + q.Z * q.W), 1.0f - 2.0f * (q.X * q.X + q.Z * q.Z));
-      return new SpotLight()
+      var expectedName = isSpot ? "SpotLight" : "OmniLight";
+      var lights = model.Library_Lights.SelectMany(library => library.Light)
+        .Where(light => isSpot
+          ? light.Technique_Common?.Spot != null
+          : light.Technique_Common?.Point != null)
+        .ToArray();
+      if (lights.Length > 4)
       {
-        Value = matrix.Translation,
-        Color = Color.FromArgb(color[0], color[1], color[2]),
-        Length = (float)light.Technique_Common.Spot.Constant_Attenuation.Value,
-        Ambience = (float)light.Technique_Common.Spot.Linear_Attenuation.Value,
-        Width = (float)(light.Technique_Common.Spot.Falloff_Angle.Value * Math.PI / 180),
-        Direction = (int)(2 * direction * 255 / Math.PI),
-        Tilt = (float)(-tilt - Math.PI / 2)
+        throw new InvalidDataException($"COLLADA contains more than four {expectedName} records.");
+      }
+
+      var nodes = GetAllNodes(model).ToArray();
+      var result = new List<LoadedStaticLight>();
+      var sourceNumbers = new HashSet<int>();
+      foreach (var light in lights)
+      {
+        var sourceNumber = ParseLightNumber(light.Name, expectedName);
+        if (!sourceNumbers.Add(sourceNumber))
+        {
+          throw new InvalidDataException($"COLLADA contains duplicate {expectedName} source number {sourceNumber}.");
+        }
+
+        if (string.IsNullOrEmpty(light.Id))
+        {
+          throw new InvalidDataException($"COLLADA {expectedName}-{sourceNumber} is missing its id.");
+        }
+
+        var matchingNodes = nodes.Where(node => node.Instance_Light.Any(instance => instance.Url == $"#{light.Id}"))
+          .ToArray();
+        if (matchingNodes.Length != 1 || matchingNodes[0].Matrix.Count != 1)
+        {
+          throw new InvalidDataException($"COLLADA {expectedName}-{sourceNumber} must have exactly one node and matrix.");
+        }
+
+        var parsed = light.ParseStaticLightMetadata(isSpot, sourceNumber) ??
+          GetFallbackLight(light, matchingNodes[0], isSpot);
+        result.Add(new LoadedStaticLight(sourceNumber, parsed));
+      }
+
+      return result.ToArray();
+    }
+
+    private static int ParseLightNumber(string name, string expectedName)
+    {
+      var prefix = $"{expectedName}-";
+      if (name == null || !name.StartsWith(prefix, StringComparison.Ordinal) ||
+          !int.TryParse(name.Substring(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var number) ||
+          name != $"{expectedName}-{number}")
+      {
+        throw new InvalidDataException($"COLLADA static lights must use the numbered name {expectedName}-1 through {expectedName}-4.");
+      }
+
+      if (number < 1 || number > 4)
+      {
+        throw new InvalidDataException($"COLLADA {expectedName} source number {number} is outside 1 through 4.");
+      }
+
+      return number;
+    }
+
+    private IStaticLight GetFallbackLight(Light light, Node node, bool isSpot)
+    {
+      var position = GetTransformationMatrix(node.Matrix.Single()).Translation;
+      if (!isSpot)
+      {
+        return new OmniLight
+        {
+          Position = position,
+          LightParameters = ParseStandardColor(light.Technique_Common.Point.Color)
+        };
+      }
+
+      var spot = light.Technique_Common.Spot;
+      var coneAngleRadians = spot.Falloff_Angle.Value * Math.PI / 180;
+      return new SpotLight
+      {
+        Position = position,
+        LightParameters = ParseStandardColor(spot.Color),
+        ConeHalfAngleTangent = (float)Math.Tan(coneAngleRadians / 2)
       };
     }
 
-    private OmniLight GetOmniLight(Light light, Node node)
+    private static Vector3 ParseStandardColor(TargetableFloat3 color)
     {
-      var color = light.Technique_Common.Spot.Color.Value.Split(' ')
-        .Select(c => (int)(255 * float.Parse(c, System.Globalization.CultureInfo.InvariantCulture))).ToArray();
-      var matrix = GetTransformationMatrix(node.Matrix.First());
-
-      return new OmniLight()
+      var values = color?.Value?.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+      if (values == null || values.Length != 3 ||
+          !values.All(value => float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) &&
+                               !float.IsNaN(parsed) && !float.IsInfinity(parsed)))
       {
-        Value = matrix.Translation,
-        Color = Color.FromArgb(color[0], color[1], color[2]),
-        Radius = 0,
-      };
+        throw new InvalidDataException("COLLADA static light has an invalid standard color.");
+      }
+
+      return new Vector3(
+        float.Parse(values[0], CultureInfo.InvariantCulture),
+        float.Parse(values[1], CultureInfo.InvariantCulture),
+        float.Parse(values[2], CultureInfo.InvariantCulture));
+    }
+
+    private static IReadOnlyList<ISpotLight> CreateSpotLightRecords(IEnumerable<LoadedStaticLight> lights)
+    {
+      var result = Enumerable.Range(0, 4).Select(_ => (ISpotLight)new SpotLight()).ToArray();
+      foreach (var light in lights)
+      {
+        result[light.SourceNumber - 1] = (ISpotLight)light.Light;
+      }
+
+      return result;
+    }
+
+    private static IReadOnlyList<IOmniLight> CreateOmniLightRecords(IEnumerable<LoadedStaticLight> lights)
+    {
+      var result = Enumerable.Range(0, 4).Select(_ => (IOmniLight)new OmniLight()).ToArray();
+      foreach (var light in lights)
+      {
+        result[light.SourceNumber - 1] = (IOmniLight)light.Light;
+      }
+
+      return result;
+    }
+
+    private static IEnumerable<Node> GetAllNodes(COLLADA model)
+      => model.Library_Visual_Scenes.SelectMany(library => library.Visual_Scene)
+        .SelectMany(scene => scene.Node)
+        .SelectMany(GetNodeTree);
+
+    private static IEnumerable<Node> GetNodeTree(Node node)
+    {
+      yield return node;
+      foreach (var child in node.NodeProperty.SelectMany(GetNodeTree))
+      {
+        yield return child;
+      }
+    }
+
+    private sealed class LoadedStaticLight
+    {
+      public LoadedStaticLight(int sourceNumber, IStaticLight light)
+      {
+        SourceNumber = sourceNumber;
+        Light = light;
+      }
+
+      public int SourceNumber { get; }
+      public IStaticLight Light { get; }
     }
 
     private Matrix4x4 GetTransformationMatrix(Matrix matrix)
