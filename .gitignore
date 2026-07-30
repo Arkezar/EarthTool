@@ -9,6 +9,12 @@
 # Custom
 *.orig
 
+# Graphify local state
+graphify-out/.graphify_python
+graphify-out/.graphify_root
+graphify-out/.needs_update
+graphify-out/cache/
+
 # User-specific files
 *.rsuser
 *.suo
