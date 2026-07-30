@@ -3,6 +3,8 @@ using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using EarthTool.MSH.Services;
 using System.Buffers.Binary;
+using System.Collections;
+using System.Numerics;
 using System.Text;
 
 namespace EarthTool.MSH.Tests;
@@ -83,6 +85,98 @@ public class MinimalDynamicMeshConformanceTests
     }
   }
 
+  [Theory]
+  [InlineData(1)]
+  [InlineData(16)]
+  public void PublicReaderAndWriterRoundTripGroupingRootChildrenByteExactly(int childCount)
+  {
+    var children = Enumerable.Range(0, childCount)
+      .Select(index => CreateDynamicRecord(
+        (EffectType)((index % 14) + 1),
+        new Vector3(index + 0.25f, index + 0.5f, index + 0.75f),
+        new Vector3(-index - 1.25f, -index - 1.5f, -index - 1.75f)))
+      .ToArray();
+    var fixture = CreateFixture(CreateDynamicRecord(EffectType.Unknown, children: children));
+
+    var mesh = ReadFixture(fixture);
+    var parsedChildren = mesh.RootDynamic.SubMeshes.ToArray();
+
+    Assert.Equal(EffectType.Unknown, mesh.RootDynamic.EffectType);
+    Assert.Equal(string.Empty, mesh.RootDynamic.Model.FileName);
+    Assert.Equal(string.Empty, mesh.RootDynamic.Texture.FileName);
+    Assert.Equal(childCount, parsedChildren.Length);
+    for (var index = 0; index < childCount; index++)
+    {
+      Assert.Equal((EffectType)((index % 14) + 1), parsedChildren[index].RootDynamic.EffectType);
+      Assert.Equal(new Vector3(index + 0.25f, -index - 0.5f, index + 0.75f),
+        parsedChildren[index].RootDynamic.Position1);
+      Assert.Equal(new Vector3(-index - 1.25f, index + 1.5f, -index - 1.75f),
+        parsedChildren[index].RootDynamic.Position2);
+    }
+
+    Assert.Equal(fixture, mesh.ToByteArray(Encoding.UTF8));
+  }
+
+  [Fact]
+  public void PublicReaderAndWriterPreserveRecursiveChildRecordsWithoutArchivePreambles()
+  {
+    var grandchild = CreateDynamicRecord(EffectType.Smoke, new Vector3(1f, 2f, 3f));
+    var child = CreateDynamicRecord(EffectType.Explosion, children: new[] { grandchild });
+    var fixture = CreateFixture(CreateDynamicRecord(EffectType.Unknown, children: new[] { child }));
+
+    var mesh = ReadFixture(fixture);
+    var parsedChild = Assert.Single(mesh.RootDynamic.SubMeshes);
+    var parsedGrandchild = Assert.Single(parsedChild.RootDynamic.SubMeshes);
+
+    Assert.Equal(EffectType.Smoke, parsedGrandchild.RootDynamic.EffectType);
+    Assert.Equal(new Vector3(1f, -2f, 3f), parsedGrandchild.RootDynamic.Position1);
+    Assert.Equal("MESH"u8.ToArray(), fixture.AsSpan(ArchiveHeaderSize + DynamicRecordSize, 4).ToArray());
+    Assert.Equal("MESH"u8.ToArray(), fixture.AsSpan(ArchiveHeaderSize + (2 * DynamicRecordSize), 4).ToArray());
+    Assert.Equal(fixture, mesh.ToByteArray(Encoding.UTF8));
+  }
+
+  [Fact]
+  public void PublicWriterUsesTheExactMaterializedDynamicChildCount()
+  {
+    var mesh = ReadFixture(CreateDefaultFixture());
+    var child = ReadFixture(CreateFixture(CreateDynamicRecord(EffectType.Explosion)));
+    mesh.RootDynamic = new DynamicPart
+    {
+      SubMeshes = new SingleUseEnumerable<IMesh>(new[] { child })
+    };
+
+    var output = mesh.ToByteArray(Encoding.UTF8);
+    var roundTripped = ReadFixture(output);
+
+    Assert.Single(roundTripped.RootDynamic.SubMeshes);
+    Assert.Equal(ArchiveHeaderSize + (2 * DynamicRecordSize), output.Length);
+  }
+
+  [Theory]
+  [MemberData(nameof(GetMalformedNestedFixtures))]
+  public void PublicReaderRejectsMalformedNestedDynamicRecords(byte[] fixture, string expectedDetail)
+  {
+    var exception = Assert.Throws<InvalidDataException>(() => ReadFixture(fixture));
+
+    Assert.Contains("DynamicObject.Children[0]", exception.Message, StringComparison.Ordinal);
+    Assert.Contains(expectedDetail, exception.Message, StringComparison.OrdinalIgnoreCase);
+  }
+
+  [Fact]
+  public void PublicReaderRejectsAnExtraDynamicChildBeyondTheDeclaredCount()
+  {
+    var root = CreateDynamicRecord(children: new[]
+    {
+      CreateDynamicRecord(EffectType.Explosion),
+      CreateDynamicRecord(EffectType.Smoke)
+    });
+    WriteUInt32(root, 0x40C, 1);
+
+    var exception = Assert.Throws<InvalidDataException>(() => ReadFixture(CreateFixture(root)));
+
+    Assert.Contains("trailing data", exception.Message, StringComparison.OrdinalIgnoreCase);
+  }
+
   [Fact]
   public void PublicDynamicEnumsRetainDocumentedNumericMeanings()
   {
@@ -134,12 +228,28 @@ public class MinimalDynamicMeshConformanceTests
 
   private static byte[] CreateDefaultFixture()
   {
-    var data = new byte[ArchiveHeaderSize + DynamicRecordSize];
+    return CreateFixture(CreateDynamicRecord());
+  }
+
+  private static byte[] CreateFixture(byte[] rootRecord)
+  {
+    var data = new byte[ArchiveHeaderSize + rootRecord.Length];
     WriteUInt32(data, 0x00, 0x30D0A1FF);
     WriteUInt32(data, 0x04, 1);
     FixtureGuid.ToByteArray().CopyTo(data, 0x08);
+    rootRecord.CopyTo(data, ArchiveHeaderSize);
+    return data;
+  }
 
-    var meshOffset = ArchiveHeaderSize;
+  private static byte[] CreateDynamicRecord(
+    EffectType effectType = EffectType.Unknown,
+    Vector3 position1 = default,
+    Vector3 position2 = default,
+    IReadOnlyList<byte[]>? children = null)
+  {
+    children ??= Array.Empty<byte[]>();
+    var data = new byte[DynamicRecordSize + children.Sum(child => child.Length)];
+    var meshOffset = 0;
     "MESH"u8.CopyTo(data.AsSpan(meshOffset));
     WriteUInt32(data, meshOffset + 0x04, MeshBaseHeader.SupportedVersion);
     WriteUInt32(data, meshOffset + 0x08, (uint)MeshKind.Dynamic);
@@ -162,7 +272,35 @@ public class MinimalDynamicMeshConformanceTests
     WriteSingle(data, meshOffset + 0x3D4, 1f);
     WriteSingle(data, meshOffset + 0x3DC, 1f);
     WriteSingle(data, meshOffset + 0x3E0, 1f);
+    WriteVector(data, meshOffset + 0x3EC, position1);
+    WriteVector(data, meshOffset + 0x3F8, position2);
+    WriteUInt32(data, meshOffset + 0x368, (uint)effectType);
+    WriteUInt32(data, meshOffset + 0x40C, (uint)children.Count);
+    var childOffset = DynamicRecordSize;
+    foreach (var child in children)
+    {
+      child.CopyTo(data, childOffset);
+      childOffset += child.Length;
+    }
+
     return data;
+  }
+
+  public static TheoryData<byte[], string> GetMalformedNestedFixtures()
+  {
+    var staticChild = CreateDynamicRecord(EffectType.Explosion);
+    WriteUInt32(staticChild, 0x08, (uint)MeshKind.Static);
+
+    var truncatedChild = CreateDynamicRecord(EffectType.Explosion)[..^1];
+
+    var nestedPreamble = CreateFixture(CreateDynamicRecord(EffectType.Explosion));
+
+    return new TheoryData<byte[], string>
+    {
+      { CreateFixture(CreateDynamicRecord(children: new[] { staticChild })), "requires Dynamic" },
+      { CreateFixture(CreateDynamicRecord(children: new[] { truncatedChild })), "requires" },
+      { CreateFixture(CreateDynamicRecord(children: new[] { nestedPreamble })), "expected MESH" }
+    };
   }
 
   private static void WriteDefaultSize(byte[] data, int offset)
@@ -217,5 +355,32 @@ public class MinimalDynamicMeshConformanceTests
     WriteSingle(data, offset, value.X);
     WriteSingle(data, offset + sizeof(float), value.Y);
     WriteSingle(data, offset + (2 * sizeof(float)), value.Z);
+  }
+
+  private sealed class SingleUseEnumerable<T> : IEnumerable<T>
+  {
+    private readonly IEnumerable<T> _items;
+    private bool _enumerated;
+
+    public SingleUseEnumerable(IEnumerable<T> items)
+    {
+      _items = items;
+    }
+
+    public IEnumerator<T> GetEnumerator()
+    {
+      if (_enumerated)
+      {
+        return Enumerable.Empty<T>().GetEnumerator();
+      }
+
+      _enumerated = true;
+      return _items.GetEnumerator();
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+      return GetEnumerator();
+    }
   }
 }

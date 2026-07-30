@@ -23,6 +23,7 @@ namespace EarthTool.MSH.Services
   {
     private const uint StaticArchiveFraming = 0x20D0A1FF;
     private const uint DynamicArchiveFraming = 0x30D0A1FF;
+    private const int MinimumDynamicRecordSize = 0x410;
 
     private readonly IEarthInfoFactory _earthInfoFactory;
     private readonly IHierarchyBuilder _hierarchyBuilder;
@@ -168,8 +169,45 @@ namespace EarthTool.MSH.Services
 
     private IEnumerable<IMesh> LoadSubMeshes(BinaryReader reader)
     {
+      var countOffset = reader.BaseStream.Position;
       var count = reader.ReadInt32();
-      return Enumerable.Range(0, count).Select(_ => LoadMesh(reader)).ToArray();
+      if (count < 0)
+      {
+        throw InvalidData("DynamicObject.ChildCount", countOffset, $"negative count {count}");
+      }
+
+      var remaining = reader.BaseStream.Length - reader.BaseStream.Position;
+      var minimumSize = (long)count * MinimumDynamicRecordSize;
+      if (remaining < minimumSize)
+      {
+        var incompleteIndex = remaining / MinimumDynamicRecordSize;
+        throw InvalidData($"DynamicObject.Children[{incompleteIndex}]", reader.BaseStream.Position,
+          $"declared count {count} requires at least {minimumSize} bytes, only {remaining} remain");
+      }
+
+      var meshes = new IMesh[count];
+      for (var index = 0; index < count; index++)
+      {
+        var childOffset = reader.BaseStream.Position;
+        try
+        {
+          meshes[index] = LoadMesh(reader);
+        }
+        catch (InvalidDataException ex)
+        {
+          throw InvalidData($"DynamicObject.Children[{index}]", childOffset, ex.Message, ex);
+        }
+        catch (EndOfStreamException ex)
+        {
+          throw InvalidData($"DynamicObject.Children[{index}]", childOffset, "unexpected end of file", ex);
+        }
+        catch (ArgumentException ex)
+        {
+          throw InvalidData($"DynamicObject.Children[{index}]", childOffset, ex.Message, ex);
+        }
+      }
+
+      return meshes;
     }
 
     private IMesh LoadMesh(BinaryReader reader)

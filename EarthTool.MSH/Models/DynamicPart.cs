@@ -60,6 +60,8 @@ namespace EarthTool.MSH.Models
 
     public byte[] ToByteArray(Encoding encoding)
     {
+      var subMeshes = SubMeshes?.ToArray()
+        ?? throw new InvalidOperationException("Dynamic child collection is required.");
       using (var output = new MemoryStream())
       {
         using (var bw = new BinaryWriter(output, encoding))
@@ -99,8 +101,8 @@ namespace EarthTool.MSH.Models
           bw.Write(Position2.Z);
           bw.Write(Model.ToByteArray(encoding));
           bw.Write(Texture.ToByteArray(encoding));
-          bw.Write(SubMeshes.Count());
-          foreach (var subMesh in SubMeshes)
+          bw.Write(subMeshes.Length);
+          foreach (var subMesh in subMeshes)
           {
             bw.Write(EarthMesh.ToNestedDynamicByteArray(subMesh, encoding));
           }

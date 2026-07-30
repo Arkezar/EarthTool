@@ -33,24 +33,32 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
 
   protected override Task InternalAnalyzeAsync(string inputFilePath, Settings settings)
   {
-    try
-    {
-      var model = _meshReader.Read(inputFilePath);
+    var model = _meshReader.Read(inputFilePath);
 
-      if (model.BaseHeader.MeshKind == MeshKind.Dynamic)
-      {
-        AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, string.Join('|', model.RootDynamic.SubMeshes.Select(m => m.RootDynamic.Position2).Append(model.RootDynamic.Position2)));
-        // AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, model.RootEffect.UnknownFloats1.Last());
-      }
-
-      //Part Types
-      // AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, string.Join('|', model.Geometries.Select(g => g.PartType)));
-    }
-    catch
+    if (model.BaseHeader.MeshKind == MeshKind.Dynamic)
     {
+      AnsiConsole.WriteLine("{0}\t{1}", inputFilePath,
+        string.Join('|', EnumerateDynamicParts(model.RootDynamic).Select(part => part.Position2)));
+      // AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, model.RootEffect.UnknownFloats1.Last());
     }
+
+    //Part Types
+    // AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, string.Join('|', model.Geometries.Select(g => g.PartType)));
 
     return Task.CompletedTask;
+  }
+
+  internal static IEnumerable<IDynamicPart> EnumerateDynamicParts(IDynamicPart root)
+  {
+    foreach (var child in root.SubMeshes)
+    {
+      foreach (var part in EnumerateDynamicParts(child.RootDynamic))
+      {
+        yield return part;
+      }
+    }
+
+    yield return root;
   }
 
   protected override Task InternalExecuteAsync(string filePath, ConvertCommand.Settings settings)
