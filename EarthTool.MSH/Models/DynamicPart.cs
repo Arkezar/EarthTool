@@ -1,4 +1,6 @@
 ﻿using EarthTool.MSH.Interfaces;
+using EarthTool.MSH.Models.Elements;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -9,6 +11,25 @@ namespace EarthTool.MSH.Models
 {
   public class DynamicPart : IDynamicPart
   {
+    public DynamicPart()
+    {
+      EffectType = EffectType.Unknown;
+      LightType = LightType.Const;
+      Size1 = CreateDefaultSize();
+      Size2 = CreateDefaultSize();
+      SizeZ = 0.25f;
+      Radius = 0.25f;
+      ColorRgb = Vector3.One;
+      ColorParameter = 1f;
+      AlphaB = 1f;
+      AlphaA = 1f;
+      Position1 = new Vector3(0f, -0f, 0f);
+      Position2 = new Vector3(0f, -0f, 0f);
+      Model = new TextureInfo { FileName = string.Empty };
+      Texture = new TextureInfo { FileName = string.Empty };
+      SubMeshes = Array.Empty<IMesh>();
+    }
+
     public EffectType EffectType { get; set; }
     public LightType LightType { get; set; }
     public int SpriteStartIndex { get; set; }
@@ -57,8 +78,7 @@ namespace EarthTool.MSH.Models
           bw.Write(SizeZ);
           bw.Write(Radius);
           bw.Write(Unknown);
-          bw.Write(Additive);
-          bw.Write(new byte[3]);
+          bw.Write(Additive ? 1 : 0);
           bw.Write(LightVector.X);
           bw.Write(LightVector.Y);
           bw.Write(LightVector.Z);
@@ -72,10 +92,10 @@ namespace EarthTool.MSH.Models
           bw.Write(Scale.X);
           bw.Write(Scale.Y);
           bw.Write(Position1.X);
-          bw.Write(Position1.Y);
+          bw.Write(-Position1.Y);
           bw.Write(Position1.Z);
           bw.Write(Position2.X);
-          bw.Write(Position2.Y);
+          bw.Write(-Position2.Y);
           bw.Write(Position2.Z);
           bw.Write(Model.ToByteArray(encoding));
           bw.Write(Texture.ToByteArray(encoding));
@@ -88,6 +108,17 @@ namespace EarthTool.MSH.Models
 
         return output.ToArray().ToArray();
       }
+    }
+
+    private static Size CreateDefaultSize()
+    {
+      return new Size()
+      {
+        X1 = -0.25f,
+        X2 = 0.25f,
+        Y1 = 0.25f,
+        Y2 = -0.25f
+      };
     }
   }
 }

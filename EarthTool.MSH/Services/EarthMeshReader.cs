@@ -159,8 +159,8 @@ namespace EarthTool.MSH.Services
         AlphaB = reader.ReadSingle(),
         AlphaA = reader.ReadSingle(),
         Scale = new Vector2(reader.ReadSingle(), reader.ReadSingle()),
-        Position1 = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()),
-        Position2 = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()),
+        Position1 = GetVector(reader),
+        Position2 = GetVector(reader),
         Model = LoadTextureInfo(reader),
         Texture = LoadTextureInfo(reader),
         SubMeshes = LoadSubMeshes(reader)
