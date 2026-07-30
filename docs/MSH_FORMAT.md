@@ -377,7 +377,7 @@ For lane `i = 0..3`:
 | `0x50 + 4*i` | `float` | Normal Z |
 | `0x60 + 4*i` | `float` | Texture U |
 | `0x70 + 4*i` | `float` | Texture V, generated as `1 - AOD_V` |
-| `0x80 + 4*i` | `float` | Third texture component/reserved; generated as zero |
+| `0x80 + 4*i` | `float` | Third texture component/reserved; generated as zero by the original converter and preserved raw by EarthTool |
 | `0x90 + 2*i` | `u16` | Earlier render vertex sharing the normal, or `0xFFFF` |
 | `0x98 + 2*i` | `u16` | Earlier render vertex sharing the source position, or `0xFFFF` |
 
@@ -424,6 +424,12 @@ equivalently a plane tilted less than 60 degrees from horizontal. Vertical,
 downward-facing, and steeper surfaces retain value `1`. Degenerate triangles
 also retain `1` because normalizing their zero cross product yields an unordered
 floating-point result and the strict comparison fails.
+
+This derivation describes the original AOD-to-MSH converter. EarthTool exposes
+the complete word as unsigned `Face.Flags` and preserves it verbatim when an MSH
+is read and written; it does not recompute the flags from geometry. Importers
+that have no original MSH flag metadata must generate a value instead; the
+current COLLADA importer uses the base value `0x0001`.
 
 The producer behavior is fully determined, but the runtime interpretation of
 the unconditional base bit remains unknown because no game-side MSH reader is

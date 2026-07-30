@@ -71,13 +71,19 @@ namespace EarthTool.DAE.Services
     {
       var g = node.Geometry;
       var facesAndVertices = LoadFacesWithVertices(g);
+      var faces = facesAndVertices.Faces.ToArray();
+      var triangleFlags = node.ParseTriangleFlags(faces.Length);
+      for (var i = 0; i < faces.Length; i++)
+      {
+        ((Face)faces[i]).Flags = triangleFlags[i];
+      }
       var offset = new Vector() { Value = GetTransformationMatrix(node.TransformationMatrix).Translation };
 
       var details = node.ParseAnimationDetails();
 
       return new ModelPart()
       {
-        Faces = facesAndVertices.Faces,
+        Faces = faces,
         Vertices = facesAndVertices.Vertices,
         Animations = LoadAnimations(g, node.Model, offset),
         Texture = LoadTexture(node),
@@ -215,7 +221,9 @@ namespace EarthTool.DAE.Services
 
           if (!vertices.Any(v => v.Position.Equals(position) && v.Normal.Equals(normal) && v.TextureCoordinate.Equals(uv)))
           {
-            vertices.Add(new Vertex(position, normal, uv, (short)normalId, (short)positionId));
+            vertices.Add(new Vertex(position, normal, uv,
+              normalId < 0 ? ushort.MaxValue : checked((ushort)normalId),
+              positionId < 0 ? ushort.MaxValue : checked((ushort)positionId)));
           }
         }
       }
@@ -241,10 +249,10 @@ namespace EarthTool.DAE.Services
 
       return new Face()
       {
-        V1 = (short)vertices.IndexOf(v1),
-        V2 = (short)vertices.IndexOf(v2),
-        V3 = (short)vertices.IndexOf(v3),
-        UNKNOWN = 1 // must be greater than 0?
+        V1 = checked((ushort)vertices.IndexOf(v1)),
+        V2 = checked((ushort)vertices.IndexOf(v2)),
+        V3 = checked((ushort)vertices.IndexOf(v3)),
+        Flags = 1 // must be greater than 0?
       };
     }
 
@@ -254,7 +262,7 @@ namespace EarthTool.DAE.Services
       var groupSizes = source.Technique_Common.Accessor.Param.Count;
       return values.Select((v, i) => new { Value = v, Group = i / groupSizes }).GroupBy(v => v.Group)
         .Select(g => g.Select(v => v.Value))
-        .Select(v => new TextureCoordinate(v.ElementAt(0), v.ElementAt(1))).ToArray();
+        .Select(v => new TextureCoordinate(v.ElementAt(0), 1 - v.ElementAt(1))).ToArray();
     }
 
     private IVector[] LoadVectors(Source source)

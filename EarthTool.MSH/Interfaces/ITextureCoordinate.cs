@@ -8,5 +8,6 @@ namespace EarthTool.MSH.Interfaces
     float T { get; }
     float U { get; }
     float V { get; }
+    float W { get; }
   }
 }

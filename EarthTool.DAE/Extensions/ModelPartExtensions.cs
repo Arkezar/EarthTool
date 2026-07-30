@@ -2,6 +2,7 @@
 using EarthTool.DAE.Collections;
 using EarthTool.MSH.Enums;
 using EarthTool.MSH.Interfaces;
+using System;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -15,6 +16,7 @@ namespace EarthTool.DAE.Extensions
     private const string MetadataProfile = "EARTHTOOL";
     private const string StaticPartElement = "msh_static_part";
     private const string BarrelMaximumAngleElement = "barrel_maximum_angle_degrees";
+    private const string TriangleFlagsElement = "triangle_flags";
 
     public static string EnrichPartName(this IModelPart part, string baseName)
       => $"{baseName}-{part.GetAnimationDetails()}";
@@ -67,19 +69,21 @@ namespace EarthTool.DAE.Extensions
       return (PartType.Base, AnimationType.Looped, 0);
     }
 
-    public static void AddBarrelMaximumAngleMetadata(this Node node, IModelPart part)
+    public static void AddStaticPartMetadata(this Node node, IModelPart part)
     {
-      if (!part.PartType.HasFlag(PartType.Barrel))
-      {
-        return;
-      }
-
       var document = new XmlDocument();
       var metadata = document.CreateElement(StaticPartElement);
       metadata.SetAttribute("version", "1");
-      var angle = document.CreateElement(BarrelMaximumAngleElement);
-      angle.InnerText = part.RiseAngle.ToString("R", CultureInfo.InvariantCulture);
-      metadata.AppendChild(angle);
+      if (part.PartType.HasFlag(PartType.Barrel))
+      {
+        var angle = document.CreateElement(BarrelMaximumAngleElement);
+        angle.InnerText = part.RiseAngle.ToString("R", CultureInfo.InvariantCulture);
+        metadata.AppendChild(angle);
+      }
+
+      var triangleFlags = document.CreateElement(TriangleFlagsElement);
+      triangleFlags.InnerText = string.Join(" ", part.Faces.Select(face => face.Flags));
+      metadata.AppendChild(triangleFlags);
 
       var technique = new Technique { Profile = MetadataProfile };
       technique.Any.Add(metadata);
@@ -95,19 +99,10 @@ namespace EarthTool.DAE.Extensions
         return 0;
       }
 
-      var metadata = node.Node.Extra
-        .SelectMany(extra => extra.Technique)
-        .Where(technique => technique.Profile == MetadataProfile)
-        .SelectMany(technique => technique.Any)
-        .SingleOrDefault(element => element.LocalName == StaticPartElement);
+      var metadata = GetStaticPartMetadata(node);
       if (metadata == null)
       {
         return 0;
-      }
-
-      if (metadata.GetAttribute("version") != "1")
-      {
-        throw new InvalidDataException("Unsupported EARTHTOOL static-part metadata version.");
       }
 
       var value = metadata.ChildNodes.OfType<XmlElement>()
@@ -118,6 +113,41 @@ namespace EarthTool.DAE.Extensions
       }
 
       return angle;
+    }
+
+    public static ushort[] ParseTriangleFlags(this ModelTreeNode node, int triangleCount)
+    {
+      var metadata = GetStaticPartMetadata(node);
+      var value = metadata?.ChildNodes.OfType<XmlElement>()
+        .SingleOrDefault(element => element.LocalName == TriangleFlagsElement)?.InnerText;
+      if (value == null)
+      {
+        return Enumerable.Repeat((ushort)1, triangleCount).ToArray();
+      }
+
+      var values = value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+      if (values.Length != triangleCount || values.Any(flag =>
+            !ushort.TryParse(flag, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)))
+      {
+        throw new InvalidDataException("EARTHTOOL static-part metadata has invalid triangle flags.");
+      }
+
+      return values.Select(flag => ushort.Parse(flag, CultureInfo.InvariantCulture)).ToArray();
+    }
+
+    private static XmlElement GetStaticPartMetadata(ModelTreeNode node)
+    {
+      var metadata = node.Node.Extra
+        .SelectMany(extra => extra.Technique)
+        .Where(technique => technique.Profile == MetadataProfile)
+        .SelectMany(technique => technique.Any)
+        .SingleOrDefault(element => element.LocalName == StaticPartElement);
+      if (metadata != null && metadata.GetAttribute("version") != "1")
+      {
+        throw new InvalidDataException("Unsupported EARTHTOOL static-part metadata version.");
+      }
+
+      return metadata;
     }
 
     private static PartType GetPartType(string name)

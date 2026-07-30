@@ -38,17 +38,20 @@ namespace EarthTool.MSH.Models
 
     public byte[] ToByteArray(Encoding encoding)
     {
+      var vertices = Vertices.ToArray();
+      var faces = Faces.ToArray();
+      ValidateFaceIndices(faces, vertices.Length);
       using (var stream = new MemoryStream())
       {
         using (var writer = new BinaryWriter(stream))
         {
-          writer.Write(GetVertexBytes());
+          writer.Write(GetVertexBytes(vertices));
           writer.Write(BackTrackDepth);
           writer.Write((byte)PartType);
           writer.Write(Empty);
           writer.Write(Texture.ToByteArray(encoding));
-          writer.Write(Faces.Count());
-          writer.Write(Faces.SelectMany(x => x.ToByteArray(encoding)).ToArray());
+          writer.Write(faces.Length);
+          writer.Write(faces.SelectMany(x => x.ToByteArray(encoding)).ToArray());
           writer.Write(Animations.ToByteArray(encoding));
           writer.Write((int)AnimationType);
           writer.Write(Offset.ToByteArray(encoding));
@@ -70,14 +73,26 @@ namespace EarthTool.MSH.Models
       return (byte)(RiseAngle * 256d / 360d);
     }
 
-    private byte[] GetVertexBytes()
+    private static void ValidateFaceIndices(IEnumerable<IFace> faces, int vertexCount)
+    {
+      foreach (var face in faces)
+      {
+        if (face.V1 >= vertexCount || face.V2 >= vertexCount || face.V3 >= vertexCount)
+        {
+          throw new InvalidOperationException(
+            $"Triangle index is outside the declared vertex range 0..{vertexCount - 1}.");
+        }
+      }
+    }
+
+    private static byte[] GetVertexBytes(IReadOnlyList<IVertex> vertices)
     {
       using (var stream = new MemoryStream())
       {
         using (var writer = new BinaryWriter(stream))
         {
-          writer.Write(Vertices.Count());
-          var blocks = (int)Math.Ceiling(Vertices.Count() / 4d);
+          writer.Write(vertices.Count);
+          var blocks = vertices.Count / 4 + (vertices.Count % 4 == 0 ? 0 : 1);
           writer.Write(blocks);
 
           for (var i = 0; i < blocks; i++)
@@ -86,20 +101,18 @@ namespace EarthTool.MSH.Models
             {
               using (var blockWriter = new BinaryWriter(blockStream))
               {
-                var blockVertices = Vertices.Skip(i * 4).Take(4).ToList();
-                blockVertices.AddRange(Enumerable.Repeat(new Vertex(new Vector(), new Vector(), new TextureCoordinate(), 0, 0),
-                  4 - blockVertices.Count()));
-                blockVertices.ForEach(v => blockWriter.Write(v.Position.X));
-                blockVertices.ForEach(v => blockWriter.Write(-v.Position.Y));
-                blockVertices.ForEach(v => blockWriter.Write(v.Position.Z));
-                blockVertices.ForEach(v => blockWriter.Write(v.Normal.X));
-                blockVertices.ForEach(v => blockWriter.Write(-v.Normal.Y));
-                blockVertices.ForEach(v => blockWriter.Write(v.Normal.Z));
-                blockVertices.ForEach(v => blockWriter.Write(v.TextureCoordinate.U));
-                blockVertices.ForEach(v => blockWriter.Write(v.TextureCoordinate.V));
-                blockVertices.ForEach(_ => blockWriter.Write(0));
-                blockVertices.ForEach(v => blockWriter.Write(v.NormalVectorIdx));
-                blockVertices.ForEach(v => blockWriter.Write(v.PositionVectorIdx));
+                var blockStart = i * 4;
+                WriteFloatChannel(blockWriter, vertices, blockStart, vertex => vertex.Position.X);
+                WriteFloatChannel(blockWriter, vertices, blockStart, vertex => -vertex.Position.Y);
+                WriteFloatChannel(blockWriter, vertices, blockStart, vertex => vertex.Position.Z);
+                WriteFloatChannel(blockWriter, vertices, blockStart, vertex => vertex.Normal.X);
+                WriteFloatChannel(blockWriter, vertices, blockStart, vertex => -vertex.Normal.Y);
+                WriteFloatChannel(blockWriter, vertices, blockStart, vertex => vertex.Normal.Z);
+                WriteFloatChannel(blockWriter, vertices, blockStart, vertex => vertex.TextureCoordinate.U);
+                WriteFloatChannel(blockWriter, vertices, blockStart, vertex => vertex.TextureCoordinate.T);
+                WriteFloatChannel(blockWriter, vertices, blockStart, vertex => vertex.TextureCoordinate.W);
+                WriteUInt16Channel(blockWriter, vertices, blockStart, vertex => vertex.NormalVectorIdx);
+                WriteUInt16Channel(blockWriter, vertices, blockStart, vertex => vertex.PositionVectorIdx);
               }
 
               writer.Write(blockStream.ToArray());
@@ -108,6 +121,26 @@ namespace EarthTool.MSH.Models
         }
 
         return stream.ToArray();
+      }
+    }
+
+    private static void WriteFloatChannel(BinaryWriter writer, IReadOnlyList<IVertex> vertices, int blockStart,
+      Func<IVertex, float> getValue)
+    {
+      for (var lane = 0; lane < 4; lane++)
+      {
+        var vertexIndex = blockStart + lane;
+        writer.Write(vertexIndex < vertices.Count ? getValue(vertices[vertexIndex]) : 0);
+      }
+    }
+
+    private static void WriteUInt16Channel(BinaryWriter writer, IReadOnlyList<IVertex> vertices, int blockStart,
+      Func<IVertex, ushort> getValue)
+    {
+      for (var lane = 0; lane < 4; lane++)
+      {
+        var vertexIndex = blockStart + lane;
+        writer.Write(vertexIndex < vertices.Count ? getValue(vertices[vertexIndex]) : (ushort)0);
       }
     }
   }

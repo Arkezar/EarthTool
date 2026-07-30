@@ -394,16 +394,17 @@ namespace EarthTool.MSH.Services
 
     private IModelPart LoadPart(BinaryReader reader)
     {
+      var vertices = ReadField(reader, "Vertices", () => LoadVertices(reader)).ToArray();
       var result = new ModelPart
       {
-        Vertices = ReadField(reader, "Vertices", () => LoadVertices(reader))
+        Vertices = vertices
       };
       EnsureRemaining(reader, sizeof(uint), "StaticRenderRecord.ObjectFlags");
       result.BackTrackDepth = reader.ReadByte();
       result.PartType = (PartType)reader.ReadByte();
       result.Empty = reader.ReadInt16();
       result.Texture = ReadField(reader, "Texture", () => LoadTextureInfo(reader));
-      result.Faces = ReadField(reader, "Triangles", () => LoadFaces(reader));
+      result.Faces = ReadField(reader, "Triangles", () => LoadFaces(reader, vertices.Length));
       result.Animations = ReadField(reader, "AnimationTracks", () => LoadAnimations(reader));
       result.AnimationType = ReadField(reader, "AnimationType", () => (AnimationType)reader.ReadInt32());
       result.Offset = ReadField(reader, "Pivot", () => LoadVector(reader));
@@ -449,20 +450,49 @@ namespace EarthTool.MSH.Services
         }
       };
 
-    private IEnumerable<IFace> LoadFaces(BinaryReader reader)
+    private IEnumerable<IFace> LoadFaces(BinaryReader reader, int vertexCount)
     {
-      var faces = reader.ReadInt32();
-      return Enumerable.Range(0, faces).Select(_ => LoadFace(reader)).ToArray();
+      var countOffset = reader.BaseStream.Position;
+      var faceCount = reader.ReadUInt32();
+      if (faceCount > int.MaxValue)
+      {
+        throw InvalidData("StaticRenderRecord.Triangles.Count", countOffset,
+          $"unsupported count {faceCount}");
+      }
+
+      EnsureRemaining(reader, (long)faceCount * 0x08, "StaticRenderRecord.Triangles");
+      var faces = new IFace[(int)faceCount];
+      for (var i = 0; i < faces.Length; i++)
+      {
+        faces[i] = LoadFace(reader, vertexCount, i);
+      }
+
+      return faces;
     }
 
-    private IFace LoadFace(BinaryReader reader)
-      => new Face()
+    private IFace LoadFace(BinaryReader reader, int vertexCount, int faceIndex)
+    {
+      return new Face()
       {
-        V1 = reader.ReadInt16(),
-        V2 = reader.ReadInt16(),
-        V3 = reader.ReadInt16(),
-        UNKNOWN = reader.ReadInt16(),
+        V1 = ReadVertexIndex(reader, vertexCount, faceIndex, nameof(Face.V1)),
+        V2 = ReadVertexIndex(reader, vertexCount, faceIndex, nameof(Face.V2)),
+        V3 = ReadVertexIndex(reader, vertexCount, faceIndex, nameof(Face.V3)),
+        Flags = reader.ReadUInt16(),
       };
+    }
+
+    private static ushort ReadVertexIndex(BinaryReader reader, int vertexCount, int faceIndex, string field)
+    {
+      var offset = reader.BaseStream.Position;
+      var index = reader.ReadUInt16();
+      if (index >= vertexCount)
+      {
+        throw InvalidData($"StaticRenderRecord.Triangles[{faceIndex}].{field}", offset,
+          $"index {index} is outside the declared vertex range 0..{vertexCount - 1}");
+      }
+
+      return index;
+    }
 
     private ITextureInfo LoadTextureInfo(BinaryReader reader)
     {
@@ -479,10 +509,33 @@ namespace EarthTool.MSH.Services
 
     private IEnumerable<IVertex> LoadVertices(BinaryReader reader)
     {
-      var vertices = reader.ReadInt32();
-      var blocks = reader.ReadInt32();
+      var vertexCountOffset = reader.BaseStream.Position;
+      var vertexCount = reader.ReadUInt32();
+      if (vertexCount > int.MaxValue)
+      {
+        throw InvalidData("StaticRenderRecord.Vertices.VertexCount", vertexCountOffset,
+          $"unsupported count {vertexCount}");
+      }
 
-      return Enumerable.Range(0, blocks).SelectMany(_ => GetVertices(reader.ReadBytes(160))).Take(vertices).ToArray();
+      var blockCountOffset = reader.BaseStream.Position;
+      var blockCount = reader.ReadUInt32();
+      var expectedBlockCount = vertexCount / 4 + (vertexCount % 4 == 0 ? 0u : 1u);
+      if (blockCount != expectedBlockCount)
+      {
+        throw InvalidData("StaticRenderRecord.Vertices.VertexBlockCount", blockCountOffset,
+          $"declared {blockCount}, expected {expectedBlockCount} for {vertexCount} vertices");
+      }
+
+      EnsureRemaining(reader, (long)blockCount * 0xA0, "StaticRenderRecord.Vertices.VertexBlocks");
+      var vertices = new List<IVertex>((int)vertexCount);
+      for (var block = 0u; block < blockCount; block++)
+      {
+        var activeLanes = Math.Min(4, (int)vertexCount - vertices.Count);
+        vertices.AddRange(GetVertices(ReadExact(reader, 0xA0,
+          $"StaticRenderRecord.Vertices.VertexBlocks[{block}]")).Take(activeLanes));
+      }
+
+      return vertices;
     }
 
     private IEnumerable<IVertex> GetVertices(byte[] vertexData)
@@ -500,12 +553,13 @@ namespace EarthTool.MSH.Services
         var normalZ = BitConverter.ToSingle(vertexData, idx + 0x50);
 
         var u = BitConverter.ToSingle(vertexData, idx + 0x60);
-        var v = 1 - BitConverter.ToSingle(vertexData, idx + 0x70);
+        var v = BitConverter.ToSingle(vertexData, idx + 0x70);
+        var w = BitConverter.ToSingle(vertexData, idx + 0x80);
 
-        var u1 = BitConverter.ToInt16(vertexData, i * sizeof(short) + 0x90);
-        var u2 = BitConverter.ToInt16(vertexData, i * sizeof(short) + 0x98);
-        yield return new Vertex(new Vector(x, y, z), new Vector(normalX, normalY, normalZ), new TextureCoordinate(u, v),
-          u1, u2);
+        var normalVectorIdx = BitConverter.ToUInt16(vertexData, i * sizeof(ushort) + 0x90);
+        var positionVectorIdx = BitConverter.ToUInt16(vertexData, i * sizeof(ushort) + 0x98);
+        yield return new Vertex(new Vector(x, y, z), new Vector(normalX, normalY, normalZ),
+          TextureCoordinate.FromSerialized(u, v, w), normalVectorIdx, positionVectorIdx);
       }
     }
 

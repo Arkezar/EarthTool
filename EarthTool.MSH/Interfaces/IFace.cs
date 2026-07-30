@@ -4,9 +4,9 @@ namespace EarthTool.MSH.Interfaces
 {
   public interface IFace : IBinarySerializable
   {
-    short UNKNOWN { get; }
-    short V1 { get; }
-    short V2 { get; }
-    short V3 { get; }
+    ushort Flags { get; }
+    ushort V1 { get; }
+    ushort V2 { get; }
+    ushort V3 { get; }
   }
 }

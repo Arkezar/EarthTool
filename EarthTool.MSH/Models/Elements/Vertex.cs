@@ -19,17 +19,18 @@ namespace EarthTool.MSH.Models.Elements
       get;
     }
 
-    public short NormalVectorIdx
+    public ushort NormalVectorIdx
     {
       get;
     }
 
-    public short PositionVectorIdx
+    public ushort PositionVectorIdx
     {
       get;
     }
 
-    public Vertex(IVector position, IVector normal, ITextureCoordinate textureCoordinate, short normalVectorIdx, short positionVectorIdx)
+    public Vertex(IVector position, IVector normal, ITextureCoordinate textureCoordinate, ushort normalVectorIdx,
+      ushort positionVectorIdx)
     {
       Position = position;
       Normal = normal;

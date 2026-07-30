@@ -29,6 +29,8 @@ typedef struct {
     float U;
     FSkip(12);
     float V;
+    FSkip(12);
+    float W;
 } Vertex;
 
 typedef struct {
@@ -39,9 +41,8 @@ typedef struct {
     Vertex vertex;
     FSkip(-(sizeof(vertex)-4));
     Vertex vertex;
-    byte EMPTY[16];
-    short NormalIdx[4] <bgcolor=0xFFAA00>;
-    short PositionIdx[4] <bgcolor=0xAAAA00>;
+    ushort NormalIdx[4] <bgcolor=0xFFAA00>;
+    ushort PositionIdx[4] <bgcolor=0xAAAA00>;
 } VertexBlock;
 
 typedef struct {
@@ -56,10 +57,10 @@ typedef struct {
 } Texture;
 
 typedef struct {
-    short V1;
-    short V2;
-    short V3;
-    short UNKNOWN;
+    ushort V1;
+    ushort V2;
+    ushort V3;
+    ushort Flags;
 } Face;
 
 typedef struct {

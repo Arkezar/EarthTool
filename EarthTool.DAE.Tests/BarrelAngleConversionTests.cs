@@ -34,7 +34,23 @@ public class BarrelAngleConversionTests
     Assert.Equal(0, result.RiseAngle);
   }
 
-  private static IModelPart ConvertThroughMshAndDae(PartType partType, double angle)
+  [Fact]
+  public void MshToDaeToMshPreservesTriangleFlags()
+  {
+    var result = ConvertThroughMshAndDae(PartType.Base, 0, 0xFEDC);
+
+    Assert.Equal((ushort)0xFEDC, Assert.Single(result.Faces).Flags);
+  }
+
+  [Fact]
+  public void MshToDaeToMshPreservesTextureVOrientation()
+  {
+    var result = ConvertThroughMshAndDae(PartType.Base, 0);
+
+    Assert.Equal(new[] { 0f, 0f, 1f }, result.Vertices.Select(vertex => vertex.TextureCoordinate.V));
+  }
+
+  private static IModelPart ConvertThroughMshAndDae(PartType partType, double angle, ushort flags = 1)
   {
     var inputMshPath = GetTemporaryPath("msh");
     var daePath = GetTemporaryPath("dae");
@@ -43,7 +59,7 @@ public class BarrelAngleConversionTests
 
     try
     {
-      new EarthMeshWriter(Encoding.UTF8).Write(CreateMesh(partType, angle), inputMshPath);
+      new EarthMeshWriter(Encoding.UTF8).Write(CreateMesh(partType, angle, flags), inputMshPath);
       var input = mshReader.Read(inputMshPath);
       new ColladaMeshWriter(CreateColladaModelFactory()).Write(input, daePath);
       var converted = new ColladaMeshReader(new EarthInfoFactory(Encoding.UTF8), new HierarchyBuilder()).Read(daePath);
@@ -59,7 +75,7 @@ public class BarrelAngleConversionTests
     }
   }
 
-  private static EarthMesh CreateMesh(PartType partType, double angle)
+  private static EarthMesh CreateMesh(PartType partType, double angle, ushort flags)
   {
     var part = new ModelPart
     {
@@ -71,7 +87,7 @@ public class BarrelAngleConversionTests
         new Vertex(new Vector(1, 0, 0), new Vector(0, 0, 1), new TextureCoordinate(1, 0), 0, 1),
         new Vertex(new Vector(0, 1, 0), new Vector(0, 0, 1), new TextureCoordinate(0, 1), 0, 2)
       },
-      Faces = new IFace[] { new Face { V1 = 0, V2 = 1, V3 = 2, UNKNOWN = 1 } },
+      Faces = new IFace[] { new Face { V1 = 0, V2 = 1, V3 = 2, Flags = flags } },
       Texture = new TextureInfo { FileName = "Textures\\fixture.tex" },
       Animations = new Animations(),
       Offset = new Vector()

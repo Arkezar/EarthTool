@@ -6,6 +6,25 @@ Static meshes expose a read-only `TrailingHierarchyUnwindCount`. It is derived f
 
 The former `Descriptor`, `MeshType`, `RegularMeshSubType`, and `MeshSubType` APIs were removed because the post-header static dword is a hierarchy unwind, not a Unit/Building subtype. Dynamic effect classification is exposed as `IDynamicPart.EffectType`.
 
+## Static geometry
+
+Static render vertices expose all three stored texture components through
+`ITextureCoordinate.U`, `V`, and `W`. `V` uses the object-model orientation and
+is inverted when read from or written to MSH; `W` preserves the raw third
+component whose game-facing meaning remains unknown.
+
+`IVertex.NormalVectorIdx` and `PositionVectorIdx` are unsigned sharing links.
+The value `0xFFFF` means that no earlier render vertex is shared. `IFace.V1`,
+`V2`, `V3`, and `Flags` preserve the four unsigned 16-bit triangle words.
+The COLLADA converter carries triangle flags in its `EARTHTOOL` static-part
+metadata and uses the base value `0x0001` when importing external COLLADA files
+without that metadata.
+
+Readers require the stored vertex-block count to equal
+`ceil(vertexCount / 4)` and reject triangle indices outside the declared vertex
+range. Unused lanes in a partial final block are not exposed as vertices and
+are normalized to zero when written.
+
 ## Footprints and horizontal extents
 
 `IMeshBaseHeader.BoxPresenceMask` exposes the complete 32-bit box presence mask.
@@ -33,6 +52,7 @@ Update callers as follows:
 | `Boundaries.MinY` | `HorizontalExtents.NegativeY` |
 | `Boundaries.MaxX` | `HorizontalExtents.PositiveX` |
 | `Boundaries.MinX` | `HorizontalExtents.NegativeX` |
+| `Face.UNKNOWN` | `Face.Flags` |
 
 Box heights are now `ushort[]`, and horizontal extent properties are `ushort`.
 Coverage values are intentionally raw because their derived bit layout is not a

@@ -51,11 +51,103 @@ public class MinimalStaticMeshConformanceTests
       Assert.Equal(new System.Numerics.Vector3(1, 0, 0), vertices[1].Position.Value);
       Assert.Equal(new System.Numerics.Vector3(0, 1, 0), vertices[2].Position.Value);
       var face = Assert.Single(part.Faces);
-      Assert.Equal((short)0, face.V1);
-      Assert.Equal((short)1, face.V2);
-      Assert.Equal((short)2, face.V3);
-      Assert.Equal((short)1, face.UNKNOWN);
+      Assert.Equal((ushort)0, face.V1);
+      Assert.Equal((ushort)1, face.V2);
+      Assert.Equal((ushort)2, face.V3);
+      Assert.Equal((ushort)1, face.Flags);
       Assert.Equal(0u, part.NextRecordMarker);
+      Assert.Equal(fixture, File.ReadAllBytes(outputPath));
+    }
+    finally
+    {
+      File.Delete(inputPath);
+      File.Delete(outputPath);
+    }
+  }
+
+  [Fact]
+  public void PublicReaderAndWriterPreserveStaticGeometryChannelsAndIgnoreUnusedLanes()
+  {
+    const int vertexBlockOffset = 0x388;
+    var fixture = CreateFixture();
+    var storedV = new[] { 0.1f, 0.7f, -0.5f };
+    var textureW = new[] { 2.5f, -3.25f, 0.125f };
+    var normalSharing = new ushort[] { ushort.MaxValue, 0x8001, 0x7FFF };
+    var positionSharing = new ushort[] { 0xFEDC, ushort.MaxValue, 0x8000 };
+    for (var lane = 0; lane < 3; lane++)
+    {
+      WriteSingle(fixture, vertexBlockOffset + 0x70 + (lane * sizeof(float)), storedV[lane]);
+      WriteSingle(fixture, vertexBlockOffset + 0x80 + (lane * sizeof(float)), textureW[lane]);
+      WriteUInt16(fixture, vertexBlockOffset + 0x90 + (lane * sizeof(ushort)), normalSharing[lane]);
+      WriteUInt16(fixture, vertexBlockOffset + 0x98 + (lane * sizeof(ushort)), positionSharing[lane]);
+    }
+
+    for (var channelOffset = 0; channelOffset <= 0x80; channelOffset += 0x10)
+    {
+      WriteSingle(fixture, vertexBlockOffset + channelOffset + (3 * sizeof(float)), 123.5f + channelOffset);
+    }
+    WriteUInt16(fixture, vertexBlockOffset + 0x90 + (3 * sizeof(ushort)), 0xAAAA);
+    WriteUInt16(fixture, vertexBlockOffset + 0x98 + (3 * sizeof(ushort)), 0xBBBB);
+    WriteUInt16(fixture, 0x43A, 0xFEDC);
+
+    var expectedOutput = fixture.ToArray();
+    for (var channelOffset = 0; channelOffset <= 0x80; channelOffset += 0x10)
+    {
+      WriteSingle(expectedOutput, vertexBlockOffset + channelOffset + (3 * sizeof(float)), 0);
+    }
+    WriteUInt16(expectedOutput, vertexBlockOffset + 0x90 + (3 * sizeof(ushort)), 0);
+    WriteUInt16(expectedOutput, vertexBlockOffset + 0x98 + (3 * sizeof(ushort)), 0);
+    var inputPath = GetTemporaryPath();
+    var outputPath = GetTemporaryPath();
+
+    try
+    {
+      File.WriteAllBytes(inputPath, fixture);
+
+      var mesh = CreateReader().Read(inputPath);
+      new EarthMeshWriter(Encoding.UTF8).Write(mesh, outputPath);
+
+      var part = Assert.Single(mesh.Geometries);
+      var vertices = part.Vertices.ToArray();
+      Assert.Equal(3, vertices.Length);
+      for (var lane = 0; lane < vertices.Length; lane++)
+      {
+        Assert.Equal(1 - storedV[lane], vertices[lane].TextureCoordinate.V);
+        Assert.Equal(textureW[lane], vertices[lane].TextureCoordinate.W);
+        Assert.Equal(normalSharing[lane], vertices[lane].NormalVectorIdx);
+        Assert.Equal(positionSharing[lane], vertices[lane].PositionVectorIdx);
+      }
+
+      var face = Assert.Single(part.Faces);
+      Assert.Equal((ushort)0xFEDC, face.Flags);
+      Assert.Equal(expectedOutput, File.ReadAllBytes(outputPath));
+    }
+    finally
+    {
+      File.Delete(inputPath);
+      File.Delete(outputPath);
+    }
+  }
+
+  [Fact]
+  public void PublicReaderAndWriterPreserveHighUnsignedTriangleIndices()
+  {
+    var fixture = CreateHighTriangleIndexFixture();
+    var inputPath = GetTemporaryPath();
+    var outputPath = GetTemporaryPath();
+
+    try
+    {
+      File.WriteAllBytes(inputPath, fixture);
+
+      var mesh = CreateReader().Read(inputPath);
+      new EarthMeshWriter(Encoding.UTF8).Write(mesh, outputPath);
+
+      var part = Assert.Single(mesh.Geometries);
+      Assert.Equal(0x8001, part.Vertices.Count());
+      var face = Assert.Single(part.Faces);
+      Assert.Equal((ushort)0x8000, face.V1);
+      Assert.Equal((ushort)0x8001, face.Flags);
       Assert.Equal(fixture, File.ReadAllBytes(outputPath));
     }
     finally
@@ -590,9 +682,21 @@ public class MinimalStaticMeshConformanceTests
     var truncatedVertices = CreateFixture()[..0x390];
     yield return new object[] { truncatedVertices, "Vertices" };
 
+    var tooFewVertexBlocks = CreateFixture();
+    WriteUInt32(tooFewVertexBlocks, 0x380, 5);
+    yield return new object[] { tooFewVertexBlocks, "VertexBlockCount" };
+
+    var tooManyVertexBlocks = CreateFixture();
+    WriteUInt32(tooManyVertexBlocks, 0x384, 2);
+    yield return new object[] { tooManyVertexBlocks, "VertexBlockCount" };
+
     var truncatedTexture = CreateFixture();
     WriteUInt32(truncatedTexture, 0x42C, uint.MaxValue);
     yield return new object[] { truncatedTexture, "Texture.PathLength" };
+
+    var invalidTriangleIndex = CreateFixture();
+    WriteUInt16(invalidTriangleIndex, 0x438, 3);
+    yield return new object[] { invalidTriangleIndex, "Triangles[0].V3" };
 
     var hierarchyUnderflow = CreateFixture();
     WriteUInt32(hierarchyUnderflow, 0x428, 1);
@@ -668,6 +772,30 @@ public class MinimalStaticMeshConformanceTests
     cursor++;
     WriteUInt32(data, cursor, 0);
 
+    return data;
+  }
+
+  private static byte[] CreateHighTriangleIndexFixture()
+  {
+    const int recordOffset = 0x380;
+    const int vertexDataOffset = recordOffset + 0x08;
+    const int vertexBlockSize = 0xA0;
+    const int vertexCount = 0x8001;
+    const int vertexBlockCount = (vertexCount + 3) / 4;
+    var canonical = CreateFixture();
+    var additionalVertexBytes = (vertexBlockCount - 1) * vertexBlockSize;
+    var data = new byte[canonical.Length + additionalVertexBytes];
+    canonical.AsSpan(0, vertexDataOffset + vertexBlockSize).CopyTo(data);
+    canonical.AsSpan(vertexDataOffset + vertexBlockSize)
+      .CopyTo(data.AsSpan(vertexDataOffset + (vertexBlockCount * vertexBlockSize)));
+    WriteUInt32(data, recordOffset, vertexCount);
+    WriteUInt32(data, recordOffset + sizeof(uint), vertexBlockCount);
+
+    var triangleOffset = vertexDataOffset + (vertexBlockCount * vertexBlockSize) + 0x0C;
+    WriteUInt16(data, triangleOffset, 0x8000);
+    WriteUInt16(data, triangleOffset + 0x02, 0);
+    WriteUInt16(data, triangleOffset + 0x04, 1);
+    WriteUInt16(data, triangleOffset + 0x06, 0x8001);
     return data;
   }
 

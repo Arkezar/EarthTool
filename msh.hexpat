@@ -139,6 +139,8 @@ struct Vertex {
     float u;
     padding[12];
     float v;
+    padding[12];
+    float w;
 };
 
 struct VertexBlock {
@@ -149,7 +151,6 @@ struct VertexBlock {
     Vertex vertex3;
     $ -= sizeof(vertex3) - 4;
     Vertex vertex4;
-    u8 empty[16];
     u16 normalIdx[4];
     u16 positionIdx[4];
 };
@@ -169,7 +170,7 @@ struct Face {
     u16 v1;
     u16 v2;
     u16 v3;
-    u16 unknown;
+    u16 flags;
 };
 
 struct Faces {

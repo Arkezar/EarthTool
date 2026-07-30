@@ -7,7 +7,7 @@ namespace EarthTool.MSH.Interfaces
     IVector Normal { get; }
     IVector Position { get; }
     ITextureCoordinate TextureCoordinate { get; }
-    short NormalVectorIdx { get; }
-    short PositionVectorIdx { get; }
+    ushort NormalVectorIdx { get; }
+    ushort PositionVectorIdx { get; }
   }
 }
