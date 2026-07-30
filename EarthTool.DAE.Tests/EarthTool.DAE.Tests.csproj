@@ -9,6 +9,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="AwesomeAssertions" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="xunit" />
         <PackageReference Include="xunit.runner.visualstudio">
@@ -22,6 +23,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\EarthTool.CLI\EarthTool.CLI.csproj" />
         <ProjectReference Include="..\EarthTool.DAE\EarthTool.DAE.csproj" />
         <ProjectReference Include="..\EarthTool.MSH\EarthTool.MSH.csproj" />
     </ItemGroup>

@@ -25,6 +25,9 @@ namespace EarthTool.DAE.Services
 {
   public class ColladaMeshReader : Reader<IMesh>
   {
+    private const int DefaultFootprintBoxIndex = 15;
+    private const int FixedPointScale = 256;
+
     private readonly IEarthInfoFactory _earthInfoFactory;
     private readonly IHierarchyBuilder _hierarchyBuilder;
     private readonly Regex _regex;
@@ -49,14 +52,15 @@ namespace EarthTool.DAE.Services
       var modelName = model.Library_Visual_Scenes.First().Visual_Scene.First().Node.First().Id;
       var earthInfo = _earthInfoFactory.Get(FileFlags.None, Guid.NewGuid());
       var geometries = LoadGeometries(model).ToArray();
-      var baseHeader = LoadBaseHeader(model, geometries);
+      var partsTree = _hierarchyBuilder.GetPartsTree(geometries);
+      var baseHeader = LoadBaseHeader(model, partsTree.Parts);
 
       return new EarthMesh()
       {
         FileHeader = earthInfo,
         BaseHeader = baseHeader,
         Geometries = geometries,
-        PartsTree = _hierarchyBuilder.GetPartsTree(geometries)
+        PartsTree = partsTree
       };
     }
 
@@ -279,14 +283,34 @@ namespace EarthTool.DAE.Services
       return new MeshBaseHeader()
       {
         MeshKind = MeshKind.Static, // dynamic not supported yet
+        BoxPresenceMask = 1u << DefaultFootprintBoxIndex,
         Frames = LoadFrames(model),
         SpotLights = LoadSpotLights(model),
         OmnidirectionalLights = LoadOmniLights(model),
         MountPoints = LoadMountPoints(model),
         Slots = LoadSlots(model),
         HorizontalExtents = LoadHorizontalExtents(geometries),
-        Footprint = new MeshFootprint()
+        Footprint = LoadDefaultFootprint(geometries)
       };
+    }
+
+    private IMeshFootprint LoadDefaultFootprint(IEnumerable<IModelPart> geometries)
+    {
+      var footprint = new MeshFootprint
+      {
+        // Converter-derived coverage for a single occupied logical cell 15 in the 4x4 footprint.
+        CoverageDescriptors = new uint[] { 0x3A000008, 0x00008000, 0xCA001000, 0xFF000001 },
+        CoverageBitmaps = new ulong[]
+        {
+          0xFFFFFFFFFFFF0FFF,
+          0x0FFFFFFFFFFFFFFF,
+          0xFFF0FFFFFFFFFFFF,
+          0xFFFFFFFFFFFFFFF0
+        }
+      };
+      var maximumZ = geometries.SelectMany(g => g.Vertices.Select(v => v.Position.Z)).Max();
+      footprint.BoxHeights[DefaultFootprintBoxIndex] = (ushort)(maximumZ * FixedPointScale);
+      return footprint;
     }
 
     private IMeshHorizontalExtents LoadHorizontalExtents(IEnumerable<IModelPart> geometries)
@@ -295,10 +319,10 @@ namespace EarthTool.DAE.Services
       var yCoordinates = geometries.SelectMany(g => g.Vertices.Select(v => v.Position.Y));
       return new MeshHorizontalExtents
       {
-        PositiveY = (ushort)MathF.Abs(yCoordinates.Max() * byte.MaxValue),
-        NegativeY = (ushort)MathF.Abs(yCoordinates.Min() * byte.MaxValue),
-        PositiveX = (ushort)MathF.Abs(xCoordinates.Max() * byte.MaxValue),
-        NegativeX = (ushort)MathF.Abs(xCoordinates.Min() * byte.MaxValue)
+        PositiveY = (ushort)(yCoordinates.Max() * FixedPointScale),
+        NegativeY = (ushort)(-yCoordinates.Min() * FixedPointScale),
+        PositiveX = (ushort)(xCoordinates.Max() * FixedPointScale),
+        NegativeX = (ushort)(-xCoordinates.Min() * FixedPointScale)
       };
     }
 
