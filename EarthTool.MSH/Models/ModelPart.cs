@@ -31,6 +31,9 @@ namespace EarthTool.MSH.Models
 
     public uint NextRecordMarker { get; set; }
 
+    /// <summary>
+    /// Gets or sets the barrel maximum angle in degrees.
+    /// </summary>
     public double RiseAngle { get; set; }
 
     public byte[] ToByteArray(Encoding encoding)
@@ -59,7 +62,12 @@ namespace EarthTool.MSH.Models
 
     private byte GetRiseAngle()
     {
-      return (byte)(RiseAngle * (byte.MaxValue / 360));
+      if (!PartType.HasFlag(PartType.Barrel))
+      {
+        return 0;
+      }
+
+      return (byte)(RiseAngle * 256d / 360d);
     }
 
     private byte[] GetVertexBytes()

@@ -1,13 +1,21 @@
-﻿using EarthTool.DAE.Collections;
+﻿using Collada141;
+using EarthTool.DAE.Collections;
 using EarthTool.MSH.Enums;
 using EarthTool.MSH.Interfaces;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Xml;
 
 namespace EarthTool.DAE.Extensions
 {
   public static class ModelPartExtensions
   {
+    private const string MetadataProfile = "EARTHTOOL";
+    private const string StaticPartElement = "msh_static_part";
+    private const string BarrelMaximumAngleElement = "barrel_maximum_angle_degrees";
+
     public static string EnrichPartName(this IModelPart part, string baseName)
       => $"{baseName}-{part.GetAnimationDetails()}";
 
@@ -57,6 +65,59 @@ namespace EarthTool.DAE.Extensions
       }
 
       return (PartType.Base, AnimationType.Looped, 0);
+    }
+
+    public static void AddBarrelMaximumAngleMetadata(this Node node, IModelPart part)
+    {
+      if (!part.PartType.HasFlag(PartType.Barrel))
+      {
+        return;
+      }
+
+      var document = new XmlDocument();
+      var metadata = document.CreateElement(StaticPartElement);
+      metadata.SetAttribute("version", "1");
+      var angle = document.CreateElement(BarrelMaximumAngleElement);
+      angle.InnerText = part.RiseAngle.ToString("R", CultureInfo.InvariantCulture);
+      metadata.AppendChild(angle);
+
+      var technique = new Technique { Profile = MetadataProfile };
+      technique.Any.Add(metadata);
+      var extra = new Extra();
+      extra.Technique.Add(technique);
+      node.Extra.Add(extra);
+    }
+
+    public static double ParseBarrelMaximumAngle(this ModelTreeNode node, PartType partType)
+    {
+      if (!partType.HasFlag(PartType.Barrel))
+      {
+        return 0;
+      }
+
+      var metadata = node.Node.Extra
+        .SelectMany(extra => extra.Technique)
+        .Where(technique => technique.Profile == MetadataProfile)
+        .SelectMany(technique => technique.Any)
+        .SingleOrDefault(element => element.LocalName == StaticPartElement);
+      if (metadata == null)
+      {
+        return 0;
+      }
+
+      if (metadata.GetAttribute("version") != "1")
+      {
+        throw new InvalidDataException("Unsupported EARTHTOOL static-part metadata version.");
+      }
+
+      var value = metadata.ChildNodes.OfType<XmlElement>()
+        .SingleOrDefault(element => element.LocalName == BarrelMaximumAngleElement)?.InnerText;
+      if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var angle))
+      {
+        throw new InvalidDataException("EARTHTOOL static-part metadata has an invalid barrel maximum angle.");
+      }
+
+      return angle;
     }
 
     private static PartType GetPartType(string name)

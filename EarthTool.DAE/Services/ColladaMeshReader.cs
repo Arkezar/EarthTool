@@ -86,6 +86,7 @@ namespace EarthTool.DAE.Services
         BackTrackDepth = (byte)node.BacktrackLevel,
         PartType = details.PartType,
         AnimationType = details.AnimationType,
+        RiseAngle = node.ParseBarrelMaximumAngle(details.PartType),
       };
     }
 

@@ -44,6 +44,7 @@ namespace EarthTool.DAE.Elements
     {
       var id = part.EnrichPartName($"Part-{i}-{idx}");
       var node = new Node() { Id = id, Name = id };
+      node.AddBarrelMaximumAngleMetadata(part);
 
       if (idx == 0)
       {

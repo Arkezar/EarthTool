@@ -13,6 +13,9 @@ namespace EarthTool.MSH.Interfaces
     ITextureInfo Texture { get; }
     uint NextRecordMarker { get; }
     PartType PartType { get; }
+    /// <summary>
+    /// Gets the barrel maximum angle in degrees.
+    /// </summary>
     double RiseAngle { get; }
     short Empty { get; }
     AnimationType AnimationType { get; }

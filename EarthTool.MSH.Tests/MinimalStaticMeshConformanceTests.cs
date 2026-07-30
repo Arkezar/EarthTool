@@ -243,6 +243,84 @@ public class MinimalStaticMeshConformanceTests
   }
 
   [Fact]
+  public void PublicReaderAndWriterRoundTripBarrelMaximumAngle()
+  {
+    const int objectFlagsOffset = 0x428;
+    const int barrelMaximumAngleOffset = 0x458;
+    var fixture = CreateFixture();
+    WriteUInt32(fixture, objectFlagsOffset, (uint)EarthTool.MSH.Enums.PartType.Barrel << 8);
+    fixture[barrelMaximumAngleOffset] = 14;
+    var inputPath = GetTemporaryPath();
+    var outputPath = GetTemporaryPath();
+
+    try
+    {
+      File.WriteAllBytes(inputPath, fixture);
+
+      var mesh = CreateReader().Read(inputPath);
+      new EarthMeshWriter(Encoding.UTF8).Write(mesh, outputPath);
+
+      Assert.Equal(19.6875, Assert.Single(mesh.Geometries).RiseAngle);
+      Assert.Equal(14, File.ReadAllBytes(outputPath)[barrelMaximumAngleOffset]);
+    }
+    finally
+    {
+      File.Delete(inputPath);
+      File.Delete(outputPath);
+    }
+  }
+
+  [Fact]
+  public void PublicWriterTruncatesBarrelMaximumAngleToOneByteTurnUnits()
+  {
+    const int barrelMaximumAngleOffset = 0x458;
+    var mesh = ReadValidMesh();
+    var part = Assert.IsType<ModelPart>(Assert.Single(mesh.Geometries));
+    part.PartType = EarthTool.MSH.Enums.PartType.Barrel;
+    part.RiseAngle = 19.9;
+    var outputPath = GetTemporaryPath();
+
+    try
+    {
+      new EarthMeshWriter(Encoding.UTF8).Write(mesh, outputPath);
+
+      Assert.Equal(14, File.ReadAllBytes(outputPath)[barrelMaximumAngleOffset]);
+    }
+    finally
+    {
+      File.Delete(outputPath);
+    }
+  }
+
+  [Fact]
+  public void PublicReaderAndWriterClearBarrelMaximumAngleForNonBarrelRecord()
+  {
+    const int barrelMaximumAngleOffset = 0x458;
+    var fixture = CreateFixture();
+    fixture[barrelMaximumAngleOffset] = 14;
+    var inputPath = GetTemporaryPath();
+    var outputPath = GetTemporaryPath();
+
+    try
+    {
+      File.WriteAllBytes(inputPath, fixture);
+
+      var mesh = CreateReader().Read(inputPath);
+      new EarthMeshWriter(Encoding.UTF8).Write(mesh, outputPath);
+
+      var part = Assert.Single(mesh.Geometries);
+      Assert.False(part.PartType.HasFlag(EarthTool.MSH.Enums.PartType.Barrel));
+      Assert.Equal(0, part.RiseAngle);
+      Assert.Equal(0, File.ReadAllBytes(outputPath)[barrelMaximumAngleOffset]);
+    }
+    finally
+    {
+      File.Delete(inputPath);
+      File.Delete(outputPath);
+    }
+  }
+
+  [Fact]
   public void NewlyAuthoredStaticMeshPreservesGeneratedGuidAcrossWrites()
   {
     var fixturePath = GetTemporaryPath();

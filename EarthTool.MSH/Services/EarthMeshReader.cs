@@ -408,7 +408,11 @@ namespace EarthTool.MSH.Services
       result.AnimationType = ReadField(reader, "AnimationType", () => (AnimationType)reader.ReadInt32());
       result.Offset = ReadField(reader, "Pivot", () => LoadVector(reader));
       result.RiseAngle = ReadField(reader, "BarrelMaximumAngle",
-        () => Math.Round((double)reader.ReadByte() / byte.MaxValue) * 360);
+        () =>
+        {
+          var serializedAngle = reader.ReadByte();
+          return result.PartType.HasFlag(PartType.Barrel) ? serializedAngle * 360d / 256d : 0;
+        });
       result.NextRecordMarker = ReadUInt32(reader, "StaticRenderRecord.NextRecordMarker");
       return result;
     }
