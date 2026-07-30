@@ -375,7 +375,13 @@ namespace EarthTool.DAE.Services
       Matrix4x4.Decompose(matrix, out var _, out var q, out var _);
       var direction = Math.Atan2(2.0f * (q.X * q.Y + q.Z * q.W), 1.0f - 2.0f * (q.X * q.X + q.Z * q.Z));
 
-      return new Slot() { Position = GetVector(n), Direction = direction, FinalParameter = 128, Id = i };
+      return new Slot()
+      {
+        Position = GetVector(n),
+        Direction = direction,
+        ExtraAngle = n.ParseAttachmentExtraAngle(),
+        Id = i
+      };
     }
 
     private IEnumerable<ISlot> Fill(IEnumerable<ISlot> collection, int count, int firstId)

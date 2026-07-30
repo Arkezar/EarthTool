@@ -24,7 +24,17 @@ namespace EarthTool.MSH.Models.Elements
 
     public byte Heading { get; set; }
 
-    public byte FinalParameter { get; set; }
+    public byte ExtraAngle { get; set; }
+
+    public double ExtraAngleRadians
+    {
+      get => ExtraAngle * Math.PI / 128.0;
+      set
+      {
+        var units = (int)(value * 128.0 / Math.PI);
+        ExtraAngle = (byte)(units & byte.MaxValue);
+      }
+    }
 
     public bool IsValid
       => Position != null &&
@@ -45,7 +55,7 @@ namespace EarthTool.MSH.Models.Elements
           writer.Write((short)(-Position.Y * 256));
           writer.Write((short)(Position.Z * 256));
           writer.Write(Heading);
-          writer.Write(FinalParameter);
+          writer.Write(ExtraAngle);
         }
         return stream.ToArray();
       }

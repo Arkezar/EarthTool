@@ -56,10 +56,35 @@ public class AttachmentConversionTests
       Assert.Equal(expectedActiveIds, attachments
         .Where(attachment => attachment.Id is < 13 or > 20 && attachment.IsValid)
         .Select(attachment => attachment.Id));
+      Assert.Equal((byte)0xB1, attachments[2].ExtraAngle);
       foreach (var id in expectedActiveIds)
       {
         Assert.Equal(new System.Numerics.Vector3(id, id + 0.25f, -id), attachments[id - 1].Position.Value);
       }
+    }
+    finally
+    {
+      File.Delete(daePath);
+    }
+  }
+
+  [Fact]
+  public void PublicDaeImportUsesOrdinaryExtraAngleDefaultWithoutMetadata()
+  {
+    var daePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.dae");
+
+    try
+    {
+      new ColladaMeshWriter(CreateColladaModelFactory()).Write(CreateMesh(), daePath);
+      var document = XDocument.Load(daePath);
+      var turret = document.Descendants()
+        .Single(element => element.Name.LocalName == "node" && (string)element.Attribute("name")! == "Turret-3");
+      turret.Elements().Where(element => element.Name.LocalName == "extra").Remove();
+      document.Save(daePath);
+
+      var converted = new ColladaMeshReader(new EarthInfoFactory(Encoding.UTF8), new HierarchyBuilder()).Read(daePath);
+
+      Assert.Equal((byte)0x80, converted.BaseHeader.Slots.Turrets.ElementAt(2).ExtraAngle);
     }
     finally
     {
@@ -135,7 +160,7 @@ public class AttachmentConversionTests
       {
         slot.Position = new Vector(id, id + 0.25f, -id);
         slot.Heading = 64;
-        slot.FinalParameter = 0;
+        slot.ExtraAngle = id == 3 ? (byte)0xB1 : (byte)0x80;
       }
 
       return (ISlot)slot;

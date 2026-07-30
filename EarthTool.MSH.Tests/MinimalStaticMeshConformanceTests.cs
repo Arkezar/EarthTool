@@ -73,6 +73,7 @@ public class MinimalStaticMeshConformanceTests
     const int attachmentSize = 8;
     var fixture = CreateFixture();
     var headings = new byte[] { 63, 64, 65, 127, 128, 129, 191, 192, 193, 255 };
+    var extraAngles = new byte[] { 0xB1, 0x00, 0x40, 0x80, 0x0F, 0x15, 0x1C, 0x20, 0x31, 0x47, 0x4E, 0x55, 0x5C, 0x60, 0x71, 0x78 };
     for (var i = 0; i < attachmentCount; i++)
     {
       var offset = attachmentOffset + (i * attachmentSize);
@@ -80,7 +81,7 @@ public class MinimalStaticMeshConformanceTests
       WriteInt16(fixture, offset + 0x02, (short)(11000 - (i * 193)));
       WriteInt16(fixture, offset + 0x04, (short)(-9000 + (i * 149)));
       fixture[offset + 0x06] = headings[i % headings.Length];
-      fixture[offset + 0x07] = (byte)i;
+      fixture[offset + 0x07] = extraAngles[i % extraAngles.Length];
     }
 
     const int unsetIndex = 32;
@@ -111,9 +112,12 @@ public class MinimalStaticMeshConformanceTests
         Assert.Equal(-ReadInt16(fixture, offset + 0x02) / 256f, attachment.Position.Y);
         Assert.Equal(ReadInt16(fixture, offset + 0x04) / 256f, attachment.Position.Z);
         Assert.Equal(fixture[offset + 0x06], attachment.Heading);
-        Assert.Equal(fixture[offset + 0x07], attachment.FinalParameter);
+        Assert.Equal(fixture[offset + 0x07], attachment.ExtraAngle);
         Assert.Equal(i != unsetIndex, attachment.IsValid);
       }
+
+      Assert.Equal(extraAngles.Take(4).Select(angle => angle * Math.PI / 128),
+        attachments.Take(4).Select(attachment => attachment.ExtraAngleRadians));
 
       Assert.Equal(
         fixture.AsSpan(attachmentOffset, attachmentCount * attachmentSize).ToArray(),
@@ -126,15 +130,28 @@ public class MinimalStaticMeshConformanceTests
     }
   }
 
+  [Theory]
+  [InlineData(90.35, (byte)0x40)]
+  [InlineData(-111.09, (byte)0xB2)]
+  [InlineData(-111.09375, (byte)0xB1)]
+  public void SlotExtraAngleTruncatesAndWrapsRadians(double degrees, byte expected)
+  {
+    var attachment = new Slot();
+
+    attachment.ExtraAngleRadians = degrees * Math.PI / 180;
+
+    Assert.Equal(expected, attachment.ExtraAngle);
+  }
+
   [Fact]
-  public void PublicWriterTruncatesAttachmentCoordinatesAndHeadingToFormatUnits()
+  public void PublicWriterTruncatesAttachmentCoordinatesAndAnglesToFormatUnits()
   {
     const int attachmentOffset = 0x14 + 0x1D8;
     var mesh = ReadValidMesh();
     var attachment = Assert.IsType<Slot>(mesh.BaseHeader.Slots.Turrets.First());
     attachment.Position = new Vector(1.003f, -2.007f, -3.999f);
     attachment.Direction = 64.999 / 256 * Math.PI * 2;
-    attachment.FinalParameter = 0;
+    attachment.ExtraAngleRadians = -111.09 * Math.PI / 180;
     var outputPath = GetTemporaryPath();
 
     try
@@ -146,7 +163,7 @@ public class MinimalStaticMeshConformanceTests
       Assert.Equal((short)513, ReadInt16(output, attachmentOffset + 0x02));
       Assert.Equal((short)-1023, ReadInt16(output, attachmentOffset + 0x04));
       Assert.Equal((byte)64, output[attachmentOffset + 0x06]);
-      Assert.Equal((byte)0, output[attachmentOffset + 0x07]);
+      Assert.Equal((byte)0xB2, output[attachmentOffset + 0x07]);
     }
     finally
     {

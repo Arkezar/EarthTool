@@ -1,4 +1,5 @@
 ﻿using Collada141;
+using EarthTool.DAE.Extensions;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using System;
@@ -45,6 +46,7 @@ namespace EarthTool.DAE.Elements
         Id = id,
         Name = id
       };
+      node.AddAttachmentMetadata(slot);
 
       var translate = Matrix4x4.Identity;
       translate.Translation = slot.Position.Value;

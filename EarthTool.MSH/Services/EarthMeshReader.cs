@@ -274,7 +274,7 @@ namespace EarthTool.MSH.Services
         Id = id,
         Position = new Vector(x, y, z),
         Heading = reader.ReadByte(),
-        FinalParameter = reader.ReadByte()
+        ExtraAngle = reader.ReadByte()
       };
       return result;
     }

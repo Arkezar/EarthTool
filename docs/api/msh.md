@@ -30,13 +30,21 @@ are normalized to zero when written.
 `IMeshBaseHeader.Slots` always contains the 49 physical attachment records.
 Each `ISlot.Id` is its stable one-based global record position. `Heading`
 preserves the exact stored byte using 256 units per turn, while `Direction` is
-the corresponding radian view. `FinalParameter` preserves the independent
-eighth byte, including zero.
+the corresponding radian view. `ExtraAngle` preserves the exact eighth byte.
+For cannon slots, `ExtraAngleRadians` exposes its confirmed quantized-angle
+encoding using 256 units per turn. Assigning `Slot.ExtraAngleRadians` truncates
+to format units and wraps negative angles into the unsigned byte. The ordinary
+AOD slot form defaults this angle to `0x80`, or pi radians. Light-generated
+attachment bytes are preserved raw and are not interpreted as slot angles.
 
 `ISlot.IsValid` is false only when all three stored coordinates are the
 `0x8000` sentinel. Coordinate values use signed fixed point with 256 units and
 invert Y between the file and object model. COLLADA conversion retains sparse
-one-based numbers within each attachment range.
+one-based numbers within each attachment range. For exported slot nodes,
+EarthTool stores the raw extra angle in `EARTHTOOL` attachment metadata;
+external COLLADA slot nodes without that metadata use the ordinary `0x80`
+default. Static-light attachment conversion is handled separately from slot
+node metadata.
 
 ## Footprints and horizontal extents
 
@@ -66,7 +74,7 @@ Update callers as follows:
 | `Boundaries.MaxX` | `HorizontalExtents.PositiveX` |
 | `Boundaries.MinX` | `HorizontalExtents.NegativeX` |
 | `Face.UNKNOWN` | `Face.Flags` |
-| `Slot.Flag` | `Slot.FinalParameter` |
+| `Slot.Flag` or `Slot.FinalParameter` | `Slot.ExtraAngle` |
 
 Box heights are now `ushort[]`, and horizontal extent properties are `ushort`.
 Coverage values are intentionally raw because their derived bit layout is not a
