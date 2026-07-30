@@ -37,7 +37,7 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
     {
       var model = _meshReader.Read(inputFilePath);
 
-      if (model.Descriptor.MeshType == MeshType.Dynamic)
+      if (model.BaseHeader.MeshKind == MeshKind.Dynamic)
       {
         AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, string.Join('|', model.RootDynamic.SubMeshes.Select(m => m.RootDynamic.Position2).Append(model.RootDynamic.Position2)));
         // AnsiConsole.WriteLine("{0}\t{1}", inputFilePath, model.RootEffect.UnknownFloats1.Last());
@@ -72,8 +72,8 @@ public sealed class ConvertCommand : CommonCommand<ConvertCommand.Settings>
   private void PrintModelDetails(string inputFilePath, string outputFilePath, IMesh model)
   {
     var modelName = Path.GetFileNameWithoutExtension(inputFilePath);
-    var animationFrames = model.Descriptor.Frames.ActionFrames + model.Descriptor.Frames.BuildingFrames +
-                          model.Descriptor.Frames.LoopedFrames + model.Descriptor.Frames.MovementFrames;
+    var animationFrames = model.BaseHeader.Frames.ActionFrames + model.BaseHeader.Frames.BuildingFrames +
+                          model.BaseHeader.Frames.LoopedFrames + model.BaseHeader.Frames.MovementFrames;
 
     var root = new Tree($"[green]Converted {modelName}[/]");
     var details = root.AddNode("Details");

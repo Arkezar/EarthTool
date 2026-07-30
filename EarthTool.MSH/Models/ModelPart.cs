@@ -29,13 +29,7 @@ namespace EarthTool.MSH.Models
 
     public IVector Offset { get; set; }
 
-    public byte UnknownFlag { get; set; }
-
-    public byte UnknownByte1 { get; set; }
-
-    public byte UnknownByte2 { get; set; }
-
-    public byte UnknownByte3 { get; set; }
+    public uint NextRecordMarker { get; set; }
 
     public double RiseAngle { get; set; }
 
@@ -56,10 +50,7 @@ namespace EarthTool.MSH.Models
           writer.Write((int)AnimationType);
           writer.Write(Offset.ToByteArray(encoding));
           writer.Write(GetRiseAngle());
-          writer.Write(UnknownFlag);
-          writer.Write(UnknownByte1);
-          writer.Write(UnknownByte2);
-          writer.Write(UnknownByte3);
+          writer.Write(NextRecordMarker);
         }
 
         return stream.ToArray();

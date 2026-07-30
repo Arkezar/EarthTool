@@ -6,10 +6,11 @@ namespace EarthTool.MSH.Interfaces
 {
   public interface IMesh : IBinarySerializable
   {
-    IMeshDescriptor Descriptor { get; }
+    IMeshBaseHeader BaseHeader { get; }
     IEarthInfo FileHeader { get; }
     IEnumerable<IModelPart> Geometries { get; }
     PartNode PartsTree { get; }
     IDynamicPart RootDynamic { get; }
+    uint? TrailingHierarchyUnwindCount { get; }
   }
 }

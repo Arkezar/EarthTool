@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace EarthTool.MSH.Interfaces
 {
-  public interface IMeshDescriptor : IBinarySerializable
+  public interface IMeshBaseHeader : IBinarySerializable
   {
     IModelTemplate Template { get; }
     IMeshFrames Frames { get; }
@@ -14,8 +14,6 @@ namespace EarthTool.MSH.Interfaces
     IModelSlots Slots { get; }
     ITemplateDetails TemplateDetails { get; }
     IMeshBoundries Boundaries { get; }
-    MeshType MeshType { get; }
-    MeshSubType? RegularMeshSubType { get; }
-    DynamicMeshSubType? DynamicMeshSubType { get; }
+    MeshKind MeshKind { get; }
   }
 }

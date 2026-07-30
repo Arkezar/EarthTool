@@ -1,6 +1,6 @@
 ﻿namespace EarthTool.MSH.Interfaces
 {
-  public enum DynamicMeshSubType
+  public enum EffectType
   {
     Unknown = 0,
     Explosion = 1,

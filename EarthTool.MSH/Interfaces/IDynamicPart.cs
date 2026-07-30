@@ -1,4 +1,4 @@
-using EarthTool.Common.Interfaces;
+﻿using EarthTool.Common.Interfaces;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Numerics;
@@ -7,6 +7,7 @@ namespace EarthTool.MSH.Interfaces
 {
   public interface IDynamicPart : IBinarySerializable
   {
+    EffectType EffectType { get; }
     LightType LightType { get; }
     int SpriteStartIndex { get; }
     int SpriteAnimationLength { get; }

@@ -1,4 +1,4 @@
-using EarthTool.MSH.Interfaces;
+﻿using EarthTool.MSH.Interfaces;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -10,6 +10,7 @@ namespace EarthTool.MSH.Models
 {
   public class DynamicPart : IDynamicPart
   {
+    public EffectType EffectType { get; set; }
     public LightType LightType { get; set; }
     public int SpriteStartIndex { get; set; }
     public int SpriteAnimationLength { get; set; }
@@ -43,6 +44,7 @@ namespace EarthTool.MSH.Models
       {
         using (var bw = new BinaryWriter(output, encoding))
         {
+          bw.Write((int)EffectType);
           bw.Write((int)LightType);
           bw.Write(SpriteStartIndex);
           bw.Write(SpriteAnimationLength);
@@ -76,7 +78,7 @@ namespace EarthTool.MSH.Models
           bw.Write(SubMeshes.Count());
           foreach (var subMesh in SubMeshes)
           {
-            bw.Write(subMesh.ToByteArray(encoding));
+            bw.Write(EarthMesh.ToNestedDynamicByteArray(subMesh, encoding));
           }
         }
 

@@ -23,6 +23,9 @@ namespace EarthTool.MSH.Services
 {
   public class EarthMeshReader : Reader<IMesh>
   {
+    private const uint StaticArchiveFraming = 0x20D0A1FF;
+    private const uint DynamicArchiveFraming = 0x30D0A1FF;
+
     private readonly IEarthInfoFactory _earthInfoFactory;
     private readonly IHierarchyBuilder _hierarchyBuilder;
     private readonly Encoding _encoding;
@@ -39,32 +42,90 @@ namespace EarthTool.MSH.Services
     protected override IMesh InternalRead(string filePath)
     {
       using (var stream = File.OpenRead(filePath))
+      using (var reader = new BinaryReader(stream, _encoding))
       {
-        var mesh = new EarthMesh();
-        mesh.FileHeader = _earthInfoFactory.Get(stream);
-        using (var reader = new BinaryReader(stream, _encoding))
+        try
         {
-          IsValidModel(reader);
-          mesh.Descriptor = LoadMeshDescriptor(reader);
-
-          if (mesh.Descriptor.MeshType == MeshType.Model)
+          var archive = LoadArchiveHeader(reader);
+          var mesh = new EarthMesh
           {
-            mesh.Geometries = LoadParts(reader).ToList();
+            FileHeader = archive.Header,
+            BaseHeader = LoadMeshBaseHeader(reader)
+          };
+
+          if (mesh.BaseHeader.MeshKind != archive.ExpectedKind)
+          {
+            throw InvalidData("MeshKind", stream.Position - MeshBaseHeader.SerializedSize + 0x08,
+              $"archive framing requires {archive.ExpectedKind}, found {mesh.BaseHeader.MeshKind}");
+          }
+
+          if (mesh.BaseHeader.MeshKind == MeshKind.Static)
+          {
+            var trailingUnwindOffset = stream.Position;
+            var storedTrailingUnwind = ReadUInt32(reader, "TrailingHierarchyUnwindCount");
+            mesh.Geometries = LoadStaticParts(reader, out var finalSourceDepth);
+            var expectedTrailingUnwind = (uint)finalSourceDepth + 1;
+            if (storedTrailingUnwind != expectedTrailingUnwind)
+            {
+              throw InvalidData("TrailingHierarchyUnwindCount", trailingUnwindOffset,
+                $"expected {expectedTrailingUnwind}, found {storedTrailingUnwind}");
+            }
+
             mesh.PartsTree = _hierarchyBuilder.GetPartsTree(mesh.Geometries);
           }
-          else if (mesh.Descriptor.MeshType == MeshType.Dynamic)
+          else
           {
             mesh.RootDynamic = LoadEffect(reader);
+            RequireExactEnd(reader, "dynamic root record");
           }
+
+          return mesh;
+        }
+        catch (InvalidDataException)
+        {
+          throw;
+        }
+        catch (EndOfStreamException ex)
+        {
+          throw InvalidData("MSH field", stream.Position, "unexpected end of file", ex);
+        }
+        catch (ArgumentException ex)
+        {
+          throw InvalidData("MSH field", stream.Position, ex.Message, ex);
+        }
+      }
+    }
+
+    private (IEarthInfo Header, MeshKind ExpectedKind) LoadArchiveHeader(BinaryReader reader)
+    {
+      var framing = ReadUInt32(reader, "ArchiveFraming");
+      if (framing == StaticArchiveFraming)
+      {
+        var guid = new Guid(ReadExact(reader, 16, "ArchiveGuid"));
+        return (_earthInfoFactory.Get(FileFlags.Guid, guid), MeshKind.Static);
+      }
+
+      if (framing == DynamicArchiveFraming)
+      {
+        var resourceOffset = reader.BaseStream.Position;
+        var resourceType = ReadUInt32(reader, "ArchiveResourceType");
+        if (resourceType != (uint)ResourceType.Effect)
+        {
+          throw InvalidData("ArchiveResourceType", resourceOffset,
+            $"expected {(uint)ResourceType.Effect}, found {resourceType}");
         }
 
-        return mesh;
+        var guid = new Guid(ReadExact(reader, 16, "ArchiveGuid"));
+        return (_earthInfoFactory.Get(FileFlags.Resource | FileFlags.Guid, guid, ResourceType.Effect), MeshKind.Dynamic);
       }
+
+      throw InvalidData("ArchiveFraming", 0, $"expected 0x{StaticArchiveFraming:X8} or 0x{DynamicArchiveFraming:X8}, found 0x{framing:X8}");
     }
 
     private IDynamicPart LoadEffect(BinaryReader reader)
       => new DynamicPart
       {
+        EffectType = (EffectType)reader.ReadInt32(),
         LightType = (LightType)reader.ReadInt32(),
         SpriteStartIndex = reader.ReadInt32(),
         SpriteAnimationLength = reader.ReadInt32(),
@@ -115,30 +176,68 @@ namespace EarthTool.MSH.Services
 
     private IMesh LoadMesh(BinaryReader reader)
     {
-      var mesh = new EarthMesh { FileHeader = _earthInfoFactory.Get() };
-      IsValidModel(reader);
-      mesh.Descriptor = LoadMeshDescriptor(reader);
+      var mesh = new EarthMesh
+      {
+        FileHeader = _earthInfoFactory.Get(),
+        BaseHeader = LoadMeshBaseHeader(reader)
+      };
+      if (mesh.BaseHeader.MeshKind != MeshKind.Dynamic)
+      {
+        throw InvalidData("MeshKind", reader.BaseStream.Position - MeshBaseHeader.SerializedSize + 0x08,
+          $"nested dynamic object requires {MeshKind.Dynamic}, found {mesh.BaseHeader.MeshKind}");
+      }
       mesh.RootDynamic = LoadEffect(reader);
       return mesh;
     }
 
     #region Descriptor
 
-    private IMeshDescriptor LoadMeshDescriptor(BinaryReader reader)
-      => new MeshDescriptor
+    private IMeshBaseHeader LoadMeshBaseHeader(BinaryReader reader)
+    {
+      var start = reader.BaseStream.Position;
+      EnsureRemaining(reader, MeshBaseHeader.SerializedSize, "BaseHeader");
+      var magic = reader.ReadBytes(4);
+      if (!magic.AsSpan().SequenceEqual(Identifiers.Mesh.AsSpan(0, 4)))
       {
-        MeshType = (MeshType)reader.ReadInt32(),
+        throw InvalidData("BaseHeader.Magic", start, "expected MESH");
+      }
+
+      var version = reader.ReadUInt32();
+      if (version != MeshBaseHeader.SupportedVersion)
+      {
+        throw InvalidData("BaseHeader.Version", start + 0x04,
+          $"expected {MeshBaseHeader.SupportedVersion}, found {version}");
+      }
+
+      var kindValue = reader.ReadInt32();
+      if (!Enum.IsDefined(typeof(MeshKind), kindValue))
+      {
+        throw InvalidData("BaseHeader.MeshKind", start + 0x08, $"unsupported value {kindValue}");
+      }
+
+      var result = new MeshBaseHeader
+      {
+        MeshKind = (MeshKind)kindValue,
         Template = LoadModelTemplate(reader),
         Frames = LoadMeshFrames(reader),
-        Empty = reader.ReadInt32(),
+        HeaderFlags = reader.ReadInt32(),
         MountPoints = LoadSlotList(reader, 4, (r, _) => LoadVector(r)),
         SpotLights = LoadSlotList(reader, 4, (r, _) => LoadSpotLight(r)),
         OmnidirectionalLights = LoadSlotList(reader, 4, (r, _) => LoadOmniLight(r)),
         TemplateDetails = LoadTemplateDetails(reader),
         Slots = LoadModelSlots(reader),
-        Boundaries = LoadMeshBoundaries(reader),
-        MeshSubType = reader.ReadInt32()
+        Boundaries = LoadMeshBoundaries(reader)
       };
+
+      var actualSize = reader.BaseStream.Position - start;
+      if (actualSize != MeshBaseHeader.SerializedSize)
+      {
+        throw InvalidData("BaseHeader", start,
+          $"expected size 0x{MeshBaseHeader.SerializedSize:X}, consumed 0x{actualSize:X}");
+      }
+
+      return result;
+    }
 
     private IModelSlots LoadModelSlots(BinaryReader reader)
       => new ModelSlots()
@@ -312,31 +411,65 @@ namespace EarthTool.MSH.Services
 
     #region Geometry
 
-    private IEnumerable<IModelPart> LoadParts(BinaryReader reader)
+    private IEnumerable<IModelPart> LoadStaticParts(BinaryReader reader, out int finalSourceDepth)
     {
-      while (reader.BaseStream.Position < reader.BaseStream.Length)
+      if (reader.BaseStream.Position == reader.BaseStream.Length)
       {
-        yield return LoadPart(reader);
+        throw InvalidData("StaticRenderRecord", reader.BaseStream.Position, "at least one record is required");
       }
+
+      var parts = new List<IModelPart>();
+      var sourceDepth = 0;
+      while (true)
+      {
+        var recordOffset = reader.BaseStream.Position;
+        var part = LoadPart(reader);
+        try
+        {
+          sourceDepth = EarthMesh.AdvanceSourceDepth(sourceDepth, part);
+        }
+        catch (InvalidOperationException ex)
+        {
+          throw InvalidData("StaticRenderRecord.ObjectFlags", recordOffset,
+            ex.Message.TrimEnd('.'), ex);
+        }
+        parts.Add(part);
+
+        if (part.NextRecordMarker == 0)
+        {
+          RequireExactEnd(reader, "final zero NextRecordMarker");
+          break;
+        }
+
+        if (reader.BaseStream.Position == reader.BaseStream.Length)
+        {
+          throw InvalidData("NextRecordMarker", reader.BaseStream.Position - sizeof(uint),
+            "nonzero final marker requires another static render record");
+        }
+      }
+
+      finalSourceDepth = sourceDepth;
+      return parts;
     }
 
     private IModelPart LoadPart(BinaryReader reader)
     {
-      var result = new ModelPart();
-      result.Vertices = LoadVertices(reader);
+      var result = new ModelPart
+      {
+        Vertices = ReadField(reader, "Vertices", () => LoadVertices(reader))
+      };
+      EnsureRemaining(reader, sizeof(uint), "StaticRenderRecord.ObjectFlags");
       result.BackTrackDepth = reader.ReadByte();
       result.PartType = (PartType)reader.ReadByte();
       result.Empty = reader.ReadInt16();
-      result.Texture = LoadTextureInfo(reader);
-      result.Faces = LoadFaces(reader);
-      result.Animations = LoadAnimations(reader);
-      result.AnimationType = (AnimationType)reader.ReadInt32();
-      result.Offset = LoadVector(reader);
-      result.RiseAngle = Math.Round((double)reader.ReadByte() / byte.MaxValue) * 360;
-      result.UnknownFlag = reader.ReadByte();
-      result.UnknownByte1 = reader.ReadByte();
-      result.UnknownByte2 = reader.ReadByte();
-      result.UnknownByte3 = reader.ReadByte();
+      result.Texture = ReadField(reader, "Texture", () => LoadTextureInfo(reader));
+      result.Faces = ReadField(reader, "Triangles", () => LoadFaces(reader));
+      result.Animations = ReadField(reader, "AnimationTracks", () => LoadAnimations(reader));
+      result.AnimationType = ReadField(reader, "AnimationType", () => (AnimationType)reader.ReadInt32());
+      result.Offset = ReadField(reader, "Pivot", () => LoadVector(reader));
+      result.RiseAngle = ReadField(reader, "BarrelMaximumAngle",
+        () => Math.Round((double)reader.ReadByte() / byte.MaxValue) * 360);
+      result.NextRecordMarker = ReadUInt32(reader, "StaticRenderRecord.NextRecordMarker");
       return result;
     }
 
@@ -389,8 +522,14 @@ namespace EarthTool.MSH.Services
 
     private ITextureInfo LoadTextureInfo(BinaryReader reader)
     {
+      var lengthOffset = reader.BaseStream.Position;
       var fileNameLength = reader.ReadInt32();
-      var fileName = _encoding.GetString(reader.ReadBytes(fileNameLength));
+      if (fileNameLength < 0)
+      {
+        throw InvalidData("Texture.PathLength", lengthOffset, $"negative length {fileNameLength}");
+      }
+
+      var fileName = _encoding.GetString(ReadExact(reader, fileNameLength, "Texture.Path"));
       return new TextureInfo() { FileName = fileName };
     }
 
@@ -443,14 +582,63 @@ namespace EarthTool.MSH.Services
       return new System.Numerics.Vector3(x, y, z);
     }
 
-    private void IsValidModel(BinaryReader reader)
+    private static uint ReadUInt32(BinaryReader reader, string field)
     {
-      var valid = reader.ReadBytes(Identifiers.Mesh.Length).AsSpan().SequenceEqual(Identifiers.Mesh);
-      if (!valid)
+      EnsureRemaining(reader, sizeof(uint), field);
+      return reader.ReadUInt32();
+    }
+
+    private static byte[] ReadExact(BinaryReader reader, int count, string field)
+    {
+      EnsureRemaining(reader, count, field);
+      return reader.ReadBytes(count);
+    }
+
+    private static T ReadField<T>(BinaryReader reader, string field, Func<T> read)
+    {
+      var offset = reader.BaseStream.Position;
+      try
       {
-        throw new NotSupportedException("Unhandled file format");
+        return read();
+      }
+      catch (InvalidDataException)
+      {
+        throw;
+      }
+      catch (EndOfStreamException ex)
+      {
+        throw InvalidData($"StaticRenderRecord.{field}", offset, "unexpected end of file", ex);
+      }
+      catch (ArgumentException ex)
+      {
+        throw InvalidData($"StaticRenderRecord.{field}", offset, ex.Message, ex);
+      }
+      catch (OverflowException ex)
+      {
+        throw InvalidData($"StaticRenderRecord.{field}", offset, ex.Message, ex);
       }
     }
+
+    private static void EnsureRemaining(BinaryReader reader, long count, string field)
+    {
+      var offset = reader.BaseStream.Position;
+      if (count < 0 || reader.BaseStream.Length - offset < count)
+      {
+        throw InvalidData(field, offset, $"requires {count} bytes");
+      }
+    }
+
+    private static void RequireExactEnd(BinaryReader reader, string field)
+    {
+      if (reader.BaseStream.Position != reader.BaseStream.Length)
+      {
+        throw InvalidData(field, reader.BaseStream.Position,
+          $"unexpected trailing data ({reader.BaseStream.Length - reader.BaseStream.Position} bytes)");
+      }
+    }
+
+    private static InvalidDataException InvalidData(string field, long offset, string detail, Exception inner = null)
+      => new InvalidDataException($"{field} at byte offset 0x{offset:X}: {detail}.", inner);
 
     #endregion
   }

@@ -49,12 +49,12 @@ namespace EarthTool.DAE.Services
       var modelName = model.Library_Visual_Scenes.First().Visual_Scene.First().Node.First().Id;
       var earthInfo = _earthInfoFactory.Get(FileFlags.None, Guid.NewGuid());
       var geometries = LoadGeometries(model).ToArray();
-      var descriptor = LoadDescriptor(model, geometries);
+      var baseHeader = LoadBaseHeader(model, geometries);
 
       return new EarthMesh()
       {
         FileHeader = earthInfo,
-        Descriptor = descriptor,
+        BaseHeader = baseHeader,
         Geometries = geometries,
         PartsTree = _hierarchyBuilder.GetPartsTree(geometries)
       };
@@ -81,10 +81,7 @@ namespace EarthTool.DAE.Services
         Vertices = facesAndVertices.Vertices,
         Animations = LoadAnimations(g, node.Model, offset),
         Texture = LoadTexture(node),
-        UnknownFlag = 0,
-        UnknownByte1 = 0,
-        UnknownByte2 = (byte)(idx == count - 1 ? 0 : 120),
-        UnknownByte3 = 0,
+        NextRecordMarker = idx == count - 1 ? 0u : 1u,
         Offset = offset,
         BackTrackDepth = (byte)node.BacktrackLevel,
         PartType = details.PartType,
@@ -268,12 +265,11 @@ namespace EarthTool.DAE.Services
         .Select(v => new Vector(v.ElementAt(0), v.ElementAt(1), v.ElementAt(2))).ToArray();
     }
 
-    private IMeshDescriptor LoadDescriptor(COLLADA model, IEnumerable<IModelPart> geometries)
+    private IMeshBaseHeader LoadBaseHeader(COLLADA model, IEnumerable<IModelPart> geometries)
     {
-      return new MeshDescriptor()
+      return new MeshBaseHeader()
       {
-        MeshType = MeshType.Model, // dynamic not supported yet
-        RegularMeshSubType = MeshSubType.Unit,
+        MeshKind = MeshKind.Static, // dynamic not supported yet
         Frames = LoadFrames(model),
         SpotLights = LoadSpotLights(model),
         OmnidirectionalLights = LoadOmniLights(model),

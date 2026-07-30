@@ -14,21 +14,21 @@ namespace EarthTool.DAE.Elements
   {
     public IEnumerable<(Light Slot, Node SlotNode)> GetSlots(IMesh model)
     {
-      return model.Descriptor.Slots.BarrelMuzzels.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "BarrelMuzzle"), GetLightNode(s, i, "BarrelMuzzle")))
-        .Concat(model.Descriptor.Slots.CenterPivot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "CenterPivot"), GetLightNode(s, i, "CenterPivot"))))
-        .Concat(model.Descriptor.Slots.Chimneys.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Chimney"), GetLightNode(s, i, "Chimney"))))
-        .Concat(model.Descriptor.Slots.Exhausts.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Exhaust"), GetLightNode(s, i, "Exhaust"))))
-        .Concat(model.Descriptor.Slots.HitSpots.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "HitSpot"), GetLightNode(s, i, "HitSpot"))))
-        .Concat(model.Descriptor.Slots.InterfacePivot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "InterfacePivot"), GetLightNode(s, i, "InterfacePivot"))))
-        .Concat(model.Descriptor.Slots.KeelTraces.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "KeelTrace"), GetLightNode(s, i, "KeelTrace"))))
-        .Concat(model.Descriptor.Slots.LandingSpot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "LandingSpot"), GetLightNode(s, i, "LandingSpot"))))
-        .Concat(model.Descriptor.Slots.ProductionSpotStart.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "ProductionSpotStart"), GetLightNode(s, i, "ProductionSpotStart"))))
-        .Concat(model.Descriptor.Slots.ProductionSpotEnd.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "ProductionSpotEnd"), GetLightNode(s, i, "ProductionSpotEnd"))))
-        .Concat(model.Descriptor.Slots.SmokeSpots.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "SmokeSpot"), GetLightNode(s, i, "SmokeSpot"))))
-        .Concat(model.Descriptor.Slots.SmokeTraces.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "SmokeTrace"), GetLightNode(s, i, "SmokeTrace"))))
-        .Concat(model.Descriptor.Slots.TurretMuzzels.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "TurretMuzzel"), GetLightNode(s, i, "TurretMuzzel"))))
-        .Concat(model.Descriptor.Slots.Turrets.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Turret"), GetLightNode(s, i, "Turret"))))
-        .Concat(model.Descriptor.Slots.UnloadPoints.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "UnloadPoint"), GetLightNode(s, i, "UnloadPoint"))));
+      return model.BaseHeader.Slots.BarrelMuzzels.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "BarrelMuzzle"), GetLightNode(s, i, "BarrelMuzzle")))
+        .Concat(model.BaseHeader.Slots.CenterPivot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "CenterPivot"), GetLightNode(s, i, "CenterPivot"))))
+        .Concat(model.BaseHeader.Slots.Chimneys.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Chimney"), GetLightNode(s, i, "Chimney"))))
+        .Concat(model.BaseHeader.Slots.Exhausts.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Exhaust"), GetLightNode(s, i, "Exhaust"))))
+        .Concat(model.BaseHeader.Slots.HitSpots.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "HitSpot"), GetLightNode(s, i, "HitSpot"))))
+        .Concat(model.BaseHeader.Slots.InterfacePivot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "InterfacePivot"), GetLightNode(s, i, "InterfacePivot"))))
+        .Concat(model.BaseHeader.Slots.KeelTraces.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "KeelTrace"), GetLightNode(s, i, "KeelTrace"))))
+        .Concat(model.BaseHeader.Slots.LandingSpot.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "LandingSpot"), GetLightNode(s, i, "LandingSpot"))))
+        .Concat(model.BaseHeader.Slots.ProductionSpotStart.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "ProductionSpotStart"), GetLightNode(s, i, "ProductionSpotStart"))))
+        .Concat(model.BaseHeader.Slots.ProductionSpotEnd.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "ProductionSpotEnd"), GetLightNode(s, i, "ProductionSpotEnd"))))
+        .Concat(model.BaseHeader.Slots.SmokeSpots.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "SmokeSpot"), GetLightNode(s, i, "SmokeSpot"))))
+        .Concat(model.BaseHeader.Slots.SmokeTraces.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "SmokeTrace"), GetLightNode(s, i, "SmokeTrace"))))
+        .Concat(model.BaseHeader.Slots.TurretMuzzels.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "TurretMuzzel"), GetLightNode(s, i, "TurretMuzzel"))))
+        .Concat(model.BaseHeader.Slots.Turrets.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "Turret"), GetLightNode(s, i, "Turret"))))
+        .Concat(model.BaseHeader.Slots.UnloadPoints.Where(s => s.IsValid).Select((s, i) => (GetLight(i, "UnloadPoint"), GetLightNode(s, i, "UnloadPoint"))));
     }
 
     private Node GetLightNode(ISlot slot, int i, string name)

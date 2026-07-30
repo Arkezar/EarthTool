@@ -7,7 +7,7 @@
 //   Purpose: Template for Earth 2150 msh files
 //  Category: Game
 // File Mask: *.msh
-//  ID Bytes: 4D 45 53 48 01 00 00 00 //MESH1
+//  ID Bytes: FF A1 D0 20 //Static archive framing
 //   History: 
 //   0.1 2021-06-16 arkezar: Initial version
 //   0.2 2021-11-03 arkezar: Add model descriptors section
@@ -125,7 +125,7 @@ typedef struct {
     int AnimationType;
     Offset offset;
     byte RiseAngleRad;
-    byte unknownData[4];
+    uint NextRecordMarker;
 } Part;
 
 typedef struct {
@@ -198,7 +198,9 @@ typedef struct {
 } Slots;
 
 typedef struct {
-    int MeshType;
+    char Magic[4];
+    uint Version;
+    int MeshKind;
     TemplateRotation Template;
     ubyte BuildingFrames;
     ubyte ActionFrames;
@@ -217,16 +219,26 @@ typedef struct {
     short MinY;
     short MaxX;
     short MinX;
-    int ModelType;
-} Descriptor;
+} BaseHeader;
 
 typedef struct {
-    while(!FEof()) {
+    local int HasNextRecord = 1;
+    while(HasNextRecord) {
         Part part;
+        HasNextRecord = part.NextRecordMarker != 0;
     }
-} Geometry;
+} StaticGeometry;
 
-FSeek(FindFirst("MESH"));
-char FileIdentifier[8];
-Descriptor ModelDescriptor;
-Geometry ModelGeometry;
+uint ArchiveFraming;
+if (ArchiveFraming != 0x20D0A1FF) {
+    Warning("This template currently supports canonically framed static MSH files only.");
+    return -1;
+}
+ubyte ArchiveGuid[16];
+BaseHeader MeshBaseHeader;
+if (MeshBaseHeader.Version != 1 || MeshBaseHeader.MeshKind != 0) {
+    Warning("Expected MESH version 1 with static mesh kind.");
+    return -1;
+}
+uint TrailingHierarchyUnwindCount;
+StaticGeometry RenderRecords;

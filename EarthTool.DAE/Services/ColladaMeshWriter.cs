@@ -31,7 +31,7 @@ namespace EarthTool.DAE.Services
 
     private void WriteColladaModel(IMesh model, string modelName, string outputFile)
     {
-      if (model.Descriptor.MeshType == MeshType.Dynamic)
+      if (model.BaseHeader.MeshKind == MeshKind.Dynamic)
       {
         throw new NotSupportedException("Dynamic mesh conversion is not supported");
       }

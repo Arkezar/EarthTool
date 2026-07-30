@@ -39,8 +39,8 @@ public sealed class ConvertCommand : CommonCommand<CommonSettings>
   private void PrintModelDetails(string inputFilePath, string outputFilePath, IMesh model)
   {
     var modelName = Path.GetFileNameWithoutExtension(inputFilePath);
-    var animationFrames = model.Descriptor.Frames.ActionFrames + model.Descriptor.Frames.BuildingFrames +
-                          model.Descriptor.Frames.LoopedFrames + model.Descriptor.Frames.MovementFrames;
+    var animationFrames = model.BaseHeader.Frames.ActionFrames + model.BaseHeader.Frames.BuildingFrames +
+                          model.BaseHeader.Frames.LoopedFrames + model.BaseHeader.Frames.MovementFrames;
 
     var root = new Tree($"[green]Converted {modelName}[/]");
     var details = root.AddNode("Details");

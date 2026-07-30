@@ -2,15 +2,9 @@
 
 #include <std/mem.pat>
 
-enum MeshType : u32 {
+enum MeshKind : u32 {
     Static,
     Dynamic
-};
-
-enum StaticMeshType : u32 {
-    Unknown,
-    Unit,
-    Building
 };
 
 enum LightType : u32 {
@@ -20,7 +14,7 @@ enum LightType : u32 {
     Random
 };
 
-enum DynamicMeshType : u32 {
+enum EffectType : u32 {
     Unknown = 0,
     Explosion = 1,
     Track = 2,
@@ -108,8 +102,10 @@ struct Boundries {
     u16 minX;
 };
 
-struct Descriptor {
-    MeshType type;
+struct BaseHeader {
+    char magic[4];
+    u32 version;
+    MeshKind meshKind;
     Template template;
     u8 buildingFrames;
     u8 actionFrames;
@@ -125,12 +121,6 @@ struct Descriptor {
     FlagRotation flagRotations[4];
     Slots slots;
     Boundries boundries;
-    if (type == MeshType::Static) {
-        StaticMeshType subtype;
-    }
-    else if (type == MeshType::Dynamic) {
-        DynamicMeshType subtype;
-    }
 };
 
 struct Vertex {
@@ -233,7 +223,10 @@ struct StaticGeometry {
     u32 animationType;
     Position offset;
     u8 riseAngleRad;
-    u8 unknownBytes[4];
+    u32 nextRecordMarker;
+    if (nextRecordMarker != 0) {
+        StaticGeometry nextRecord;
+    }
 };
 
 struct Size {
@@ -276,17 +269,29 @@ struct DynamicGeometry {
     Texture texture;    
 };
 
-struct Mesh {
-    char identifier[8];
-    Descriptor descriptor;
-    if (descriptor.type == MeshType::Static) {
-        StaticGeometry geometries[while(!std::mem::eof())];
-    }
-    else if (descriptor.type == MeshType::Dynamic) {
+struct DynamicObject {
+    BaseHeader baseHeader;
+    EffectType effectType;
+    if (baseHeader.meshKind == MeshKind::Dynamic) {
         DynamicGeometry dynamicGeometry;
         u32 submeshCount;
-        Mesh submeshes[submeshCount];
+        DynamicObject submeshes[submeshCount];
     }
 };
 
-Mesh data @ std::mem::find_sequence(0, 0x4D, 0x45, 0x53, 0x48);
+struct Archive {
+    u32 framing;
+    if (framing == 0x20D0A1FF) {
+        u8 guid[16];
+        BaseHeader baseHeader;
+        u32 trailingHierarchyUnwindCount;
+        StaticGeometry firstRecord;
+    }
+    else if (framing == 0x30D0A1FF) {
+        u32 resourceType;
+        u8 guid[16];
+        DynamicObject root;
+    }
+};
+
+Archive data @ 0;
