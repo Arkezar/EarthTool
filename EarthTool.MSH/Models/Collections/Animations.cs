@@ -21,16 +21,24 @@ namespace EarthTool.MSH.Models.Collections
 
     public byte[] ToByteArray(Encoding encoding)
     {
+      var scaleFrames = ScaleFrames.ToArray();
+      var translationFrames = TranslationFrames.ToArray();
+      var rotationFrames = RotationFrames.ToArray();
       using (var stream = new MemoryStream())
       {
         using (var writer = new BinaryWriter(stream))
         {
-          writer.Write(ScaleFrames.Count());
-          writer.Write(ScaleFrames.SelectMany(x => x.ToByteArray(encoding)).ToArray());
-          writer.Write(TranslationFrames.Count());
-          writer.Write(TranslationFrames.SelectMany(x => x.ToByteArray(encoding)).ToArray());
-          writer.Write(RotationFrames.Count());
-          writer.Write(RotationFrames.SelectMany(x => x.ToByteArray(encoding)).ToArray());
+          writer.Write(scaleFrames.Length);
+          foreach (var frame in scaleFrames)
+          {
+            writer.Write(frame.X);
+            writer.Write(frame.Y);
+            writer.Write(frame.Z);
+          }
+          writer.Write(translationFrames.Length);
+          writer.Write(translationFrames.SelectMany(x => x.ToByteArray(encoding)).ToArray());
+          writer.Write(rotationFrames.Length);
+          writer.Write(rotationFrames.SelectMany(x => x.ToByteArray(encoding)).ToArray());
         }
         return stream.ToArray();
       }

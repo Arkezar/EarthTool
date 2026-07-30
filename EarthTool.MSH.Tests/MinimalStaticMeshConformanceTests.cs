@@ -1,5 +1,6 @@
 ﻿using EarthTool.Common.Enums;
 using EarthTool.Common.Factories;
+using EarthTool.MSH.Enums;
 using EarthTool.MSH.Interfaces;
 using EarthTool.MSH.Models;
 using EarthTool.MSH.Models.Collections;
@@ -254,6 +255,57 @@ public class MinimalStaticMeshConformanceTests
       var face = Assert.Single(part.Faces);
       Assert.Equal((ushort)0x8000, face.V1);
       Assert.Equal((ushort)0x8001, face.Flags);
+      Assert.Equal(fixture, File.ReadAllBytes(outputPath));
+    }
+    finally
+    {
+      File.Delete(inputPath);
+      File.Delete(outputPath);
+    }
+  }
+
+  [Theory]
+  [InlineData(AnimationType.Looped, 1, 0, 2)]
+  [InlineData(AnimationType.TwoWay, 0, 2, 1)]
+  [InlineData(AnimationType.Single, 2, 1, 0)]
+  [InlineData(AnimationType.Lift, 1, 2, 3)]
+  public void PublicReaderAndWriterPreserveIndependentStaticAnimationTracks(
+    AnimationType animationType, int scaleCount, int translationCount, int matrixCount)
+  {
+    var fixture = CreateAnimatedFixture(animationType, scaleCount, translationCount, matrixCount);
+    var inputPath = GetTemporaryPath();
+    var outputPath = GetTemporaryPath();
+
+    try
+    {
+      File.WriteAllBytes(inputPath, fixture);
+
+      var mesh = CreateReader().Read(inputPath);
+      new EarthMeshWriter(Encoding.UTF8).Write(mesh, outputPath);
+
+      var part = Assert.Single(mesh.Geometries);
+      Assert.Equal(animationType, part.AnimationType);
+      Assert.Equal(scaleCount, part.Animations.ScaleFrames.Count());
+      Assert.Equal(translationCount, part.Animations.TranslationFrames.Count());
+      Assert.Equal(matrixCount, part.Animations.RotationFrames.Count());
+      if (scaleCount > 0)
+      {
+        Assert.Equal(new System.Numerics.Vector3(1, 1, 1), part.Animations.ScaleFrames.First().Value);
+      }
+      if (translationCount > 0)
+      {
+        Assert.Equal(new System.Numerics.Vector3(10, 20, 30),
+          part.Animations.TranslationFrames.First().Value);
+      }
+      if (matrixCount > 0)
+      {
+        var matrix = part.Animations.RotationFrames.First().TransformationMatrix;
+        Assert.Equal(1, matrix.M11);
+        Assert.Equal(2, matrix.M12);
+        Assert.Equal(5, matrix.M21);
+        Assert.Equal(16, matrix.M44);
+      }
+
       Assert.Equal(fixture, File.ReadAllBytes(outputPath));
     }
     finally
@@ -879,6 +931,47 @@ public class MinimalStaticMeshConformanceTests
     WriteUInt32(data, cursor, 0);
 
     return data;
+  }
+
+  private static byte[] CreateAnimatedFixture(
+    AnimationType animationType, int scaleCount, int translationCount, int matrixCount)
+  {
+    const int animationOffset = 0x43C;
+    const int originalAnimationTailOffset = 0x448;
+    var fixture = CreateFixture();
+    using var stream = new MemoryStream();
+    using var writer = new BinaryWriter(stream);
+    writer.Write(fixture, 0, animationOffset);
+
+    writer.Write(scaleCount);
+    for (var frame = 0; frame < scaleCount; frame++)
+    {
+      writer.Write(frame + 1f);
+      writer.Write(frame + 1f);
+      writer.Write(frame + 1f);
+    }
+
+    writer.Write(translationCount);
+    for (var frame = 0; frame < translationCount; frame++)
+    {
+      writer.Write(10f + frame);
+      writer.Write(-20f - frame);
+      writer.Write(30f + frame);
+    }
+
+    writer.Write(matrixCount);
+    for (var frame = 0; frame < matrixCount; frame++)
+    {
+      for (var element = 1; element <= 16; element++)
+      {
+        writer.Write((frame * 100f) + element);
+      }
+    }
+
+    var tail = fixture[originalAnimationTailOffset..];
+    BinaryPrimitives.WriteInt32LittleEndian(tail, (int)animationType);
+    writer.Write(tail);
+    return stream.ToArray();
   }
 
   private static byte[] CreateHighTriangleIndexFixture()

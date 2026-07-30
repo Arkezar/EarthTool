@@ -424,33 +424,24 @@ namespace EarthTool.MSH.Services
     private IAnimations LoadAnimations(BinaryReader reader)
       => new Animations()
       {
-        ScaleFrames = LoadSlotList(reader, reader.ReadInt32(), (r, _) => LoadVector(r)),
+        ScaleFrames = LoadSlotList(reader, reader.ReadInt32(), (r, _) => LoadScaleVector(r)),
         TranslationFrames = LoadSlotList(reader, reader.ReadInt32(), (r, _) => LoadVector(r)),
         RotationFrames = LoadSlotList(reader, reader.ReadInt32(), (r, _) => LoadRotationFrame(r)),
       };
 
+    private IVector LoadScaleVector(BinaryReader reader)
+    {
+      return new Vector(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+    }
+
     private IRotationFrame LoadRotationFrame(BinaryReader reader)
       => new RotationFrame()
       {
-        TransformationMatrix = new System.Numerics.Matrix4x4()
-        {
-          M11 = reader.ReadSingle(),
-          M21 = reader.ReadSingle(),
-          M31 = reader.ReadSingle(),
-          M41 = reader.ReadSingle(),
-          M12 = reader.ReadSingle(),
-          M22 = reader.ReadSingle(),
-          M32 = reader.ReadSingle(),
-          M42 = reader.ReadSingle(),
-          M13 = reader.ReadSingle(),
-          M23 = reader.ReadSingle(),
-          M33 = reader.ReadSingle(),
-          M43 = reader.ReadSingle(),
-          M14 = reader.ReadSingle(),
-          M24 = reader.ReadSingle(),
-          M34 = reader.ReadSingle(),
-          M44 = reader.ReadSingle()
-        }
+        TransformationMatrix = new System.Numerics.Matrix4x4(
+          reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
+          reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
+          reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
+          reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle())
       };
 
     private IEnumerable<IFace> LoadFaces(BinaryReader reader, int vertexCount)

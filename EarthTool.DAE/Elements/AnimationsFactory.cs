@@ -21,7 +21,9 @@ namespace EarthTool.DAE.Elements
 
     private Animation GetAnimation(IModelPart part, int i, int idx, string modelName)
     {
-      var frames = Math.Max(part.Animations.TranslationFrames.Count(), part.Animations.RotationFrames.Count());
+      var frames = Math.Max(
+        part.Animations.ScaleFrames.Count(),
+        Math.Max(part.Animations.TranslationFrames.Count(), part.Animations.RotationFrames.Count()));
 
       if (frames == 0)
       {
@@ -90,7 +92,7 @@ namespace EarthTool.DAE.Elements
       source.Float_Array = new Float_Array
       {
         Count = (ulong)count * 16,
-        Value = GetOutputValue(part)
+        Value = GetOutputValue(part, count)
       };
 
       var accessor = new Accessor
@@ -114,21 +116,22 @@ namespace EarthTool.DAE.Elements
       return source;
     }
 
-    private string GetOutputValue(IModelPart part)
+    private string GetOutputValue(IModelPart part, int count)
     {
-      var transforms = part.Animations.RotationFrames.Select(f => f.TransformationMatrix).ToArray();
-      if (!transforms.Any())
+      var scales = part.Animations.ScaleFrames.ToArray();
+      var translations = part.Animations.TranslationFrames.ToArray();
+      var rotations = part.Animations.RotationFrames.ToArray();
+      var transforms = new Matrix4x4[count];
+      for (var i = 0; i < transforms.Length; i++)
       {
-        transforms = Enumerable.Repeat(Matrix4x4.Identity, part.Animations.TranslationFrames.Count()).ToArray();
-      }
-
-      for (var i = 0; i < transforms.Count(); i++)
-      {
-        Matrix4x4.Decompose(transforms[i], out _, out var rotation, out _);
+        var scale = scales.ElementAtOrDefault(i)?.Value ?? Vector3.One;
+        var rotationMatrix = rotations.ElementAtOrDefault(i)?.TransformationMatrix ?? Matrix4x4.Identity;
+        Matrix4x4.Decompose(rotationMatrix, out _, out var rotation, out _);
         rotation.Y = -rotation.Y;
-        var matrix = Matrix4x4.CreateFromQuaternion(rotation);
-        var translationMatrix = Matrix4x4.CreateTranslation(part.Animations.TranslationFrames.ElementAtOrDefault(i)?.Value ?? part.Offset.Value);
-        transforms[i] = matrix * translationMatrix;
+        var translation = translations.ElementAtOrDefault(i)?.Value ?? part.Offset.Value;
+        transforms[i] = Matrix4x4.CreateScale(scale)
+          * Matrix4x4.CreateFromQuaternion(rotation)
+          * Matrix4x4.CreateTranslation(translation);
       }
 
       return string.Join(" ", transforms.Select(t => MatrixToString(t)));
