@@ -1,0 +1,76 @@
+;; Earth 2150 static MSH archive emitted by Aod2Msh.exe.
+;; All multi-byte values are little-endian. Sizes passed to field are bytes.
+;; The fixed prefix ends at 0x380. Gaps reset following row labels to i+00.
+
+(def boxes-per-row 16)
+(def box-width 52)
+(def row-height 34)
+(def left-margin 4)
+
+(def preamble-fill "#d9eaf7")
+(def header-fill "#d8f3dc")
+(def table-fill "#e9ecef")
+(def geometry-fill "#fde2e4")
+(def animation-fill "#fff1c1")
+(def link-fill "#e2e3ff")
+
+(defn field [label size fill]
+  (when (pos? size)
+    (let [column (mod (next-address) boxes-per-row)
+          room (- boxes-per-row column)
+          span (min size room)]
+      (draw-box (text label {:font-size 11}) {:span span :fill fill})
+      (field label (- size span) fill))))
+
+(draw-column-headers)
+
+;; Static archive preamble, file offsets 0x000..0x013.
+(field "Static framing: 0x20D0A1FF (u32)" 4 preamble-fill)
+(field "Raw Windows GUID (16 bytes)" 16 preamble-fill)
+
+;; Common BaseHeader, file offsets 0x014..0x37B, size 0x368.
+(field "MESH magic" 4 header-fill)
+(field "Version = 1 (u32)" 4 header-fill)
+(field "Mesh kind = 0 static (u32)" 4 header-fill)
+(field "4x4 box presence mask (u32)" 4 header-fill)
+(field "Animation lengths: type n in byte 3-n (u32)" 4 header-fill)
+(field "Header flags / reserved (u32)" 4 header-fill)
+(field "Spot-light / cannon overlap area (0xF0 bytes)" 0xf0 table-fill)
+(field "Remaining light storage / overlap (0x70 bytes)" 0x70 table-fill)
+(field "Box heights, reverse indexed (u16[16])" 0x20 table-fill)
+(field "Box flags, reverse indexed (u8[16])" 0x10 table-fill)
+(field "4x4 coverage descriptors (u32[4])" 0x10 table-fill)
+(field "4x4 coverage bitmaps (u64[4])" 0x20 table-fill)
+(field "Attachments 1..49 (49 x 8 bytes)" 0x188 table-fill)
+(field "Extents: +Y, -Y, +X, -X (u16[4])" 8 header-fill)
+
+;; Static-only fixed field, file offset 0x37C.
+(field "Trailing hierarchy unwind count (u32)" 4 preamble-fill)
+
+;; First StaticObject starts at file offset 0x380. Every nonzero final marker
+;; links another complete StaticObject. The linked sequence ends exactly at EOF.
+(field "Render vertex count V (u32)" 4 geometry-fill)
+(field "Vertex block count B = ceil(V/4) (u32)" 4 geometry-fill)
+(draw-gap "VertexBlock[B], B x 0xA0 bytes" {:fill geometry-fill})
+(field "Object flags (u32)" 4 geometry-fill)
+(field "Texture path length L (u32)" 4 geometry-fill)
+(draw-gap "Texture path: L ASCII bytes, no NUL or padding"
+          {:fill geometry-fill})
+(field "Triangle count T (u32)" 4 geometry-fill)
+(draw-gap "Triangle[T]: 3 x u16 index + u16 flags (base bit 0; upward bit 1)"
+          {:fill geometry-fill})
+(field "Scale count S (u32)" 4 animation-fill)
+(draw-gap "Baked TCBScale vectors, S x float[3]" {:fill animation-fill})
+(field "Translation count P (u32)" 4 animation-fill)
+(draw-gap "Baked translation vectors, P x float[3]"
+          {:fill animation-fill})
+(field "Matrix count M (u32)" 4 animation-fill)
+(draw-gap "Baked transform matrices, M x float[16]"
+          {:fill animation-fill})
+(field "Animation type (u32)" 4 animation-fill)
+(field "Object pivot: x, -y, z (float[3])" 12 animation-fill)
+(field "Barrel angle (u8)" 1 animation-fill)
+(field "Next-record heap pointer; boolean only (u32, unaligned)" 4 link-fill)
+(draw-gap "If marker != 0: next complete StaticObject; otherwise EOF"
+          {:fill link-fill})
+(draw-bottom)

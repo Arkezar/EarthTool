@@ -1,0 +1,85 @@
+;; Earth 2150 dynamic MSH archive emitted by Aod2Msh.exe.
+;; All multi-byte values are little-endian. Sizes passed to field are bytes.
+;; The root extension begins at file offset 0x380. Nested DynamicObjects omit
+;; archive framing, archive type, and GUID, and begin directly with MESH.
+
+(def boxes-per-row 16)
+(def box-width 52)
+(def row-height 34)
+(def left-margin 4)
+
+(def preamble-fill "#d9eaf7")
+(def header-fill "#d8f3dc")
+(def table-fill "#e9ecef")
+(def effect-fill "#e0cffc")
+(def string-fill "#fde2e4")
+(def child-fill "#e2e3ff")
+
+(defn field [label size fill]
+  (when (pos? size)
+    (let [column (mod (next-address) boxes-per-row)
+          room (- boxes-per-row column)
+          span (min size room)]
+      (draw-box (text label {:font-size 11}) {:span span :fill fill})
+      (field label (- size span) fill))))
+
+(draw-column-headers)
+
+;; Dynamic archive preamble, file offsets 0x000..0x017.
+(field "Dynamic framing: 0x30D0A1FF (u32)" 4 preamble-fill)
+(field "Archive type = 1 (u32)" 4 preamble-fill)
+(field "Raw Windows GUID (16 bytes)" 16 preamble-fill)
+
+;; Root DynamicObject BaseHeader, file offsets 0x018..0x37F, size 0x368.
+;; These offsets are 0x000..0x367 relative to this object's MESH magic.
+(field "MESH magic" 4 header-fill)
+(field "Version = 1 (u32)" 4 header-fill)
+(field "Mesh kind = 1 dynamic (u32)" 4 header-fill)
+(field "4x4 box presence mask (u32)" 4 header-fill)
+(field "Animation lengths: type n in byte 3-n (u32)" 4 header-fill)
+(field "Header flags / reserved (u32)" 4 header-fill)
+(field "Spot-light / cannon overlap area (0xF0 bytes)" 0xf0 table-fill)
+(field "Remaining light storage / overlap (0x70 bytes)" 0x70 table-fill)
+(field "Box heights, reverse indexed (u16[16])" 0x20 table-fill)
+(field "Box flags, reverse indexed (u8[16])" 0x10 table-fill)
+(field "4x4 coverage descriptors (u32[4])" 0x10 table-fill)
+(field "4x4 coverage bitmaps (u64[4])" 0x20 table-fill)
+(field "Attachments 1..49 (49 x 8 bytes)" 0x188 table-fill)
+(field "Extents: +Y, -Y, +X, -X (u16[4])" 8 header-fill)
+
+;; Dynamic effect extension. Comments give offsets relative to MESH.
+(field "Effect type (u32) @ +0x368" 4 effect-fill)
+(field "Light type (u32) @ +0x36C" 4 effect-fill)
+(field "First source frame (i32) @ +0x370" 4 effect-fill)
+(field "Frame count (i32) @ +0x374" 4 effect-fill)
+(field "Sprite columns (i32) @ +0x378" 4 effect-fill)
+(field "Sprite rows (i32) @ +0x37C" 4 effect-fill)
+(field "Frame parameter (i32) @ +0x380" 4 effect-fill)
+(field "1 / columns (float) @ +0x384" 4 effect-fill)
+(field "1 / rows (float) @ +0x388" 4 effect-fill)
+(field "Primary size rectangle (float[4]) @ +0x38C" 16 effect-fill)
+(field "Secondary size rectangle (float[4]) @ +0x39C" 16 effect-fill)
+(field "Size parameter (float) @ +0x3AC" 4 effect-fill)
+(field "Signed size half-span (float) @ +0x3B0" 4 effect-fill)
+(field "Reserved = 0 (u32) @ +0x3B4" 4 effect-fill)
+(field "Additive flag (u32) @ +0x3B8" 4 effect-fill)
+(field "Scaled light RGB (float[3]) @ +0x3BC" 12 effect-fill)
+(field "Color RGB (float[3]) @ +0x3C8" 12 effect-fill)
+(field "Color parameter (float) @ +0x3D4" 4 effect-fill)
+(field "Alpha mode (i32) @ +0x3D8" 4 effect-fill)
+(field "Second Alpha value (float) @ +0x3DC" 4 effect-fill)
+(field "First Alpha value (float) @ +0x3E0" 4 effect-fill)
+(field "Second Scale value (float) @ +0x3E4" 4 effect-fill)
+(field "First Scale value (float) @ +0x3E8" 4 effect-fill)
+(field "Position: x, -y, z (float[3]) @ +0x3EC" 12 effect-fill)
+(field "Position2: x, -y, z (float[3]) @ +0x3F8" 12 effect-fill)
+(field "Mesh name length A (u32) @ +0x404" 4 string-fill)
+(draw-gap "Mesh name: A ASCII bytes, no NUL or padding"
+          {:fill string-fill})
+(field "Texture path length B (u32)" 4 string-fill)
+(draw-gap "Texture path: B ASCII bytes, no NUL or padding"
+          {:fill string-fill})
+(field "Dynamic child count C (u32)" 4 child-fill)
+(draw-gap "DynamicObject[C]: each begins with a complete MESH BaseHeader"
+          {:fill child-fill})
+(draw-bottom)
