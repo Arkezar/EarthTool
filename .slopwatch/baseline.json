@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "createdAt": "2026-07-30T17:03:54.753842+00:00",
+  "updatedAt": "2026-07-30T17:03:54.7579437+00:00",
+  "description": "Initial baseline created by 'slopwatch init' on 2026-07-30 17:03:54 UTC",
+  "entries": [
+    {
+      "hash": "8e13e6bffe30cf0b",
+      "ruleId": "SW006",
+      "filePath": "EarthTool.CLI/EarthTool.CLI.csproj",
+      "lineNumber": 20,
+      "codeSnippet": "<PackageReference Include=\"Microsoft.Extensions.Logging.Console\" VersionOverride=\"10.0.2\" />",
+      "message": "VersionOverride explicitly bypasses Central Package Management for 'Microsoft.Extensions.Logging.Console' (version: 10.0.2)",
+      "baselinedAt": "2026-07-30T17:03:54.7578643+00:00"
+    },
+    {
+      "hash": "5fc340989791d768",
+      "ruleId": "SW003",
+      "filePath": "EarthTool.CLI/Commands/MSH/ConvertCommand.cs",
+      "lineNumber": 49,
+      "codeSnippet": "catch\n    {\n    }",
+      "message": "Empty catch block swallows exceptions without handling",
+      "baselinedAt": "2026-07-30T17:03:54.7579082+00:00"
+    },
+    {
+      "hash": "9f016400d8168fa7",
+      "ruleId": "SW006",
+      "filePath": "EarthTool.MSH/EarthTool.MSH.csproj",
+      "lineNumber": 14,
+      "codeSnippet": "<PackageReference Include=\"Microsoft.Extensions.DependencyInjection.Abstractions\" VersionOverride=\"10.0.2\" />",
+      "message": "VersionOverride explicitly bypasses Central Package Management for 'Microsoft.Extensions.DependencyInjection.Abstractions' (version: 10.0.2)",
+      "baselinedAt": "2026-07-30T17:03:54.757912+00:00"
+    },
+    {
+      "hash": "df4d7ccef6ba3aef",
+      "ruleId": "SW006",
+      "filePath": "EarthTool.MSH/EarthTool.MSH.csproj",
+      "lineNumber": 15,
+      "codeSnippet": "<PackageReference Include=\"System.Text.Encoding.CodePages\" VersionOverride=\"10.0.2\" />",
+      "message": "VersionOverride explicitly bypasses Central Package Management for 'System.Text.Encoding.CodePages' (version: 10.0.2)",
+      "baselinedAt": "2026-07-30T17:03:54.7579152+00:00"
+    },
+    {
+      "hash": "03c44f5a40e04790",
+      "ruleId": "SW006",
+      "filePath": "EarthTool.PAR/EarthTool.PAR.csproj",
+      "lineNumber": 13,
+      "codeSnippet": "<PackageReference Include=\"Microsoft.Extensions.DependencyInjection.Abstractions\" VersionOverride=\"10.0.2\" />",
+      "message": "VersionOverride explicitly bypasses Central Package Management for 'Microsoft.Extensions.DependencyInjection.Abstractions' (version: 10.0.2)",
+      "baselinedAt": "2026-07-30T17:03:54.7579202+00:00"
+    },
+    {
+      "hash": "4afadb667cb99c24",
+      "ruleId": "SW006",
+      "filePath": "EarthTool.PAR/EarthTool.PAR.csproj",
+      "lineNumber": 14,
+      "codeSnippet": "<PackageReference Include=\"System.Text.Encoding.CodePages\" VersionOverride=\"10.0.2\" />",
+      "message": "VersionOverride explicitly bypasses Central Package Management for 'System.Text.Encoding.CodePages' (version: 10.0.2)",
+      "baselinedAt": "2026-07-30T17:03:54.7579225+00:00"
+    },
+    {
+      "hash": "74f4e6b4c947a939",
+      "ruleId": "SW006",
+      "filePath": "EarthTool.TEX/EarthTool.TEX.csproj",
+      "lineNumber": 14,
+      "codeSnippet": "<PackageReference Include=\"Microsoft.Extensions.DependencyInjection.Abstractions\" VersionOverride=\"10.0.2\" />",
+      "message": "VersionOverride explicitly bypasses Central Package Management for 'Microsoft.Extensions.DependencyInjection.Abstractions' (version: 10.0.2)",
+      "baselinedAt": "2026-07-30T17:03:54.7579247+00:00"
+    },
+    {
+      "hash": "bed5af530683f27a",
+      "ruleId": "SW006",
+      "filePath": "EarthTool.TEX/EarthTool.TEX.csproj",
+      "lineNumber": 15,
+      "codeSnippet": "<PackageReference Include=\"System.Text.Encoding.CodePages\" VersionOverride=\"10.0.2\" />",
+      "message": "VersionOverride explicitly bypasses Central Package Management for 'System.Text.Encoding.CodePages' (version: 10.0.2)",
+      "baselinedAt": "2026-07-30T17:03:54.7579267+00:00"
+    },
+    {
+      "hash": "4970db35fb241e5f",
+      "ruleId": "SW004",
+      "filePath": "EarthTool.WD.Tests/Models/ArchiveTests.cs",
+      "lineNumber": 69,
+      "codeSnippet": "System.Threading.Thread.Sleep(10)",
+      "message": "Test uses Thread.Sleep(10) which may indicate a timing-dependent test",
+      "baselinedAt": "2026-07-30T17:03:54.7579296+00:00"
+    },
+    {
+      "hash": "68e347d0914a52b7",
+      "ruleId": "SW006",
+      "filePath": "EarthTool.WD/EarthTool.WD.csproj",
+      "lineNumber": 12,
+      "codeSnippet": "<PackageReference Include=\"Microsoft.Extensions.DependencyInjection.Abstractions\" VersionOverride=\"10.0.2\" />",
+      "message": "VersionOverride explicitly bypasses Central Package Management for 'Microsoft.Extensions.DependencyInjection.Abstractions' (version: 10.0.2)",
+      "baselinedAt": "2026-07-30T17:03:54.7579354+00:00"
+    },
+    {
+      "hash": "7ec6fb54a9135cf3",
+      "ruleId": "SW006",
+      "filePath": "EarthTool.WD/EarthTool.WD.csproj",
+      "lineNumber": 13,
+      "codeSnippet": "<PackageReference Include=\"System.Text.Encoding.CodePages\" VersionOverride=\"10.0.2\" />",
+      "message": "VersionOverride explicitly bypasses Central Package Management for 'System.Text.Encoding.CodePages' (version: 10.0.2)",
+      "baselinedAt": "2026-07-30T17:03:54.7579375+00:00"
+    },
+    {
+      "hash": "4f416a190d103b1f",
+      "ruleId": "SW003",
+      "filePath": "EarthTool.WD/Services/ArchiverService.cs",
+      "lineNumber": 173,
+      "codeSnippet": "catch { }",
+      "message": "Empty catch block swallows exceptions without handling",
+      "baselinedAt": "2026-07-30T17:03:54.7579404+00:00"
+    },
+    {
+      "hash": "042b7cc416132880",
+      "ruleId": "SW003",
+      "filePath": "EarthTool.Common.GUI/ViewModels/AboutViewModel.cs",
+      "lineNumber": 78,
+      "codeSnippet": "catch (Exception)\n    {\n      // Silently fail if we can't open the URL\n    }",
+      "message": "Empty catch block swallows exceptions without handling",
+      "baselinedAt": "2026-07-30T17:03:54.7579437+00:00"
+    }
+  ]
+}
