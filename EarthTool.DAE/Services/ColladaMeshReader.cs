@@ -275,31 +275,22 @@ namespace EarthTool.DAE.Services
         OmnidirectionalLights = LoadOmniLights(model),
         MountPoints = LoadMountPoints(model),
         Slots = LoadSlots(model),
-        Boundaries = LoadBoundries(model, geometries),
-        Template = LoadTemplate(model),
-        TemplateDetails = LoadTemplateDetails(model)
+        HorizontalExtents = LoadHorizontalExtents(geometries),
+        Footprint = new MeshFootprint()
       };
     }
 
-    private ITemplateDetails LoadTemplateDetails(COLLADA model)
+    private IMeshHorizontalExtents LoadHorizontalExtents(IEnumerable<IModelPart> geometries)
     {
-      return new TemplateDetails();
-    }
-
-    private IModelTemplate LoadTemplate(COLLADA model)
-    {
-      return new ModelTemplate();
-    }
-
-    private IMeshBoundries LoadBoundries(COLLADA model, IEnumerable<IModelPart> geometries)
-    {
-      var Xs = geometries.SelectMany(g => g.Vertices.Select(v => v.Position.X));
-      var maxX = MathF.Abs(Xs.Max() * byte.MaxValue);
-      var minX = MathF.Abs(Xs.Min() * byte.MaxValue);
-      var Ys = geometries.SelectMany(g => g.Vertices.Select(v => v.Position.Y));
-      var maxY = MathF.Abs(Ys.Max() * byte.MaxValue);
-      var minY = MathF.Abs(Ys.Min() * byte.MaxValue);
-      return new MeshBoundries() { MaxX = (short)maxX, MinX = (short)minX, MaxY = (short)maxY, MinY = (short)minY };
+      var xCoordinates = geometries.SelectMany(g => g.Vertices.Select(v => v.Position.X));
+      var yCoordinates = geometries.SelectMany(g => g.Vertices.Select(v => v.Position.Y));
+      return new MeshHorizontalExtents
+      {
+        PositiveY = (ushort)MathF.Abs(yCoordinates.Max() * byte.MaxValue),
+        NegativeY = (ushort)MathF.Abs(yCoordinates.Min() * byte.MaxValue),
+        PositiveX = (ushort)MathF.Abs(xCoordinates.Max() * byte.MaxValue),
+        NegativeX = (ushort)MathF.Abs(xCoordinates.Min() * byte.MaxValue)
+      };
     }
 
     private IModelSlots LoadSlots(COLLADA model)

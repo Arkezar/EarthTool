@@ -9,7 +9,6 @@ using EarthTool.MSH.Models;
 using EarthTool.MSH.Models.Collections;
 using EarthTool.MSH.Models.Elements;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -218,15 +217,15 @@ namespace EarthTool.MSH.Services
       var result = new MeshBaseHeader
       {
         MeshKind = (MeshKind)kindValue,
-        Template = LoadModelTemplate(reader),
+        BoxPresenceMask = reader.ReadUInt32(),
         Frames = LoadMeshFrames(reader),
         HeaderFlags = reader.ReadInt32(),
         MountPoints = LoadSlotList(reader, 4, (r, _) => LoadVector(r)),
         SpotLights = LoadSlotList(reader, 4, (r, _) => LoadSpotLight(r)),
         OmnidirectionalLights = LoadSlotList(reader, 4, (r, _) => LoadOmniLight(r)),
-        TemplateDetails = LoadTemplateDetails(reader),
+        Footprint = LoadMeshFootprint(reader),
         Slots = LoadModelSlots(reader),
-        Boundaries = LoadMeshBoundaries(reader)
+        HorizontalExtents = LoadMeshHorizontalExtents(reader)
       };
 
       var actualSize = reader.BaseStream.Position - start;
@@ -277,24 +276,6 @@ namespace EarthTool.MSH.Services
       return result;
     }
 
-    private ModelTemplate LoadModelTemplate(BinaryReader reader)
-    {
-      var template = new ModelTemplate();
-
-      var data = new BitArray(reader.ReadBytes(2));
-      for (var col = ModelTemplate.COLUMNS - 1; col > -1; col--)
-      {
-        for (var row = ModelTemplate.ROWS - 1; row > -1; row--)
-        {
-          template.Matrix[row, ModelTemplate.COLUMNS - 1 - col] = data[col * 4 + row];
-        }
-      }
-
-      template.Flag = reader.ReadInt16();
-
-      return template;
-    }
-
     private IMeshFrames LoadMeshFrames(BinaryReader reader)
       => new MeshFrames
       {
@@ -304,23 +285,34 @@ namespace EarthTool.MSH.Services
         LoopedFrames = reader.ReadByte()
       };
 
-    private IMeshBoundries LoadMeshBoundaries(BinaryReader reader)
-      => new MeshBoundries
+    private IMeshHorizontalExtents LoadMeshHorizontalExtents(BinaryReader reader)
+      => new MeshHorizontalExtents
       {
-        MaxY = reader.ReadInt16(),
-        MinY = reader.ReadInt16(),
-        MaxX = reader.ReadInt16(),
-        MinX = reader.ReadInt16()
+        PositiveY = reader.ReadUInt16(),
+        NegativeY = reader.ReadUInt16(),
+        PositiveX = reader.ReadUInt16(),
+        NegativeX = reader.ReadUInt16()
       };
 
-    private ITemplateDetails LoadTemplateDetails(BinaryReader reader)
-      => new TemplateDetails()
+    private IMeshFootprint LoadMeshFootprint(BinaryReader reader)
+      => new MeshFootprint
       {
-        SectionHeights = GetSectionHeights(reader),
-        SectionFlags = GetSectionFlags(reader),
-        SectionRotations = LoadSlotList(reader, 4, (r, _) => LoadModelTemplate(r)),
-        SectionFlagRotations = LoadSlotList(reader, 4, (r, _) => LoadSectionFlagRotation(r))
+        BoxHeights = ReadReverseIndexed(reader, r => r.ReadUInt16()),
+        BoxFlags = ReadReverseIndexed(reader, r => r.ReadByte()),
+        CoverageDescriptors = LoadSlotList(reader, MeshFootprint.CoverageCount, (r, _) => r.ReadUInt32()).ToArray(),
+        CoverageBitmaps = LoadSlotList(reader, MeshFootprint.CoverageCount, (r, _) => r.ReadUInt64()).ToArray()
       };
+
+    private static T[] ReadReverseIndexed<T>(BinaryReader reader, Func<BinaryReader, T> read)
+    {
+      var values = new T[MeshFootprint.BoxCount];
+      for (var logicalIndex = MeshFootprint.BoxCount - 1; logicalIndex >= 0; logicalIndex--)
+      {
+        values[logicalIndex] = read(reader);
+      }
+
+      return values;
+    }
 
     private IEnumerable<T> LoadSlotList<T>(BinaryReader reader, int count, Func<BinaryReader, int, T> load)
     {
@@ -353,58 +345,6 @@ namespace EarthTool.MSH.Services
       var g = reader.ReadSingle() * 255;
       var b = reader.ReadSingle() * 255;
       return Color.FromArgb((int)r, (int)g, (int)b);
-    }
-
-    private short[,] GetSectionHeights(BinaryReader reader)
-    {
-      var sectionHeights = new short[4, 4];
-
-      for (var row = 0; row < 4; row++)
-      {
-        for (var col = 0; col < 4; col++)
-        {
-          sectionHeights[row, col] = reader.ReadInt16();
-        }
-      }
-
-      return sectionHeights;
-    }
-
-    private byte[,] GetSectionFlags(BinaryReader reader)
-    {
-      var sectionFlags = new byte[4, 4];
-
-      for (var row = 0; row < 4; row++)
-      {
-        for (var col = 0; col < 4; col++)
-        {
-          sectionFlags[row, col] = reader.ReadByte();
-        }
-      }
-
-      return sectionFlags;
-    }
-
-    private byte[,] LoadSectionFlagRotation(BinaryReader reader)
-    {
-      var rotation = new byte[4, 4];
-
-      for (var i = 0; i < 4; i++)
-      {
-        var columnValue = reader.ReadInt16();
-        var upperByte = (byte)(columnValue >> 8);
-        var lowerByte = (byte)(columnValue & 0xFF);
-        var r0 = (byte)(upperByte >> 4);
-        var r1 = (byte)(upperByte & 0xF);
-        var r2 = (byte)(lowerByte >> 4);
-        var r3 = (byte)(lowerByte & 0xF);
-        rotation[i, 0] = r0;
-        rotation[i, 1] = r1;
-        rotation[i, 2] = r2;
-        rotation[i, 3] = r3;
-      }
-
-      return rotation;
     }
 
     #endregion

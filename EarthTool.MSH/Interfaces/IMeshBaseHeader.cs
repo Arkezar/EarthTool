@@ -1,19 +1,22 @@
 ﻿using EarthTool.Common.Interfaces;
-using EarthTool.MSH.Models.Elements;
 using System.Collections.Generic;
 
 namespace EarthTool.MSH.Interfaces
 {
   public interface IMeshBaseHeader : IBinarySerializable
   {
-    IModelTemplate Template { get; }
+    /// <summary>Gets the complete 32-bit logical box presence mask.</summary>
+    uint BoxPresenceMask { get; }
     IMeshFrames Frames { get; }
     IEnumerable<IVector> MountPoints { get; }
     IEnumerable<ISpotLight> SpotLights { get; }
     IEnumerable<IOmniLight> OmnidirectionalLights { get; }
     IModelSlots Slots { get; }
-    ITemplateDetails TemplateDetails { get; }
-    IMeshBoundries Boundaries { get; }
+    /// <summary>Gets the logical box and raw coverage data.</summary>
+    IMeshFootprint Footprint { get; }
+
+    /// <summary>Gets unsigned horizontal magnitudes in +Y, -Y, +X, -X order.</summary>
+    IMeshHorizontalExtents HorizontalExtents { get; }
     MeshKind MeshKind { get; }
   }
 }

@@ -38,10 +38,10 @@ public class MinimalStaticMeshConformanceTests
       Assert.Equal(4, mesh.BaseHeader.MountPoints.Count());
       Assert.Equal(4, mesh.BaseHeader.SpotLights.Count());
       Assert.Equal(4, mesh.BaseHeader.OmnidirectionalLights.Count());
-      Assert.Equal(16, mesh.BaseHeader.TemplateDetails.SectionHeights.Length);
-      Assert.Equal(16, mesh.BaseHeader.TemplateDetails.SectionFlags.Length);
-      Assert.Equal(4, mesh.BaseHeader.TemplateDetails.SectionRotations.Count());
-      Assert.Equal(4, mesh.BaseHeader.TemplateDetails.SectionFlagRotations.Count());
+      Assert.Equal(16, mesh.BaseHeader.Footprint.BoxHeights.Length);
+      Assert.Equal(16, mesh.BaseHeader.Footprint.BoxFlags.Length);
+      Assert.Equal(4, mesh.BaseHeader.Footprint.CoverageDescriptors.Length);
+      Assert.Equal(4, mesh.BaseHeader.Footprint.CoverageBitmaps.Length);
       Assert.Equal(49, CountAttachments(mesh.BaseHeader.Slots));
       Assert.Equal(1u, mesh.TrailingHierarchyUnwindCount);
       var part = Assert.Single(mesh.Geometries);
@@ -56,6 +56,118 @@ public class MinimalStaticMeshConformanceTests
       Assert.Equal((short)2, face.V3);
       Assert.Equal((short)1, face.UNKNOWN);
       Assert.Equal(0u, part.NextRecordMarker);
+      Assert.Equal(fixture, File.ReadAllBytes(outputPath));
+    }
+    finally
+    {
+      File.Delete(inputPath);
+      File.Delete(outputPath);
+    }
+  }
+
+  [Fact]
+  public void PublicReaderAndWriterExposeLogicalFootprintAndUnsignedExtents()
+  {
+    const int baseOffset = 0x14;
+    var fixture = CreateFixture();
+    var expectedHeights = Enumerable.Range(0, 16).Select(i => (ushort)(0x8000 + i)).ToArray();
+    var expectedFlags = Enumerable.Range(0, 16).Select(i => (byte)(0xA0 + i)).ToArray();
+    var expectedDescriptors = new uint[] { 0x89ABCDEF, 0x10203040, 0xFEDCBA98, 0x76543210 };
+    var expectedBitmaps = new ulong[]
+    {
+      0x0123456789ABCDEF,
+      0xFEDCBA9876543210,
+      0x8000000000000001,
+      0x0F1E2D3C4B5A6978
+    };
+    WriteUInt32(fixture, baseOffset + 0x00C, 0xF1234567);
+    for (var i = 0; i < 16; i++)
+    {
+      WriteUInt16(fixture, baseOffset + 0x196 - (2 * i), expectedHeights[i]);
+      fixture[baseOffset + 0x1A7 - i] = expectedFlags[i];
+    }
+
+    for (var i = 0; i < 4; i++)
+    {
+      WriteUInt32(fixture, baseOffset + 0x1A8 + (4 * i), expectedDescriptors[i]);
+      WriteUInt64(fixture, baseOffset + 0x1B8 + (8 * i), expectedBitmaps[i]);
+    }
+
+    WriteUInt16(fixture, baseOffset + 0x360, 0x8001);
+    WriteUInt16(fixture, baseOffset + 0x362, 0x9002);
+    WriteUInt16(fixture, baseOffset + 0x364, 0xA003);
+    WriteUInt16(fixture, baseOffset + 0x366, 0xB004);
+    var inputPath = GetTemporaryPath();
+    var outputPath = GetTemporaryPath();
+
+    try
+    {
+      File.WriteAllBytes(inputPath, fixture);
+
+      var mesh = CreateReader().Read(inputPath);
+      new EarthMeshWriter(Encoding.UTF8).Write(mesh, outputPath);
+
+      Assert.Equal(0xF1234567u, mesh.BaseHeader.BoxPresenceMask);
+      Assert.Equal(expectedHeights, mesh.BaseHeader.Footprint.BoxHeights);
+      Assert.Equal(expectedFlags, mesh.BaseHeader.Footprint.BoxFlags);
+      Assert.Equal(expectedDescriptors, mesh.BaseHeader.Footprint.CoverageDescriptors);
+      Assert.Equal(expectedBitmaps, mesh.BaseHeader.Footprint.CoverageBitmaps);
+      Assert.Equal((ushort)0x8001, mesh.BaseHeader.HorizontalExtents.PositiveY);
+      Assert.Equal((ushort)0x9002, mesh.BaseHeader.HorizontalExtents.NegativeY);
+      Assert.Equal((ushort)0xA003, mesh.BaseHeader.HorizontalExtents.PositiveX);
+      Assert.Equal((ushort)0xB004, mesh.BaseHeader.HorizontalExtents.NegativeX);
+      Assert.Equal(fixture, File.ReadAllBytes(outputPath));
+    }
+    finally
+    {
+      File.Delete(inputPath);
+      File.Delete(outputPath);
+    }
+  }
+
+  [Fact]
+  public void PublicReaderAndWriterRoundTripDocumentedCorpusFootprintExamples()
+  {
+    const int baseOffset = 0x14;
+    var fixture = CreateFixture();
+    var expectedHeights = new ushort[16];
+    var expectedFlags = new byte[16];
+    expectedHeights[11] = 380;
+    expectedHeights[15] = 380;
+    expectedHeights[10] = 493;
+    expectedHeights[14] = 380;
+    expectedFlags[11] = 1;
+    expectedFlags[15] = 2;
+    expectedFlags[10] = 8;
+    expectedFlags[14] = 4;
+    WriteUInt32(fixture, baseOffset + 0x00C, 0x0000CC00);
+    for (var i = 0; i < 16; i++)
+    {
+      WriteUInt16(fixture, baseOffset + 0x196 - (2 * i), expectedHeights[i]);
+      fixture[baseOffset + 0x1A7 - i] = expectedFlags[i];
+    }
+
+    WriteUInt16(fixture, baseOffset + 0x360, 43);
+    WriteUInt16(fixture, baseOffset + 0x362, 43);
+    WriteUInt16(fixture, baseOffset + 0x364, 49);
+    WriteUInt16(fixture, baseOffset + 0x366, 49);
+    var inputPath = GetTemporaryPath();
+    var outputPath = GetTemporaryPath();
+
+    try
+    {
+      File.WriteAllBytes(inputPath, fixture);
+
+      var mesh = CreateReader().Read(inputPath);
+      new EarthMeshWriter(Encoding.UTF8).Write(mesh, outputPath);
+
+      Assert.Equal(0x0000CC00u, mesh.BaseHeader.BoxPresenceMask);
+      Assert.Equal(expectedHeights, mesh.BaseHeader.Footprint.BoxHeights);
+      Assert.Equal(expectedFlags, mesh.BaseHeader.Footprint.BoxFlags);
+      Assert.Equal((ushort)43, mesh.BaseHeader.HorizontalExtents.PositiveY);
+      Assert.Equal((ushort)43, mesh.BaseHeader.HorizontalExtents.NegativeY);
+      Assert.Equal((ushort)49, mesh.BaseHeader.HorizontalExtents.PositiveX);
+      Assert.Equal((ushort)49, mesh.BaseHeader.HorizontalExtents.NegativeX);
       Assert.Equal(fixture, File.ReadAllBytes(outputPath));
     }
     finally
@@ -170,16 +282,16 @@ public class MinimalStaticMeshConformanceTests
   [InlineData("MountPoints")]
   [InlineData("SpotLights")]
   [InlineData("OmnidirectionalLights")]
-  [InlineData("SectionHeights")]
-  [InlineData("SectionFlags")]
-  [InlineData("SectionRotations")]
-  [InlineData("SectionFlagRotations")]
+  [InlineData("BoxHeights")]
+  [InlineData("BoxFlags")]
+  [InlineData("CoverageDescriptors")]
+  [InlineData("CoverageBitmaps")]
   [InlineData("Slots.Turrets")]
   public void PublicWriterRejectsInvalidFixedBaseHeaderCollections(string field)
   {
     var mesh = ReadValidMesh();
     var baseHeader = Assert.IsType<MeshBaseHeader>(mesh.BaseHeader);
-    var templateDetails = Assert.IsType<TemplateDetails>(baseHeader.TemplateDetails);
+    var footprint = Assert.IsType<MeshFootprint>(baseHeader.Footprint);
     var slots = Assert.IsType<ModelSlots>(baseHeader.Slots);
     switch (field)
     {
@@ -192,17 +304,17 @@ public class MinimalStaticMeshConformanceTests
       case "OmnidirectionalLights":
         baseHeader.OmnidirectionalLights = baseHeader.OmnidirectionalLights.Take(3);
         break;
-      case "SectionHeights":
-        templateDetails.SectionHeights = new short[3, 4];
+      case "BoxHeights":
+        footprint.BoxHeights = new ushort[15];
         break;
-      case "SectionFlags":
-        templateDetails.SectionFlags = new byte[4, 3];
+      case "BoxFlags":
+        footprint.BoxFlags = new byte[15];
         break;
-      case "SectionRotations":
-        templateDetails.SectionRotations = templateDetails.SectionRotations.Take(3);
+      case "CoverageDescriptors":
+        footprint.CoverageDescriptors = new uint[3];
         break;
-      case "SectionFlagRotations":
-        templateDetails.SectionFlagRotations = templateDetails.SectionFlagRotations.Take(3);
+      case "CoverageBitmaps":
+        footprint.CoverageBitmaps = new ulong[3];
         break;
       case "Slots.Turrets":
         slots.Turrets = slots.Turrets.Take(3);
@@ -562,6 +674,9 @@ public class MinimalStaticMeshConformanceTests
 
   private static void WriteUInt32(byte[] data, int offset, uint value)
     => BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(offset), value);
+
+  private static void WriteUInt64(byte[] data, int offset, ulong value)
+    => BinaryPrimitives.WriteUInt64LittleEndian(data.AsSpan(offset), value);
 
   private static void WriteSingle(byte[] data, int offset, float value)
     => WriteUInt32(data, offset, BitConverter.SingleToUInt32Bits(value));

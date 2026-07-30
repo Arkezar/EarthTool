@@ -1,5 +1,6 @@
 ﻿using EarthTool.Common;
 using EarthTool.MSH.Interfaces;
+using EarthTool.MSH.Models.Elements;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,7 +16,7 @@ namespace EarthTool.MSH.Models
 
     public MeshKind MeshKind { get; set; }
 
-    public IModelTemplate Template { get; set; }
+    public uint BoxPresenceMask { get; set; }
 
     public IMeshFrames Frames { get; set; }
 
@@ -27,11 +28,11 @@ namespace EarthTool.MSH.Models
 
     public IEnumerable<IOmniLight> OmnidirectionalLights { get; set; }
 
-    public ITemplateDetails TemplateDetails { get; set; }
+    public IMeshFootprint Footprint { get; set; }
 
     public IModelSlots Slots { get; set; }
 
-    public IMeshBoundries Boundaries { get; set; }
+    public IMeshHorizontalExtents HorizontalExtents { get; set; }
 
     public byte[] ToByteArray(Encoding encoding)
     {
@@ -42,15 +43,15 @@ namespace EarthTool.MSH.Models
         {
           bw.Write(Identifiers.Mesh);
           bw.Write((int)MeshKind);
-          bw.Write(Template.ToByteArray(encoding));
+          bw.Write(BoxPresenceMask);
           bw.Write(Frames.ToByteArray(encoding));
           bw.Write(HeaderFlags);
           bw.Write(MountPoints.SelectMany(x => x.ToByteArray(encoding)).ToArray());
           bw.Write(SpotLights.SelectMany(x => x.ToByteArray(encoding)).ToArray());
           bw.Write(OmnidirectionalLights.SelectMany(x => x.ToByteArray(encoding)).ToArray());
-          bw.Write(TemplateDetails.ToByteArray(encoding));
+          bw.Write(Footprint.ToByteArray(encoding));
           bw.Write(Slots.ToByteArray(encoding));
-          bw.Write(Boundaries.ToByteArray(encoding));
+          bw.Write(HorizontalExtents.ToByteArray(encoding));
         }
 
         var result = output.ToArray();
@@ -70,22 +71,17 @@ namespace EarthTool.MSH.Models
         throw new InvalidOperationException($"BaseHeader MeshKind value {(int)MeshKind} is unsupported.");
       }
 
-      Require(Template, nameof(Template));
       Require(Frames, nameof(Frames));
-      Require(Boundaries, nameof(Boundaries));
+      Require(HorizontalExtents, nameof(HorizontalExtents));
       RequireCount(MountPoints, 4, nameof(MountPoints));
       RequireCount(SpotLights, 4, nameof(SpotLights));
       RequireCount(OmnidirectionalLights, 4, nameof(OmnidirectionalLights));
 
-      Require(TemplateDetails, nameof(TemplateDetails));
-      RequireDimensions(TemplateDetails.SectionHeights, 4, 4, "TemplateDetails.SectionHeights");
-      RequireDimensions(TemplateDetails.SectionFlags, 4, 4, "TemplateDetails.SectionFlags");
-      RequireCount(TemplateDetails.SectionRotations, 4, "TemplateDetails.SectionRotations");
-      RequireCount(TemplateDetails.SectionFlagRotations, 4, "TemplateDetails.SectionFlagRotations");
-      foreach (var rotation in TemplateDetails.SectionFlagRotations)
-      {
-        RequireDimensions(rotation, 4, 4, "TemplateDetails.SectionFlagRotations item");
-      }
+      Require(Footprint, nameof(Footprint));
+      RequireCount(Footprint.BoxHeights, MeshFootprint.BoxCount, "Footprint.BoxHeights");
+      RequireCount(Footprint.BoxFlags, MeshFootprint.BoxCount, "Footprint.BoxFlags");
+      RequireCount(Footprint.CoverageDescriptors, MeshFootprint.CoverageCount, "Footprint.CoverageDescriptors");
+      RequireCount(Footprint.CoverageBitmaps, MeshFootprint.CoverageCount, "Footprint.CoverageBitmaps");
 
       Require(Slots, nameof(Slots));
       RequireCount(Slots.Turrets, 4, "Slots.Turrets");
@@ -130,12 +126,5 @@ namespace EarthTool.MSH.Models
       }
     }
 
-    private static void RequireDimensions(Array values, int rows, int columns, string name)
-    {
-      if (values == null || values.Rank != 2 || values.GetLength(0) != rows || values.GetLength(1) != columns)
-      {
-        throw new InvalidOperationException($"BaseHeader {name} must be a {rows}x{columns} array.");
-      }
-    }
   }
 }
