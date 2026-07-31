@@ -4,8 +4,8 @@ This describes the files emitted by the 6 October 1999 build of
 `Aod2Msh.exe` in this directory. It was derived from the converter's parser and
 writer routines and checked against `EDUST1.aod`/`.msh`,
 `EDWCA1.aod`/`.msh`, `EDBBC.aod`/`.msh`, `UCSUHL3.aod`/`.msh`, and synthetic
-dynamic AOD files. It was additionally checked against an 18,079,220-byte
-official corpus of 1,149 historical MSH files; all parse exactly to EOF. Source
+dynamic AOD files. It was additionally checked against the 1,151 framed files
+in the official historical MSH corpus; all parse exactly to EOF. Source
 AODs are unavailable for that corpus, including `edbpp.msh`, `LCUFG3.msh`, and
 `EDUA22.msh`, so corpus-only claims are limited to serialized layout. The
 dynamic source checks cover all 92 supplied smoke/PY/PYSHT sources after the
@@ -57,6 +57,24 @@ The low 24 bits of both framing values are the archive signature `0xD0A1FF`.
 The upper byte is a bitfield produced by the converter's stream class, not part
 of the `MESH` magic.
 
+The game resource reader at `0x0070FE30` tests only the low 24 bits for that
+signature. Upper-byte bit `0x10` causes it to read the archive-type dword and
+bit `0x20` causes it to read the 16-byte GUID; an absent type defaults to zero.
+`load_mesh_asset` at `0x005F9D10` selects the runtime class from this archive
+type, not from the later `MESH` kind:
+
+```text
+archive type == 0: allocate a 0x670-byte StaticMesh
+archive type != 0: allocate a 0x430-byte DynamicMesh
+```
+
+The comparison is a raw zero/nonzero test, so every nonzero value selects the
+dynamic class. Consequently `0x30D0A1FF` with archive type zero selects a static
+reader, while a nonzero type does so even if the base kind says static. A bad
+low-24-bit signature enters the resource system's alternate raw/resource path;
+it is not itself a universal immediate mesh-parser rejection. The GUID is
+copied as archive metadata but does not select the mesh class.
+
 ## Common base header
 
 This table is relative to the `MESH` bytes: static file offset `0x14`, dynamic
@@ -66,22 +84,47 @@ file offset `0x18`, or the beginning of a nested dynamic object.
 |---:|---:|---|---|
 | `0x000` | 4 | char[4] | ASCII `MESH` |
 | `0x004` | 4 | `u32` | Format version, `1` |
-| `0x008` | 4 | `u32` | Mesh kind: `0` static, `1` dynamic |
+| `0x008` | 4 | `u32` | Conventional mesh kind: `0` static, `1` dynamic; not used for runtime class dispatch |
 | `0x00C` | 4 | `u32` | 4x4 box/cell presence mask |
 | `0x010` | 4 | `u32` | Four reverse-packed 8-bit animation lengths |
-| `0x014` | 4 | `u32` | Header flags/reserved; zero in all supplied files |
+| `0x014` | 4 | `u32` | Four reverse-packed 8-bit animation frame indices |
 | `0x018` | `0xF0` | bytes | Spot-light record area, formula below |
 | `0x108` | `0x70` | bytes | Remaining light record storage/overlap area |
 | `0x178` | `0x20` | `u16[16]` | Box heights, physically reverse-indexed |
 | `0x198` | `0x10` | `u8[16]` | Box flags, physically reverse-indexed |
-| `0x1A8` | `0x10` | `u32[4]` | Derived 4x4-grid coverage descriptors |
-| `0x1B8` | `0x20` | `u64[4]` | Derived 4x4-grid coverage bitmaps |
+| `0x1A8` | `0x10` | `u32[4]` | Rotated 4x4 occupancy descriptors |
+| `0x1B8` | `0x20` | `u64[4]` | Rotated per-cell directional-flag maps |
 | `0x1D8` | `0x188` | `Attachment[49]` | Slot/light attachment records 1 through 49 |
 | `0x360` | 8 | `u16[4]` | Horizontal extents: `+Y`, `-Y`, `+X`, `-X` |
 
 The converter's in-memory base class contains a pointer between the coverage
 descriptors and bitmaps. The writer deliberately skips that pointer, which is
 why some decompiled in-memory offsets differ by four bytes after this point.
+
+### Base-header validation and dispatch
+
+The game reader at `0x005FAC40` requires exact equality for the first two
+dwords:
+
+```text
+magic   == 0x4853454D  // bytes "MESH"
+version == 1
+```
+
+Failure to read either dword or either mismatch returns false immediately. The
+kind at `0x008` is then read into runtime member `+0x0C` but is never compared.
+It overwrites the constructor's default and may be `0`, `1`, or any other
+32-bit value. The concrete static or dynamic reader remains the one selected by
+archive type and its vtable. Thus a static object can retain kind `1`, a dynamic
+object can retain kind `0`, and unknown kinds are accepted if the selected
+class-specific tail can be read.
+
+`write_base_mesh_header` at `0x005FAEC0` always writes `MESH` and version 1 but
+writes runtime member `+0x0C` unchanged. A contradictory or unknown kind
+therefore round-trips without changing the writer, which is also selected by
+the allocated object's vtable. Neither the static nor dynamic root reader
+requires exact EOF; bytes following the declared static chain or dynamic child
+tree remain unread and do not make the load fail.
 
 ### Animation-length dword
 
@@ -102,6 +145,34 @@ The object naming convention and the AOD exporter use type `2` for the `C`
 and `2` correspond to the A/B/C animation classes. Type `3` is also present in
 the official binary corpus with declared lengths 16, 46, and 51, although no
 source AOD for those files is available.
+
+### Animation-frame dword
+
+The current frame for animation type `n` is stored in byte `3-n` of the dword
+at `0x014`, using the same reverse packing as the animation lengths:
+
+```text
+frame[n] = (animation_frames >> (8 * (3 - n))) & 0xFF
+```
+
+The converter's base-header constructor at `0x004054E0` initializes runtime
+member `+0x18` to zero, and the geometry builder clears it again at
+`0x0040A417` after assembling the render records. This is the initial animation
+state rather than a reserved zero field. The base-header reader and writer copy
+the dword unchanged between file `+0x014` and runtime `+0x018`.
+
+`render_static_mesh_objects` at `0x0060F100` provides the runtime interpretation.
+Each render record stores an animation type at record offset `+0x80`. The
+renderer extracts that type's byte from runtime mesh member `+0x18` and uses the
+result as the index into any scale, translation, and matrix tracks on the
+record. Before recursively rendering an attached mesh, it packs the owning
+instance's four frame bytes at `+0x34..+0x37` into the mesh member in type order,
+with type 0 in the high byte and type 3 in the low byte.
+
+All 1,402 base headers, including nested dynamic records, in the official
+framed corpus store four zero indices because the converter emits the initial
+frame state. Readers should nevertheless retain all four bytes; nonzero values
+are meaningful runtime frame selections rather than invalid flags.
 
 ### Box records
 
@@ -132,12 +203,235 @@ not require any of its four AOD boolean values to be set; presence comes only
 from the mask.
 
 The coverage values at `0x1A8` and `0x1B8` are derived from all 16 cells; they
-are not direct AOD arrays. If the AOD supplies no boxes, the converter sets bit
-15 as the default single-cell footprint, calls `compute_mesh_max_z`, and stores
-`trunc(max_z * 256)` as box 15's height with flags zero. This is why `EDUST1`,
-`EDWCA1`, `UCSUHL3`, and `LCUFG3` contain `0x00008000`. `LCUFG3` provides a
-simple check: maximum serialized Z is approximately `0.452`, producing height
-`115`.
+are not direct AOD arrays. If an ordinary static geometry AOD supplies no boxes,
+the converter sets bit 15 as the default single-cell footprint, calls
+`compute_mesh_max_z`, and stores `trunc(max_z * 256)` as box 15's height with
+flags zero. This is why `EDUST1`, `EDWCA1`, `UCSUHL3`, and `LCUFG3` contain
+`0x00008000`. `LCUFG3` provides a simple check: maximum serialized Z is
+approximately `0.452`, producing height `115`.
+
+The four derived entries correspond to the four quarter-turn heading buckets
+selected at runtime by `heading >> 6`. Logical mask bit `i` uses reverse-indexed
+physical height/flag array slot `p = 15-i`. Let `p = 4*r + c`, where `r,c` are
+in `0..3`. Entry `q` moves that physical slot to `p'` as follows:
+
+| `q` | Destination physical slot `p'` |
+|---:|---:|
+| 0 | `4*(3-c) + r` |
+| 1 | `p` |
+| 2 | `4*c + (3-r)` |
+| 3 | `15-p` |
+
+If source mask bit `i` is set, descriptor bit `j = 15-p'` is set. Thus `q = 1`
+preserves the original mask bits rather than reversing them. The complete dword
+layout is:
+
+| Bits | Meaning |
+|---:|---|
+| 31..30 | X iteration-origin anchor |
+| 29..28 | Y iteration-origin anchor |
+| 27..26 | Producer-only cross-axis midpoint bias A |
+| 25..24 | Producer-only cross-axis midpoint bias B |
+| 23..16 | Zero |
+| 15..0 | Rotated occupancy mask |
+
+The X/Y anchors depend only on `q`:
+
+| `q` | X anchor | Y anchor |
+|---:|---:|---:|
+| 0 | 0 | 3 |
+| 1 | 0 | 0 |
+| 2 | 3 | 0 |
+| 3 | 3 | 3 |
+
+Runtime footprint iteration subtracts these anchors from the object's map
+coordinates. For the midpoint biases, take the minimum and maximum row and
+column among the occupied destination physical slots as `r_min`, `r_max`,
+`c_min`, and `c_max`. The producer computes:
+
+```text
+bias_A = r_min + trunc((c_max + 1 - r_min) / 2)
+bias_B = c_min + trunc((r_max + 1 - c_min) / 2)
+```
+
+Both values fit two bits. These are deliberately cross-axis calculations, not
+ordinary row and column bounding-box centers. They are produced and serialized,
+but are unused by the examined June 29, 2004 The Moon Project build. A
+binary-wide audit found 24 indexed runtime loads from the descriptor array and
+21 callers of `get_rotated_mesh_footprint_descriptor` at `0x005470C0`; every
+consumer extracts only the X/Y anchors and low occupancy mask. The only
+persistent whole-descriptor copy is cached at object offset `+0x8BC` by
+`0x006C5840`, whose sole consumer at `0x006C1A30` likewise uses only those
+fields. The bulk reads and
+writes in `read_base_mesh_header` and `write_base_mesh_header` merely preserve
+all four dwords. No instruction extracts bits 27 through 24 after any direct,
+returned, argument-passed, or cached copy.
+
+A wholly empty footprint stores four zero descriptors. The formulas above
+reproduce all 32 descriptor bits across every base header, including nested
+dynamic objects, in the official framed corpus. The midpoint biases should be
+preserved for format compatibility even though this game build does not use
+them.
+
+The height array itself is not copied into four rotated arrays. Runtime
+consumers rotate their lookup back into the original physical array. For a
+destination physical slot `p' = 4*r' + c'`, the source physical slot is:
+
+| `q` | Source physical slot `p` |
+|---:|---:|
+| 0 | `4*c' + (3-r')` |
+| 1 | `p'` |
+| 2 | `4*(3-c') + r'` |
+| 3 | `15-p'` |
+
+The height is an unsigned 8.8 fixed-point local top elevation, not a cell-floor
+height or a thickness. For an ordinary occupied world cell the game computes:
+
+```text
+support_height = terrain_height[x,y]  if layer == 0
+                 0x0800               otherwise
+
+cell_top_height[layer,y,x] = support_height + height[source_physical_slot]
+```
+
+`update_object_world_footprint` at `0x004BF3E0` performs the rotated lookup and
+`set_world_cell_occupancy_and_top_height` at `0x0054BE80` writes the result to
+the full-resolution world-cell top-height map at `0x0097DAA8`. Removing the
+footprint restores the support height. One object-definition mode instead
+copies the object's packed Z value directly, but does not change the normal
+mesh-height interpretation.
+
+Several independent consumers confirm that the value is the top of a solid
+vertical extent:
+
+- `process_entities_in_mesh_height_volume` at `0x0041AF70` converts each
+  direction-adjusted cell height to quarter-unit vertical bands with
+  `height >> 6` and processes entities from the object's base band through that
+  top band.
+- Movement and impact logic, including `0x00463840` and `0x004A1960`, compares
+  an entity's Z against `cell_top_height` and treats values below the stored top
+  as intersecting the cell's solid extent.
+- `0x0061FB10` uses the stored top and the terrain/layer support height as the
+  two Z endpoints of vertical world-cell geometry.
+- Generic object-top position getters at `0x00415030`, `0x0041D330`, and
+  `0x0054A0B0` add physical height slot 0 to object Z. Slot 0 corresponds to
+  logical mask bit 15, which is also the synthesized default footprint cell.
+
+For occupied ground-layer cells taller than `0x0180` (1.5 world units), the
+same writer also stores a four-bit static vertical-clearance tier at
+`0x00801290`:
+
+```text
+tier = ceil((height - 0x0180) / 0x0040)  if height > 0x0180
+       0                                otherwise
+```
+
+Each tier is another quarter world unit above the 1.5-unit baseline. Vertical
+movement and pathing routines consume this nibble alongside the 15-bit dynamic
+vertical-occupancy map at `0x00809290`; for example, `0x004B1FD0` raises an
+entity's selected vertical band above the static tier, while
+`set_world_cell_vertical_occupancy_range` at `0x004B2830` marks or clears the
+corresponding dynamic bands. The nibble is therefore a derived clearance/pathing
+value, not another serialized mesh field. Occupied root footprints in the
+official framed corpus reach tier 11, within the four-bit storage.
+
+Each `u64` stores one four-bit directional-flag nibble per destination logical
+bit `j` at `4*j`. The map is initialized to all ones, so absent cells retain
+nibble `0xF`; runtime consumers ignore those nibbles because they first test the
+occupancy descriptor. An occupied cell replaces its nibble with the reordered
+source box flags. A wholly empty footprint instead retains zero descriptors and
+zero flag maps. For each output nibble bit 0 through 3, the copied source flag
+bit is:
+
+| `q` | Output bit 0 | Output bit 1 | Output bit 2 | Output bit 3 |
+|---:|---:|---:|---:|---:|
+| 0 | 1 | 0 | 3 | 2 |
+| 1 | 0 | 3 | 2 | 1 |
+| 2 | 3 | 2 | 1 | 0 |
+| 3 | 2 | 1 | 0 | 3 |
+
+These nibbles therefore represent rotated cell-edge properties rather than
+another occupancy mask. More specifically, they are diagonal corner-passage
+exceptions. For the unrotated `q = 1` entry, with map deltas `+X = east` and
+`+Y = south`, the source AOD flag bits mean:
+
+| Source bit | Corner | Neighbor-to-neighbor diagonal preserved when set |
+|---:|---|---|
+| 0 | Southwest | west `(-1,0)` to south `(0,+1)` |
+| 1 | Northwest | west `(-1,0)` to north `(0,-1)` |
+| 2 | Northeast | north `(0,-1)` to east `(+1,0)` |
+| 3 | Southeast | east `(+1,0)` to south `(0,+1)` |
+
+An occupied cell always blocks movement into the cell. A zero corner flag also
+removes the diagonal connection between the two neighboring cells around that
+corner. A one flag tells this footprint update not to remove that diagonal; it
+does not guarantee passage if terrain or another occupied cell has already
+blocked the same connection. The rotation table above carries these corner
+exceptions into the other three heading buckets.
+
+The runtime world-grid dword stores connectivity for height layer `h` in bits
+`4+4*h` through `7+4*h`. The direction arrays at `0x00757E6C` and `0x00757E74`
+define directions `N,E,S,W,NW,NE,SE,SW`. Their canonical edge storage is:
+
+| Movement | Grid element tested | Bit |
+|---|---|---:|
+| North | current | `4+4*h` |
+| East | east neighbor | `5+4*h` |
+| South | south neighbor | `4+4*h` |
+| West | current | `5+4*h` |
+| Northwest | current | `6+4*h` |
+| Northeast | current | `7+4*h` |
+| Southeast | southeast neighbor | `6+4*h` |
+| Southwest | southwest neighbor | `7+4*h` |
+
+`flood_fill_traversable_grid_region` at `0x00565F80` and
+`find_grid_path_cost` at `0x00566FE0` traverse an edge only when its bit is set,
+confirming that clearing a bit blocks movement. `EDBBC.aod` provides an
+independent corner-order check: its four cells set one different flag each, and
+after accounting for reverse physical array order, those flags identify the
+four exterior corners of the overall 2x2 footprint. This arrangement would not
+be produced by four side-direction bits.
+
+The Moon Project runtime confirms that the derived data is gameplay-facing, not
+only the grid-silhouette overlay. Among its consumers:
+
+- `0x0041A790` and `0x0041A960` select a descriptor by `heading >> 6`, apply its
+  anchor offsets, and iterate occupied world cells.
+- `0x00428FE0` uses the occupied cells for placement validation against map
+  bounds, terrain, and existing world-grid occupancy.
+- `0x0041AF70` combines occupied cells with the direction-adjusted height array
+  for world-cell and height-level processing.
+- `block_world_grid_edges_for_mesh_footprint` at `0x005479E0` consumes both the
+  occupancy descriptor and directional-flag map while removing world-grid
+  movement edges, except for the flagged diagonal corner passages.
+
+The authority depends on the load path. `build_rotated_mesh_footprints` at
+`0x00611FE0` has exactly one code xref, at `0x005FA1DD` in the static text-AOD
+path. It tests raw mask runtime `+0x10`, reads raw flag bytes `+0x19C..+0x1AB`,
+and regenerates descriptors `+0x1AC..+0x1BB` and directional maps
+`+0x1C0..+0x1DF`. It neither reads nor changes the height words at
+`+0x17C..+0x19B`. AOD data therefore uses the raw mask and flags as producer
+inputs for the two derived arrays.
+
+Normal binary MSH loading is different. `read_base_mesh_header` independently
+loads mask, heights, flags, descriptors, and maps, and no post-read path calls
+the builder. Gameplay footprint iteration and placement use the serialized
+descriptors; edge blocking uses the serialized maps; top-height and vertical
+volume calculations use the serialized heights. No binary-MSH gameplay path
+semantically reads the raw mask or raw flag bytes. Thus all five serialized
+representations are independent at runtime rather than automatically
+reconciled.
+
+If a hand-edited MSH makes them disagree, each consumer observes its own array:
+a descriptor can occupy cells absent from the raw mask, a directional map can
+contradict the raw flags, and heights can describe cells absent from either.
+Caching preserves the same object. `write_base_mesh_header` writes all five
+regions unchanged and does not rebuild first, so the disagreement round-trips.
+Dynamic text-AOD records leave these inherited fields zero; dynamic binary MSH
+records receive the same independent bulk loads as static records. Any
+silhouette display is therefore a visualization of gameplay data, but for a
+binary MSH that data is the serialized descriptor rather than a live derivation
+from its raw mask.
 
 ### Explicit-box recentering
 
@@ -173,6 +467,69 @@ For example, `EDWCA1` has approximately +/-0.168 Y and +/-0.192 X, producing
 the root-level maximum near `0.389`; the root's negative-X maximum near
 `-0.665` produces `170/256`.
 
+The game consumes these words in terrain alignment at `0x00548240`. Let
+`xp,xn,yp,yn` be the stored `+X,-X,+Y,-Y` words, `T` truncate toward zero,
+`s/c` the 256-entry heading tables, and `(x,y,h)` the entity's fixed-point
+position and heading. The four terrain samples are:
+
+```text
+a = T(xp*c[h] - yp*s[h])
+b = T(yn*c[h] + xp*s[h])
+d = T(xn*c[h] + yn*s[h])
+e = T(xn*s[h] - yp*c[h])
+
+q0 = (x+a, y-b)    q1 = (x+d, y-e)
+q2 = (x-a, y+b)    q3 = (x-d, y+e)
+```
+
+Opposing extents normally match closely, producing a rotated rectangle.
+Asymmetric values instead produce two pivot-centered diagonal pairs; the game
+does not reconstruct a rigid asymmetric rectangle. For sampled heights
+`h0..h3` and the center height, the supporting Z is:
+
+```text
+support = max(center_height, T((h0+h2)/2), T((h1+h3)/2))
+```
+
+The highest-corner branch chooses one adjacent edge and derives pitch and roll
+from its average and difference. For edges `0-1`, `0-3`, `1-2`, and `2-3`, the
+respective `(pitch_delta,roll_delta)` pairs are:
+
+```text
+((h0+h1)/2-support, (h0-h1)/2)
+((h0-h3)/2,         (h0+h3)/2-support)
+((h1-h2)/2,         support-(h1+h2)/2)
+(support-(h2+h3)/2, (h3-h2)/2)
+```
+
+The target angles are `T(atan2(pitch_delta,xp)*128/pi)` and
+`T(atan2(roll_delta,yp)*128/pi)`. Pitch is written directly when tilt is
+enabled. Roll is written directly only in terrain mode 1; mode 3 conditionally
+approaches the target and adds a pseudorandom one-unit nudge, while other modes
+can preserve or override it. The comparison at `0x00548489` reads an unwritten
+stack local when the highest corner is odd. Its stale value can select a
+different adjacent edge between calls, making those asymmetric cases genuinely
+nondeterministic. Live entity updates and temporary placement/movement
+candidates both use this routine, so the extents affect height and orientation
+as well as rendering.
+
+Projected-shadow modes 2 and 3 at `0x005DB930` use local bounds
+`(-xn/256,-yn/256)..(xp/256,yp/256)`. They construct both the original rectangle
+and a displaced copy using:
+
+```text
+dx = -sin((global_angle+64)&255) * projection_scale * (argument/256)
+dy =  cos((global_angle+64)&255) * projection_scale * (argument/256)
+```
+
+The two rectangles' XY coordinates are multiplied by `1.03`, local Z is `0.05`,
+and only then are the points transformed and projected. Modes 2 and 3 are
+byte-for-byte identical; no examined caller selects mode 3. One ordinary caller
+supplies argument `64`, while an attached-mesh path supplies zero. Raster minima
+truncate directly and maxima use `T(max+1.0)`. The words are zero-extended and
+otherwise unchecked, so zero and `0xFFFF` extents enter these formulas without
+format-level validation.
+
 ## Attachments and slots
 
 Each attachment is eight bytes:
@@ -183,7 +540,7 @@ Each attachment is eight bytes:
 | `+0x02` | 2 | `i16` | `trunc(-y * 256)` |
 | `+0x04` | 2 | `i16` | `trunc(z * 256)` |
 | `+0x06` | 1 | `u8` | Heading, one full turn = 256 |
-| `+0x07` | 1 | `u8` | Raw extra byte; generated slots use the quantized angle described below |
+| `+0x07` | 1 | `u8` | Cannon yaw half-range; `0x80` means unrestricted |
 
 Attachment index `i` is at:
 
@@ -192,24 +549,33 @@ base + 0x1D0 + 8*i
 ```
 
 The meaningful generated range is `i = 1..49`; it occupies the documented
-`0x1D8..0x35F` area. Unset records are identified only by `0x8000` in all three
-coordinates. Their heading and extra angle remain independent serialized
-values.
+`0x1D8..0x35F` area. Unset records contain `0x8000` in each coordinate and zero
+in both bytes.
 
 The heading is derived from the AOD slot's second point with angular scale
 `128/pi`, equivalent to 256 units per turn. The extended nine-parameter `Slot`
-syntax converts its final angle with `trunc(angleRadians * 128 / pi) & 0xFF`;
-the ordinary six-coordinate syntax uses `0x80`, or pi radians. Convert the
-stored extra angle back with `byte * pi / 128` radians or `byte * 360 / 256`
-degrees. Negative inputs wrap into the unsigned byte; for example, `0xB1` is
-248.906 degrees, equivalent to -111.094 degrees.
+syntax supplies a yaw half-range in radians. The converter stores
+`trunc(range * 128/pi) & 0xFF`; the ordinary six-coordinate syntax uses `0x80`.
 
-Confirmed extra-angle bytes in official cannon-slot (`BC`/`SC`) records are
-`00 0F 15 1C 20 31 40 47 4E 55 5C 60 71 78 80 B1`; most attachment records use
-the ordinary `0x80` default. The exact runtime meaning remains unconfirmed
-beyond being an angular property associated with cannon slots. Zero bytes in
-attachment records 13 through 17 are generally generated by spot lights and
-are not slot-angle parameters.
+The Moon Project game executable confirms the runtime interpretation for cannon
+slots. Its common-header reader at `0x005FAC40` reads the complete 49-record
+attachment array into mesh-object offset `0x1E0`. Unit method `0x0040D180`
+returns bytes `+0x06` and `+0x07` as a weapon's center heading and yaw
+half-range. Weapon initialization at `0x0045F830` treats half-range `0x80` as
+unrestricted traversal. Aiming at `0x00460270` otherwise clamps the weapon's
+relative yaw to:
+
+```text
+center heading - half-range .. center heading + half-range
+```
+
+Consequently `0x00` is a fixed mount, `0x40` permits +/-90 degrees, `0x60`
+permits +/-135 degrees, and `0x80` permits a full 360-degree traversal. The
+game compares bounded ranges as unsigned bytes against the absolute signed
+8-bit angular delta. Values above `0x80` therefore cannot be exceeded by a
+representable delta and effectively do not clamp, although only exactly
+`0x80` takes the explicit unrestricted branch. `EDBWB.msh` contains the sole
+official `0xB1` example.
 
 The converter's slot table is:
 
@@ -244,6 +610,106 @@ light number `n` uses the record at common-header memory offset
 base offsets `0x230 + 8*n` and `0x250 + 8*n`. These ranges can overlap rarely
 used numbered slot records; this is behavior of the original converter.
 
+### Game attachment consumers
+
+The runtime accessors use zero-based indices `0..48`, one less than the
+serialized record numbers above. Their confirmed consumers are:
+
+| Code | Runtime indices | Confirmed game use |
+|---|---:|---|
+| `MI1..4` | `4..7` | Render-object marker bits attach meshes; `MI1` also anchors effects/projectiles |
+| `SS1..4` | `8..11` | `SS1` is a position added to owner coordinates; no `SS2..4` consumer found |
+| `TR1..4` | `20..23` | Transport/placement matching; `TR1..3` observed |
+| `HT1..4` | `24..27` | Four optional world positions and nearest-present-slot selection |
+| `SM1..4` | `28..31` | Four optional effect/smoke positions and nearest-slot selection |
+| `WT1..4` | `32..35` | No normal gameplay transform consumer exists in this build |
+| `CH1..2` | `36..37` | Paired emitter anchors used by four direct setup paths |
+| `ST1..2` | `38..39` | Paired emitter anchors used by the general setup helper |
+| `SE1..2` | `40..41` | Paired emitter anchors used by the general setup helper |
+| `SK1..2` | `42..43` | Paired emitter anchors used by the general setup helper |
+| `IN` | `44` | Child alignment offset subtracted from a parent `MI` anchor |
+| `CE` | `45` | General center anchor for placement, previews, HUD, and render auxiliaries |
+| `PR` | `46` | Production/placement position and heading |
+| `MV` | `47` | Movement/placement position and heading, paired with `PR` |
+| `LN` | `48` | Landing/placement position and heading |
+
+`get_mesh_attachment_transform` at `0x005FB130` accepts any integer index and
+checks only whether X equals `0x8000`; Y, Z, and array bounds are unchecked. It
+rotates signed fixed-point XY continuously through the heading tables and
+truncates each result. `get_rotated_attachment_position` at `0x005FB200` is a
+cardinal fast path: heading `0`, `0x40`, and `0x80` produce `(y,-x)`, `(x,y)`,
+and `(-y,x)` respectively, while every other value takes the `(-x,-y)` branch.
+Its callers therefore supply cardinal headings.
+
+The position accessors copy Z unchanged and do not consume the record heading.
+Separate consumers add `+0x06` to owner heading for `TR`, `PR`, `MV`, and `LN`.
+No non-cannon consumer of `+0x07` exists in the examined binary. Missing-slot
+fallbacks are caller-specific: nearest-slot and emitter paths skip absent
+records, some center helpers use owner position, while several simple `MI`,
+`SS`, `IN`, and `SM` paths ignore the return value and can perform word-sized
+arithmetic with copied `0x8000` sentinels. Attachment world positions are
+normally recomputed from cached mesh data; only already-created emitter or
+particle state is saved independently.
+
+A binary-wide operand and provenance audit reduces semantic accesses to three
+instruction paths. `0x0040D1A4` reads `+0x07` through the weapon's bounded
+attachment index `0..3`; `0x004601A6` reads the same byte from fixed index zero;
+and text import at `0x0060D174` writes the byte after validating the slot code
+and number. Generic transform accessors, whole-record users, arbitrary saved
+selectors, and heading consumers never extract byte `+0x07`. Values in runtime
+indices `4..48` are therefore data-bearing and asset-preserved but semantically
+unused in this executable. The base reader/writer bulk-copy the entire
+`0x188`-byte attachment area, so arbitrary non-cannon values round-trip. For a
+cannon, initialization also caches the selected byte at weapon `+0x58`, and the
+weapon save reader/writer at `0x0045FAE1/0x0045FBDD` preserves that cached
+runtime limit separately.
+
+The remaining slot census is exhaustive over all calls to the two transform
+accessors. `SS1` is read only by `0x00550100`, which applies the cardinal
+heading-zero transform to runtime index 8, adds the owning entity's fixed-point
+XYZ position, and returns that world point to the transfer/transport state
+machine at `0x00550A10/0x00550B20`. No ordinary caller passes indices 9, 10, or
+11, so `SS2..SS4` have no semantic transform consumer. Indices 32 through 35
+are likewise never passed by normal gameplay, proving `WT1..WT4` unused in this
+build rather than merely unidentified. An unchecked projectile-selector byte
+restored from a save can still force an arbitrary index into one virtual
+resolver; this is malformed-save reachability, not a normal WT producer.
+
+The paired-emitter helper at `0x004B3EA0` first releases each previous emitter,
+then processes the two requested indices independently. For a valid attachment
+it creates an emitter at `entity_position + rotated_attachment`, associates it
+with the owner, and enables follow behavior. Resource ID `-1` suppresses both.
+Special index 49 places only the primary emitter at the entity origin and
+suppresses the secondary. The active calls use these physical pairs:
+
+| Call | Runtime pair | Converter code | Resource source | Mode OR mask |
+|---:|---:|---|---|---:|
+| `0x004AA6CB` | `38/39` | `ST1/ST2` | State-specific | `0x39` |
+| `0x004AAD6F` | `40/41` | `SE1/SE2` | Definition `+0xA0` | `0x39` |
+| `0x004AAE03` | `42/43` | `SK1/SK2` | Definition `+0xB0` | `0x3D` |
+| `0x004AAE03`, alternate | `38/39` | `ST1/ST2` | Definition `+0xA8` | `0x39` |
+| `0x004AA8BF` | `49/49` | Entity origin | Definition `+0xB8` | `0x3D` |
+
+The helper always ORs flag `0x01`; its active calls also select the `0x38`
+mode, and one argument optionally adds `0x04`, producing the masks above.
+Indices 36 and 37 (`CH1/CH2`) are handled by four direct paired paths at
+`0x0044B9E0`, `0x0049BE90`, `0x00534D30`, and `0x0041B870`. The first two keep
+both emitters and follow the owner with heading `owner_heading-0x80`; the third
+initializes both and immediately releases its references; the fourth creates
+only missing emitters, uses owner heading, and does not follow. Each slot is
+validated independently, so an absent first anchor does not suppress the
+second.
+
+Nearest-slot helpers use
+`max(abs(dx),abs(dy)) + min(abs(dx),abs(dy))/2` and replace the current choice
+only on strict improvement, so the earliest index wins ties. `0x004BFB70`
+skips absent `HT` slots and, if all are absent, returns relative index zero
+without writing its output position. The other examined HT/SM selectors include
+sentinel records in their comparison. At the primitive accessor level only X
+is tested for `INT16_MIN`; Y and Z are copied unchanged. Callers that ignore the
+return value can therefore combine malformed Y/Z or sentinel coordinates with
+the owner's position.
+
 ## Light record area
 
 The AOD parser supports two `Light` line shapes.
@@ -261,26 +727,65 @@ position vectors. `LCUFG3` confirms that these are the full-precision forms of
 `BC1..BC4`; its four vectors quantize exactly to attachment records 1..4.
 Supplied numbered spot lights begin at 1.
 
+These full-precision vectors are live game inputs rather than producer-only
+duplicates. Three render paths translate the corresponding four attached child
+meshes from `runtime_mesh + 0x1C + 0x0C*i`: `0x005DF420` reads them at
+`0x005DF860..0x005DF8EC`, `0x005E1C00` at `0x005E1F47..0x005E1F77`, and
+`render_static_mesh_objects` at `0x0060FB1D..0x0060FBA1`. An empty child slot
+leaves its vector unused.
+
+Weapon gameplay uses the separate quantized attachment record at runtime index
+`i`. `get_weapon_slot_position` and
+`get_weapon_mount_heading_and_yaw_half_range` at `0x0040D140/0x0040D180` select
+that record for functional mount position, center heading, and yaw limit. Thus:
+
+```text
+visible child-mesh translation = full-precision vector[i]
+functional weapon mount        = quantized attachment[i]
+```
+
+The reader, cache, and writer never synchronize the two. If they disagree, the
+visible weapon or child mesh is displaced from its functional mount/firing
+position, and rewriting the MSH preserves the disagreement. NaN, infinity, and
+extreme float vectors enter the child render transform without validation. The
+text-AOD explicit-box recenter independently subtracts `0.5` from these float
+X/Y values and `0x80` from the quantized X/Y words; it does not regenerate one
+representation from the other.
+
 | Record offset | Size | Type | Meaning |
 |---:|---:|---|---|
 | `0x00` | 12 | `float[3]` | Position `(x, -y, z)` |
-| `0x0C` | 12 | `float[3]` | Three AOD light parameters |
-| `0x18` | 4 | `float` | Approximate horizontal target distance |
+| `0x0C` | 12 | `float[3]` | RGB |
+| `0x18` | 4 | `float` | Approximate 3D source-target distance; visible cone length |
 | `0x1C` | 1 | `u8` | Target heading, 256 units per turn |
 | `0x1D` | 3 | bytes | Zero/padding from a dword store |
 | `0x20` | 4 | `float` | Tangent of half the cone angle |
-| `0x24` | 4 | `float` | Distance-scaled cone parameter |
+| `0x24` | 4 | `float` | Half falloff angle times approximate distance; preserved but semantically unused |
 | `0x28` | 4 | `float` | Vertical slope to target |
-| `0x2C` | 4 | `float` | Final AOD light parameter |
+| `0x2C` | 4 | `float` | Terrain-light amplitude |
 
-The exact game-facing names of the secondary light parameters are not present
-in the binary. Their widths, formulas, and positions above are confirmed. The
-documentation describes them as color/brightness/cone/length controls.
+For absolute source-target deltas sorted as `largest,middle,smallest`, the
+converter at `0x00408199..0x004082AE` computes:
 
-The public model preserves the first vector as `Position` and the second as
-`LightParameters`. It exposes the remaining values with neutral format-derived
-names and keeps the heading byte separate from all three reserved bytes. No
-light parameter passes through an 8-bit color representation.
+```text
+D = largest + middle/2 + smallest/4
+B+0x18 = D
+B+0x20 = tan(hotspot_angle/2)
+B+0x24 = falloff_angle * D / 2
+```
+
+The hotspot and falloff values are the seventh and eighth source-light floats.
+The original source names are absent from the binaries, but these producer
+formulas and the runtime uses below are confirmed.
+
+A binary-wide access audit found no semantic game read of `B+0x24`. The game
+zero-initializes all four records at `0x005F9A72`, bulk-loads them at
+`0x005FAD6C`, and bulk-saves them at `0x005FAFD9`; none of the static light,
+recenter, render, setup, or gameplay paths extracts this member. The converter
+alone writes it semantically at `0x004082AE`; its reader/writer otherwise
+preserve it in the same bulk record. Spot 4's field physically overlaps the
+dormant omni-0 green channel, but supplied omnis begin at 1, so valid content
+does not create an active semantic collision.
 
 ### Omni form
 
@@ -290,9 +795,9 @@ Omni light number `n` uses a 28-byte record at:
 base + 0x0EC + 0x1C*n
 ```
 
-It contains two `(x, -y, z)` float vectors at `+0x00` and `+0x0C`, followed by
-one float at `+0x18`. As with spot lights, its first position is also emitted as
-an eight-byte quantized attachment record.
+It contains local position `(x, -y, z)` at `+0x00`, RGB at `+0x0C`, and
+terrain-light amplitude at `+0x18`. Its position is also emitted as an
+eight-byte quantized attachment record.
 
 The spot and omni formulas intentionally address a partially overlapping common
 area. Files should follow the converter's expected light-number ranges rather
@@ -303,29 +808,6 @@ not only records known to be active. In `edbpp.msh`, unused spot positions 2..4
 are therefore `(-0.5,-0.5,0)` rather than zero. The four unused cannon-position
 vectors in the overlapping first 48 bytes have the same value. Consumers must
 not infer active lights or cannons from these position values alone.
-
-EarthTool determines static light activity from attachment records 13..16 for
-spot lights and 17..20 for omni lights. MSH writing preserves full-precision
-light and quantized attachment positions independently.
-
-### COLLADA static-light contract
-
-Active records export with stable names `SpotLight-1` through `SpotLight-4` and
-`OmniLight-1` through `OmniLight-4`; inactive records are omitted without
-compacting gaps. Standard COLLADA color is white. Position and the spot cone
-angle, calculated as twice the arctangent of the stored half-angle tangent, are
-the only projected standard values.
-
-The complete record is stored as invariant round-trip text in an unqualified
-`msh_static_light` element with `version="1"`, nested under an `EARTHTOOL`
-technique in `extra`. Its `source_number` must agree with the numbered light
-name. Import rejects malformed or incomplete metadata, unsupported versions,
-conflicts, duplicates, out-of-range numbers, and excess records. If metadata is
-absent, import requires the same numbered names, uses standard COLLADA color as
-`LightParameters`, maps only confirmed fields, and zeroes the rest. When an
-active imported position quantizes to all three `0x8000` sentinel coordinates,
-only the attachment X coordinate is moved by one fixed-point unit; the complete
-light record retains its exact position.
 
 `EDBBC` validates multiple spot records and the explicit-box recenter. Its
 light 1 source position `(0.320,-1.390,0.463)` is stored approximately as
@@ -353,8 +835,117 @@ lights use consecutive attachment records.
 
 `EDUA22.msh` has one cannon/`BC`-range attachment at record 1, spot light 1 at
 record 13, and `HT1`, `SM1`, `IN0`, and `CE0` at records 25, 29, 45, and 46.
-Record 1 has extra byte zero rather than the ordinary `0x80`, consistent with
-the extended slot syntax supplying an explicit quantized angle.
+Record 1 has yaw half-range zero rather than the ordinary `0x80`, making it a
+fixed cannon mount and confirming use of the extended slot syntax.
+
+### Static light runtime semantics
+
+The static vtable dispatches spot terrain lighting to `0x00610E40`, visible
+spot cones/flares to `0x00610FF0`, and omni terrain lighting to `0x00611D80`.
+All read the owning entity's light mask at `entity+0x38`: bits `0..3` select
+spots 1..4 and bits `4..7` select omnis 1..4. A selected light is still skipped
+when the X word of its quantized attachment is `0x8000`; Y and Z are not checked.
+
+For zero-based selected slot `i`, the game-facing records are:
+
+```text
+spot B = runtime_mesh + 0x04C + 0x30*i   // serialized base +0x048
+omni B = runtime_mesh + 0x10C + 0x1C*i   // serialized base +0x108
+```
+
+The spot fields have these observed meanings:
+
+| Offset | Runtime use |
+|---:|---|
+| `B+0x00..0x08` | Local source XYZ |
+| `B+0x0C..0x14` | RGB floats |
+| `B+0x18` | Approximate source-target distance and visible cone length |
+| `B+0x1C` | Target heading; visible rendering loads the full dword |
+| `B+0x20` | Cone half-width tangent |
+| `B+0x24` | Preserved falloff metadata with no semantic game consumer |
+| `B+0x28` | Vertical target slope |
+| `B+0x2C` | Terrain-light amplitude |
+
+Let `(X,Y,H)` be the owner's unsigned fixed-point XY and byte heading, `T`
+truncate each term toward zero, and `s/c` the heading tables. The spot terrain
+handler computes one target point, not illumination along the cone:
+
+```text
+a = (H - B.heading - 64) & 255
+R = B.length * 256 * (reduced_detail ? 0.5 : 1)
+
+light_x = X + T(R*s[a])
+            - T(-256*B.x*c[H]) - T(-256*B.y*s[H])
+light_y = Y + T(R*c[a])
+            - T( 256*B.x*s[H]) - T(-256*B.y*c[H])
+
+amplitude = B.terrain_amplitude * Graph.Mesh.Light.Mul
+```
+
+Each displayed product is truncated separately. Normal detail calls the large
+radial kernel at `0x006221B0`; reduced detail calls the small kernel at
+`0x006223D0`. The unresolved mode flag is known only by its effects: it halves
+terrain target length, quarters visible cone length, and selects the small
+kernel. It does not affect omnis.
+
+Visible spot rendering uses source `(B.x,B.y,B.z)`, direction
+`(s[heading],-c[heading])`, perpendicular `(c[heading],s[heading])`, and:
+
+```text
+L = B.length * (reduced_detail ? 0.25 : 1)
+far_left.xy  = source.xy + L*(direction + B.cone*perpendicular)
+far_right.xy = source.xy + L*(direction - B.cone*perpendicular)
+far_left.z = far_right.z = source.z + L*B.vertical_slope
+```
+
+Cone RGB is normally multiplied by `Graph.Mesh.Spot.Mul` and the current
+scene-light factor. When global spot-color use is disabled, the handler replaces
+all three channels with that scene factor, producing a neutral cone. The cone is
+always submitted. A camera-facing flare is additionally submitted only when
+`(camera_heading-camera_offset-heading-0x80)&255` lies in `0..0x40` or
+`0xC0..0xFF`; its first pass uses RGB scaled by
+`Graph.Mesh.SpotFlare.Mul`, followed by a neutral scene-color pass. The flare
+depth bias uses `Graph.Mesh.Light.Distance`.
+
+An omni record is local XYZ, RGB, and amplitude at `+0x18`. Its terrain point is:
+
+```text
+light_x = X + T(256*B.x*c[H]) - T(-256*B.y*s[H])
+light_y = Y + T(256*B.y*c[H]) - T( 256*B.x*s[H])
+amplitude = B.amplitude * Graph.Mesh.Omni.Mul
+```
+
+Omnis always use the large radial kernel and ignore local Z. An exhaustive
+audit found no other semantic read of float Z at serialized base
+`+0x110+0x1C*i`, and no normal attachment caller uses the corresponding
+quantized mirror records at runtime indices `16..19`. The radial kernel instead
+uses a constant one-world-unit vertical separation. Text import writes both Z
+representations from the source, but binary loading, caching, and writing
+preserve them independently without comparison. Conflicting or non-finite
+float Z and conflicting quantized Z therefore have no normal gameplay effect.
+Only a malformed saved arbitrary attachment selector can expose a mirror
+record's quantized Z through the generic accessor.
+
+Both kernels scan a fixed footprint: offsets `-5..+6` for the nominal 12x12
+large stamp and `-2..+2` for the 5x5 small stamp, clipped to the active
+terrain-light window.
+For fixed-point deltas `dx,dy`, they approximate the distance from a constant
+one-unit vertical separation:
+
+```text
+largest,middle,smallest = sort_descending(abs(dx),abs(dy),256)
+d = (largest + middle/2 + smallest/4) / 256
+attenuation = amplitude / (d*d + 1)
+if attenuation < 0.05: attenuation = 0
+dst.rgb = max(dst.rgb, B.rgb * attenuation) // independently per channel
+```
+
+Exactly `0.05` survives. RGB and amplitude are not clamped, and footprint size
+does not grow with amplitude. NaN attenuation normally loses the unordered
+maximum comparison, while positive infinity can be stored. Negative length,
+cone, slope, RGB, and amplitude are accepted. Visible rendering's dword heading
+load means corrupt nonzero padding at `+0x1D..+0x1F` can index beyond the
+256-entry trigonometric tables; the terrain path masks its derived angle.
 
 ## Static render object
 
@@ -379,7 +970,7 @@ next-record pointer. Read fields in the following order using a moving cursor.
 | 14 | `M*64` | `float[M][16]` | Baked 4x4 transform matrices |
 | 15 | 4 | `u32` | Animation type |
 | 16 | 12 | `float[3]` | Object pivot/position `(x, -y, z)` |
-| 17 | 1 | `u8` | Barrel maximum angle, 256 units per turn |
+| 17 | 1 | `u8` | Source-authored Barrel maximum raise angle, 256 units per turn; preserved but not enforced by the game |
 | 18 | 4 | `u32` | Next-record marker |
 | 19 | variable | `StaticObject` | Present immediately if the marker is nonzero |
 
@@ -416,17 +1007,60 @@ For lane `i = 0..3`:
 | `0x50 + 4*i` | `float` | Normal Z |
 | `0x60 + 4*i` | `float` | Texture U |
 | `0x70 + 4*i` | `float` | Texture V, generated as `1 - AOD_V` |
-| `0x80 + 4*i` | `float` | Third texture component/reserved; generated as zero by the original converter and preserved raw by EarthTool |
+| `0x80 + 4*i` | `float` | Texture W/reserved; generated as zero and unused |
 | `0x90 + 2*i` | `u16` | Earlier render vertex sharing the normal, or `0xFFFF` |
 | `0x98 + 2*i` | `u16` | Earlier render vertex sharing the source position, or `0xFFFF` |
 
 Unused lanes in the final block retain zero/default values. Readers must use
 `V`, not `B*4`, as the real vertex count.
 
+The third texture-coordinate lane at `0x80` is a retained layout slot, not a
+homogeneous position component. `intern_render_vertex` at `0x00406CD0` copies
+the AOD U coordinate to `0x60`, stores `1-V` at `0x70`, and explicitly writes
+zero at `0x80` for every new render vertex. The converter's zero-filling block
+allocator also leaves padding lanes at zero.
+
+The game reader at `0x006126D0` loads each `0xA0`-byte block verbatim. When it
+applies the global texture scale, it multiplies only U and V and deliberately
+copies the `0x80` value back unchanged. All traced source-vertex transform paths
+for D3D, Glide, OpenGL, software, and their optimized variants consume U and V
+but never read the `0x80` lane. Representative entry points include
+`0x005C56A0`, `0x005EBD50`, `0x005FD650`, `0x00629390`, `0x0062C690`, and
+`0x0062D6E0`.
+
+All 158,084 physical lanes in the 3,099 render objects across the 959 static
+payloads in the extracted corpus contain the exact zero bit pattern. This count
+includes 155,605 active vertices and 2,479 unused final-block lanes. Writers
+targeting the generated format must emit zero; readers may ignore or preserve
+the slot because it has no rendering effect in the known game build.
+
 The converter does not serialize the AOD vertex, UV, and normal arrays
 separately. For each material it interns unique `(vertex index, UV index,
 normal index)` tuples into render vertices. A position split by UV seams or
 hard normals therefore appear more than once.
+
+The game uses both sharing links as unsigned absolute render-vertex indices;
+`0xFFFF` is the only sentinel. When honored, `+0x98` initially copies the
+complete `0x40`-byte transformed output record from the earlier vertex, reusing
+its transformed position and projection results. Later per-vertex stages
+overwrite U and V, preserving texture seams. The `+0x90` link separately copies
+one backend lighting/color dword, at output offset `+0x34` or `+0x3C` depending
+on the transform path. Links are direct copies, not recursively followed chains.
+
+Scalar D3D, Glide, and OpenGL transform routines honor both links. For small
+objects, their accelerated paths do the same. At 16 or more vertices, the D3D
+and OpenGL accelerated paths calculate all attributes directly and ignore both
+links; the accelerated non-FOGCOORD Glide path ignores the position link but
+still honors the normal link. This difference is invisible for valid data
+because the links duplicate values the accelerated calculations reproduce.
+
+No consumer checks that a link is less than the current index, vertex count, or
+global transformed-output capacity. A self-link skips calculation and retains
+the current staged or stale output. A forward link reads an output record not
+yet produced. Larger values read stale records or leave the output allocation;
+an honored malformed position link copies 64 unchecked bytes and a malformed
+normal link copies four. The default global output allocation contains 50,000
+records, so link values `50000..65534` are outside that initial allocation.
 
 ### Triangle record
 
@@ -437,10 +1071,10 @@ hard normals therefore appear more than once.
 | `0x04` | 2 | `u16` | Render vertex 2 |
 | `0x06` | 2 | `u16` | Triangle flags |
 
-| Bit | Generated meaning |
-|---:|---|
-| `0x0001` | Base bit, set unconditionally for every emitted triangle |
-| `0x0002` | Upward-surface bit, set when the recomputed normalized face Z is strictly greater than `0.5` |
+| Bit | Generated meaning | Runtime interpretation |
+|---:|---|---|
+| `0x0001` | Set unconditionally for every emitted triangle | Include in the normal material pass |
+| `0x0002` | Set when the recomputed normalized face Z is strictly greater than `0.5` | Include in the snow-overlay pass |
 
 The flags are generated by `parse_static_object`; they are not copied from the
 AOD `FaceList`. For serialized render positions `p0`, `p1`, and `p2` in index
@@ -464,16 +1098,14 @@ downward-facing, and steeper surfaces retain value `1`. Degenerate triangles
 also retain `1` because normalizing their zero cross product yields an unordered
 floating-point result and the strict comparison fails.
 
-This derivation describes the original AOD-to-MSH converter. EarthTool exposes
-the complete word as unsigned `Face.Flags` and preserves it verbatim when an MSH
-is read and written; it does not recompute the flags from geometry. Importers
-that have no original MSH flag metadata must generate a value instead; the
-current COLLADA importer uses the base value `0x0001`.
-
-The producer behavior is fully determined, but the runtime interpretation of
-the unconditional base bit remains unknown because no game-side MSH reader is
-available in this corpus. It should not be named `visible`, `collidable`, or
-`walkable` without consumer evidence.
+The game treats the word as a render-pass membership mask. The Direct3D, Glide,
+and OpenGL triangle renderers all test `(requested_mask & triangle_flags) != 0`
+before submitting a triangle. `render_static_mesh_objects` requests mask `1`
+for the normal material pass. When `Graph.Mesh.Snow` is enabled and the current
+object has a nonzero snow level, it performs a second pass with
+`Textures\Snow.tex` and mask `2`. Thus value `1` renders only normally, while
+value `3` also accepts the snow overlay. No collision or walkability meaning is
+implied by these bits.
 
 ### Object flags
 
@@ -549,7 +1181,7 @@ reader invariant:
 trailing_unwind_count == final_render_record_source_depth + 1
 ```
 
-All 955 official static files satisfy this invariant. Their values range from
+All 957 official static files satisfy this invariant. Their values range from
 1 to 7: 699 files store 1, 199 store 2, 28 store 3, 19 store 4, eight store 6,
 and two store 7. No file in this corpus stores 5.
 
@@ -557,6 +1189,71 @@ This explains the earlier examples. `EDBBC` emits a root material partition
 after its children, so the final record is back at depth 0 and the trailing
 unwind is 1. `EDWCA1` ends on its depth-1 barrel and stores 2. `UCSUHL3` ends
 on a depth-3 leaf and stores 4.
+
+The game renderer at `0x0060F100` implements the hierarchy using a global live
+matrix at `0x009FDEB0`, saved matrices beginning at `0x009FDAF0`, and a global
+depth at `0x009FDF58`. For each record it pops the low-byte count first, then
+pushes the restored current matrix if `0x800` is set:
+
+```text
+unwind = flags & 0xFF
+depth -= unwind
+restore `unwind` saved matrices
+
+if flags & 0x800:
+    saved[depth] = current
+    depth += 1
+    apply this record's local transform
+```
+
+This ordering matters for a combined flag such as `0x00000803`: the renderer
+restores the ancestor before saving it as the new object's parent. Additional
+material partitions without `0x800` reuse the live transform and ignore their
+position, tracks, ViewerFaced, Barrel, and Rotor bits. At EOF it computes the
+unsigned value `trailing_unwind-1` and performs that many additional pops. Thus
+zero wraps to `0xFFFFFFFF`; it does not mean no unwind.
+
+For nested non-ViewerFaced records, affine transforms are prepended in this
+order:
+
+```text
+if Barrel: current = Barrel * current
+current = Translation * current
+if Rotor:  current = Rotor * current
+if matrix track exists: current = Matrix[frame] * current
+if scale track exists:  current = Scale[frame] * current
+```
+
+With row-vector vertices, the vertex therefore experiences scale, animated
+matrix, rotor, translation, barrel, then the parent transform. Translation uses
+the selected translation track when present and otherwise the serialized
+position. Barrel reads the current entity angle from global `0x009FDF74`; Rotor
+reads `0x009FDF78` and performs a local Z rotation. The serialized barrel byte
+at object `+0x90` is not read here.
+
+ViewerFaced `0x100` is a mutually exclusive nested-object branch. It uses the
+static position rather than the translation track, creates a camera-facing
+orientation, suppresses Barrel, Rotor, and the matrix track, then still applies
+the selected scale track. Consequently ViewerFaced wins when `0x100`, `0x200`,
+and `0x400` are combined. All three bits are inert when `0x800` is absent.
+
+`MI1..MI4` marker bits remain active independently of `0x800`. After rendering
+the marked record, each set bit queries the owning entity for the corresponding
+attached object, places it at parent `MI` minus the child's rotated `IN` offset,
+renders its mesh and up to two further attachment levels, then restores the
+matrix and render globals. This temporary traversal can require three saved
+matrices beyond the static source hierarchy.
+
+Only 15 non-overlapping `0x40`-byte saved matrices exist. Pushing at depth 15
+overwrites the live matrix; greater depths overwrite adjacent globals. Neither
+pushes nor pops have bounds checks. An unwind greater than current depth reads
+before the save area, while a trailing value larger than `final_depth+1` can
+pop matrices owned by the caller. A smaller trailing value leaks depth and
+leaves a descendant transform live. Correct restoration requires exactly:
+
+```text
+trailing_unwind = 1 + sum(nested_bit - record_unwind)
+```
 
 The published [The Moon Project object identifier
 list](https://insideearth2150.github.io/Documentation/The%20Moon%20Project/MOON-C/main/identifiers.htm)
@@ -647,7 +1344,7 @@ translations; `EDUTA1.msh` stores 51 translations in each type-3 record; and
 Thus type 3 uses the same three optional track arrays and reverse-packed length
 rule as the other animation types.
 
-`EDWMM31.msh` is the sole track-length exception in the 955-file official
+`EDWMM31.msh` is the sole track-length exception in the 957-file official
 static corpus. Its header declares type-2 length 12, but one type-2 record
 stores 13 translations. The first translation differs, while translations 1
 through 12 equal the record position. Every other official track array either
@@ -664,9 +1361,233 @@ barrel_byte = trunc(barrel_radians * 128 / pi)
 
 `0.3492` radians (approximately 20 degrees) therefore becomes `14`.
 
+The source documentation defines this as the Barrel's maximum raise angle. At
+`0x004095FA..0x0040963D` the converter computes the unbounded integer
+`q = trunc(source_radians * 128/pi)`. If `q` is nonzero, it stores `q & 0xFF`
+and sets object flag `0x200`; there is no range clamp. The nonzero test occurs
+before byte truncation, so a full-turn multiple can store byte zero while still
+enabling the Barrel flag.
+
+The game reader restores the byte to render-object `+0x90` at
+`0x00612D9D`, and `write_static_render_object` writes it back at
+`0x006125FE`. A binary-wide operand and object-provenance audit found no other
+post-load read. `render_static_mesh_objects` tests flag `0x200` but obtains the
+actual orientation from the owning entity's live angle at `0x009FDF74`.
+Constructors, destructors, setup, gameplay, attachment rendering, and saves do
+not reinterpret or enforce the serialized limit. It is therefore round-tripped
+source metadata whose associated flag selects the runtime-controlled Barrel
+transform.
+
 The supplied `Animation 2, 6` produces object animation type `2`. Matrix values
 are 16 raw little-endian floats in the converter's Direct3D-era matrix layout;
 do not transpose the byte stream when parsing.
+
+At runtime, matrices are row-major affine transforms applied to row vectors.
+For animation type `a`, the renderer selects:
+
+```text
+frame = (mesh.frame_word >> ((24 - 8*a) & 31)) & 0xFF
+```
+
+The x86 shift mask makes binary animation types outside `0..3` alias modulo
+four. A nonempty scale, translation, or matrix track is indexed directly by
+this byte; the renderer never checks `frame < track_count`. Empty translation
+uses the static position, while empty scale and matrix tracks mean identity.
+Mismatched nonempty track lengths can therefore read beyond any shorter array.
+
+Entity frame bytes `+0x34..+0x37` map to types 0..3 and are packed into the
+mesh frame dword from most-significant to least-significant byte before static
+rendering. Type 0 is the common automatic loop:
+
+```text
+frame = (frame + 1) & 0xFF
+effective_length = length != 0 ? length : 1
+if frame == effective_length: frame = 0
+```
+
+Apart from natural byte overflow, it resets only on equality, so most corrupted
+frames already above the length are not immediately repaired.
+
+#### Type 1-3 controller semantics
+
+The remaining channels are entity-state-machine domains, not three universal
+playback algorithms:
+
+| Type | Length byte | Frame byte | Observed roles |
+|---:|---:|---:|---|
+| 1 | mesh `+0x16` | entity `+0x35` | Multi-phase forward/wait/reverse operations, terminal predicates, attachment and ownership transitions |
+| 2 | mesh `+0x15` | entity `+0x36` | Percentage/timed progress, counted stepping, configured ranges, movement and particle/object operations |
+| 3 | mesh `+0x14` | entity `+0x37` | Small continuous loops and independent configured target ranges |
+
+Controllers normalize zero only in local arithmetic:
+
+```text
+L = raw_length != 0 ? raw_length : 1
+terminal = L - 1
+
+forward: C = F + 1;             store C if C < L
+reverse: C = F - 1;             store low_byte(C) if signed(C) < L
+directed: C = u8(F) + i8(dir);  store low_byte(C) if signed(C) < L
+
+percentage(P) = trunc0((L-1) * P / 100)
+timed(remaining,total) = total > 0
+    ? trunc0((total-remaining) * (L-1) / total)
+    : 0
+```
+
+Configured-frame setters likewise accept signed `S` whenever `S < L`; several
+do not require `S >= 0`. Target-range setup stores the configured start frame,
+`abs(target-start)` as a remaining count, and direction `+1` or `-1`, then
+consumes one step per update. Separate counters control update timing; the mesh
+length is only the legal frame domain and source of terminal/midpoint landmarks.
+
+Type 1 controllers are concentrated at `0x00425770`, `0x004260C0`,
+`0x00426AD0`, `0x004274D0`, `0x00427CE0`, `0x00428330`, `0x00428590`,
+`0x00430540`, `0x00430950`, and `0x0043C1C0`; initialization and predicates are
+at `0x00423810..0x00423A70`, `0x0042B3B0`, `0x0042B690`, and `0x0043C580`.
+They use first, midpoint, and terminal frames to trigger attachment/resource
+work, spawning, release, ownership changes, wait phases, and guarded reverse
+motion. Their reverse phases normally test zero before decrementing.
+
+Type 2 has reusable counted steppers at `0x0045DB00/0x0045DB40`, percentage
+selection at `0x00417D20/0x00420280`, timed progress at
+`0x0042BBB0/0x0043C310`, configured-frame sequencing at
+`0x004605A0/0x00460750`, and signed-range families at
+`0x0043D480`, `0x0049A650`, `0x0052F000..0x0052F2F0`, `0x0054CD90`, and
+`0x00550160..0x00550230`. Higher-level phase controllers include
+`0x00426F50`, `0x00427290`, `0x004274D0`, `0x00427CE0`, `0x0044F6B0`,
+`0x00450C60`, `0x00553CA0`, `0x005577A0`, `0x0055A180`, and `0x0055B490`.
+
+Type 3 loops occur in `0x00427CE0`; they increment the byte and reset to zero
+when the zero-extended result is greater than or equal to `L`. Four configured
+target ranges in `0x0055B490` use a remaining count and signed direction;
+`0x0042BBB0` and `0x0055D1C0` reset the channel during owner operations.
+
+The higher-level state machines identify the concrete gameplay operations. The
+stripped executable does not expose reliable C++ class names for several
+owners, so the table uses behavior rather than invented names:
+
+| Controller | Channel | States/modes | Animation-coupled gameplay operation |
+|---:|---:|---|---|
+| `0x00425770` | 1 | `1`, `5..9` | Pays for and emits a queued child object, opens/reveals it, waits for its operation, closes it, then advances or repeats the queue. |
+| `0x0043C580`, `0x0043C1C0`, `0x0043C310` | 1/2 | `0..2` | Opens a temporary placement visual, consumes resource category 7 while progress selects type-2 frames, places the associated object, then reverses and destroys the visual. |
+| `0x0045BA20` | 2 | `0x1C..0x28` | Opens an eligible-unit transfer, commits or reverses the host relationship, then runs a configured post-transfer span and releases the reservation. |
+| `0x0052FA30` | 2 | modes `1..4`, states `0x2D..0x34` | Runs the initial, active, and finish spans for `CommandRepair`, `CommandConvert`, `CommandRepaint`, and `CommandUpgrade`; gameplay side effects occur when counters expire even if visual frames were rejected. |
+| `0x00550B20` | 2 | modes `1..3`, states `0x48..0x50` | Acquires a unit into a transporter, puts it at an explicit point, or drops it at an attachment-relative point; the two configured spans bracket attachment/detachment and visibility changes. |
+| `0x00427CE0` | 1/2/3 | `0x13..0x17` | Opens construction/deconstruction, consumes resources while leveling terrain and cycling type 3, places or refunds the associated target, then closes the temporary visual. |
+| `0x0055B490` | 2/3 | outer `3/4`, inner `0..1`, `3..10` | Acquires units into an onboard list or releases them to the grid; type 2 drives the opening states and four type-3 spans bracket reservation, list insertion/removal, child-slot updates, and final placement. |
+
+Specific landmark behavior matters for malformed assets. `0x00425770` triggers
+its child callback when type-1 frame `+0x35` reaches the configured count and
+tests zero before the closing decrement. Its threshold-driven open phase can
+stall forever when the requested terminal exceeds the mesh's raw type-1
+length. The alternate construction path in `0x00427CE0` can similarly stall
+when its definition landmark exceeds the type-2 domain. By contrast, the
+counted type-2/type-3 transfer and target-operation families expire their
+separate counters and perform ownership, placement, repair, conversion,
+repaint, upgrade, or onboard-list mutations even when an out-of-range frame was
+not stored.
+
+The target-operation modes are distinguished by command registry strings and
+side effects rather than guessed class identity. Mode 1 periodically repairs
+the target, mode 2 invokes conversion-related target virtuals, mode 3 calls the
+repaint operation with its configured byte, and mode 4 replaces/upgrades the
+target while transferring ownership and references. Their initial, active, and
+finish spans come from separate definition ranges. Descending finish spans and
+the transporter reverse spans all share the frame-zero-to-`0xFF` defect.
+
+The construction controller's type-3 frame is only a visual loop while
+`0x0042BBB0` performs resource payment and terrain leveling. The transporter at
+`0x0055B490` similarly lets its counters control completion: malformed ranges
+can skip or stale the visual, but destination occupancy reservation and onboard
+list insertion/removal still occur. This separation explains why animation
+corruption is not generally a transaction guard for the associated gameplay
+operation.
+
+Lengths `0` and `1` normally expose frame zero only, although raw-length gates
+can disable an operation instead of normalizing zero. Length `255` is ordinary:
+bounded consumers accept `0..254`, and a type-3 loop resets when frame 254
+increments to 255. The reverse and signed-direction equations have no lower
+bound. From frame zero, direction `-1` satisfies `-1 < L` and stores byte
+`0xFF`; negative configured frames can do the same. That invalid frame is one
+past a 255-entry track. Timed-progress setters also check only the upper bound:
+when `remaining > total > 0`, their negative candidate can likewise truncate
+to `0xFF` when stored. A nonpositive total bypasses division and selects zero.
+
+`read_entity_mesh_state` at `0x004781E0` and `write_entity_mesh_state` at
+`0x004783D0` load and save all four frame bytes verbatim. Load resolves the mesh
+first but never checks restored frames against its lengths. Static rendering
+then packs the bytes unchanged into mesh `+0x18` and directly indexes each
+nonempty track, so `0xFF` and other stale out-of-range values persist until a
+class-specific update explicitly replaces them.
+
+The converter's textual path can create track counts shorter than a declared
+animation length, and its type 1..3 length insertion is not byte-masked before
+shifting, so malformed negative or oversized source lengths can spill into
+neighboring packed channels. The binary reader likewise imposes no range check
+on packed lengths, frames, types, or track counts.
+
+### Malformed static records
+
+`read_static_render_object` at `0x006126D0` treats `V`, `B`, `L`, `T`, `S`,
+`P`, and `M` as unrestricted `u32` values. All byte-size multiplications occur
+in wrapping 32-bit arithmetic before allocation, zero filling, and stream
+transfer:
+
+```text
+vertex bytes      = wrap32(B * 0xA0)
+triangle bytes    = wrap32(T * 8)
+scale bytes       = wrap32(S * 12)
+translation bytes = wrap32(P * 12)
+matrix bytes      = wrap32(M * 64)
+```
+
+The zero-filling allocator at `0x0070AD10` does not report failure to these
+callers. Requests above its allocator ceiling can return null and are then used
+by `rep stos`; wrapped small allocations are followed by loops based on the raw
+count. The vertex-block helper, for example, still advances through `B` logical
+`0xA0`-byte elements after allocating `wrap32(B*0xA0)` bytes. Array growth also
+uses signed capacity comparisons, so counts at or above `INT_MAX` do not become
+clean rejections.
+
+After reading the block array, the reader immediately loops over `V` vertices
+to apply global UV scale. It computes each lane from `i/4` without checking
+`V <= 4*B`; a short block array therefore causes out-of-bounds reads and writes
+during loading, before rendering begins. Triangle vertex indices are never
+validated against `V`. Render backends multiply each `u16` index by the
+transformed-output stride and read that record directly.
+
+Static texture length behaves like the dynamic string lengths except that zero
+still allocates a one-byte empty string and calls the texture cache. It allocates
+`wrap32(L+1)`, reads `L`, writes a terminator at `buffer+L`, and interprets the
+result as a C string. Embedded NUL tails are consumed but omitted from the cache
+key. `L=0xFFFFFFFF` wraps the allocation request to zero and writes the
+terminator at `buffer-1`. If the stream transfer fails after allocation, the
+temporary buffer is leaked. The stream copy routine compares large requested
+sizes through signed branches, so values at or above `0x80000000` can enter a
+huge copy rather than fail safely.
+
+A zero array count frees an existing array; nonzero counts resize it before the
+corresponding stream transfer. Loading is therefore non-transactional inside an
+object. Normal asset loading constructs a fresh mesh, however, and destroys the
+whole mesh when the reader returns false. The static render-object destructor
+recursively destroys an already-linked next record and frees its texture and
+four arrays, so ordinary reported failures do not leak completed child records.
+Access violations during unchecked allocation or copying bypass that cleanup.
+
+The next-record dword is tested only for zero. A nonzero value allocates a fresh
+`0x94`-byte object and recursively reads it; the serialized value itself is
+never dereferenced. There is no recursion limit. Allocation failure is not
+checked before invoking the child reader on the null pointer. A failed recursive
+read is linked before failure propagates so the top-level destructor can reclaim
+it. `read_static_mesh` returns immediately after the first zero marker and does
+not compare stream position with resource length, so trailing bytes are accepted.
+
+Object flags and trailing unwind are also accepted without parser validation.
+Their matrix-stack underflow/overflow occurs later in `0x0060F100` as described
+above. A robust reader should independently require `B=ceil(V/4)`, validate all
+triangle and sharing indices, bound every array multiplication and recursion,
+and verify both hierarchy balance and exact EOF.
 
 ## Dynamic object
 
@@ -679,38 +1600,34 @@ object's `MESH` magic.
 | `0x368` | 4 | `u32` | Effect type |
 | `0x36C` | 4 | `u32` | Light type |
 | `0x370` | 4 | `i32` | First source frame |
-| `0x374` | 4 | `i32` | Frame count, `last-first+1` |
+| `0x374` | 4 | `i32` | Frame count, `last-first+1`; signed in lifetime mode, unsigned divisor in periodic mode |
 | `0x378` | 4 | `i32` | Sprite-sheet column count |
-| `0x37C` | 4 | `i32` | Sprite-sheet row count |
-| `0x380` | 4 | `i32` | Third `Frames` parameter |
+| `0x37C` | 4 | `i32` | Sprite-sheet row count; producer metadata, not read by runtime renderers |
+| `0x380` | 4 | `i32` | Frame period: `0` selects lifetime animation; otherwise treated as unsigned global ticks per frame |
 | `0x384` | 4 | `float` | `1.0 / column_count` |
 | `0x388` | 4 | `float` | `1.0 / row_count` |
-| `0x38C` | 16 | `float[4]` | Primary size rectangle |
-| `0x39C` | 16 | `float[4]` | Secondary size rectangle |
-| `0x3AC` | 4 | `float` | Fifth `Size` parameter; Width uses half-width |
-| `0x3B0` | 4 | `float` | Signed half-span `(size[2]-size[0])/2`; Width uses half-width |
-| `0x3B4` | 4 | `u32` | Reserved/unknown; generated as zero |
+| `0x38C` | 16 | `float[4]` | Start effect rectangle `(x0,y1,x1,y0)` |
+| `0x39C` | 16 | `float[4]` | End effect rectangle `(x0,y1,x1,y0)` |
+| `0x3AC` | 4 | `float` | Effect Z/camera-depth offset; fifth `Size` value |
+| `0x3B0` | 4 | `float` | Signed ribbon half-width `(size[2]-size[0])/2`; Width uses half-width |
+| `0x3B4` | 4 | `u32` | Reserved zero; serialized but unused |
 | `0x3B8` | 4 | `u32` | Additive flag |
-| `0x3BC` | 12 | `float[3]` | Light vector after scalar multiplication |
+| `0x3BC` | 12 | `float[3]` | Terrain-light RGB after scalar multiplication |
 | `0x3C8` | 12 | `float[3]` | Color RGB |
-| `0x3D4` | 4 | `float` | Fourth `Color` parameter |
-| `0x3D8` | 4 | `i32` | Optional third `Alpha` parameter/mode |
-| `0x3DC` | 4 | `float` | Second AOD `Alpha` value |
-| `0x3E0` | 4 | `float` | First AOD `Alpha` value |
-| `0x3E4` | 4 | `float` | Second AOD `Scale` value |
-| `0x3E8` | 4 | `float` | First AOD `Scale` value |
-| `0x3EC` | 12 | `float[3]` | Position `(x, -y, z)` |
-| `0x3F8` | 12 | `float[3]` | Position2 `(x, -y, z)` |
-| `0x404` | 4 | `u32` | Mesh-name length `A` |
+| `0x3D4` | 4 | `float` | Visible terrain-light gain for Smoke and generic attached particles; fourth `Color` parameter |
+| `0x3D8` | 4 | `i32` | Alpha timing mode: zero uses frame phase, nonzero uses lifetime progress |
+| `0x3DC` | 4 | `float` | End alpha; second AOD `Alpha` value |
+| `0x3E0` | 4 | `float` | Start alpha; first AOD `Alpha` value |
+| `0x3E4` | 4 | `float` | End model scale; second AOD `Scale` value |
+| `0x3E8` | 4 | `float` | Start model scale; first AOD `Scale` value |
+| `0x3EC` | 12 | `float[3]` | Child start translation `(x, -y, z)` |
+| `0x3F8` | 12 | `float[3]` | Child end translation `(x, -y, z)` |
+| `0x404` | 4 | `u32` | Mesh-name length `A`; unrestricted by the game reader |
 | `0x408` | `A` | bytes | Mesh name, no NUL |
-| next | 4 | `u32` | Texture-path length `B` |
+| next | 4 | `u32` | Texture-path length `B`; unrestricted by the game reader |
 | next | `B` | bytes | Texture path, no NUL |
-| next | 4 | `u32` | Dynamic child count `C` |
+| next | 4 | `u32` | Dynamic child count `C`; unrestricted unsigned loop bound |
 | next | variable | `DynamicObject[C]` | Complete child records, each beginning `MESH` |
-
-The public properties for these three color-related fields are `LightVector`,
-`ColorRgb`, and the separate `ColorParameter`. They preserve raw floating-point
-values, including finite values outside `0..1`.
 
 With empty strings and no children, one dynamic record is `0x410` bytes. Each
 child is a complete record with its own common base header and effect extension,
@@ -754,18 +1671,148 @@ properties retain these constructor values:
 |---|---|
 | Light type | `Const` (`0`) |
 | Frames and reciprocals | All zero |
-| Primary and secondary size | `(-0.25,0.25,0.25,-0.25)` |
-| Fifth size parameter and signed half-span | `0.25`, `0.25` |
+| Start and end effect rectangles | `(-0.25,0.25,0.25,-0.25)` |
+| Effect Z/depth parameter and signed ribbon half-width | `0.25`, `0.25` |
 | Reserved and additive | `0`, `0` |
-| Light vector | `(0,0,0)` |
-| Color | `(1,1,1,1)` |
+| Terrain-light RGB | `(0,0,0)` |
+| Color RGB and visible terrain-light gain | `(1,1,1,1)` |
 | Alpha | mode `0`, values `(1,1)` |
 | Scale | `(0,0)` |
-| Position and Position2 | `(0,0,0)` |
+| Child start and end translations | `(0,0,0)` |
 | Mesh name, texture name, children | empty, empty, `0` |
 
 Omitting an effect `Type` leaves the constructor value zero. No symbolic
 `Type` text maps to zero; unrecognized nonempty type text is rejected.
+
+The official binary corpus is even more uniform. All 445 dynamic BaseHeaders
+(194 roots and 251 children) are byte-identical, with SHA-256
+`5a904730f6b7b8ad3bea37d954b6d108c2f4bd62ee172459215ab527ddd39d6b`.
+Every inherited animation, footprint, box, static-light, and extent field is
+zero. All 21,805 attachment records contain the absent sentinel
+`00 80 00 80 00 80 00 00`. This does not mean every inherited field is ignored
+by the executable; it means the shipped dynamic assets never exercise the
+generic consumers described below.
+
+### Inherited BaseHeader runtime applicability
+
+The common binary reader preserves the entire BaseHeader for both static and
+dynamic classes. Runtime offsets initially differ from serialized MESH-relative
+offsets by four bytes. An in-memory-only pointer inserted between the rotated
+descriptors and directional maps increases the difference to eight bytes for
+the maps and all following fields.
+
+| Serialized field | Runtime member | Dynamic-object behavior |
+|---|---:|---|
+| Box mask `+0x00C` | `+0x010` | Preserved; no direct gameplay consumer. It is producer input for precomputed static footprint data. |
+| Animation lengths `+0x010` | `+0x014` | Dynamic rendering ignores them, but generic entity animation controllers can read them if a dynamic mesh is installed as an ordinary entity's primary mesh. |
+| Animation frames `+0x014` | `+0x018` | Preserved and sometimes overwritten by generic attachment preparation, but no valid dynamic vtable method reads them. |
+| Static light storage `+0x018..+0x177` | `+0x01C..+0x17B` | Preserved but disabled by dynamic virtual dispatch. |
+| Box heights `+0x178..+0x197` | `+0x17C..+0x19B` | Live through class-agnostic footprint-height, volume-collision, and shadow helpers. |
+| Box flags `+0x198..+0x1A7` | `+0x19C..+0x1AB` | Preserved; no direct gameplay consumer. Used while static footprint derivatives are generated. |
+| Rotated descriptors `+0x1A8..+0x1B7` | `+0x1AC..+0x1BB` | Live through occupancy, collision, spatial admission, movement, and projectile helpers. |
+| Direction maps `+0x1B8..+0x1D7` | `+0x1C0..+0x1DF` | Live through capability-gated world-edge/path blocking. |
+| Attachments `+0x1D8..+0x35F` | `+0x1E0..+0x367` | Live through the generic attachment-transform accessor. |
+| Extents `+0x360..+0x367` | `+0x368..+0x36F` | Live in terrain alignment and selected projected-shadow modes, but not normal dynamic geometry or visibility culling. |
+
+#### Animation fields
+
+Static-mesh animation controllers read the four packed length bytes from the
+entity's primary mesh without checking its concrete class. A dynamic root
+installed in that generic primary-mesh slot can therefore alter owner frame
+counters, durations, and gameplay state timing. Its renderer at `0x005D04B0`
+does not consume those owner counters or inherited frame dword, so they do not
+select dynamic sprite frames. Normal dynamic-effect children exist only in the
+parent's private array at runtime `+0x41C`; they are never installed in ordinary
+entity mesh slots, and their inherited animation dwords remain inert.
+
+The inherited frame dword is semantically consumed only by the static renderer
+at `0x0060F100`, which selects translation, matrix, and scale track entries. A
+generic attachment path can pack owner frame bytes into a dynamic mesh before
+calling vtable slot `+0x18`, but that slot resolves to the dynamic renderer and
+the write has no visible effect. Calling the static renderer directly on a
+`0x430`-byte dynamic allocation would be unsupported layout misuse.
+
+ScaleableObject also bypasses these inherited animation fields. Its handler at
+`0x005D3730` reads geometry and material members directly from the separately
+loaded static target and supplies animation from the dynamic extension. It does
+not call the target's static renderer or read either mesh's inherited animation
+dwords. If the generic cache resolves that target name to another dynamic mesh,
+the handler still accesses static-only members at `+0x5D8` and `+0x608`, beyond
+the dynamic allocation, rather than supporting nested dynamic dispatch.
+
+#### Footprints, collision, and extents
+
+Generic entity helpers use the entity's primary mesh pointer without a static
+class check. `get_rotated_mesh_footprint_descriptor` at `0x005470C0`, world
+occupancy routines around `0x004BF3E0` and `0x00547810`, collision admission at
+`0x00548B50/0x00548BE0`, movement/projectile tests at
+`0x004A40B0/0x004A4A70`, and height-volume processing at `0x0041AF70` can
+therefore consume precomputed descriptors and heights from a primary dynamic
+mesh. `block_world_grid_edges_for_mesh_footprint` at `0x005479E0` similarly
+uses the directional maps when entity capability flags request edge blocking;
+its guard checks entity flags, not mesh class.
+
+The raw box mask and per-box flags have no corresponding direct runtime
+consumer. The converter uses them to generate descriptors and directional maps,
+but the game uses those derivatives. Extents can reach terrain-alignment logic
+at `0x00548240` and projected-shadow code at `0x005DB930`. They do not define
+the dynamic effect's rendered rectangle and are not used by its normal
+visibility-culling path.
+
+Footprint descriptors can admit a dynamic entity to the render/picking
+candidate queue, but `render_dynamic_mesh_object` always returns zero, so it
+cannot report a geometry hit. This unsupported configuration also exposes a
+layout hazard: the picking path reads static member `+0x604` before virtual
+dispatch, beyond a dynamic object's `0x430`-byte allocation. A custom dynamic
+primary mesh with nonzero footprint data may therefore trigger an out-of-bounds
+read even though the renderer ultimately reports no selection hit.
+
+#### Lights and attachments
+
+Static mesh vtable `0x0075854C` maps slots `+0x1C`, `+0x20`, and `+0x24` to
+inherited terrain-light, low-nibble light, and detailed-light handlers. Dynamic
+vtable `0x007582F0` instead maps `+0x1C` to dynamic terrain lighting at
+`0x005D34D0` and maps `+0x20/+0x24` to the no-op at `0x006CCDE0`. Consequently
+the inherited static light descriptors and their attachment positions are
+preserved but cannot create lights through valid dynamic dispatch. Dynamic
+terrain lights use the extension fields beginning at serialized `+0x36C`.
+
+The generic attachment accessor at `0x005FB130` is different: it indexes the
+49-record array, rejects only the `x == 0x8000` sentinel, rotates XY by the
+supplied heading, and copies Z without checking mesh class. Entity/effect setup,
+particle-emitter creation, HUD anchors, preview rendering, and visible-entity
+render auxiliaries all call it. A primary dynamic mesh can therefore expose
+ordinary `CE`, `CH`, `HT`, `SM`, or other attachment slots to those systems.
+These records are unrelated to dynamic child traversal, which exclusively uses
+the parent-owned child array at runtime `+0x41C/+0x420/+0x424` and interpolated
+dynamic translations at `+0x3F4..+0x408`.
+
+Dynamic primary meshes are not merely theoretical. Official parameter data has
+159 specialized effect definitions and 18 projectile/lightning definitions
+whose generic `entity+0x14` primary-mesh slot resolves to dynamic framing. No
+ordinary unit, building, chassis, turret, or equipment definition does so. All
+official dynamic BaseHeaders keep the inherited fields at defaults, so the
+generic paths are reached normally but never receive nonzero inherited state.
+Custom nondefault values are structurally reachable, not automatically rejected
+as malformed, although combinations that enter static-only layout assumptions
+can be unsafe.
+
+### Reserved dynamic word
+
+The word at `0x3B4` is a genuine unused compatibility slot rather than an
+unidentified effect parameter. The converter's zero-filling allocator at
+`0x00401630` clears the complete dynamic object before construction. The AOD
+parser at `0x00402CF0` explicitly initializes the neighboring size and additive
+members but never assigns runtime member `+0x3BC`, and no accepted AOD property
+writes it. `read_dynamic_object` and `write_dynamic_object` merely transfer that
+member unchanged to and from file offset `0x3B4`.
+
+The Moon Project uses the same runtime offset adjustment: file `+0x3B4` is
+loaded into dynamic-object member `+0x3BC`. Its dynamic reader at `0x005D4800`
+and writer at `0x005D4F60` are the only dynamic-mesh methods that reference the
+member; rendering and effect processing do not consume it. All 445 dynamic
+records, including nested records, across the 194 dynamic files in the official
+framed corpus store zero. Writers targeting this format must emit zero.
 
 ### Dynamic effect type values
 
@@ -791,7 +1838,25 @@ Fifty-six official dynamic files use value zero only at the root of a dynamic
 tree. Each such root has an empty mesh name, an empty texture name, and 1 to 16
 nonzero-type children. This consistently gives value zero the binary role of a
 grouping/unspecified container, but that name is inferred because the original
-AOD sources are unavailable.
+AOD sources are unavailable. Neither the converter nor game parser recognizes
+a symbolic name for zero: both initialize the field to zero and assign values
+1 through 14 only after a recognized nonempty `Type`. No stripped C++ enum name
+can be recovered from these binaries.
+
+Type zero enters the ordinary dynamic render queue, emits no own primary
+geometry or terrain light, and recursively processes children. If assigned to
+an attached-particle slot, however, it follows the generic non-Kilwater
+billboard path and does not process children. Grouping roots with their normal
+zero frame dimensions would therefore fault if misused as attached particles.
+
+Type 9 is fully implemented by both parsers but absent from all 445 official
+records, object definitions, IDs, scripts, and level references examined. Its
+only supplied source example is the synthetic, invalid-as-written `PYLINE.aod`.
+It is reachable through external or modified content, not shipped gameplay.
+Binary records with an effect value outside `0..14` are accepted and preserved;
+primary rendering and terrain lighting skip own behavior but still recurse into
+children, while attached rendering treats every value except literal 14 as a
+generic billboard.
 
 ### Dynamic light type values
 
@@ -802,20 +1867,645 @@ AOD sources are unavailable.
 | 2 | `Trapezium` |
 | 3 | `Random` |
 
+Pyramid is implemented by both parsers and by the runtime intensity function,
+but no official dynamic record or valid supplied configuration uses it. The
+similarly named `NEBPYRAMID*` assets are unrelated static buildings. Binary
+records with unknown light values are accepted and preserved; the runtime
+intensity helper falls through to `1.0`, making them behave like Const.
+
+### Dynamic runtime semantics
+
+The Moon Project loads every fixed extension field at runtime object offset
+`file_offset + 8`. The effect renderer at `0x005D04B0` and terrain-light
+renderer at `0x005D34D0` establish the following behavior. These meanings are
+runtime observations from the June 29, 2004 executable, not names inferred only
+from the AOD grammar.
+
+Let `D` be the owning effect entity's total lifetime, `R` its remaining
+lifetime, `F` the first frame, `C` the frame count, `X` the column count, `P`
+the frame period, and `T` the global tick counter. Ordinary effect entities use
+32-bit lifetime fields; attached-particle nodes zero-extend their 16-bit
+lifetimes. Integer additions, subtractions, shifts, and multiplications below
+wrap to 32 bits because the renderer ignores overflow flags.
+
+```text
+E = wrap32(D - R)
+if E == 0:
+    E = 1
+
+if P == 0:
+    phase = signed_float(E) / signed_float(D)
+    frame_index = signed_idiv(wrap32(C * E), D)
+else:
+    frame_index = unsigned_rem(unsigned_div(T, P), C)
+    phase = signed_float(frame_index) / signed_float(C)
+
+frame = wrap32(F + frame_index)
+row, column = signed_idiv_with_remainder(frame, X)
+
+du = texture_scale * stored_reciprocal_columns
+dv = texture_scale * stored_reciprocal_rows
+u0 = signed_float(column) * du
+v0 = signed_float(row) * dv
+u1 = u0 + du
+v1 = v0 + dv
+```
+
+Lifetime mode uses x86 signed `imul`/`idiv`; periodic mode explicitly clears
+`EDX` and uses unsigned `div` for both period and frame count. It then feeds the
+raw remainder and count bits to signed `fild` for phase conversion. Negative
+periods are therefore very large unsigned periods, while negative frame counts
+have different lifetime and periodic meanings. Atlas row/column division is
+signed and truncates toward zero. The integer row-count field at `0x37C` is not
+read: renderers use the stored row reciprocal at `0x388` directly.
+
+This is a binary-wide absence result, not only a survey of common sprite paths.
+The game binary reader at `0x005D48F6` loads row count into runtime `+0x384`
+and the writer at `0x005D5042` emits it, but no primary renderer, attached
+renderer, child traversal, terrain-light handler, texture binder, cache, object
+copy, or entity/particle save path reads that member. The text parser at
+`0x005D40E7..0x005D4120` derives reciprocal rows while parsing `Frames`; the
+binary reader loads row count and reciprocal rows as independent dwords and
+never validates or recomputes either.
+
+Consequently a binary MSH may pair zero, negative, `INT_MIN`, `INT_MAX`, or any
+other row count with any reciprocal. The integer has no allocation, loop,
+division, or UV effect and round-trips unchanged. Atlas handlers compute their
+row as `signed_idiv(frame,column_count)` and vertical stepping solely from the
+stored reciprocal: zero reciprocal collapses V, a negative value mirrors V,
+and large or non-finite values propagate. Track, MappedExplosion, and
+ScaleableObject bind their selected texture frame without using either row
+field.
+
+Consequently the third AOD `Frames` value is not a frame number. Zero
+synchronizes the sprite to the effect lifetime; a nonzero value is an unsigned
+global-tick period and makes the sprite cycle independently. Track,
+MappedExplosion, and ScaleableObject calculate frame and phase but do not use
+the atlas dimensions or reciprocals. Sphere ignores all serialized frame fields
+and instead selects `signed_idiv(wrap32((D-R) << 4), D)`, clamps only values
+greater than 15, and permits negative results.
+
+`global_ticks` is the unsigned simulation counter at `0x00788BD4`, incremented
+without overflow checking at `0x0046AAE0`. It wraps from `0xFFFFFFFF` to zero;
+periodic animation then returns to frame `F` and phase zero without continuity
+correction. The normal scheduler rate is 20 updates per second and game-speed
+controls vary it from 5 through 50 updates per second. A nonzero frame period is
+therefore measured in simulation ticks, not milliseconds or rendered frames,
+and changes its wall-clock cadence with game speed.
+
+The runtime reader checks only that each field can be read. It does not validate
+the arithmetic domain. Zero duration faults at the signed lifetime `idiv`;
+periodic mode with zero frame count faults at its second unsigned `div`; and
+zero columns fault atlas-based handlers at their signed `idiv`. Zero frame count
+is otherwise accepted in lifetime mode. Zero or negative row count has no direct
+runtime effect because that integer is ignored. Zero reciprocals collapse a UV
+axis, negative reciprocals mirror it, and non-finite reciprocals propagate
+through x87 arithmetic. Signed `idiv` also faults for `INT_MIN / -1`, including
+a wrapped lifetime numerator or atlas frame with divisor `-1`. These are CPU
+division exceptions or invalid output, not clean load errors.
+
+All 445 official dynamic records stay inside the safe subset. Frame count is
+`0..48`, columns `0..8`, rows `0..12`, and period `0..5`; the 43 zero-dimension
+records comprise 42 grouping roots and the built-in Sphere leaf `PYSHIELD`.
+Every one of the 402 positive dimension pairs has exact stored reciprocals, and
+the other 43 records store both reciprocals as zero. No official frame field is
+negative or non-finite.
+
+The four rectangle lanes are `(x0,y1,x1,y0)`. Effects that animate their size
+compute each lane as `start * (1-phase) + end * phase`. Explosion-style effects
+use the resulting four combinations as a quad. The fifth `Size` value is
+effect-specific. FlatExplosion uses it as the quad's ordinary local-space Z
+coordinate. Explosion, Smoke, and the attached-particle billboard paths instead
+apply it after screen X/Y projection:
+
+```text
+submitted_depth = projection_depth_scale * (camera_distance - size[4])
+```
+
+It is therefore a world-unit camera-depth offset that leaves screen position
+and apparent sprite size unchanged. A positive value makes the billboard test
+closer to the camera; a negative value makes it test farther away.
+
+The derived signed half-width is consumed by Laser, LaserWall,
+ElectricalCannon, and Lighting to widen their strips perpendicular to the
+effect direction. Negating it reverses the side vector while keeping vertex/UV
+assignment and triangle order fixed. Laser, LaserWall, and ElectricalCannon
+therefore swap strip sides, mirror the texture's U direction, and reverse
+triangle winding. Lighting also reflects its width-scaled random deviations.
+This winding reversal has no culling consequence in the supported renderers:
+Direct3D uses `D3DCULL_NONE`, Glide initializes `grCullMode(GR_CULL_DISABLE)`,
+and the OpenGL backend leaves face culling disabled.
+
+The common color helper at `0x005C1510` copies four floating-point channels and
+applies the scale supplied by the active renderer. Direct3D and Glide supply
+`255`; OpenGL supplies `1` and receives floating-point channels directly.
+Direct3D converts with `0x00735D70`, which forces x87 truncation toward zero.
+Glide uses direct `fistp dword` and therefore follows the ambient x87 rounding
+mode, normally round-to-nearest-even. Both integer backends arithmetically pack
+the unmasked component integers rather than clamping each channel, so negative
+or oversized channels can borrow or carry into neighbors. NaN, infinity, and
+out-of-range conversion produce x87 integer-indefinite values under masked
+exceptions. OpenGL receives negative, oversized, and non-finite floats
+unchanged. Alpha normally uses the same frame phase as the sprite:
+
+```text
+alpha = start_alpha * (1-phase) + end_alpha * phase
+```
+
+When alpha mode is nonzero, only alpha switches to lifetime progress; every
+nonzero mode value has the same behavior. Frame, UV, size, scale, and child
+translation keep the ordinary selected phase.
+The mode is tested as a raw 32-bit integer, so `-1`, `INT_MIN`, `INT_MAX`, and
+all other nonzero patterns are equivalent. Generic attached and Kilwater
+billboards ignore mode and always use selected frame phase. Sphere and primary
+types without their own geometry ignore both alpha endpoints.
+
+Alpha interpolation uses unchecked x87 arithmetic. Negative or greater-than-one
+phases extrapolate; NaN and infinity propagate; and `0 * infinity` can make an
+apparently inactive endpoint contaminate phase zero or one. There is no alpha
+clamp or finite check before backend conversion.
+
+ScaleableObject similarly interpolates start to end model scale and is the only
+primary handler that consumes those fields. Scale zero collapses its target and
+dynamic descendants to the current translation. A negative scale inverts all
+three local axes and changes transform handedness without reordering triangle
+indices; final acceptance follows backend CPU-side projected-winding tests.
+Large or non-finite scale values propagate into the matrix basis, after which
+projection validity checks normally reject affected static target triangles.
+The scaled matrix remains active while dynamic children render, so they inherit
+the scale; alpha is not inherited.
+
+A nonzero additive flag selects source-plus-destination additive blending; it
+does not change the serialized color or alpha values. Direct3D enables alpha
+blending with source and destination factors `D3DBLEND_ONE`, Glide selects
+`GR_BLEND_ONE,GR_BLEND_ONE` for RGB, and OpenGL uses
+`glBlendFunc(GL_ONE,GL_ONE)`. Their paired callbacks restore ordinary opaque
+blending by disabling alpha blending, selecting `ONE,ZERO`, or disabling
+`GL_BLEND`, respectively. The callbacks do not alter depth testing, fog,
+culling, or texture stages. Each dynamic primitive separately disables depth
+writes around triangle submission and restores them afterward.
+
+`Position` and `Position2` belong to the child record on which they are stored.
+For each child, its parent computes
+`translation = Position*(1-parent_phase) + Position2*parent_phase`, adds that
+translation to the current model transform, invokes the child, and restores the
+parent transform. A root record's own position pair is therefore not applied by
+its own renderer. Nested records can form arbitrarily deep animated effect
+assemblies in the file format.
+
+Translation interpolation and matrix composition have no finite checks. NaN,
+infinity, and overflow propagate into the child model matrix; because both
+weighted endpoints are evaluated, `0 * infinity` can contaminate an otherwise
+unselected endpoint. Matrix restoration normally confines the damage to that
+child subtree. The global transform-save area has only 15 non-overlapping
+`0x40`-byte slots before it aliases the current matrix, with no depth check.
+Depth 15 breaks restoration and greater depth overwrites adjacent render globals
+well before native recursion exhausts the process stack.
+
+The fourth `Color` value is a visible terrain-light gain shared by Smoke and the
+generic attached-particle billboard. For each channel they sample the composed
+terrain-or-water base light plus dynamic terrain light at the effect location,
+then compute:
+
+```text
+lit_channel = min(1, sampled_light_channel * color_parameter)
+vertex_channel = color_channel * lit_channel * backend_color_scale
+```
+
+Other visible handlers ignore this fourth value. The `min` applies only an
+upper bound: there is no lower clamp, so a negative fourth value can produce
+negative CPU-side color channels before backend conversion. Kilwater also
+ignores it; its dedicated attached handler uses the global water RGB and the
+record's interpolated alpha.
+
+#### Effect dispatch and field consumption
+
+| Type | Runtime rendering in this build |
+|---:|---|
+| 0 Unspecified/Group | No own geometry or terrain light; renders children with their interpolated translations. |
+| 1 Explosion | Camera-facing animated rectangle; RGB, alpha, additive, texture, and world-unit camera-depth offset. Adds a radial terrain light. |
+| 2 Track | Terrain-cell decal over the transformed rectangle's integer AABB; texture frame, rectangle data, alpha, and additive mode. Serialized visible RGB is ignored. |
+| 3 ScaleableObject | Loads `Mesh`, applies interpolated uniform `Scale`, texture frame, RGB, alpha, and additive mode. Adds a radial terrain light. |
+| 4 MappedExplosion | Terrain-cell decal over the transformed rectangle's integer AABB; texture frame, RGB, alpha, and additive mode. Adds a radial terrain light. |
+| 5 FlatExplosion | Animated rectangle in the local plane at Z = fifth `Size` value; RGB, alpha, additive, and texture. Adds a radial terrain light. |
+| 6 Laser | Textured quad from the entity origin to its endpoint; signed half-width, frame, RGB, alpha, and additive mode. Adds a terrain-light line. |
+| 7 LaserWall | Same endpoint ribbon basis as Laser; signed half-width, frame, RGB, alpha, and additive mode. Adds an unmodulated terrain-light line. |
+| 8 Shockwave | No primary dynamic-entity or terrain-light case; the attached-particle route can render it as a generic terrain-lit billboard. |
+| 9 Line | No primary dynamic-entity or terrain-light case; the attached-particle route can render it as a generic terrain-lit billboard. |
+| 10 Sphere | Renders a built-in sphere mesh with a lifetime-selected 0..15 texture frame, RGB, texture, and additive mode. The serialized frame, rectangle, alpha, and scale fields are not used by this handler. |
+| 11 ElectricalCannon | Adaptive-segment jagged ribbon between entity origin and endpoint; signed half-width, frame, RGB, alpha, additive, and texture. |
+| 12 Lighting | Fixed 31-pair/30-segment jagged ribbon extending 12 world units in local Z; signed half-width, frame, RGB, alpha, additive, and texture. Adds a terrain-light line. |
+| 13 Smoke | Explosion-style camera-facing rectangle with local-light-modulated RGB; alpha, additive, texture, and world-unit camera-depth offset. |
+| 14 Kilwater | No primary dynamic-entity or terrain-light case; the attached-particle route dispatches it to a dedicated billboard handler. |
+
+##### Track and MappedExplosion terrain decals
+
+`render_track` at `0x005CF220` and `render_mapped_explosion` at `0x005CEDF0`
+do not submit the four transformed rectangle corners as a quad. Both interpolate
+the rectangle, transform its four corner combinations through the current
+model-matrix XY basis, reduce those points to an integer AABB, and ask a
+backend-specific callback to tessellate every visible terrain cell in that
+AABB. Let the four serialized start lanes be `(x0,y1,x1,y0)`, `t` the selected
+phase, and `M` the current row-vector transform:
+
+```text
+x0' = x0_start*(1-t) + x0_end*t       x1' = x1_start*(1-t) + x1_end*t
+y0' = y0_start*(1-t) + y0_end*t       y1' = y1_start*(1-t) + y1_end*t
+
+P00 = transform_xy(y1', x0')          P01 = transform_xy(y0', x0')
+P10 = transform_xy(y1', x1')          P11 = transform_xy(y0', x1')
+
+left   = trunc0(min(P*.x))
+top    = trunc0(min(P*.y))
+right  = trunc0(max(P*.x) + 1)
+bottom = trunc0(max(P*.y) + 1)
+```
+
+`transform_xy(a,b)` is:
+
+```text
+x = a*[0x009FDEB0] + b*[0x009FDEC0] + [0x009FDEE0]
+y = a*[0x009FDEB4] + b*[0x009FDEC4] + [0x009FDEE4]
+```
+
+The minima/maxima use ordered x87 comparisons, not IEEE `fmin/fmax`; unordered
+comparisons choose different operands in the min and max paths. Conversion at
+`0x00735D70` explicitly truncates to signed 64-bit and returns only the low
+dword. NaN, infinity, and values outside `int64` normally become low dword zero,
+while large finite values inside `int64` wrap through their low 32 bits.
+
+The callbacks clamp the half-open AABB to the active terrain window. A cell is
+drawn only if the OR of its four visibility bytes has bit mask `6` nonzero.
+There is no inside-rectangle test, polygon clipping, perspective/near-plane
+test, or behind-camera rejection. The submitted vertices are the four already
+projected terrain-grid points `A=(x,y)`, `B=(x,y+1)`, `C=(x+1,y)`, and
+`D=(x+1,y+1)`, with terrain-derived depth. Rectangle corners affect only bounds,
+UV origin, and UV coefficients.
+
+Let `a = (0x40 - entity_heading) & 0xFF`, `s` and `c` be the two angle-table
+values at `0x00A8C948[a]` and `0x00A8CD48[a]`, `Q` be backend UV scale (1 for
+Direct3D/OpenGL and 256 for Glide), and `(ox,oy)=P00`. UVs for every terrain
+vertex use the un-interpolated start rectangle's spans even while bounds and
+origin animate:
+
+```text
+dx = grid_x - ox                          dy = grid_y - oy
+u = Q * (1 + (s*dx - c*dy)/(y1_start-y0_start))
+v = Q * (    (c*dx + s*dy)/(x1_start-x0_start))
+```
+
+Zero start spans therefore produce infinity or NaN rather than a rejection.
+Inverted spans mirror the corresponding UV axis; the four-corner AABB remains
+valid. A collapsed interpolated rectangle can still cover one cell because
+right and bottom are formed from `max+1`.
+
+Terrain flag bit `0x8000` selects the cell diagonal. Direct3D uses, for clear
+and set respectively, `[A,C,D],[B,A,D]` and `[A,C,B],[B,C,D]`. Glide and OpenGL
+submit the opposite winding, `[A,D,C],[B,D,A]` and
+`[A,B,C],[B,D,C]`. Culling is disabled, so this backend difference is not
+visible. All variants disable depth writes for the decal and restore them
+afterward; nonzero additive mode wraps the draw in source-plus-destination
+blending.
+
+The two handlers differ in color and callback selection. MappedExplosion scales
+its serialized RGB and interpolated alpha for every terrain vertex. Track uses
+the terrain cell's own RGB and only supplies its interpolated alpha; its
+serialized visible RGB, light gain, atlas dimensions/reciprocals, half-width,
+and fifth Size value are ignored. MappedExplosion also ignores atlas
+dimensions/reciprocals, half-width, and the fifth Size value. Both still select
+and bind `first_frame + frame_index` through the texture object's own frame
+mechanism. A null texture pointer is dereferenced.
+
+Lifetime duration zero and periodic frame count zero cause integer divide
+exceptions. Negative periods and counts retain the common unsigned-periodic
+semantics. Neither handler validates non-finite rectangles, matrices, UVs,
+colors, or alpha. Track requires a nonnull entity for lifetime fields and its
+heading even though the dispatcher does not universally reject null here.
+
+##### Laser, LaserWall, ElectricalCannon, and Lighting ribbons
+
+These four handlers build triangle ribbons from fixed-point entity data. Source
+XY is the entity's unsigned 8.8 pair at `+0x24/+0x26`; source Z is
+`(u16(+0x28) & 0x1FFF)/256`. A virtual method at vtable offset `+0x580` supplies
+the endpoint in the same representation. For Laser, LaserWall, and
+ElectricalCannon:
+
+```text
+H = signed_half_width * (sin_table[entity_heading],
+                         cos_table[entity_heading], 0)
+L(P) = P + H
+R(P) = P - H
+```
+
+The side vector is not normalized from the source-to-endpoint direction. Each
+segment emits exactly `(L[i],L[i+1],R[i])` followed by
+`(R[i],L[i+1],R[i+1])`, with U assigned by side and V by segment end. Negative
+width exchanges physical sides and reverses geometric winding; zero width
+submits degenerate triangles.
+
+Laser (`0x005D1120`) and LaserWall (`0x005D2F00`) each have two endpoint pairs,
+one segment, two triangles, and six callback vertices. Their geometry is the
+same; only setup ordering and their separate terrain-light behavior differ.
+Both return without drawing for a null entity.
+
+ElectricalCannon (`0x005D2330`) selects:
+
+```text
+k = clamp((abs(source_x_raw-end_x_raw) >> 6)
+        + (abs(source_y_raw-end_y_raw) >> 6), 5, 15)
+pair_count = 2*k + 1
+segment_count = 2*k
+```
+
+Z does not affect subdivision. It reseeds the CRT RNG from low 32 bits of
+`RDTSC`, then makes exactly `k` calls. For first-half point `i=1..k`:
+
+```text
+q = ((rand() & 63) - 16) / 16                // -1 .. 2.9375
+noise[i].x = noise[i-1].x + q*(end_y-source_y)/(2*pair_count)
+noise[i].y = noise[i-1].y - q*(end_x-source_x)/(2*pair_count)
+center[i] = source + (end-source)*(i/pair_count) + noise[i]
+```
+
+The second half mirrors `noise[pair_count-i]`; the final pair is fixed directly
+at the endpoint. This produces 10..30 segments, 20..60 triangles, and 5..15 RNG
+calls. Even a zero-length bolt uses `k=5` and submits 20 degenerate triangles.
+
+Lighting (`0x005D16F0`) ignores source-to-endpoint distance for its visible
+bolt. It constructs 31 pairs from 12 world units above the endpoint down to the
+endpoint, using a side vector based on global angle `0x009FDA60`. It seeds from
+`RDTSC`, makes exactly 15 RNG calls with the same `q`, and accumulates
+`noise[i] = noise[i-1] + q*H`; the lower half mirrors that noise. The result is
+30 segments, 60 triangles, and 180 callback vertices. Its preceding matrix
+setup still uses entity heading/pitch bytes and source position. Unlike the
+other three handlers, it does not guard a null entity.
+
+The CRT generator is thread-local and shared with other game code:
+
+```text
+state = state * 0x343FD + 0x269EC3  (u32 wrap)
+rand  = (state >> 16) & 0x7FFF
+```
+
+Both jagged handlers reseed it on every render, affecting later `rand` users on
+that render thread. Mesh or save data neither records nor restores this state.
+
+All four use the common frame/atlas equations and serialized RGB/alpha. In
+additive mode the triangle callback retains interpolated alpha but forces its
+terrain-shade argument to raw `255.0`; RGB remains serialized. Each projected
+triangle is rejected as a
+whole unless all three vertices pass the backend guard box and depth lies in
+`[0,1]`; there is no geometric clipping. Direct3D uses X bounds
+`[-2000,screen_width+200]`, Glide uses the same, and OpenGL uses
+`[-2000,2000]`; all use Y `[-2000,2000]`. Non-finite width propagates through
+projection: infinities usually fail bounds, while unordered x87 comparisons can
+allow NaNs to reach the backend. Zero lifetime, zero periodic frame count, or
+zero atlas columns causes an integer divide exception.
+
+The absence of primary cases 8, 9, and 14 in both dynamic vtable dispatch
+methods is explicit, but it does not make those records globally inert. A
+second path at `0x005CF600`, called from the compact attached-particle renderer
+at `0x005DEB20`, renders records as camera-facing billboards using the compact
+particle's lifetime. It branches on effect type only to redirect type 14 to
+`0x005CFE70`; every non-14 record assigned to an emitter slot, including types
+8 and 9, uses the generic handler. That handler applies the common frame and
+rectangle interpolation, visible RGB modulated by sampled terrain light and
+the fourth `Color` value, interpolated alpha, additive mode, texture, and the
+world-unit camera-depth offset. The Kilwater handler uses the same frame,
+rectangle, alpha, additive, texture, and depth-offset fields, but uses global
+water RGB without terrain modulation. Neither route is a terrain-light
+producer. In the primary dynamic-tree path these types still contribute no own
+geometry or light, while their common child traversal remains active. The
+attached-particle route does not consult alpha mode; its alpha interpolation
+always uses its selected frame phase.
+
+The owning emitter class is constructed at `0x00545620`, destroyed at
+`0x00545690`, loaded at `0x00545810`, saved at `0x00545B20`, and updated at
+`0x00545D30`. Its linked list begins at entity offset `+0x70`. Each `0x14`-byte
+node has this runtime layout:
+
+| Node offset | Type | Meaning |
+|---:|---|---|
+| `0x00` | `u16` | World X in 1/256 units |
+| `0x02` | `u16` | World Y in 1/256 units |
+| `0x04` | `u16` | World Z; the renderer masks to 13 bits, then divides by 256 |
+| `0x06` | `u8` | Billboard heading |
+| `0x07` | `u8` | Saved mesh-slot index |
+| `0x08` | pointer | Reference-counted cached dynamic mesh |
+| `0x0C` | `u16` | Remaining lifetime |
+| `0x0E` | `u16` | Total lifetime |
+| `0x10` | pointer | Next node |
+
+The spawn helper at `0x00546200` cycles the emitter's three mesh slots in order
+`1,2,0`, copies the selected slot's configured lifetime into both lifetime
+words, captures the emitter position and optional heading, and prepends the
+node. The update routine decrements the remaining lifetime as an unsigned word
+and unlinks the node when it reaches zero. Thus a lifetime-driven attached
+record renders with `elapsed = total - remaining`. Spawning occurs before the
+node-decrement loop in the same update, so a subsequent render first sees a new
+node at phase `1/total`; the node is unlinked when its remaining lifetime reaches
+zero, before phase `1` can be rendered. A configured lifetime of one is removed
+in its creation update and never appears.
+
+There is a save/reload defect in this build. The spawn helper leaves node
+`+0x07` at its zero-initialized value even when it selected slot 1 or 2. The
+save writer persists that byte, and the loader uses it to reconstruct the mesh
+pointer from the emitter's three cached slots. Consequently live nodes selected
+from slots 1 or 2 reload with slot 0 after saving.
+
+#### Terrain-light behavior
+
+The `Light` property is stored as RGB already multiplied by its fourth scalar.
+It affects the terrain-light accumulation grid, not the visible primitive's
+vertex color. Light type supplies a further intensity. Let `m` be
+`min(elapsed, remaining)`:
+
+```text
+Const/other: 1
+Pyramid:     min(duration, 2*m) / duration
+Trapezium:   min(duration, 3*m) / duration
+Random:      0.8 + (rand() % 4000) * 0.0001
+```
+
+Random calls the statically linked MSVC `rand` at `0x00736D0A` exactly once per
+qualifying dynamic record per terrain-light rebuild:
+
+```text
+state = (214013 * state + 2531011) mod 2^32
+rand  = (state >> 16) & 0x7FFF
+```
+
+The state is stored at `+0x14` in the CRT per-thread block, defaults to one, and
+is shared by all `rand` users on that OS thread. The resulting intensity range
+is exactly `0.8000..1.1999` in steps of `0.0001`. The terrain-light code does not
+seed, save, or restore this state. Visible Lighting and ElectricalCannon effects
+later seed the same stream from `RDTSC`, so Random lighting is neither per-effect
+nor preserved by the dynamic mesh/save data. The official corpus contains four
+Random records, all Explosion children in the four `PY_FIRE_*` effects.
+
+Explosion, ScaleableObject, MappedExplosion, and FlatExplosion multiply all
+three terrain-light channels by this intensity and stamp a radial light centered
+one world unit above the entity. Its per-cell falloff is `1/(distance^2+1)`,
+values below `0.05` are discarded, and each destination channel keeps the
+maximum of its previous value and the attenuated light value. Distance uses the
+engine's fixed-point approximate 3D norm and includes terrain height.
+
+Laser and Lighting multiply all three channels by the intensity and rasterize
+them from the entity origin to its endpoint. LaserWall rasterizes the same kind
+of line without the light-type intensity. The line helper steps along the
+dominant grid axis and additively distributes each sample between adjacent cells
+using the fractional minor-axis coordinate. Other effect types do not modify
+the terrain-light grid in these dispatch methods.
+
+The active terrain-light window has inclusive bounds `(xmin..xmax,ymin..ymax)`,
+width `xmax-xmin+1`, and row-major index
+`(y-ymin)*width + (x-xmin)`. Entity positions are unsigned 8.8 fixed point;
+integer grid positions use `fixed >> 8`. Each `0x1C` accumulation record starts
+with dynamic RGB floats and stores a separate terrain scalar at `+0x0C`.
+`0x00615340` rebuilds that scalar and clears dynamic RGB to zero before effects
+are accumulated.
+
+The line helper at `0x00621C60` chooses Y-major only when `abs(dy) > abs(dx)`;
+ties use X-major and a zero-length line draws nothing. It clips the dominant
+axis to the inclusive active bounds, interpolates the minor coordinate, converts
+it with x87 truncation toward zero, and additively splits each RGB sample between
+the two adjacent minor-axis cells. Out-of-range minor samples are skipped. It
+does not clamp, so repeated or negative line lights can produce values outside
+`[0,1]` or infinity.
+
+The radial helper at `0x00621F40` scans half-open ranges based on the center
+cell: `x = max(xmin,cx-5) .. min(xmax,cx+7)-1`, and likewise for Y. Its nominal
+footprint is therefore 12 by 12 cells (`-5..+6`), but clipping to `xmax` or
+`ymax` excludes that maximum-edge cell. It raises the light center by one world
+unit and uses the approximate fixed-point distance:
+
+```text
+q = largest_delta + middle_delta/2 + smallest_delta/4
+d = q / 256
+attenuation = 1 / (d*d + 1)
+if attenuation < 0.05: attenuation = 0
+dynamic[channel] = max(dynamic[channel], light[channel] * attenuation)
+```
+
+Radial values combine by per-channel maximum while lines add, making overlap
+order significant. A radial after a line can only replace the accumulated line
+when brighter; a line after a radial always adds. Parents are accumulated before
+their children, while separate entities follow spatial-container traversal
+order rather than an explicit light sort.
+
+During terrain shading, `0x00618430` adds dynamic RGB to base RGB, clamps each
+sum to `[0,1]`, and then multiplies by the per-cell terrain scalar. There is no
+post-scalar clamp. `sample_accumulated_terrain_light` at `0x00623000`, used only
+by Smoke and generic attached particles, clamps requested coordinates to the
+active window, selects its terrain/water source by comparing two height arrays,
+and adds the dynamic RGB again without clamping or applying the terrain scalar.
+When it selects the already composed terrain buffer in the principal frame
+path, dynamic light is therefore present in that buffer and then added a second
+time by the sampler; the visible-particle gain's upper clamp handles positive
+values above one.
+
+#### Runtime resource lookup
+
+The serialized strings are preserved exactly; runtime lookup does not rewrite
+case, separators, or extensions in either cache key. Both caches identify keys
+with the same ASCII case-insensitive comparator. The mesh cache uses a matching
+case-folded `hash = hash * 33 + lowercase(character)`, while the texture cache
+keeps a sorted vector. A cache hit increments the asset's reference count, and
+the entry is removed when the last reference is released. Thus spellings that
+differ only by ASCII case share the first successfully loaded entry, but `/`
+and `\` or names with and without an extension remain distinct.
+
+A nonempty texture path is loaded eagerly while the dynamic record is read and
+is passed to the resource system verbatim. An empty serialized texture leaves
+the runtime texture pointer null. If a nonempty path cannot be opened or parsed,
+`load_cached_texture` recursively loads `Textures\Default.tex`; the missing
+name is not installed as an alias in the cache. The shipped asset is
+`Textures/DEFAULT.TEX`, confirming case-insensitive resource resolution. If the
+default texture itself is unavailable or invalid, the same fallback call
+repeats recursively until stack exhaustion rather than returning null.
+
+ScaleableObject resolves its serialized `Mesh` key lazily on first rendering,
+including an empty key. For key `name`, `load_mesh_asset` first tries
+`Meshes\name.msh`, then `Meshes\name.aod`. These templates are string
+resources `0x1200` through `0x1202`: `Meshes`, `%s.msh`, and `%s.aod`. The
+built-in Sphere path uses the same cache with hardcoded key `NEXSPHERE`. If the
+selected stream is already in an error state, the loader tries
+`Meshes\XXDEFAULT.msh` and then `Meshes\XXDEFAULT.aod`; successful objects
+are still named and cached under the originally requested key.
+
+This mesh fallback is not a general parse-error recovery path. A stream that
+opens but contains malformed mesh data returns null without trying the default.
+There is also a mode-selection defect when both requested files are absent: the
+failed `.aod` attempt leaves AOD parsing selected while the fallback is opened,
+so the shipped binary `XXDEFAULT.msh` is sent to the text AOD parser and the
+load returns null. ScaleableObject and Sphere dereference the returned mesh
+without a null check. Missing or malformed mesh resources can therefore crash
+when those handlers render; failed loads are not cached.
+
+The official 194-file dynamic corpus contains 65 distinct nonempty serialized
+resource references: 7 mesh keys and 58 texture paths. Every one resolves
+case-insensitively in the extracted game assets, as does the hardcoded
+`NEXSPHERE` mesh. Normal corpus playback therefore does not depend on either
+failure fallback.
+
+### Malformed dynamic variable-length records
+
+The game reader at `0x005D4800` treats both string lengths and the child count
+as unrestricted raw `u32` values. It does not impose a format-level size or
+depth limit.
+
+For a string length `N`, it requests `wrap32(N+1)` temporary bytes, reads exactly
+`N` bytes, and appends a NUL. It then uses C-string semantics. An embedded NUL
+is accepted and its tail bytes are consumed from the stream but discarded from
+runtime state. Rewriting emits only the prefix before the first NUL. A mesh
+length of zero skips assignment, while a texture length of zero skips loading;
+on a fresh object those retain the empty mesh string and null texture, but a
+reader reused on an existing object would retain its previous values.
+
+The length arithmetic is unchecked. Requests above the allocator's
+`0xFFFFFFE0` hard ceiling can return null and are then dereferenced by the
+zero-filling wrapper. Length `0xFFFFFFFF` wraps `N+1` to zero, obtains a small
+allocation, requests a `0xFFFFFFFF`-byte transfer, and writes the terminator at
+`buffer-1`. Stream copy loops also use signed size comparisons, so counts at or
+above `0x80000000` enter huge unsigned copies rather than clean rejection.
+
+Child count uses an unsigned loop and attempts exactly that many `0x430`-byte
+dynamic allocations. The pointer vector grows with wrapped 32-bit
+`count+1`, signed capacity comparisons, and wrapped `capacity*4`; there is no
+safe maximum near `INT_MAX`. Count zero does not clear existing children, and a
+nonzero count appends when the reader is reused.
+
+Load failure is non-transactional. Already read fields remain changed; failed
+string transfers leak their temporary buffers; allocation failures are commonly
+dereferenced; and a child is appended before its recursive read succeeds. A
+later failure leaves partial children attached. Root cleanup frees the pointer
+array but does not destroy those child allocations. Writer failure likewise
+leaves a partial output stream rather than rewinding it.
+
+There is no recursive depth limit or cycle detection. Binary reading and writing
+eventually exhaust the native stack at a platform-dependent depth, but rendering
+fails much earlier: the global dynamic matrix-save area provides only 15 safe
+`0x40`-byte slots. Depth 15 aliases the current matrix and deeper traversal
+overwrites adjacent globals. Official files avoid all of these cases: maximum
+dynamic depth is one and the largest tree contains 17 records.
+
 ### Dynamic AOD property transformations
 
 - `Frames first,last,param,columns,rows` stores `first`,
-  `last-first+1`, `columns`, `rows`, and `param` in the order shown above.
+  `last-first+1`, `columns`, `rows`, and frame period `param` in the order shown
+  above.
 - `Width w` writes `(-w/2,+w/2,+w/2,-w/2)` to both size rectangles.
 - `Width2 w` changes only the secondary rectangle.
 - `Size a,b,c,d,e` writes `(a,b,c,d)` to both rectangles, stores `e`, and
   stores `(c-a)/2`.
 - `Size2 a,b,c,d` changes only the secondary rectangle.
-- `Light r,g,b,k` stores `(r*k,g*k,b*k)`.
-- `Color r,g,b,k` stores RGB and `k` separately.
+- `Light r,g,b,k` stores terrain-light RGB `(r*k,g*k,b*k)`.
+- `Color r,g,b,k` stores visible RGB and the Smoke/generic-attached visible
+  terrain-light gain `k` separately.
 - `Alpha a,b[,mode]` is physically stored as `mode,b,a`.
 - `Scale a,b` is physically stored as `b,a`.
-- `Position` initializes both positions; `Position2` overrides the second.
+- `Position` initializes both child translations; `Position2` overrides the end
+  translation.
 - `Mesh name` is stored unchanged. `Texture name` is stored as
   `Textures\name`.
 
@@ -854,7 +2544,7 @@ The complete official corpus has the following structural coverage:
 
 | Metric | Static | Dynamic |
 |---|---:|---:|
-| Files | 955 | 194 |
+| Files | 957 | 194 |
 | Serialized records | 3,088 | 445 |
 | Maximum records in one file | 47 (`EDBBTC.msh`) | 17 (`PYEXP_RUIN_S.msh`) |
 | Maximum reconstructed depth | 7 (`EDUTA1.msh`) | 1 |
@@ -990,3 +2680,87 @@ The static vtable's read slot points to an unsupported stub that returns false;
 there is no corresponding `read_static_mesh` implementation. The no-op at
 `0x0040A9B0` and lifecycle helpers whose owning types remain uncertain were
 deliberately left generic rather than assigned speculative names.
+
+### Game-side reader and runtime anchors
+
+The following names refer to `TheMoonProject.exe`, compiled June 29, 2004, not
+to `Aod2Msh.exe`:
+
+| Address | Name/purpose |
+|---:|---|
+| `0x0040D140` | `get_weapon_slot_position` |
+| `0x0040D180` | `get_weapon_mount_heading_and_yaw_half_range` |
+| `0x0041AF70` | `process_entities_in_mesh_height_volume` |
+| `0x00425770` | queued-child type-1 animation controller |
+| `0x00427CE0` | construction/deconstruction type-1/2/3 controller |
+| `0x0043C1C0` | resource-placement animation controller |
+| `0x0045BA20` | eligible-unit transfer animation controller |
+| `0x0043BEA0` | `update_object_footprint_top_heights` |
+| `0x0045DB00` | `step_type2_frame_forward_counted` |
+| `0x0045DB40` | `step_type2_frame_reverse_counted` |
+| `0x0045F830` | `initialize_weapon_mount_from_mesh` |
+| `0x00460270` | `rotate_weapon_toward_target_with_mount_limits` |
+| `0x004603E0` | `return_weapon_to_mount_rest_heading` |
+| `0x00464020` | `format_resource_path` |
+| `0x004781E0` | `read_entity_mesh_state` |
+| `0x004783D0` | `write_entity_mesh_state` |
+| `0x004B2830` | `set_world_cell_vertical_occupancy_range` |
+| `0x004B3EA0` | configure paired attachment emitters |
+| `0x004BF3E0` | `update_object_world_footprint` |
+| `0x0052FA30` | repair/convert/repaint/upgrade animation controller |
+| `0x00550100` | compute SS1-relative transfer point |
+| `0x00550B20` | transporter acquire/put/drop animation controller |
+| `0x0055B490` | onboard-list type-3 animation controller |
+| `0x0052F2F0` | `step_type2_frame_signed_direction` |
+| `0x005479E0` | `block_world_grid_edges_for_mesh_footprint` |
+| `0x00548240` | `align_entity_to_terrain_from_mesh_extents` |
+| `0x0054BE80` | `set_world_cell_occupancy_and_top_height` |
+| `0x0054BFF0` | `set_world_cell_clearance_tier` |
+| `0x00565F80` | `flood_fill_traversable_grid_region` |
+| `0x00566FE0` | `find_grid_path_cost` |
+| `0x005C3010` | `render_triangles_by_flag_mask_d3d` |
+| `0x005CEDF0` | render MappedExplosion terrain decal |
+| `0x005CF220` | render Track terrain decal |
+| `0x005D4800` | `read_dynamic_mesh_object` |
+| `0x005D1120` | render Laser ribbon |
+| `0x005D16F0` | render Lighting jagged ribbon |
+| `0x005D2330` | render ElectricalCannon jagged ribbon |
+| `0x005D2F00` | render LaserWall ribbon |
+| `0x005DB930` | `render_projected_entity_shadow` |
+| `0x005E68F0` | `render_triangles_by_flag_mask_glide` |
+| `0x005F8090` | `load_cached_texture` |
+| `0x005F84B0` | `release_cached_texture` |
+| `0x005F94B0` | `load_mesh_render_settings` |
+| `0x005F9B80` | `load_mesh_effect_textures` |
+| `0x005F9CA0` | `release_mesh_effect_textures` |
+| `0x005F9D10` | `load_mesh_asset` |
+| `0x005FA880` | `load_cached_mesh` |
+| `0x005FAB10` | `release_cached_mesh` |
+| `0x005FAC40` | `read_base_mesh_header` |
+| `0x005FAEC0` | `write_base_mesh_header` |
+| `0x005FB130` | `get_mesh_attachment_transform` |
+| `0x005FB200` | `get_rotated_attachment_position` |
+| `0x005FBBF0` | `render_triangles_by_flag_mask_opengl` |
+| `0x0060B8B0` | `static_mesh_ctor` |
+| `0x0060B9C0` | `static_render_object_dtor` |
+| `0x0060BAB0` | `static_mesh_dtor` |
+| `0x0060EC70` | `static_render_object_ctor` |
+| `0x0060F100` | `render_static_mesh_objects` |
+| `0x00610E40` | `accumulate_static_spot_terrain_lights` |
+| `0x00610FF0` | `render_static_spot_cones_and_flares` |
+| `0x00611D80` | `accumulate_static_omni_terrain_lights` |
+| `0x00611FE0` | `build_rotated_mesh_footprints` |
+| `0x00612350` | `write_static_render_object` |
+| `0x006126D0` | `read_static_render_object` |
+| `0x00612E40` | `read_static_mesh` |
+| `0x00612EA0` | `resize_static_vertex_block_array` |
+| `0x00613120` | `resize_static_matrix_track_array` |
+| `0x006221B0` | `stamp_large_radial_terrain_light` |
+| `0x006223D0` | `stamp_small_radial_terrain_light` |
+| `0x00624860` | `read_texture_asset` |
+| `0x0070BEF0` | `read_stream_bytes` |
+| `0x0070D330` | `open_resource_stream` |
+| `0x0070D800` | `join_resource_path` |
+| `0x0070FE30` | parse archive framing metadata |
+| `0x00715BE0` | `hash_ascii_case_insensitive` |
+| `0x00736960` | `compare_ascii_case_insensitive` |

@@ -34,12 +34,12 @@
 (field "Mesh kind = 0 static (u32)" 4 header-fill)
 (field "4x4 box presence mask (u32)" 4 header-fill)
 (field "Animation lengths: type n in byte 3-n (u32)" 4 header-fill)
-(field "Header flags / reserved (u32)" 4 header-fill)
+(field "Animation frames: type n in byte 3-n (u32)" 4 header-fill)
 (field "Spot-light / cannon overlap area (0xF0 bytes)" 0xf0 table-fill)
 (field "Remaining light storage / overlap (0x70 bytes)" 0x70 table-fill)
 (field "Box heights, reverse indexed (u16[16])" 0x20 table-fill)
 (field "Box flags, reverse indexed (u8[16])" 0x10 table-fill)
-(field "4x4 coverage descriptors (u32[4])" 0x10 table-fill)
+(field "4x4 occupancy descriptors (u32[4]; midpoint biases unused)" 0x10 table-fill)
 (field "4x4 coverage bitmaps (u64[4])" 0x20 table-fill)
 (field "Attachments 1..49 (49 x 8 bytes)" 0x188 table-fill)
 (field "Extents: +Y, -Y, +X, -X (u16[4])" 8 header-fill)
@@ -51,7 +51,8 @@
 ;; links another complete StaticObject. The linked sequence ends exactly at EOF.
 (field "Render vertex count V (u32)" 4 geometry-fill)
 (field "Vertex block count B = ceil(V/4) (u32)" 4 geometry-fill)
-(draw-gap "VertexBlock[B], B x 0xA0 bytes" {:fill geometry-fill})
+(draw-gap "VertexBlock[B], B x 0xA0: XYZ, normal, UV, reserved W=0, sharing links"
+          {:fill geometry-fill})
 (field "Object flags (u32)" 4 geometry-fill)
 (field "Texture path length L (u32)" 4 geometry-fill)
 (draw-gap "Texture path: L ASCII bytes, no NUL or padding"
