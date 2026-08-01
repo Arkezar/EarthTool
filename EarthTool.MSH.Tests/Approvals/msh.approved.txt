@@ -311,8 +311,9 @@ public struct EarthTool.MSH.Authoring.CanonicalDynamicTerrainLight
   property System.Numerics.Vector3 Color { get; }
   property EarthTool.MSH.Assets.DynamicLightType LightType { get; }
 public sealed class EarthTool.MSH.Authoring.CanonicalStaticRenderObject
-  constructor CanonicalStaticRenderObject(System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticVertex> renderVertices, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalTriangle> triangles)
+  constructor CanonicalStaticRenderObject(System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticVertex> renderVertices, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalTriangle> triangles, System.String? textureResourceKey = null)
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Authoring.CanonicalStaticVertex> RenderVertices { get; }
+  property System.String? TextureResourceKey { get; }
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Authoring.CanonicalTriangle> Triangles { get; }
 public sealed class EarthTool.MSH.Authoring.CanonicalStaticSourceObject
   constructor CanonicalStaticSourceObject(System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticRenderObject> renderObjects, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticSourceObject>? children = null)
@@ -386,6 +387,7 @@ public sealed class EarthTool.MSH.Authoring.StaticMeshEditSession
   method EarthTool.MSH.Authoring.MshEditResult<EarthTool.MSH.Assets.StaticMeshAsset> Commit(EarthTool.MSH.Operations.MshOperationProfile? profile = null)
   method EarthTool.MSH.Authoring.StaticMeshEditSession RemoveRenderObject(EarthTool.MSH.Assets.StaticRenderObjectId renderObject)
   method EarthTool.MSH.Authoring.StaticMeshEditSession ReplaceGeometry(EarthTool.MSH.Assets.StaticRenderObjectId renderObject, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticVertex> vertices, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalTriangle> triangles)
+  method EarthTool.MSH.Authoring.StaticMeshEditSession SetTextureResourceBinding(EarthTool.MSH.Assets.StaticRenderObjectId renderObject, System.String? textureResourceKey)
 public static class EarthTool.MSH.Expert.MshExpert
   method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.DynamicMeshAsset> CreateDynamic(System.Collections.Generic.IEnumerable<System.Byte> serializedRepresentation, EarthTool.MSH.Assets.MeshAssetLineageId lineageId, EarthTool.MSH.Operations.MshOperationProfile? profile = null)
   method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.StaticMeshAsset> CreateStatic(System.Collections.Generic.IEnumerable<System.Byte> serializedRepresentation, EarthTool.MSH.Assets.MeshAssetLineageId lineageId, EarthTool.MSH.Operations.MshOperationProfile? profile = null)

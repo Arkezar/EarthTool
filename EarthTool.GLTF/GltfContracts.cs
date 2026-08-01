@@ -4,6 +4,8 @@ using EarthTool.MSH.Assets;
 using EarthTool.MSH.Authoring;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace EarthTool.GLTF
 {
@@ -24,6 +26,14 @@ namespace EarthTool.GLTF
     public const string Cancelled = "ETG1005";
     /// <summary>Static geometry cannot be represented safely.</summary>
     public const string InvalidGeometry = "ETG1006";
+    /// <summary>An explicit TEX resource could not be resolved from the configured roots.</summary>
+    public const string TextureResourceMissing = "ETG1007";
+    /// <summary>TEX resource resolution was ambiguous in the winning root.</summary>
+    public const string AmbiguousTextureResource = "ETG1008";
+    /// <summary>An explicit TEX resource could not be decoded into a bounded preview.</summary>
+    public const string TexturePreviewUnavailable = "ETG1009";
+    /// <summary>A later TEX root contains a resource shadowed by the winning root.</summary>
+    public const string TextureResourceShadowed = "ETG1010";
     /// <summary>Required EarthTool manifest metadata is absent.</summary>
     public const string MissingManifest = "ETG2000";
     /// <summary>EarthTool metadata is malformed.</summary>
@@ -71,6 +81,12 @@ namespace EarthTool.GLTF
     /// <summary>Gets the maximum node hierarchy depth, including the scene root.</summary>
     public int MaxHierarchyDepth { get; }
 
+    /// <summary>Gets the maximum TEX resource bytes read for one preview.</summary>
+    public int MaxTextureBytes { get; }
+
+    /// <summary>Gets the maximum decoded pixels accepted for one preview.</summary>
+    public int MaxPreviewPixels { get; }
+
     /// <summary>Initializes finite glTF operation limits.</summary>
     public GltfOperationProfile(
       int maxInputBytes = 32 * 1024 * 1024,
@@ -85,7 +101,9 @@ namespace EarthTool.GLTF
         maxJsonDepth,
         maxActiveRenderVertices,
         4096,
-        15)
+        15,
+        16 * 1024 * 1024,
+        16 * 1024 * 1024)
     {
     }
 
@@ -98,6 +116,30 @@ namespace EarthTool.GLTF
       int maxActiveRenderVertices,
       int maxNodes,
       int maxHierarchyDepth)
+      : this(
+        maxInputBytes,
+        maxOutputBytes,
+        maxMetadataBytes,
+        maxJsonDepth,
+        maxActiveRenderVertices,
+        maxNodes,
+        maxHierarchyDepth,
+        16 * 1024 * 1024,
+        16 * 1024 * 1024)
+    {
+    }
+
+    /// <summary>Initializes all finite glTF operation limits including TEX previews.</summary>
+    public GltfOperationProfile(
+      int maxInputBytes,
+      int maxOutputBytes,
+      int maxMetadataBytes,
+      int maxJsonDepth,
+      int maxActiveRenderVertices,
+      int maxNodes,
+      int maxHierarchyDepth,
+      int maxTextureBytes,
+      int maxPreviewPixels)
     {
       MaxInputBytes = RequirePositive(maxInputBytes, nameof(maxInputBytes));
       MaxOutputBytes = RequirePositive(maxOutputBytes, nameof(maxOutputBytes));
@@ -108,6 +150,8 @@ namespace EarthTool.GLTF
         : throw new ArgumentOutOfRangeException(nameof(maxActiveRenderVertices));
       MaxNodes = RequirePositive(maxNodes, nameof(maxNodes));
       MaxHierarchyDepth = RequirePositive(maxHierarchyDepth, nameof(maxHierarchyDepth));
+      MaxTextureBytes = RequirePositive(maxTextureBytes, nameof(maxTextureBytes));
+      MaxPreviewPixels = RequirePositive(maxPreviewPixels, nameof(maxPreviewPixels));
     }
 
     private static int RequirePositive(int value, string parameterName)
@@ -166,8 +210,14 @@ namespace EarthTool.GLTF
     /// <summary>Gets an optional caller-supplied document identity.</summary>
     public Guid? DocumentId { get; }
 
+    /// <summary>Gets ordered absolute roots used only to resolve decoded TEX previews.</summary>
+    public IReadOnlyList<string> TextureSearchRoots { get; }
+
     /// <summary>Initializes GLB export options.</summary>
-    public GltfExportOptions(Guid? assetLineageId = null, Guid? documentId = null)
+    public GltfExportOptions(
+      Guid? assetLineageId = null,
+      Guid? documentId = null,
+      IEnumerable<string>? textureSearchRoots = null)
     {
       if (assetLineageId == Guid.Empty)
       {
@@ -181,6 +231,32 @@ namespace EarthTool.GLTF
 
       AssetLineageId = assetLineageId;
       DocumentId = documentId;
+      var roots = (textureSearchRoots ?? Array.Empty<string>()).ToArray();
+      if (roots.Any(root => string.IsNullOrWhiteSpace(root) || !System.IO.Path.IsPathRooted(root)))
+      {
+        throw new ArgumentException("TEX search roots must be absolute paths.", nameof(textureSearchRoots));
+      }
+      TextureSearchRoots = Array.AsReadOnly(roots.Select(System.IO.Path.GetFullPath).ToArray());
+    }
+  }
+
+  /// <summary>Supplies explicit game-authoritative TEX bindings for generic material indices.</summary>
+  public sealed class GltfNewModelImportOptions
+  {
+    /// <summary>Gets material-index bindings; a null value explicitly clears the binding.</summary>
+    public IReadOnlyDictionary<int, string?> TextureResourceBindings { get; }
+
+    /// <summary>Initializes explicit generic material bindings.</summary>
+    public GltfNewModelImportOptions(
+      IReadOnlyDictionary<int, string?>? textureResourceBindings = null)
+    {
+      var bindings = textureResourceBindings?.ToDictionary(pair => pair.Key, pair => pair.Value)
+        ?? new Dictionary<int, string?>();
+      if (bindings.Keys.Any(index => index < 0))
+      {
+        throw new ArgumentOutOfRangeException(nameof(textureResourceBindings));
+      }
+      TextureResourceBindings = new ReadOnlyDictionary<int, string?>(bindings);
     }
   }
 

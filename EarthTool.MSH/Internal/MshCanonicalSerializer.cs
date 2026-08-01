@@ -54,6 +54,7 @@ namespace EarthTool.MSH.Internal
       StaticSourceObject? rootSourceObject = null,
       IReadOnlyList<StaticRenderObjectId>? explicitSequence = null,
       IReadOnlyDictionary<StaticRenderObjectId, Vector3>? pivots = null,
+      IReadOnlyDictionary<StaticRenderObjectId, byte[]>? texturePathBytes = null,
       bool canonicalizeNextRecordMarkers = false)
     {
       var archiveHeader = CreateArchiveHeader(source.ArchiveFraming);
@@ -62,6 +63,7 @@ namespace EarthTool.MSH.Internal
       additions ??= Array.Empty<StaticRenderObjectAddition>();
       rootSourceObject ??= source.RootSourceObject;
       pivots ??= new Dictionary<StaticRenderObjectId, Vector3>();
+      texturePathBytes ??= new Dictionary<StaticRenderObjectId, byte[]>();
       var sourceRecords = source.StaticRenderObjectSequence.ToDictionary(record => record.Id);
       var addedRecords = additions.ToDictionary(addition => addition.Id);
       var finalRecordSources = new Dictionary<StaticRenderObjectId, SourceObjectId>();
@@ -75,12 +77,24 @@ namespace EarthTool.MSH.Internal
           var pivot = pivots.TryGetValue(record.Id, out var replacementPivot)
             ? replacementPivot
             : record.Pivot;
+          var hasReplacementTexturePath = texturePathBytes.TryGetValue(
+            record.Id,
+            out var replacementTexturePath);
           recordList.Add(new RewrittenStaticRecord(
             vertices.TryGetValue(record.Id, out var replacementVertices)
-              ? RewriteStaticRecord(record, replacementVertices, triangles[record.Id], pivot)
-              : pivots.ContainsKey(record.Id)
-                ? RewriteStaticPivot(record, pivot)
-                : record.GetSerializedRepresentation(),
+              ? RewriteStaticRecord(
+                record,
+                replacementVertices,
+                triangles[record.Id],
+                pivot,
+                hasReplacementTexturePath
+                  ? replacementTexturePath
+                  : record.TexturePathBytes)
+              : RewriteStaticRecordRepresentations(
+                record,
+                pivot,
+                pivots.ContainsKey(record.Id),
+                hasReplacementTexturePath ? replacementTexturePath : null),
             finalRecordSources[id]));
           continue;
         }
@@ -90,6 +104,7 @@ namespace EarthTool.MSH.Internal
           CreateStaticRecord(
             addition.Vertices,
             addition.Triangles,
+            addition.TexturePathBytes,
             pivots.TryGetValue(addition.Id, out var additionPivot)
               ? additionPivot
               : Vector3.Zero),
@@ -354,12 +369,14 @@ namespace EarthTool.MSH.Internal
     private static byte[] CreateStaticRecord(
       IReadOnlyList<CanonicalStaticVertex> vertices,
       IReadOnlyList<CanonicalTriangle> triangles,
+      IReadOnlyList<byte> texturePathBytes,
       Vector3 pivot)
     {
       var blocks = (vertices.Count + 3) / 4;
-      var result = new byte[checked(53 + blocks * 0xA0 + triangles.Count * 8)];
+      var result = new byte[checked(53 + blocks * 0xA0 + texturePathBytes.Count
+        + triangles.Count * 8)];
       var cursor = 0;
-      WriteStaticRecord(result, ref cursor, vertices, triangles, 0, 1);
+      WriteStaticRecord(result, ref cursor, vertices, triangles, texturePathBytes, 0, 1);
       WriteVector3(result, result.Length - StaticRecordPivotOffsetFromEnd, pivot, invertY: true);
       return result;
     }
@@ -368,11 +385,12 @@ namespace EarthTool.MSH.Internal
       StaticRenderObject source,
       IReadOnlyList<CanonicalStaticVertex> vertices,
       IReadOnlyList<CanonicalTriangle> triangles,
-      Vector3 pivot)
+      Vector3 pivot,
+      IReadOnlyList<byte> texturePathBytes)
     {
       var blockCount = (vertices.Count + 3) / 4;
       var tracks = source.AnimationTracks;
-      var length = checked(53 + blockCount * 0xA0 + source.TexturePathBytes.Count
+      var length = checked(53 + blockCount * 0xA0 + texturePathBytes.Count
         + triangles.Count * 8
         + tracks.ScaleFrames.Count * 12
         + tracks.TranslationFrames.Count * 12
@@ -400,10 +418,10 @@ namespace EarthTool.MSH.Internal
       var cursor = 8 + blockCount * 0xA0;
       WriteUInt32(data, cursor, source.ObjectFlags);
       cursor += 4;
-      WriteUInt32(data, cursor, checked((uint)source.TexturePathBytes.Count));
+      WriteUInt32(data, cursor, checked((uint)texturePathBytes.Count));
       cursor += 4;
-      source.TexturePathBytes.CopyTo(data, cursor);
-      cursor += source.TexturePathBytes.Count;
+      texturePathBytes.CopyTo(data, cursor);
+      cursor += texturePathBytes.Count;
       WriteUInt32(data, cursor, checked((uint)triangles.Count));
       cursor += 4;
       foreach (var triangle in triangles)
@@ -446,6 +464,39 @@ namespace EarthTool.MSH.Internal
       data[cursor++] = source.BarrelMaximumAngle;
       WriteUInt32(data, cursor, source.NextRecordMarker);
       return data;
+    }
+
+    private static byte[] RewriteStaticRecordRepresentations(
+      StaticRenderObject source,
+      Vector3 pivot,
+      bool replacePivot,
+      IReadOnlyList<byte>? texturePathBytes)
+    {
+      var data = texturePathBytes is null
+        ? source.GetSerializedRepresentation()
+        : RewriteStaticTexturePath(source, texturePathBytes);
+      if (replacePivot)
+      {
+        WriteVector3(data, data.Length - StaticRecordPivotOffsetFromEnd, pivot, invertY: true);
+      }
+      return data;
+    }
+
+    private static byte[] RewriteStaticTexturePath(
+      StaticRenderObject source,
+      IReadOnlyList<byte> texturePathBytes)
+    {
+      var original = source.GetSerializedRepresentation();
+      var lengthOffset = GetObjectFlagsOffset(original) + sizeof(uint);
+      var originalPathOffset = lengthOffset + sizeof(uint);
+      var result = new byte[checked(original.Length - source.TexturePathBytes.Count
+        + texturePathBytes.Count)];
+      original.AsSpan(0, lengthOffset).CopyTo(result);
+      WriteUInt32(result, lengthOffset, checked((uint)texturePathBytes.Count));
+      texturePathBytes.CopyTo(result, originalPathOffset);
+      original.AsSpan(originalPathOffset + source.TexturePathBytes.Count).CopyTo(
+        result.AsSpan(originalPathOffset + texturePathBytes.Count));
+      return result;
     }
 
     private static byte[] RewriteStaticPivot(StaticRenderObject source, Vector3 pivot)
@@ -618,6 +669,9 @@ namespace EarthTool.MSH.Internal
           ref cursor,
           record.RenderObject.RenderVertices,
           record.RenderObject.Triangles,
+          record.RenderObject.TextureResourceKey is null
+            ? Array.Empty<byte>()
+            : Encoding.ASCII.GetBytes(record.RenderObject.TextureResourceKey),
           record.ObjectFlags,
           index == records.Count - 1 ? 0u : 1u);
       }
@@ -675,7 +729,11 @@ namespace EarthTool.MSH.Internal
     private static int GetStaticRecordLength(CanonicalStaticRecord record)
     {
       var blocks = (record.RenderObject.RenderVertices.Count + 3) / 4;
-      return checked(53 + blocks * 0xA0 + record.RenderObject.Triangles.Count * 8);
+      var texturePathLength = record.RenderObject.TextureResourceKey is null
+        ? 0
+        : Encoding.ASCII.GetByteCount(record.RenderObject.TextureResourceKey);
+      return checked(53 + blocks * 0xA0 + texturePathLength
+        + record.RenderObject.Triangles.Count * 8);
     }
 
     private static byte[] CreateArchiveHeader(MeshArchiveFraming framing)
@@ -736,6 +794,7 @@ namespace EarthTool.MSH.Internal
       ref int cursor,
       IReadOnlyList<CanonicalStaticVertex> vertices,
       IReadOnlyList<CanonicalTriangle> triangles,
+      IReadOnlyList<byte> texturePathBytes,
       uint objectFlags,
       uint nextRecordMarker)
     {
@@ -764,8 +823,10 @@ namespace EarthTool.MSH.Internal
       cursor = vertexOffset + blockCount * 0xA0;
       WriteUInt32(data, cursor, objectFlags);
       cursor += sizeof(uint);
-      WriteUInt32(data, cursor, 0);
+      WriteUInt32(data, cursor, checked((uint)texturePathBytes.Count));
       cursor += sizeof(uint);
+      texturePathBytes.CopyTo(data, cursor);
+      cursor += texturePathBytes.Count;
       WriteUInt32(data, cursor, checked((uint)triangles.Count));
       cursor += sizeof(uint);
       foreach (var triangle in triangles)

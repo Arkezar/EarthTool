@@ -79,15 +79,20 @@ namespace EarthTool.MSH.Authoring
     /// <summary>Gets ordered canonical triangles.</summary>
     public IReadOnlyList<CanonicalTriangle> Triangles { get; }
 
+    /// <summary>Gets the optional canonical game-authoritative TEX resource key.</summary>
+    public string? TextureResourceKey { get; }
+
     /// <summary>Initializes one canonical static render-object draft.</summary>
     public CanonicalStaticRenderObject(
       IEnumerable<CanonicalStaticVertex> renderVertices,
-      IEnumerable<CanonicalTriangle> triangles)
+      IEnumerable<CanonicalTriangle> triangles,
+      string? textureResourceKey = null)
     {
       RenderVertices = Array.AsReadOnly(
         (renderVertices ?? throw new ArgumentNullException(nameof(renderVertices))).ToArray());
       Triangles = Array.AsReadOnly(
         (triangles ?? throw new ArgumentNullException(nameof(triangles))).ToArray());
+      TextureResourceKey = textureResourceKey;
     }
   }
 
@@ -457,6 +462,8 @@ namespace EarthTool.MSH.Authoring
 
     internal IReadOnlyList<CanonicalTriangle> Triangles { get; }
 
+    internal IReadOnlyList<byte> TexturePathBytes { get; private set; }
+
     internal StaticRenderObjectAddition(
       StaticRenderObjectId id,
       SourceObjectId sourceObjectId,
@@ -467,6 +474,12 @@ namespace EarthTool.MSH.Authoring
       SourceObjectId = sourceObjectId;
       Vertices = vertices;
       Triangles = triangles;
+      TexturePathBytes = Array.Empty<byte>();
+    }
+
+    internal void SetTexturePathBytes(IEnumerable<byte> texturePathBytes)
+    {
+      TexturePathBytes = Array.AsReadOnly(texturePathBytes.ToArray());
     }
   }
 
@@ -477,6 +490,7 @@ namespace EarthTool.MSH.Authoring
     private readonly Dictionary<StaticRenderObjectId, CanonicalTriangle[]> _replacementTriangles = new();
     private readonly Dictionary<StaticRenderObjectId, CanonicalStaticVertex[]> _replacementVertices = new();
     private readonly Dictionary<StaticRenderObjectId, Vector3> _replacementPivots = new();
+    private readonly Dictionary<StaticRenderObjectId, byte[]> _replacementTexturePathBytes = new();
     private readonly HashSet<StaticRenderObjectId> _removedRenderObjects = new();
     private readonly HashSet<SourceObjectId> _allocatedSourceObjects = new();
     private readonly List<StaticRenderObjectAddition> _additions = new();
@@ -610,6 +624,44 @@ namespace EarthTool.MSH.Authoring
       return this;
     }
 
+    internal StaticMeshEditSession ReplaceTexturePathBytes(
+      StaticRenderObjectId renderObject,
+      IEnumerable<byte> texturePathBytes)
+    {
+      EnsureOpen();
+      var bytes = texturePathBytes?.ToArray()
+        ?? throw new ArgumentNullException(nameof(texturePathBytes));
+      if (_replacementAdded && renderObject.Equals(_resultId))
+      {
+        _replacementTexturePathBytes[_source.StaticRenderObjectSequence[0].Id] = bytes;
+        return this;
+      }
+      if (_source.StaticRenderObjectSequence.Any(item => item.Id.Equals(renderObject)))
+      {
+        _replacementTexturePathBytes[renderObject] = bytes;
+        return this;
+      }
+      var addition = _additions.SingleOrDefault(item => item.Id.Equals(renderObject))
+        ?? throw new ArgumentException(
+          "The render-object identity does not belong to this edit session.",
+          nameof(renderObject));
+      addition.SetTexturePathBytes(bytes);
+      return this;
+    }
+
+    /// <summary>Sets or explicitly clears one game-authoritative TEX resource binding.</summary>
+    public StaticMeshEditSession SetTextureResourceBinding(
+      StaticRenderObjectId renderObject,
+      string? textureResourceKey)
+    {
+      var bytes = textureResourceKey is null
+        ? Array.Empty<byte>()
+        : AuthoringValidation.EncodeCanonicalTextureResourceKey(
+          textureResourceKey,
+          nameof(textureResourceKey));
+      return ReplaceTexturePathBytes(renderObject, bytes);
+    }
+
     internal StaticMeshEditSession ApplyHierarchy(
       StaticSourceObject rootSourceObject,
       IReadOnlyList<StaticRenderObjectId> sequence)
@@ -702,10 +754,32 @@ namespace EarthTool.MSH.Authoring
             new PreservationReport(Array.Empty<PreservationChange>()),
             new[] { failure });
         }
+        if (addition.TexturePathBytes.Count > profile.MaxStaticTexturePathBytes)
+        {
+          return new MshEditResult<StaticMeshAsset>(
+            false,
+            null,
+            new PreservationReport(Array.Empty<PreservationChange>()),
+            new[] { AuthoringValidation.ResourceLimit(
+              addition.TexturePathBytes.Count,
+              profile.MaxStaticTexturePathBytes) });
+        }
+      }
+
+      if (_replacementTexturePathBytes.Values.Any(bytes =>
+        bytes.Length > profile.MaxStaticTexturePathBytes))
+      {
+        var actual = _replacementTexturePathBytes.Values.Max(bytes => bytes.Length);
+        return new MshEditResult<StaticMeshAsset>(
+          false,
+          null,
+          new PreservationReport(Array.Empty<PreservationChange>()),
+          new[] { AuthoringValidation.ResourceLimit(actual, profile.MaxStaticTexturePathBytes) });
       }
 
       var bytes = _replacementVertices.Count == 0
         && _replacementPivots.Count == 0
+        && _replacementTexturePathBytes.Count == 0
         && _removedRenderObjects.Count == 0
         && _additions.Count == 0
         && _editedRootSourceObject is null
@@ -723,6 +797,7 @@ namespace EarthTool.MSH.Authoring
           _editedRootSourceObject,
           _editedSequence,
           _replacementPivots,
+          _replacementTexturePathBytes,
           _editedRootSourceObject is not null);
       if (bytes.Length > profile.MaxOutputBytes)
       {
@@ -792,6 +867,8 @@ namespace EarthTool.MSH.Authoring
           "RemovedRenderObject"));
         changes.Add(Change("StaticRenderObjectSequence[0]",
           PreservationDisposition.Canonicalized, "NewRenderObject"));
+        changes.Add(Change("StaticRenderObjectSequence[0].TexturePathBytes",
+          PreservationDisposition.Canonicalized, "NewMaterialBinding"));
       }
       else
       {
@@ -820,6 +897,16 @@ namespace EarthTool.MSH.Authoring
             changes.Add(Change($"StaticRenderObjectSequence[{index}].Pivot",
               PreservationDisposition.Regenerated, "TransformEdit"));
           }
+          if (_replacementTexturePathBytes.ContainsKey(record.Id))
+          {
+            changes.Add(Change($"StaticRenderObjectSequence[{index}].TexturePathBytes",
+              PreservationDisposition.Regenerated, "MaterialBindingEdit"));
+          }
+          else
+          {
+            changes.Add(Change($"StaticRenderObjectSequence[{index}].TexturePathBytes",
+              PreservationDisposition.Retained, "MaterialBindingReaffirmed"));
+          }
         }
 
         foreach (var addition in _additions)
@@ -827,6 +914,8 @@ namespace EarthTool.MSH.Authoring
           var resultIndex = GetResultRenderObjectIds().ToList().IndexOf(addition.Id);
           changes.Add(Change($"StaticRenderObjectSequence[{resultIndex}]",
             PreservationDisposition.Canonicalized, "NewRenderObject"));
+          changes.Add(Change($"StaticRenderObjectSequence[{resultIndex}].TexturePathBytes",
+            PreservationDisposition.Canonicalized, "NewMaterialBinding"));
         }
 
         for (var resultIndex = 0;
@@ -1179,6 +1268,23 @@ namespace EarthTool.MSH.Authoring
         {
           return failure;
         }
+        if (renderObject.TextureResourceKey is not null)
+        {
+          if (!IsCanonicalTextureResourceKey(renderObject.TextureResourceKey))
+          {
+            return Invalid(
+              path + ".RenderObjects.TextureResourceKey",
+              "TEX resource keys must use safe Textures\\...\\*.tex spelling.");
+          }
+          var byteCount = Encoding.ASCII.GetByteCount(renderObject.TextureResourceKey);
+          if (byteCount > profile.MaxStaticTexturePathBytes)
+          {
+            return ResourceLimit(
+              byteCount,
+              profile.MaxStaticTexturePathBytes,
+              path + ".RenderObjects.TextureResourceKey");
+          }
+        }
       }
 
       for (var index = 0; index < source.Children.Count; index++)
@@ -1196,6 +1302,17 @@ namespace EarthTool.MSH.Authoring
       }
 
       return null;
+    }
+
+    internal static byte[] EncodeCanonicalTextureResourceKey(string value, string parameterName)
+    {
+      if (!IsCanonicalTextureResourceKey(value))
+      {
+        throw new ArgumentException(
+          "TEX resource keys must use safe Textures\\...\\*.tex spelling.",
+          parameterName);
+      }
+      return Encoding.ASCII.GetBytes(value);
     }
 
     internal static OperationDiagnostic Invalid(string path, string message)
@@ -1432,7 +1549,7 @@ namespace EarthTool.MSH.Authoring
         : null;
     }
 
-    private static bool IsCanonicalTextureResourceKey(string value)
+    internal static bool IsCanonicalTextureResourceKey(string value)
     {
       if (!value.StartsWith("Textures\\", StringComparison.OrdinalIgnoreCase)
         || !value.EndsWith(".tex", StringComparison.OrdinalIgnoreCase)
@@ -1440,7 +1557,9 @@ namespace EarthTool.MSH.Authoring
         || value.Contains(':')
         || value.Contains('?')
         || value.Contains('#')
-        || value.Any(character => char.IsControl(character) || character is '*' or '"' or '<' or '>' or '|'))
+        || value.Any(character => character > 0x7F
+          || char.IsControl(character)
+          || character is '*' or '"' or '<' or '>' or '|'))
       {
         return false;
       }

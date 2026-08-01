@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\EarthTool.Common\EarthTool.Common.csproj" />
     <ProjectReference Include="..\EarthTool.MSH\EarthTool.MSH.csproj" />
+    <ProjectReference Include="..\EarthTool.TEX\EarthTool.TEX.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -63,6 +63,8 @@ namespace EarthTool.GLTF.Internal
 
     internal IReadOnlyList<ParsedGltfNode> Nodes { get; }
 
+    internal IReadOnlyList<ParsedGltfMaterial> Materials { get; }
+
     internal int RootNodeIndex { get; }
 
     internal ParsedGlb(
@@ -70,12 +72,14 @@ namespace EarthTool.GLTF.Internal
       bool hasReservedMetadata,
       IReadOnlyList<ParsedGltfMesh> meshes,
       IReadOnlyList<ParsedGltfNode> nodes,
+      IReadOnlyList<ParsedGltfMaterial> materials,
       int rootNodeIndex)
     {
       ManifestMetadata = manifestMetadata;
       HasReservedMetadata = hasReservedMetadata;
       Meshes = meshes;
       Nodes = nodes;
+      Materials = materials;
       RootNodeIndex = rootNodeIndex;
     }
   }
@@ -122,12 +126,29 @@ namespace EarthTool.GLTF.Internal
 
     internal IReadOnlyList<StaticTriangle> Triangles { get; }
 
+    internal int? MaterialIndex { get; }
+
     internal ParsedGltfPrimitive(
       IReadOnlyList<RenderVertex> vertices,
-      IReadOnlyList<StaticTriangle> triangles)
+      IReadOnlyList<StaticTriangle> triangles,
+      int? materialIndex)
     {
       Vertices = vertices;
       Triangles = triangles;
+      MaterialIndex = materialIndex;
+    }
+  }
+
+  internal sealed class ParsedGltfMaterial
+  {
+    internal string? Metadata { get; }
+
+    internal bool HasBaseColorTexture { get; }
+
+    internal ParsedGltfMaterial(string? metadata, bool hasBaseColorTexture)
+    {
+      Metadata = metadata;
+      HasBaseColorTexture = hasBaseColorTexture;
     }
   }
 
@@ -176,6 +197,8 @@ namespace EarthTool.GLTF.Internal
 
     internal int? NextSourceObjectLocalId { get; }
 
+    internal IReadOnlyList<byte>? TextureBinding { get; }
+
     internal MetadataEnvelope(
       Guid assetLineageId,
       Guid documentId,
@@ -191,7 +214,8 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyList<int> staticRenderObjectInventory,
       IReadOnlyList<int> sourceObjectInventory,
       int? nextStaticRenderObjectLocalId,
-      int? nextSourceObjectLocalId)
+      int? nextSourceObjectLocalId,
+      IReadOnlyList<byte>? textureBinding)
     {
       AssetLineageId = assetLineageId;
       DocumentId = documentId;
@@ -208,6 +232,7 @@ namespace EarthTool.GLTF.Internal
       SourceObjectInventory = sourceObjectInventory;
       NextStaticRenderObjectLocalId = nextStaticRenderObjectLocalId;
       NextSourceObjectLocalId = nextSourceObjectLocalId;
+      TextureBinding = textureBinding;
     }
   }
 
@@ -220,18 +245,20 @@ namespace EarthTool.GLTF.Internal
     internal static byte[] Create(
       StaticMeshAsset asset,
       InterchangeBaseline baseline,
+      IReadOnlyDictionary<StaticRenderObjectId, byte[]> previews,
       out NativeProjectionFingerprint fingerprint)
     {
-      var package = CreatePackage(asset, baseline, false, out fingerprint);
+      var package = CreatePackage(asset, baseline, false, previews, out fingerprint);
       return Pack(package.Json, package.Binary);
     }
 
     internal static GltfPackage CreateSeparate(
       StaticMeshAsset asset,
       InterchangeBaseline baseline,
+      IReadOnlyDictionary<StaticRenderObjectId, byte[]> previews,
       out NativeProjectionFingerprint fingerprint)
     {
-      return CreatePackage(asset, baseline, true, out fingerprint);
+      return CreatePackage(asset, baseline, true, previews, out fingerprint);
     }
 
     internal static int GetManifestMetadataByteCount(StaticMeshAsset asset, InterchangeBaseline baseline)
@@ -270,6 +297,7 @@ namespace EarthTool.GLTF.Internal
       StaticMeshAsset asset,
       InterchangeBaseline baseline,
       bool separate,
+      IReadOnlyDictionary<StaticRenderObjectId, byte[]> previews,
       out NativeProjectionFingerprint fingerprint)
     {
       var partitions = asset.StaticRenderObjectSequence
@@ -277,7 +305,7 @@ namespace EarthTool.GLTF.Internal
           item,
           item.RenderVertices.Select(ProjectToGltf).ToArray()))
         .ToArray();
-      var binary = CreateBinary(partitions, out var layouts);
+      var binary = CreateBinary(partitions, previews, out var layouts, out var previewLayouts);
       var bufferFileName = separate ? Hash(binary) + ".bin" : null;
       fingerprint = StaticGeometryFingerprint.Create(baseline, partitions);
       var manifest = CreateMetadata(
@@ -293,6 +321,7 @@ namespace EarthTool.GLTF.Internal
         binary.Length,
         baseline,
         manifest,
+        previewLayouts,
         bufferFileName);
       return new GltfPackage(json, binary, bufferFileName ?? string.Empty);
     }
@@ -419,11 +448,23 @@ namespace EarthTool.GLTF.Internal
           primitives.AsReadOnly()));
       }
 
+      var materials = root.TryGetProperty("materials", out var materialArray)
+        ? materialArray.EnumerateArray()
+          .Select(material => new ParsedGltfMaterial(
+            intent == GltfImportIntent.Edit
+              ? GetMetadata(material, "material")
+              : TryGetMetadata(material),
+            material.TryGetProperty("pbrMetallicRoughness", out var pbr)
+              && pbr.TryGetProperty("baseColorTexture", out _)))
+          .ToArray()
+        : Array.Empty<ParsedGltfMaterial>();
+
       return new ParsedGlb(
         manifest,
         HasReservedMetadata(root),
         meshes.AsReadOnly(),
         nodes.AsReadOnly(),
+        Array.AsReadOnly(materials),
         root.GetProperty("scenes")[0].GetProperty("nodes")[0].GetInt32());
     }
 
@@ -544,6 +585,11 @@ namespace EarthTool.GLTF.Internal
             : null,
           root.TryGetProperty("nextSourceObjectLocalId", out var nextSourceObjectId)
             ? nextSourceObjectId.GetInt32()
+            : null,
+          root.TryGetProperty("textureBinding", out var textureBinding)
+            ? Array.AsReadOnly(Convert.FromBase64String(
+              textureBinding.GetString()
+                ?? throw new MalformedMetadataException("Missing TEX resource binding.")))
             : null);
       }
       catch (UnsupportedMetadataVersionException)
@@ -554,7 +600,10 @@ namespace EarthTool.GLTF.Internal
       {
         throw;
       }
-      catch (Exception ex) when (ex is JsonException || ex is InvalidOperationException || ex is KeyNotFoundException)
+      catch (Exception ex) when (ex is JsonException
+        || ex is InvalidOperationException
+        || ex is KeyNotFoundException
+        || ex is FormatException)
       {
         throw new MalformedMetadataException("Malformed EarthTool metadata.", ex);
       }
@@ -577,7 +626,9 @@ namespace EarthTool.GLTF.Internal
 
     private static byte[] CreateBinary(
       IReadOnlyList<ProjectedPartition> partitions,
-      out IReadOnlyDictionary<StaticRenderObjectId, PartitionLayout> layouts)
+      IReadOnlyDictionary<StaticRenderObjectId, byte[]> previews,
+      out IReadOnlyDictionary<StaticRenderObjectId, PartitionLayout> layouts,
+      out IReadOnlyDictionary<StaticRenderObjectId, PreviewLayout> previewLayouts)
     {
       using var stream = new MemoryStream();
       using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
@@ -646,7 +697,28 @@ namespace EarthTool.GLTF.Internal
         }
       }
 
+      var createdPreviewLayouts = new Dictionary<StaticRenderObjectId, PreviewLayout>();
+      foreach (var partition in partitions.Where(partition => previews.ContainsKey(
+        partition.RenderObject.Id)))
+      {
+        while (stream.Length % 4 != 0)
+        {
+          writer.Write((byte)0);
+        }
+        var png = previews[partition.RenderObject.Id];
+        var offset = checked((int)stream.Position);
+        writer.Write(png);
+        createdPreviewLayouts.Add(
+          partition.RenderObject.Id,
+          new PreviewLayout(offset, png.Length));
+      }
+      while (stream.Length % 4 != 0)
+      {
+        writer.Write((byte)0);
+      }
+
       layouts = createdLayouts;
+      previewLayouts = createdPreviewLayouts;
       return stream.ToArray();
     }
 
@@ -656,6 +728,7 @@ namespace EarthTool.GLTF.Internal
       int binaryLength,
       InterchangeBaseline baseline,
       string manifest,
+      IReadOnlyDictionary<StaticRenderObjectId, PreviewLayout> previewLayouts,
       string? bufferFileName)
     {
       var sources = StaticSourceObjectTraversal.Flatten(rootSourceObject).ToArray();
@@ -669,6 +742,17 @@ namespace EarthTool.GLTF.Internal
       var accessorIndices = orderedLayouts
         .Select((layout, index) => new { layout.Partition.RenderObject.Id, Index = index * 4 })
         .ToDictionary(item => item.Id, item => item.Index);
+      var materialIndices = orderedLayouts
+        .Select((layout, index) => new { layout.Partition.RenderObject.Id, Index = index })
+        .ToDictionary(item => item.Id, item => item.Index);
+      var orderedPreviewLayouts = orderedLayouts
+        .Where(layout => previewLayouts.ContainsKey(layout.Partition.RenderObject.Id))
+        .Select(layout => (RenderObjectId: layout.Partition.RenderObject.Id,
+          Layout: previewLayouts[layout.Partition.RenderObject.Id]))
+        .ToArray();
+      var previewIndices = orderedPreviewLayouts
+        .Select((preview, index) => new { preview.RenderObjectId, Index = index })
+        .ToDictionary(item => item.RenderObjectId, item => item.Index);
       using var stream = new MemoryStream();
       using (var writer = new Utf8JsonWriter(stream))
       {
@@ -677,6 +761,9 @@ namespace EarthTool.GLTF.Internal
         writer.WriteString("version", "2.0");
         writer.WriteString("generator", "EarthTool");
         writer.WriteEndObject();
+        writer.WriteStartArray("extensionsUsed");
+        writer.WriteStringValue("KHR_materials_unlit");
+        writer.WriteEndArray();
         writer.WriteNumber("scene", 0);
         writer.WriteStartArray("scenes");
         writer.WriteStartObject();
@@ -740,6 +827,7 @@ namespace EarthTool.GLTF.Internal
             writer.WriteEndObject();
             writer.WriteNumber("indices", firstAccessor + 3);
             writer.WriteNumber("mode", 4);
+            writer.WriteNumber("material", materialIndices[renderObjectId]);
             writer.WriteEndObject();
           }
 
@@ -752,6 +840,57 @@ namespace EarthTool.GLTF.Internal
         }
 
         writer.WriteEndArray();
+        writer.WriteStartArray("materials");
+        foreach (var layout in orderedLayouts)
+        {
+          var renderObject = layout.Partition.RenderObject;
+          writer.WriteStartObject();
+          writer.WriteString("name", $"TEX preview {renderObject.LocalId}");
+          writer.WriteStartObject("pbrMetallicRoughness");
+          writer.WriteStartArray("baseColorFactor");
+          writer.WriteNumberValue(1);
+          writer.WriteNumberValue(1);
+          writer.WriteNumberValue(1);
+          writer.WriteNumberValue(1);
+          writer.WriteEndArray();
+          writer.WriteNumber("metallicFactor", 0);
+          writer.WriteNumber("roughnessFactor", 1);
+          if (previewIndices.TryGetValue(renderObject.Id, out var previewIndex))
+          {
+            writer.WriteStartObject("baseColorTexture");
+            writer.WriteNumber("index", previewIndex);
+            writer.WriteEndObject();
+          }
+          writer.WriteEndObject();
+          writer.WriteStartObject("extensions");
+          writer.WriteStartObject("KHR_materials_unlit");
+          writer.WriteEndObject();
+          writer.WriteEndObject();
+          WriteExtras(writer, CreateMaterialMetadata(baseline, renderObject));
+          writer.WriteEndObject();
+        }
+        writer.WriteEndArray();
+        if (orderedPreviewLayouts.Length > 0)
+        {
+          writer.WriteStartArray("textures");
+          for (var index = 0; index < orderedPreviewLayouts.Length; index++)
+          {
+            writer.WriteStartObject();
+            writer.WriteNumber("source", index);
+            writer.WriteEndObject();
+          }
+          writer.WriteEndArray();
+          writer.WriteStartArray("images");
+          for (var index = 0; index < orderedPreviewLayouts.Length; index++)
+          {
+            writer.WriteStartObject();
+            writer.WriteString("name", $"Decoded TEX preview {index + 1}");
+            writer.WriteNumber("bufferView", orderedLayouts.Length * 4 + index);
+            writer.WriteString("mimeType", "image/png");
+            writer.WriteEndObject();
+          }
+          writer.WriteEndArray();
+        }
         writer.WriteStartArray("buffers");
         writer.WriteStartObject();
         writer.WriteNumber("byteLength", binaryLength);
@@ -770,6 +909,10 @@ namespace EarthTool.GLTF.Internal
           WriteBufferView(writer, layout.NormalOffset, vertexCount * 12, 34962);
           WriteBufferView(writer, layout.TextureOffset, vertexCount * 8, 34962);
           WriteBufferView(writer, layout.IndexOffset, layout.IndexLength, 34963);
+        }
+        foreach (var preview in orderedPreviewLayouts)
+        {
+          WriteBufferView(writer, preview.Layout.Offset, preview.Layout.Length, null);
         }
 
         writer.WriteEndArray();
@@ -815,13 +958,16 @@ namespace EarthTool.GLTF.Internal
       writer.WriteEndObject();
     }
 
-    private static void WriteBufferView(Utf8JsonWriter writer, int offset, int length, int target)
+    private static void WriteBufferView(Utf8JsonWriter writer, int offset, int length, int? target)
     {
       writer.WriteStartObject();
       writer.WriteNumber("buffer", 0);
       writer.WriteNumber("byteOffset", offset);
       writer.WriteNumber("byteLength", length);
-      writer.WriteNumber("target", target);
+      if (target.HasValue)
+      {
+        writer.WriteNumber("target", target.Value);
+      }
       writer.WriteEndObject();
     }
 
@@ -1019,6 +1165,31 @@ namespace EarthTool.GLTF.Internal
       return Encoding.UTF8.GetString(stream.ToArray());
     }
 
+    private static string CreateMaterialMetadata(
+      InterchangeBaseline baseline,
+      StaticRenderObject renderObject)
+    {
+      using var stream = new MemoryStream();
+      using (var writer = new Utf8JsonWriter(stream))
+      {
+        writer.WriteStartObject();
+        writer.WriteString("format", "earthtool.msh.gltf");
+        writer.WriteNumber("version", 1);
+        writer.WriteString("assetLineage", baseline.AssetLineageId);
+        writer.WriteString("document", baseline.DocumentId);
+        writer.WriteStartObject("scope");
+        writer.WriteString("kind", "material");
+        writer.WriteNumber("localId", renderObject.LocalId);
+        writer.WriteEndObject();
+        writer.WriteString(
+          "textureBinding",
+          Convert.ToBase64String(renderObject.TexturePathBytes.ToArray()));
+        writer.WriteEndObject();
+      }
+
+      return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
     private static void ValidateSupportedGraph(
       JsonElement root,
       GltfOperationProfile profile,
@@ -1026,6 +1197,9 @@ namespace EarthTool.GLTF.Internal
     {
       var nodes = root.GetProperty("nodes");
       var meshes = root.GetProperty("meshes");
+      var materialCount = root.TryGetProperty("materials", out var materials)
+        ? materials.GetArrayLength()
+        : 0;
       if (nodes.GetArrayLength() > profile.MaxNodes)
       {
         throw new ResourceLimitException(nodes.GetArrayLength(), profile.MaxNodes);
@@ -1163,6 +1337,11 @@ namespace EarthTool.GLTF.Internal
         var geometry = new List<(int VertexCount, int TriangleCount)>();
         foreach (var primitive in primitives.EnumerateArray())
         {
+          if (primitive.TryGetProperty("material", out var material)
+            && (material.GetInt32() < 0 || material.GetInt32() >= materialCount))
+          {
+            throw new UnsupportedGltfDomainException("materials");
+          }
           var attributes = primitive.GetProperty("attributes");
           if (attributes.EnumerateObject().Any(attribute => !supportedAttributes.Contains(attribute.Name))
             || !attributes.TryGetProperty("POSITION", out _)
@@ -1217,11 +1396,134 @@ namespace EarthTool.GLTF.Internal
         throw new ResourceLimitException(serializedLength, profile.MaxOutputBytes);
       }
 
-      foreach (var domain in new[] { "animations", "materials", "textures", "images", "skins", "cameras" })
+      ValidateMaterials(root);
+      ValidateTexturePreviews(root);
+
+      foreach (var domain in new[] { "animations", "skins", "cameras", "samplers" })
       {
         if (root.TryGetProperty(domain, out _))
         {
           throw new UnsupportedGltfDomainException(domain);
+        }
+      }
+    }
+
+    private static void ValidateMaterials(JsonElement root)
+    {
+      if (!root.TryGetProperty("materials", out var materials))
+      {
+        return;
+      }
+      if (!root.TryGetProperty("extensionsUsed", out var extensionsUsed)
+        || !extensionsUsed.EnumerateArray().Any(extension =>
+          extension.ValueKind == JsonValueKind.String
+          && extension.GetString() == "KHR_materials_unlit"))
+      {
+        throw new UnsupportedGltfDomainException("materials");
+      }
+
+      var allowedMaterialProperties = new HashSet<string>(StringComparer.Ordinal)
+      {
+        "name",
+        "pbrMetallicRoughness",
+        "extensions",
+        "extras"
+      };
+      var allowedPbrProperties = new HashSet<string>(StringComparer.Ordinal)
+      {
+        "baseColorFactor",
+        "baseColorTexture",
+        "metallicFactor",
+        "roughnessFactor"
+      };
+      foreach (var material in materials.EnumerateArray())
+      {
+        if (material.EnumerateObject().Any(property =>
+            !allowedMaterialProperties.Contains(property.Name))
+          || !material.TryGetProperty("extensions", out var extensions)
+          || extensions.ValueKind != JsonValueKind.Object
+          || extensions.EnumerateObject().Count() != 1
+          || !extensions.TryGetProperty("KHR_materials_unlit", out var unlit)
+          || unlit.ValueKind != JsonValueKind.Object
+          || unlit.EnumerateObject().Any())
+        {
+          throw new UnsupportedGltfDomainException("materials");
+        }
+
+        if (!material.TryGetProperty("pbrMetallicRoughness", out var pbr))
+        {
+          continue;
+        }
+        if (pbr.ValueKind != JsonValueKind.Object
+          || pbr.EnumerateObject().Any(property => !allowedPbrProperties.Contains(property.Name))
+          || pbr.TryGetProperty("metallicFactor", out var metallic)
+            && metallic.GetSingle() != 0
+          || pbr.TryGetProperty("roughnessFactor", out var roughness)
+            && roughness.GetSingle() != 1)
+        {
+          throw new UnsupportedGltfDomainException("materials");
+        }
+        if (pbr.TryGetProperty("baseColorFactor", out var baseColor)
+          && (baseColor.ValueKind != JsonValueKind.Array
+            || baseColor.GetArrayLength() != 4
+            || baseColor.EnumerateArray().Any(value => value.GetSingle() != 1)))
+        {
+          throw new UnsupportedGltfDomainException("materials");
+        }
+        if (pbr.TryGetProperty("baseColorTexture", out var baseColorTexture)
+          && (baseColorTexture.ValueKind != JsonValueKind.Object
+            || baseColorTexture.EnumerateObject().Any(property => property.Name != "index")
+            || !baseColorTexture.TryGetProperty("index", out _)))
+        {
+          throw new UnsupportedGltfDomainException("materials");
+        }
+      }
+    }
+
+    private static void ValidateTexturePreviews(JsonElement root)
+    {
+      var hasTextures = root.TryGetProperty("textures", out var textures);
+      var hasImages = root.TryGetProperty("images", out var images);
+      if (hasTextures != hasImages)
+      {
+        throw new UnsupportedGltfDomainException("TexturePreviews");
+      }
+      if (!hasTextures)
+      {
+        return;
+      }
+      if (textures.ValueKind != JsonValueKind.Array
+        || images.ValueKind != JsonValueKind.Array
+        || textures.GetArrayLength() != images.GetArrayLength())
+      {
+        throw new UnsupportedGltfDomainException("TexturePreviews");
+      }
+      for (var index = 0; index < textures.GetArrayLength(); index++)
+      {
+        var texture = textures[index];
+        var image = images[index];
+        if (texture.ValueKind != JsonValueKind.Object
+          || texture.EnumerateObject().Any(property => property.Name is not ("source" or "name"))
+          || texture.GetProperty("source").GetInt32() != index
+          || image.ValueKind != JsonValueKind.Object
+          || image.EnumerateObject().Any(property =>
+            property.Name is not ("name" or "bufferView" or "mimeType"))
+          || image.GetProperty("mimeType").GetString() != "image/png"
+          || image.GetProperty("bufferView").GetInt32() < 0
+          || image.GetProperty("bufferView").GetInt32()
+            >= root.GetProperty("bufferViews").GetArrayLength())
+        {
+          throw new UnsupportedGltfDomainException("TexturePreviews");
+        }
+      }
+      foreach (var material in root.GetProperty("materials").EnumerateArray())
+      {
+        if (material.TryGetProperty("pbrMetallicRoughness", out var pbr)
+          && pbr.TryGetProperty("baseColorTexture", out var baseColorTexture)
+          && (baseColorTexture.GetProperty("index").GetInt32() < 0
+            || baseColorTexture.GetProperty("index").GetInt32() >= textures.GetArrayLength()))
+        {
+          throw new UnsupportedGltfDomainException("TexturePreviews");
         }
       }
     }
@@ -1286,6 +1588,19 @@ namespace EarthTool.GLTF.Internal
         IndexOffset = indexOffset;
         IndexLength = indexLength;
         IndexComponentType = indexComponentType;
+      }
+    }
+
+    private sealed class PreviewLayout
+    {
+      internal int Offset { get; }
+
+      internal int Length { get; }
+
+      internal PreviewLayout(int offset, int length)
+      {
+        Offset = offset;
+        Length = length;
       }
     }
 
@@ -1522,7 +1837,8 @@ namespace EarthTool.GLTF.Internal
 
       return new ParsedGltfPrimitive(
         Array.AsReadOnly(vertices),
-        Array.AsReadOnly(triangles));
+        Array.AsReadOnly(triangles),
+        primitive.TryGetProperty("material", out var material) ? material.GetInt32() : null);
     }
 
     private static float[] ReadFloatAccessor(
@@ -1625,14 +1941,18 @@ namespace EarthTool.GLTF.Internal
 
     internal IReadOnlyList<StaticTriangle> Triangles { get; }
 
+    internal int? MaterialIndex { get; }
+
     internal GeometryPartition(
       int localId,
       IReadOnlyList<RenderVertex> vertices,
-      IReadOnlyList<StaticTriangle> triangles)
+      IReadOnlyList<StaticTriangle> triangles,
+      int? materialIndex = null)
     {
       LocalId = localId;
       Vertices = vertices;
       Triangles = triangles;
+      MaterialIndex = materialIndex;
     }
 
     internal void AssignLocalId(int localId)

@@ -93,6 +93,46 @@ public class CanonicalMeshAuthoringTests
   }
 
   [Fact]
+  public void CanonicalStaticAuthoringAndEditControlsEnforceSafeTexResourceKeys()
+  {
+    var build = StaticMeshBuilder.Create(CreationGuid, LineageId)
+      .SetRootSourceObject(new CanonicalStaticSourceObject(
+      [
+        new CanonicalStaticRenderObject(
+          CreateVertices(),
+          CreateTriangles(),
+          "Textures\\authored\\hull.tex")
+      ]))
+      .Build();
+
+    build.TryGetValue(out var asset).Should().BeTrue();
+    asset!.StaticRenderObjectSequence.Should().ContainSingle().Subject.TexturePathBytes.Should()
+      .Equal("Textures\\authored\\hull.tex"u8.ToArray());
+    var edit = asset.Edit()
+      .SetTextureResourceBinding(
+        asset.StaticRenderObjectSequence[0].Id,
+        "Textures\\authored\\replacement.tex")
+      .Commit();
+    edit.TryGetValue(out var edited).Should().BeTrue();
+    edited!.StaticRenderObjectSequence[0].TexturePathBytes.Should()
+      .Equal("Textures\\authored\\replacement.tex"u8.ToArray());
+
+    var unsafeBuild = StaticMeshBuilder.Create(CreationGuid, LineageId)
+      .SetRootSourceObject(new CanonicalStaticSourceObject(
+      [
+        new CanonicalStaticRenderObject(CreateVertices(), CreateTriangles(), "..\\outside.tex")
+      ]))
+      .Build();
+    unsafeBuild.TryGetValue(out _).Should().BeFalse();
+    unsafeBuild.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+      .Be(MshDiagnosticCodes.InvalidAuthoringInput);
+    Action unsafeEdit = () => asset.Edit().SetTextureResourceBinding(
+      asset.StaticRenderObjectSequence[0].Id,
+      "Textures\\..\\outside.tex");
+    unsafeEdit.Should().Throw<ArgumentException>();
+  }
+
+  [Fact]
   public async Task CanonicalDynamicBuilderProducesChildlessGroupWithFixedCommonHeaderProfile()
   {
     var build = DynamicMeshBuilder.Create(CreationGuid, LineageId).Build();
@@ -198,6 +238,7 @@ public class CanonicalMeshAuthoringTests
       ("StaticRenderObjectSequence[0].RenderVertices", PreservationDisposition.Regenerated),
       ("StaticRenderObjectSequence[0].Triangles", PreservationDisposition.Regenerated),
       ("StaticRenderObjectSequence[0].VertexBlockPadding", PreservationDisposition.Canonicalized),
+      ("StaticRenderObjectSequence[0].TexturePathBytes", PreservationDisposition.Retained),
       ("RootTrailingBytes", PreservationDisposition.Retained));
 
     var output = await WriteAsync(edited);

@@ -1,5 +1,6 @@
 public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String AmbiguousPartitionCorrespondence = "ETG2012"
+  field System.String AmbiguousTextureResource = "ETG1008"
   field System.String AssetLineageMismatch = "ETG2003"
   field System.String Cancelled = "ETG1005"
   field System.String DocumentMismatch = "ETG2004"
@@ -13,6 +14,9 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String ResourceLimitExceeded = "ETG1001"
   field System.String StaleNativeProjection = "ETG2008"
   field System.String StrictValidationFailed = "ETG1003"
+  field System.String TexturePreviewUnavailable = "ETG1009"
+  field System.String TextureResourceMissing = "ETG1007"
+  field System.String TextureResourceShadowed = "ETG1010"
   field System.String UnsupportedDomain = "ETG1002"
   field System.String UnsupportedMetadataVersion = "ETG2002"
 public sealed class EarthTool.GLTF.GltfEditImportResult
@@ -22,9 +26,10 @@ public sealed class EarthTool.GLTF.GltfEditImportResult
   property EarthTool.MSH.Authoring.PreservationReport Preservation { get; }
   property System.Collections.Generic.IReadOnlyList<System.String> RestoredSerializedRepresentationPaths { get; }
 public sealed class EarthTool.GLTF.GltfExportOptions
-  constructor GltfExportOptions(System.Guid? assetLineageId = null, System.Guid? documentId = null)
+  constructor GltfExportOptions(System.Guid? assetLineageId = null, System.Guid? documentId = null, System.Collections.Generic.IEnumerable<System.String>? textureSearchRoots = null)
   property System.Guid? AssetLineageId { get; }
   property System.Guid? DocumentId { get; }
+  property System.Collections.Generic.IReadOnlyList<System.String> TextureSearchRoots { get; }
 public sealed class EarthTool.GLTF.GltfExportReceipt
   property EarthTool.GLTF.InterchangeBaseline Baseline { get; }
   property EarthTool.GLTF.NativeProjectionFingerprint Fingerprint { get; }
@@ -35,10 +40,13 @@ public sealed class EarthTool.GLTF.GltfInterchange
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfExportReceipt>> ExportGltfFileAsync(EarthTool.MSH.Assets.StaticMeshAsset asset, System.String destinationPath, EarthTool.GLTF.GltfExportOptions? options = null, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfEditImportResult>> ImportEditGlbAsync(System.IO.Stream source, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfEditImportResult>> ImportEditGltfFileAsync(System.String sourcePath, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfNewModelImportResult>> ImportNewModelGlbAsync(System.IO.Stream source, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfNewModelImportResult>> ImportNewModelGltfFileAsync(System.String sourcePath, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
+  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfNewModelImportResult>> ImportNewModelGlbAsync(System.IO.Stream source, EarthTool.GLTF.GltfNewModelImportOptions? options = null, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
+  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfNewModelImportResult>> ImportNewModelGltfFileAsync(System.String sourcePath, EarthTool.GLTF.GltfNewModelImportOptions? options = null, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult> ValidateGlbAsync(System.IO.Stream source, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult> ValidateGltfFileAsync(System.String sourcePath, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
+public sealed class EarthTool.GLTF.GltfNewModelImportOptions
+  constructor GltfNewModelImportOptions(System.Collections.Generic.IReadOnlyDictionary<System.Int32, System.String?>? textureResourceBindings = null)
+  property System.Collections.Generic.IReadOnlyDictionary<System.Int32, System.String?> TextureResourceBindings { get; }
 public sealed class EarthTool.GLTF.GltfNewModelImportResult
   property EarthTool.MSH.Assets.StaticMeshAsset Asset { get; }
   property EarthTool.GLTF.InterchangeBaseline Baseline { get; }
@@ -46,6 +54,7 @@ public sealed class EarthTool.GLTF.GltfNewModelImportResult
 public sealed class EarthTool.GLTF.GltfOperationProfile
   constructor GltfOperationProfile(System.Int32 maxInputBytes = 33554432, System.Int32 maxOutputBytes = 33554432, System.Int32 maxMetadataBytes = 4194304, System.Int32 maxJsonDepth = 32, System.Int32 maxActiveRenderVertices = 65536)
   constructor GltfOperationProfile(System.Int32 maxInputBytes, System.Int32 maxOutputBytes, System.Int32 maxMetadataBytes, System.Int32 maxJsonDepth, System.Int32 maxActiveRenderVertices, System.Int32 maxNodes, System.Int32 maxHierarchyDepth)
+  constructor GltfOperationProfile(System.Int32 maxInputBytes, System.Int32 maxOutputBytes, System.Int32 maxMetadataBytes, System.Int32 maxJsonDepth, System.Int32 maxActiveRenderVertices, System.Int32 maxNodes, System.Int32 maxHierarchyDepth, System.Int32 maxTextureBytes, System.Int32 maxPreviewPixels)
   property EarthTool.GLTF.GltfOperationProfile Default { get; }
   property System.Int32 MaxActiveRenderVertices { get; }
   property System.Int32 MaxHierarchyDepth { get; }
@@ -54,6 +63,8 @@ public sealed class EarthTool.GLTF.GltfOperationProfile
   property System.Int32 MaxMetadataBytes { get; }
   property System.Int32 MaxNodes { get; }
   property System.Int32 MaxOutputBytes { get; }
+  property System.Int32 MaxPreviewPixels { get; }
+  property System.Int32 MaxTextureBytes { get; }
 public sealed class EarthTool.GLTF.InterchangeBaseline
   constructor InterchangeBaseline(System.Guid assetLineageId, System.Guid documentId)
   property System.Guid AssetLineageId { get; }

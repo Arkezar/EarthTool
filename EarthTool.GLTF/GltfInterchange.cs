@@ -59,7 +59,6 @@ namespace EarthTool.GLTF
         {
           return Failed<GltfExportReceipt>(unsupported);
         }
-
         var baseline = new InterchangeBaseline(
           options.AssetLineageId ?? Guid.NewGuid(),
           options.DocumentId ?? Guid.NewGuid());
@@ -74,11 +73,38 @@ namespace EarthTool.GLTF
         {
           return Failed<GltfExportReceipt>(Limit("$", minimumOutputLength, profile.MaxOutputBytes));
         }
+        var withoutPreviews = GlbDocument.Create(
+          asset,
+          baseline,
+          new Dictionary<StaticRenderObjectId, byte[]>(),
+          out var fingerprint);
+        if (withoutPreviews.Length > profile.MaxOutputBytes)
+        {
+          return Failed<GltfExportReceipt>(Limit("$", withoutPreviews.Length, profile.MaxOutputBytes));
+        }
+        var previewResult = TexPreviewLoader.Load(
+          asset,
+          options,
+          profile,
+          profile.MaxOutputBytes - withoutPreviews.Length,
+          cancellationToken);
+        if (previewResult.HasErrors)
+        {
+          return Failed<GltfExportReceipt>(previewResult.Diagnostics.First(diagnostic =>
+            diagnostic.Severity == DiagnosticSeverity.Error));
+        }
 
-        var glb = GlbDocument.Create(asset, baseline, out var fingerprint);
+        var glb = previewResult.Previews.Count == 0
+          ? withoutPreviews
+          : GlbDocument.Create(asset, baseline, previewResult.Previews, out fingerprint);
+        var exportDiagnostics = previewResult.Diagnostics;
         if (glb.Length > profile.MaxOutputBytes)
         {
-          return Failed<GltfExportReceipt>(Limit("$", glb.Length, profile.MaxOutputBytes));
+          glb = withoutPreviews;
+          exportDiagnostics = previewResult.Diagnostics.Concat(new[]
+          {
+            PreviewOutputLimitWarning()
+          }).ToArray();
         }
 
         GlbDocument.Validate(glb, profile);
@@ -86,7 +112,8 @@ namespace EarthTool.GLTF
         await destination.WriteAsync(glb, 0, glb.Length, cancellationToken).ConfigureAwait(false);
         return new OperationResult<GltfExportReceipt>(
           OperationStatus.Succeeded,
-          new GltfExportReceipt(baseline, fingerprint));
+          new GltfExportReceipt(baseline, fingerprint),
+          exportDiagnostics);
       }
       catch (OperationCanceledException)
       {
@@ -175,7 +202,6 @@ namespace EarthTool.GLTF
         {
           return Failed<GltfExportReceipt>(unsupported);
         }
-
         var baseline = new InterchangeBaseline(
           options.AssetLineageId ?? Guid.NewGuid(),
           options.DocumentId ?? Guid.NewGuid());
@@ -190,12 +216,40 @@ namespace EarthTool.GLTF
         {
           return Failed<GltfExportReceipt>(Limit("$", minimumOutputLength, profile.MaxOutputBytes));
         }
+        var withoutPreviews = GlbDocument.CreateSeparate(
+          asset,
+          baseline,
+          new Dictionary<StaticRenderObjectId, byte[]>(),
+          out var fingerprint);
+        var withoutPreviewLength = checked(withoutPreviews.Json.Length + withoutPreviews.Binary.Length);
+        if (withoutPreviewLength > profile.MaxOutputBytes)
+        {
+          return Failed<GltfExportReceipt>(Limit("$", withoutPreviewLength, profile.MaxOutputBytes));
+        }
+        var previewResult = TexPreviewLoader.Load(
+          asset,
+          options,
+          profile,
+          profile.MaxOutputBytes - withoutPreviewLength,
+          cancellationToken);
+        if (previewResult.HasErrors)
+        {
+          return Failed<GltfExportReceipt>(previewResult.Diagnostics.First(diagnostic =>
+            diagnostic.Severity == DiagnosticSeverity.Error));
+        }
 
-        var package = GlbDocument.CreateSeparate(asset, baseline, out var fingerprint);
+        var package = previewResult.Previews.Count == 0
+          ? withoutPreviews
+          : GlbDocument.CreateSeparate(asset, baseline, previewResult.Previews, out fingerprint);
         var outputLength = checked(package.Json.Length + package.Binary.Length);
+        var exportDiagnostics = previewResult.Diagnostics;
         if (outputLength > profile.MaxOutputBytes)
         {
-          return Failed<GltfExportReceipt>(Limit("$", outputLength, profile.MaxOutputBytes));
+          package = withoutPreviews;
+          exportDiagnostics = previewResult.Diagnostics.Concat(new[]
+          {
+            PreviewOutputLimitWarning()
+          }).ToArray();
         }
 
         ValidateGeometryProfile(
@@ -252,7 +306,8 @@ namespace EarthTool.GLTF
         _fileSystem.Commit(manifestTemporaryPath, destinationPath);
         return new OperationResult<GltfExportReceipt>(
           OperationStatus.Succeeded,
-          new GltfExportReceipt(baseline, fingerprint));
+          new GltfExportReceipt(baseline, fingerprint),
+          exportDiagnostics);
       }
       catch (OperationCanceledException)
       {
@@ -382,6 +437,7 @@ namespace EarthTool.GLTF
     /// <summary>Imports a metadata-free GLB as a canonical authored static mesh representation.</summary>
     public async Task<OperationResult<GltfNewModelImportResult>> ImportNewModelGlbAsync(
       Stream source,
+      GltfNewModelImportOptions? options = null,
       GltfOperationProfile? profile = null,
       CancellationToken cancellationToken = default)
     {
@@ -391,13 +447,14 @@ namespace EarthTool.GLTF
       }
 
       profile ??= GltfOperationProfile.Default;
+      options ??= new GltfNewModelImportOptions();
       try
       {
         var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
           .ConfigureAwait(false);
         var parsed = GlbDocument.ParseNewModel(bytes, profile);
         ValidateGeometryProfile(parsed, profile);
-        return ImportNewModelParsed(parsed, profile, cancellationToken);
+        return ImportNewModelParsed(parsed, profile, cancellationToken, options);
       }
       catch (OperationCanceledException)
       {
@@ -412,6 +469,7 @@ namespace EarthTool.GLTF
     /// <summary>Imports metadata-free separate glTF as a canonical authored static mesh representation.</summary>
     public async Task<OperationResult<GltfNewModelImportResult>> ImportNewModelGltfFileAsync(
       string sourcePath,
+      GltfNewModelImportOptions? options = null,
       GltfOperationProfile? profile = null,
       CancellationToken cancellationToken = default)
     {
@@ -421,6 +479,7 @@ namespace EarthTool.GLTF
       }
 
       profile ??= GltfOperationProfile.Default;
+      options ??= new GltfNewModelImportOptions();
       try
       {
         var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
@@ -431,7 +490,7 @@ namespace EarthTool.GLTF
           profile);
         GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri);
         ValidateGeometryProfile(parsed, profile);
-        return ImportNewModelParsed(parsed, profile, cancellationToken);
+        return ImportNewModelParsed(parsed, profile, cancellationToken, options);
       }
       catch (OperationCanceledException)
       {
@@ -551,7 +610,8 @@ namespace EarthTool.GLTF
     private static OperationResult<GltfNewModelImportResult> ImportNewModelParsed(
       ParsedGlb parsed,
       GltfOperationProfile profile,
-      CancellationToken cancellationToken)
+      CancellationToken cancellationToken,
+      GltfNewModelImportOptions options)
     {
       cancellationToken.ThrowIfCancellationRequested();
       if (parsed.HasReservedMetadata)
@@ -583,7 +643,8 @@ namespace EarthTool.GLTF
         throw new ResourceLimitException(serializedLength, profile.MaxOutputBytes);
       }
 
-      var draft = CreateNewModelSourceTree(parsed);
+      ValidateNewModelMaterialBindings(parsed, options);
+      var draft = CreateNewModelSourceTree(parsed, options);
       var lineage = new MeshAssetLineageId(Guid.NewGuid());
       var build = StaticMeshBuilder.Create(Guid.NewGuid(), lineage)
         .SetRootSourceObject(draft.Source)
@@ -617,12 +678,47 @@ namespace EarthTool.GLTF
         new GltfNewModelImportResult(authored, baseline, CreateNewModelPreservationReport()));
     }
 
-    private static NewModelSourceDraft CreateNewModelSourceTree(ParsedGlb parsed)
+    private static void ValidateNewModelMaterialBindings(
+      ParsedGlb parsed,
+      GltfNewModelImportOptions options)
+    {
+      var usedMaterialIndices = parsed.Meshes.SelectMany(mesh => mesh.Primitives)
+        .Where(primitive => primitive.MaterialIndex.HasValue)
+        .Select(primitive => primitive.MaterialIndex!.Value)
+        .Distinct()
+        .ToArray();
+      if (usedMaterialIndices.Any(index => parsed.Materials[index].HasBaseColorTexture
+        && !options.TextureResourceBindings.ContainsKey(index)))
+      {
+        throw new UnsupportedGltfDomainException("TexResourceBinding");
+      }
+      foreach (var binding in options.TextureResourceBindings)
+      {
+        if (binding.Key >= parsed.Materials.Count)
+        {
+          throw new UnsupportedGltfDomainException("TexResourceBinding");
+        }
+        if (binding.Value is null)
+        {
+          continue;
+        }
+        var bytes = System.Text.Encoding.ASCII.GetBytes(binding.Value);
+        if (bytes.Length != binding.Value.Length || !IsCanonicalTextureResourceKey(bytes))
+        {
+          throw new UnsupportedGltfDomainException("TexResourceBinding");
+        }
+      }
+    }
+
+    private static NewModelSourceDraft CreateNewModelSourceTree(
+      ParsedGlb parsed,
+      GltfNewModelImportOptions options)
     {
       var roots = CreateNewModelSources(
         parsed.RootNodeIndex,
         System.Numerics.Matrix4x4.Identity,
-        parsed);
+        parsed,
+        options);
       if (roots.Count != 1)
       {
         throw new UnsupportedGltfDomainException("SceneMembership");
@@ -634,14 +730,15 @@ namespace EarthTool.GLTF
     private static IReadOnlyList<NewModelSourceDraft> CreateNewModelSources(
       int nodeIndex,
       System.Numerics.Matrix4x4 inheritedLinearTransform,
-      ParsedGlb parsed)
+      ParsedGlb parsed,
+      GltfNewModelImportOptions options)
     {
       var node = parsed.Nodes[nodeIndex];
       var effectiveTransform = node.LocalTransform * inheritedLinearTransform;
       if (!node.MeshIndex.HasValue)
       {
         var collapsed = node.Children
-          .SelectMany(child => CreateNewModelSources(child, effectiveTransform, parsed))
+          .SelectMany(child => CreateNewModelSources(child, effectiveTransform, parsed, options))
           .ToArray();
         if (collapsed.Length == 0)
         {
@@ -668,10 +765,16 @@ namespace EarthTool.GLTF
           normalTransform)),
         primitive.Triangles.Select(triangle => reverseWinding
           ? new CanonicalTriangle(triangle.Vertex0, triangle.Vertex2, triangle.Vertex1)
-          : new CanonicalTriangle(triangle.Vertex0, triangle.Vertex1, triangle.Vertex2))))
+          : new CanonicalTriangle(triangle.Vertex0, triangle.Vertex1, triangle.Vertex2)),
+        primitive.MaterialIndex.HasValue
+          && options.TextureResourceBindings.TryGetValue(
+            primitive.MaterialIndex.Value,
+            out var textureResourceKey)
+          ? textureResourceKey
+          : null))
         .ToArray();
       var children = node.Children
-        .SelectMany(child => CreateNewModelSources(child, linearTransform, parsed))
+        .SelectMany(child => CreateNewModelSources(child, linearTransform, parsed, options))
         .ToArray();
       var pivot = new System.Numerics.Vector3(translation.X, -translation.Z, translation.Y);
       return new[]
@@ -739,6 +842,7 @@ namespace EarthTool.GLTF
         Canonicalized("CommonBaseHeader.StaticLights"),
         Canonicalized("CommonBaseHeader.HorizontalExtents"),
         Canonicalized("StaticRenderObjectSequence"),
+        Canonicalized("StaticRenderObjectSequence[*].TexturePathBytes"),
         Canonicalized("RootSourceObject"),
         Canonicalized("RootTrailingBytes")
       });
@@ -953,6 +1057,15 @@ namespace EarthTool.GLTF
           edit.ReplaceGeometry(renderObject.Id, vertices, triangles);
         }
       }
+      ApplyMaterialBindings(
+        parsed,
+        asset,
+        expectedBaseline,
+        partitionMatches.Select(match => match.Partition)
+          .Concat(hierarchy.AddedPartitions)
+          .ToArray(),
+        edit,
+        profile);
 
       if (hierarchy.Changed)
       {
@@ -991,7 +1104,74 @@ namespace EarthTool.GLTF
                 path == $"StaticRenderObjectSequence[{index}]"
                 || path.StartsWith($"StaticRenderObjectSequence[{index}].", StringComparison.Ordinal)))
               .OrderBy(index => index)
-              .Select(index => $"StaticRenderObjectSequence[{index}]"))));
+            .Select(index => $"StaticRenderObjectSequence[{index}]"))));
+    }
+
+    private static void ApplyMaterialBindings(
+      ParsedGlb parsed,
+      StaticMeshAsset asset,
+      InterchangeBaseline expectedBaseline,
+      IReadOnlyList<GeometryPartition> partitions,
+      StaticMeshEditSession edit,
+      GltfOperationProfile profile)
+    {
+      var materials = parsed.Materials.Select(material => GlbDocument.ParseMetadata(
+        material.Metadata ?? throw new MissingMetadataException("material"),
+        profile.MaxMetadataBytes,
+        profile.MaxJsonDepth)).ToArray();
+      foreach (var material in materials)
+      {
+        if (material.ScopeKind != "material"
+          || material.LocalId <= 0
+          || material.AssetLineageId != expectedBaseline.AssetLineageId
+          || material.DocumentId != expectedBaseline.DocumentId
+          || material.SourceMsh is not null
+          || material.Fingerprint is not null
+          || material.Partitions.Count != 0
+          || material.TextureBinding is null)
+        {
+          throw new MalformedMetadataException("The material metadata envelope is malformed.");
+        }
+        var origin = asset.StaticRenderObjectSequence.SingleOrDefault(record =>
+          record.LocalId == material.LocalId);
+        if ((origin is null || !origin.TexturePathBytes.SequenceEqual(material.TextureBinding))
+          && material.TextureBinding.Count != 0)
+        {
+          if (!IsCanonicalTextureResourceKey(material.TextureBinding))
+          {
+            throw new UnsupportedGltfDomainException("TexResourceBinding");
+          }
+        }
+      }
+
+      foreach (var partition in partitions)
+      {
+        var materialIndex = partition.MaterialIndex
+          ?? throw new UnsupportedGltfDomainException("TexResourceBinding");
+        if (materialIndex < 0 || materialIndex >= materials.Length)
+        {
+          throw new MalformedMetadataException("A material assignment is outside the material scope set.");
+        }
+        var binding = materials[materialIndex].TextureBinding!;
+        var record = asset.StaticRenderObjectSequence.SingleOrDefault(item =>
+          item.LocalId == partition.LocalId);
+        if (record is not null && record.TexturePathBytes.SequenceEqual(binding))
+        {
+          continue;
+        }
+        var id = record?.Id ?? new StaticRenderObjectId(asset.LineageId, partition.LocalId);
+        edit.ReplaceTexturePathBytes(id, binding);
+      }
+    }
+
+    private static bool IsCanonicalTextureResourceKey(IReadOnlyList<byte> bytes)
+    {
+      if (bytes.Any(value => value is 0 or > 0x7F))
+      {
+        return false;
+      }
+      var value = System.Text.Encoding.ASCII.GetString(bytes.ToArray());
+      return EarthTool.MSH.Authoring.AuthoringValidation.IsCanonicalTextureResourceKey(value);
     }
 
     private static OperationDiagnostic? ValidateAssetProfile(
@@ -1071,7 +1251,8 @@ namespace EarthTool.GLTF
         profile.MaxMetadataBytes,
         profile.MaxJsonDepth);
       foreach (var metadata in parsed.Nodes.Select(node => node.Metadata)
-        .Concat(parsed.Meshes.Select(mesh => mesh.Metadata)))
+        .Concat(parsed.Meshes.Select(mesh => mesh.Metadata))
+        .Concat(parsed.Materials.Select(material => material.Metadata)))
       {
         if (metadata is not null)
         {
@@ -1156,24 +1337,73 @@ namespace EarthTool.GLTF
         var sourceRecords = source.StaticRenderObjectIds
           .Select(id => asset.StaticRenderObjectSequence.Single(record => record.Id.Equals(id)))
           .ToArray();
-        var sourceGeometry = sourceRecords.Select(record => new GeometryPartition(
+        var sourceGeometry = sourceRecords.Select((record, index) => new GeometryPartition(
           record.LocalId,
           record.RenderVertices.Select(GlbDocument.ProjectToGltf).ToArray(),
-          record.Triangles)).ToArray();
+          record.Triangles,
+          index < mesh.Parsed.Primitives.Count
+            ? mesh.Parsed.Primitives[index].MaterialIndex
+            : null)).ToArray();
         var currentGeometry = mesh.Parsed.Primitives.Select(primitive => new GeometryPartition(
           0,
           primitive.Vertices,
-          primitive.Triangles)).ToArray();
+          primitive.Triangles,
+          primitive.MaterialIndex)).ToArray();
         if (string.Equals(
           StaticGeometryFingerprint.CreateSurfaceKey(sourceGeometry),
           StaticGeometryFingerprint.CreateSurfaceKey(currentGeometry),
           StringComparison.Ordinal))
         {
-          result.AddRange(sourceGeometry.Select(partition => new PartitionMatch(
-            partition,
-            source.Id,
-            true,
-            false)));
+          if (sourceGeometry.Length != currentGeometry.Length)
+          {
+            var materialIndices = currentGeometry.Select(partition => partition.MaterialIndex)
+              .Distinct()
+              .ToArray();
+            if (materialIndices.Length != 1)
+            {
+              throw new AmbiguousPartitionCorrespondenceException(
+                "A representation-only partition split has conflicting material assignments.");
+            }
+            result.AddRange(sourceGeometry.Select(partition => new PartitionMatch(
+              new GeometryPartition(
+                partition.LocalId,
+                partition.Vertices,
+                partition.Triangles,
+                materialIndices[0]),
+              source.Id,
+              true,
+              false)));
+            continue;
+          }
+          var sourceBySurface = sourceGeometry.GroupBy(partition =>
+              StaticGeometryFingerprint.CreateSurfaceKey(
+                partition.Vertices,
+                partition.Triangles))
+            .ToDictionary(
+              group => group.Key,
+              group => new Queue<GeometryPartition>(group));
+          foreach (var current in currentGeometry)
+          {
+            var surface = StaticGeometryFingerprint.CreateSurfaceKey(
+              current.Vertices,
+              current.Triangles);
+            if (!sourceBySurface.TryGetValue(surface, out var candidates)
+              || candidates.Count == 0)
+            {
+              throw new AmbiguousPartitionCorrespondenceException(
+                "The unchanged native surface set did not identify each preserved partition.");
+            }
+            var sourcePartition = candidates.Dequeue();
+            result.Add(new PartitionMatch(
+              new GeometryPartition(
+                sourcePartition.LocalId,
+                current.Vertices,
+                current.Triangles,
+                current.MaterialIndex),
+              source.Id,
+              true,
+              false));
+          }
           continue;
         }
 
@@ -1213,7 +1443,8 @@ namespace EarthTool.GLTF
                 new GeometryPartition(
                   positional.LocalId,
                   primitive.Vertices,
-                  primitive.Triangles),
+                  primitive.Triangles,
+                  primitive.MaterialIndex),
                 source.Id,
                 true,
                 false));
@@ -1248,9 +1479,10 @@ namespace EarthTool.GLTF
             pending.RemoveAt(pendingIndex);
             result.Add(new PartitionMatch(
               new GeometryPartition(
-                match.LocalId,
-                primitive.Vertices,
-                primitive.Triangles),
+                  match.LocalId,
+                  primitive.Vertices,
+                  primitive.Triangles,
+                  primitive.MaterialIndex),
               source.Id,
               true,
               false));
@@ -1265,7 +1497,11 @@ namespace EarthTool.GLTF
           if (unmatched.Count == 0)
           {
             result.AddRange(pending.Select(item => new PartitionMatch(
-              new GeometryPartition(-1, item.Primitive.Vertices, item.Primitive.Triangles),
+              new GeometryPartition(
+                -1,
+                item.Primitive.Vertices,
+                item.Primitive.Triangles,
+                item.Primitive.MaterialIndex),
               source.Id,
               false,
               true)));
@@ -1283,7 +1519,8 @@ namespace EarthTool.GLTF
               new GeometryPartition(
                 stale.LocalId,
                 primitive.Vertices,
-                primitive.Triangles),
+                primitive.Triangles,
+                primitive.MaterialIndex),
               source.Id,
               false,
               false));
@@ -1457,7 +1694,11 @@ namespace EarthTool.GLTF
         var renderObjectIds = new List<StaticRenderObjectId>();
         foreach (var primitive in meshes[node.Parsed.MeshIndex.Value].Parsed.Primitives)
         {
-          var partition = new GeometryPartition(-1, primitive.Vertices, primitive.Triangles);
+          var partition = new GeometryPartition(
+            -1,
+            primitive.Vertices,
+            primitive.Triangles,
+            primitive.MaterialIndex);
           if (hasLinearTransform)
           {
             partition = TransformPartition(
@@ -1628,7 +1869,11 @@ namespace EarthTool.GLTF
           triangle.TriangleRenderPassFlags)
         : triangle).ToArray();
       return new PartitionMatch(
-        new GeometryPartition(match.Partition.LocalId, vertices, triangles),
+        new GeometryPartition(
+          match.Partition.LocalId,
+          vertices,
+          triangles,
+          match.Partition.MaterialIndex),
         match.SourceObjectId,
         false,
         match.Added);
@@ -1767,6 +2012,16 @@ namespace EarthTool.GLTF
     private static OperationDiagnostic InvalidGeometry(string path, string message)
     {
       return Diagnostic(GltfDiagnosticCodes.InvalidGeometry, 1106, path, message);
+    }
+
+    private static OperationDiagnostic PreviewOutputLimitWarning()
+    {
+      return new OperationDiagnostic(
+        GltfDiagnosticCodes.TexturePreviewUnavailable,
+        1109,
+        DiagnosticSeverity.Warning,
+        "$",
+        "Decoded TEX previews were omitted to keep the package within the output limit.");
     }
 
     private static OperationDiagnostic Diagnostic(string code, int eventId, string path, string message)
