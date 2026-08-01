@@ -23,3 +23,4 @@
 
 ## Git Commits (Conventional Commits)
 Follow format: `<type>(<scope>): <description>` where type = feat|fix|perf|refactor|docs|test|build|ci|chore, scope = cli|gui|wd|msh|dae|par|tex|common. Example: `feat(wd): add compression support`
+- For commits that implement a tracked issue, include `Close #<issue-number>` in the commit body so merging the commit closes the issue automatically.
