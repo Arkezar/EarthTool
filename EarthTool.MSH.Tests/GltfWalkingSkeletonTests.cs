@@ -53,6 +53,333 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
+  public async Task NewModelImportAuthorsCanonicalAssetAndUsableFirstMetadataBaseline()
+  {
+    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var interchange = new GltfInterchange();
+    await using var exported = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      sourceAsset,
+      exported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var metadataFree = RewriteJson(exported.ToArray(), RemoveEarthToolMetadata);
+    await using var source = new MemoryStream(metadataFree);
+
+    var imported = await interchange.ImportNewModelGlbAsync(source);
+
+    imported.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", imported.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}")));
+    var result = imported.Value!;
+    result.Asset.Origin.Should().Be(MeshAssetOrigin.Canonical);
+    result.Asset.ArchiveFraming.Declaration.Should().Be(0x20D0A1FF);
+    result.Asset.ArchiveFraming.CreationGuid.Should().NotBeNull().And.NotBe(Guid.Empty);
+    result.Baseline.AssetLineageId.Should().Be(result.Asset.LineageId.Value);
+    result.Baseline.DocumentId.Should().NotBe(Guid.Empty);
+    result.Asset.CommonBaseHeader.BoxPresenceMask.Should().Be(0x00008000);
+    result.Asset.StaticRenderObjectSequence.Should().ContainSingle();
+    result.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "CommonBaseHeader.Footprint"
+      && change.Disposition == PreservationDisposition.Canonicalized);
+
+    await using var baseline = new MemoryStream();
+    var firstBaseline = await interchange.ExportGlbAsync(
+      result.Asset,
+      baseline,
+      new GltfExportOptions(result.Baseline.AssetLineageId, result.Baseline.DocumentId));
+    baseline.Position = 0;
+    var editImport = await interchange.ImportEditGlbAsync(baseline, firstBaseline.Value!.Baseline);
+    editImport.Status.Should().Be(OperationStatus.Succeeded);
+  }
+
+  [Fact]
+  public async Task EquivalentMetadataFreeGlbAndSeparateGltfAuthorEquivalentCanonicalAssets()
+  {
+    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var interchange = new GltfInterchange();
+    await using var exportedGlb = new MemoryStream();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      exportedGlb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var metadataFreeGlb = RewriteJson(exportedGlb.ToArray(), RemoveEarthToolMetadata);
+    await using var glbSource = new MemoryStream(metadataFreeGlb);
+    var glbImport = await interchange.ImportNewModelGlbAsync(glbSource);
+
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var path = Path.Combine(directory, "model.gltf");
+    Directory.CreateDirectory(directory);
+    try
+    {
+      var separateExport = await interchange.ExportGltfFileAsync(
+        sourceAsset,
+        path,
+        new GltfExportOptions(LineageId, DocumentId));
+      separateExport.Status.Should().Be(OperationStatus.Succeeded);
+      var root = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+      RemoveEarthToolMetadata(root);
+      await File.WriteAllTextAsync(path, root.ToJsonString());
+
+      var separateImport = await interchange.ImportNewModelGltfFileAsync(path);
+
+      glbImport.Status.Should().Be(OperationStatus.Succeeded);
+      separateImport.Status.Should().Be(OperationStatus.Succeeded);
+      var glbBytes = glbImport.Value!.Asset.GetSerializedRepresentation();
+      var separateBytes = separateImport.Value!.Asset.GetSerializedRepresentation();
+      glbBytes.AsSpan(4, 16).Clear();
+      separateBytes.AsSpan(4, 16).Clear();
+      separateBytes.Should().Equal(glbBytes);
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task NewModelImportCollapsesGroupsAndPreservesCanonicalHierarchyAndPartitionOrder()
+  {
+    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var interchange = new GltfInterchange();
+    await using var exported = new MemoryStream();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      exported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var metadataFree = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      var nodes = root["nodes"]!.AsArray();
+      var meshNode = nodes[0]!.AsObject();
+      meshNode["translation"] = new JsonArray(2, 3, 4);
+      meshNode["children"] = new JsonArray(2, 3);
+      nodes.Insert(0, new JsonObject
+      {
+        ["scale"] = new JsonArray(-1, 1, 1),
+        ["children"] = new JsonArray(1)
+      });
+      nodes.Add(new JsonObject
+      {
+        ["mesh"] = 0,
+        ["translation"] = new JsonArray(5, 0, 0),
+        ["scale"] = new JsonArray(10, 10, 10)
+      });
+      nodes.Add(new JsonObject
+      {
+        ["mesh"] = 0,
+        ["translation"] = new JsonArray(6, 0, 0)
+      });
+      root["scenes"]![0]!["nodes"] = new JsonArray(0);
+      var primitives = root["meshes"]![0]!["primitives"]!.AsArray();
+      primitives.Add(primitives[0]!.DeepClone());
+    });
+    await using var source = new MemoryStream(metadataFree);
+
+    var imported = await interchange.ImportNewModelGlbAsync(source);
+
+    imported.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", imported.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}")));
+    var asset = imported.Value!.Asset;
+    asset.RootSourceObject.Children.Should().HaveCount(2);
+    asset.RootSourceObject.Children.Select(child => child.StaticRenderObjectIds.Count).Should().Equal(2, 2);
+    asset.StaticRenderObjectSequence.Select(record => record.SourceObjectId.Value).Should()
+      .Equal(1, 2, 2, 3, 3, 1);
+    asset.StaticRenderObjectSequence[0].Pivot.Should().Be(new Vector3(-2, -4, 3));
+    asset.RootSourceObject.Children.Select(child =>
+      asset.StaticRenderObjectSequence.Single(record =>
+        record.Id.Equals(child.StaticRenderObjectIds[0])).Pivot.X).Should().Equal(-5, -6);
+    var rootTriangle = asset.StaticRenderObjectSequence[0].Triangles.Should().ContainSingle().Subject;
+    (rootTriangle.Vertex0, rootTriangle.Vertex1, rootTriangle.Vertex2).Should().Be((0, 2, 1));
+
+    var rootVertices = asset.RootSourceObject.StaticRenderObjectIds
+      .SelectMany(id => asset.StaticRenderObjectSequence.Single(record => record.Id.Equals(id)).RenderVertices)
+      .ToArray();
+    BinaryPrimitives.ReadUInt16LittleEndian(
+      asset.CommonBaseHeader.HorizontalExtents.Skip(4).Take(2).ToArray()).Should().Be(
+      ToUnsignedFixedPoint(Math.Max(0, rootVertices.Max(vertex => vertex.Position.X))));
+    BinaryPrimitives.ReadUInt16LittleEndian(
+      asset.CommonBaseHeader.HorizontalExtents.Skip(6).Take(2).ToArray()).Should().Be(
+      ToUnsignedFixedPoint(-Math.Min(0, rootVertices.Min(vertex => vertex.Position.X))));
+    BinaryPrimitives.ReadUInt16LittleEndian(asset.CommonBaseHeader.BoxTopElevations.Take(2).ToArray())
+      .Should().Be(ToUnsignedFixedPoint(rootVertices.Max(vertex => vertex.Position.Z)));
+  }
+
+  [Fact]
+  public async Task NewModelImportRejectsClaimedEarthToolLineage()
+  {
+    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    await using var claimed = new MemoryStream();
+    var interchange = new GltfInterchange();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      claimed,
+      new GltfExportOptions(LineageId, DocumentId));
+    claimed.Position = 0;
+
+    var imported = await interchange.ImportNewModelGlbAsync(claimed);
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    imported.Value.Should().BeNull();
+    imported.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+      .Be(GltfDiagnosticCodes.MisplacedMetadata);
+  }
+
+  [Theory]
+  [InlineData("ambiguous-root")]
+  [InlineData("singular-transform")]
+  [InlineData("normal-overflow")]
+  [InlineData("unsupported-material")]
+  [InlineData("invalid-index")]
+  public async Task NewModelImportRejectsAmbiguousLossyUnsupportedAndUnsafeInput(string mutation)
+  {
+    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    await using var exported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      exported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var metadataFree = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      if (mutation == "ambiguous-root")
+      {
+        var nodes = root["nodes"]!.AsArray();
+        nodes.Add(nodes[0]!.DeepClone());
+        nodes.Insert(0, new JsonObject { ["children"] = new JsonArray(1, 2) });
+        root["scenes"]![0]!["nodes"] = new JsonArray(0);
+      }
+      else if (mutation == "singular-transform")
+      {
+        root["nodes"]![0]!["scale"] = new JsonArray(0, 1, 1);
+      }
+      else if (mutation == "normal-overflow")
+      {
+        root["nodes"]![0]!["scale"] = new JsonArray(1e-30, 1, 1);
+      }
+      else if (mutation == "unsupported-material")
+      {
+        root["materials"] = new JsonArray(new JsonObject());
+        root["meshes"]![0]!["primitives"]![0]!["material"] = 0;
+      }
+    });
+    if (mutation == "invalid-index")
+    {
+      BinaryPrimitives.WriteUInt16LittleEndian(
+        metadataFree.AsSpan(GetBinaryChunkOffset(metadataFree) + 96),
+        3);
+    }
+    else if (mutation == "normal-overflow")
+    {
+      var binaryOffset = GetBinaryChunkOffset(metadataFree);
+      for (var normalOffset = 36; normalOffset <= 60; normalOffset += 12)
+      {
+        BinaryPrimitives.WriteInt32LittleEndian(
+          metadataFree.AsSpan(binaryOffset + normalOffset),
+          BitConverter.SingleToInt32Bits(1));
+        BinaryPrimitives.WriteInt32LittleEndian(
+          metadataFree.AsSpan(binaryOffset + normalOffset + 8),
+          0);
+      }
+    }
+    await using var source = new MemoryStream(metadataFree);
+
+    var imported = await interchange.ImportNewModelGlbAsync(source);
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    imported.Value.Should().BeNull();
+    imported.Diagnostics.Should().ContainSingle();
+  }
+
+  [Fact]
+  public async Task NewModelImportPreservesStructuredOutputLimitDiagnostic()
+  {
+    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    await using var exported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      exported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var metadataFree = RewriteJson(exported.ToArray(), RemoveEarthToolMetadata);
+    await using var source = new MemoryStream(metadataFree);
+
+    var imported = await interchange.ImportNewModelGlbAsync(
+      source,
+      new GltfOperationProfile(maxOutputBytes: 1));
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    var diagnostic = imported.Diagnostics.Should().ContainSingle().Subject;
+    diagnostic.Code.Should().Be(GltfDiagnosticCodes.ResourceLimitExceeded);
+    diagnostic.Path.Should().Be("$");
+    diagnostic.Data.Should().ContainKeys("actual", "maximum");
+  }
+
+  [Fact]
+  public async Task NewModelImportEnforcesConfiguredHierarchyDepthBeforeConversion()
+  {
+    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    await using var exported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      exported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var metadataFree = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      var nodes = root["nodes"]!.AsArray();
+      nodes.Insert(0, new JsonObject { ["children"] = new JsonArray(1) });
+      root["scenes"]![0]!["nodes"] = new JsonArray(0);
+    });
+    await using var source = new MemoryStream(metadataFree);
+
+    var imported = await interchange.ImportNewModelGlbAsync(
+      source,
+      new GltfOperationProfile(
+        maxInputBytes: 32 * 1024 * 1024,
+        maxOutputBytes: 32 * 1024 * 1024,
+        maxMetadataBytes: 4 * 1024 * 1024,
+        maxJsonDepth: 32,
+        maxActiveRenderVertices: 65536,
+        maxNodes: 4096,
+        maxHierarchyDepth: 1));
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    var diagnostic = imported.Diagnostics.Should().ContainSingle().Subject;
+    diagnostic.Code.Should().Be(GltfDiagnosticCodes.ResourceLimitExceeded);
+    diagnostic.Data.Should().Contain(new KeyValuePair<string, string>("actual", "2"));
+    diagnostic.Data.Should().Contain(new KeyValuePair<string, string>("maximum", "1"));
+  }
+
+  [Fact]
+  public async Task NewModelImportRejectsOversizedIndexDeclarationBeforeMaterialization()
+  {
+    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    await using var exported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      exported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var metadataFree = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      root["accessors"]![3]!["count"] = 3_145_731;
+    });
+    await using var source = new MemoryStream(metadataFree);
+
+    var imported = await interchange.ImportNewModelGlbAsync(source);
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    var diagnostic = imported.Diagnostics.Should().ContainSingle().Subject;
+    diagnostic.Code.Should().Be(GltfDiagnosticCodes.ResourceLimitExceeded);
+    diagnostic.Data.Should().Contain(
+      new KeyValuePair<string, string>("actual", "1048577"));
+  }
+
+  [Fact]
   public async Task UnchangedMultiPartitionGlbImportRestoresExactMshTopologyAndState()
   {
     var fixture = StaticMeshSequenceFixture.CreateInterleaved();
@@ -1744,6 +2071,11 @@ public class GltfWalkingSkeletonTests
     return BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(offset)));
   }
 
+  private static ushort ToUnsignedFixedPoint(float value)
+  {
+    return checked((ushort)Math.Truncate(value * 256d));
+  }
+
   private static void SwapBlocks(byte[] data, int left, int right, int length)
   {
     var temporary = data.AsSpan(left, length).ToArray();
@@ -1776,6 +2108,33 @@ public class GltfWalkingSkeletonTests
     var root = JsonNode.Parse(glb.AsSpan(20, jsonLength))!.AsObject();
     rewrite(root);
     return RewriteJsonChunk(glb, Encoding.UTF8.GetBytes(root.ToJsonString()));
+  }
+
+  private static void RemoveEarthToolMetadata(JsonNode? node)
+  {
+    if (node is JsonObject owner)
+    {
+      if (owner["extras"] is JsonObject extras)
+      {
+        extras.Remove("earthtool");
+        if (extras.Count == 0)
+        {
+          owner.Remove("extras");
+        }
+      }
+
+      foreach (var child in owner.ToArray())
+      {
+        RemoveEarthToolMetadata(child.Value);
+      }
+    }
+    else if (node is JsonArray array)
+    {
+      foreach (var child in array)
+      {
+        RemoveEarthToolMetadata(child);
+      }
+    }
   }
 
   private static byte[] RewriteJsonChunk(byte[] glb, byte[] rewrittenJson)

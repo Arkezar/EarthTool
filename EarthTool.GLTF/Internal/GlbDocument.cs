@@ -1,6 +1,7 @@
 ﻿#nullable enable
 
 using EarthTool.MSH.Assets;
+using EarthTool.MSH.Operations;
 using SharpGLTF.Schema2;
 using SharpGLTF.Validation;
 using System;
@@ -15,6 +16,12 @@ using System.Text.Json;
 
 namespace EarthTool.GLTF.Internal
 {
+  internal enum GltfImportIntent
+  {
+    Edit,
+    NewModel
+  }
+
   internal sealed class GltfPackage
   {
     internal byte[] Json { get; }
@@ -48,7 +55,9 @@ namespace EarthTool.GLTF.Internal
 
   internal sealed class ParsedGlb
   {
-    internal string ManifestMetadata { get; }
+    internal string? ManifestMetadata { get; }
+
+    internal bool HasReservedMetadata { get; }
 
     internal IReadOnlyList<ParsedGltfMesh> Meshes { get; }
 
@@ -57,12 +66,14 @@ namespace EarthTool.GLTF.Internal
     internal int RootNodeIndex { get; }
 
     internal ParsedGlb(
-      string manifestMetadata,
+      string? manifestMetadata,
+      bool hasReservedMetadata,
       IReadOnlyList<ParsedGltfMesh> meshes,
       IReadOnlyList<ParsedGltfNode> nodes,
       int rootNodeIndex)
     {
       ManifestMetadata = manifestMetadata;
+      HasReservedMetadata = hasReservedMetadata;
       Meshes = meshes;
       Nodes = nodes;
       RootNodeIndex = rootNodeIndex;
@@ -94,11 +105,11 @@ namespace EarthTool.GLTF.Internal
 
   internal sealed class ParsedGltfMesh
   {
-    internal string Metadata { get; }
+    internal string? Metadata { get; }
 
     internal IReadOnlyList<ParsedGltfPrimitive> Primitives { get; }
 
-    internal ParsedGltfMesh(string metadata, IReadOnlyList<ParsedGltfPrimitive> primitives)
+    internal ParsedGltfMesh(string? metadata, IReadOnlyList<ParsedGltfPrimitive> primitives)
     {
       Metadata = metadata;
       Primitives = primitives;
@@ -286,22 +297,54 @@ namespace EarthTool.GLTF.Internal
       return new GltfPackage(json, binary, bufferFileName ?? string.Empty);
     }
 
-    internal static ParsedGlb Parse(byte[] glb, int maxJsonDepth)
+    internal static ParsedGlb Parse(byte[] glb, GltfOperationProfile profile)
     {
-      var root = Validate(glb, maxJsonDepth, out var binaryHeader, out var binaryLength);
+      return Parse(glb, profile, GltfImportIntent.Edit);
+    }
+
+    internal static ParsedGlb ParseNewModel(byte[] glb, GltfOperationProfile profile)
+    {
+      return Parse(glb, profile, GltfImportIntent.NewModel);
+    }
+
+    private static ParsedGlb Parse(
+      byte[] glb,
+      GltfOperationProfile profile,
+      GltfImportIntent intent)
+    {
+      var root = Validate(glb, profile, intent, out var binaryHeader, out var binaryLength);
       using (root)
       {
-        var element = root.RootElement;
         var binary = glb.AsSpan(binaryHeader + 8, binaryLength);
-        return ParseDocument(element, binary);
+        return ParseDocument(root.RootElement, binary, profile, intent);
       }
     }
 
-    internal static ParsedGlb ParseSeparate(byte[] json, byte[] binary, int maxJsonDepth)
+    internal static ParsedGlb ParseSeparate(
+      byte[] json,
+      byte[] binary,
+      GltfOperationProfile profile)
+    {
+      return ParseSeparate(json, binary, profile, GltfImportIntent.Edit);
+    }
+
+    internal static ParsedGlb ParseSeparateNewModel(
+      byte[] json,
+      byte[] binary,
+      GltfOperationProfile profile)
+    {
+      return ParseSeparate(json, binary, profile, GltfImportIntent.NewModel);
+    }
+
+    private static ParsedGlb ParseSeparate(
+      byte[] json,
+      byte[] binary,
+      GltfOperationProfile profile,
+      GltfImportIntent intent)
     {
       using var document = JsonDocument.Parse(json, new JsonDocumentOptions
       {
-        MaxDepth = maxJsonDepth,
+        MaxDepth = profile.MaxJsonDepth,
         CommentHandling = JsonCommentHandling.Disallow,
         AllowTrailingCommas = false
       });
@@ -312,13 +355,12 @@ namespace EarthTool.GLTF.Internal
         throw new InvalidDataException("The separate glTF buffer length is invalid.");
       }
 
-      return ParseDocument(document.RootElement, binary.AsSpan(0, declaredLength));
+      return ParseDocument(document.RootElement, binary.AsSpan(0, declaredLength), profile, intent);
     }
 
-    internal static string GetSeparateBufferUri(byte[] json, int maxJsonDepth)
+    internal static string GetSeparateBufferUri(byte[] json, GltfOperationProfile profile)
     {
-      using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = maxJsonDepth });
-      ValidateSupportedGraph(document.RootElement);
+      using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = profile.MaxJsonDepth });
       var buffer = document.RootElement.GetProperty("buffers")[0];
       if (!buffer.TryGetProperty("uri", out var uri) || uri.ValueKind != JsonValueKind.String)
       {
@@ -340,10 +382,16 @@ namespace EarthTool.GLTF.Internal
         .ReadSchema2("model.gltf");
     }
 
-    private static ParsedGlb ParseDocument(JsonElement root, ReadOnlySpan<byte> binary)
+    private static ParsedGlb ParseDocument(
+      JsonElement root,
+      ReadOnlySpan<byte> binary,
+      GltfOperationProfile profile,
+      GltfImportIntent intent)
     {
-      ValidateSupportedGraph(root);
-      var manifest = GetMetadata(root.GetProperty("scenes")[0], "scene");
+      ValidateSupportedGraph(root, profile, intent);
+      var manifest = intent == GltfImportIntent.Edit
+        ? GetMetadata(root.GetProperty("scenes")[0], "scene")
+        : TryGetMetadata(root.GetProperty("scenes")[0]);
       var nodes = new List<ParsedGltfNode>();
       foreach (var node in root.GetProperty("nodes").EnumerateArray())
       {
@@ -367,25 +415,27 @@ namespace EarthTool.GLTF.Internal
         }
 
         meshes.Add(new ParsedGltfMesh(
-          GetMetadata(mesh, "mesh"),
+          intent == GltfImportIntent.Edit ? GetMetadata(mesh, "mesh") : TryGetMetadata(mesh),
           primitives.AsReadOnly()));
       }
 
       return new ParsedGlb(
         manifest,
+        HasReservedMetadata(root),
         meshes.AsReadOnly(),
         nodes.AsReadOnly(),
         root.GetProperty("scenes")[0].GetProperty("nodes")[0].GetInt32());
     }
 
-    internal static void Validate(byte[] glb, int maxJsonDepth)
+    internal static void Validate(byte[] glb, GltfOperationProfile profile)
     {
-      using var document = Validate(glb, maxJsonDepth, out _, out _);
+      using var document = Validate(glb, profile, GltfImportIntent.Edit, out _, out _);
     }
 
     private static JsonDocument Validate(
       byte[] glb,
-      int maxJsonDepth,
+      GltfOperationProfile profile,
+      GltfImportIntent intent,
       out int binaryHeader,
       out int binaryLength)
     {
@@ -413,7 +463,7 @@ namespace EarthTool.GLTF.Internal
 
       var documentOptions = new JsonDocumentOptions
       {
-        MaxDepth = maxJsonDepth,
+        MaxDepth = profile.MaxJsonDepth,
         CommentHandling = JsonCommentHandling.Disallow,
         AllowTrailingCommas = false
       };
@@ -422,7 +472,7 @@ namespace EarthTool.GLTF.Internal
         documentOptions);
       try
       {
-        ValidateSupportedGraph(document.RootElement);
+        ValidateSupportedGraph(document.RootElement, profile, intent);
         ModelRoot.ParseGLB(
           new ArraySegment<byte>(glb),
           new ReadSettings { Validation = ValidationMode.Strict });
@@ -969,10 +1019,17 @@ namespace EarthTool.GLTF.Internal
       return Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    private static void ValidateSupportedGraph(JsonElement root)
+    private static void ValidateSupportedGraph(
+      JsonElement root,
+      GltfOperationProfile profile,
+      GltfImportIntent intent)
     {
       var nodes = root.GetProperty("nodes");
       var meshes = root.GetProperty("meshes");
+      if (nodes.GetArrayLength() > profile.MaxNodes)
+      {
+        throw new ResourceLimitException(nodes.GetArrayLength(), profile.MaxNodes);
+      }
       if (root.GetProperty("scene").GetInt32() != 0
         || root.GetProperty("scenes").GetArrayLength() != 1
         || nodes.GetArrayLength() == 0
@@ -1043,20 +1100,24 @@ namespace EarthTool.GLTF.Internal
       }
 
       var reachable = new HashSet<int>();
-      var pending = new Stack<int>();
-      pending.Push(sceneNodes[0].GetInt32());
+      var pending = new Stack<(int NodeIndex, int Depth)>();
+      pending.Push((sceneNodes[0].GetInt32(), 1));
       while (pending.Count > 0)
       {
-        var nodeIndex = pending.Pop();
-        if (!reachable.Add(nodeIndex))
+        var current = pending.Pop();
+        if (current.Depth > profile.MaxHierarchyDepth)
+        {
+          throw new ResourceLimitException(current.Depth, profile.MaxHierarchyDepth);
+        }
+        if (!reachable.Add(current.NodeIndex))
         {
           throw new UnsupportedGltfDomainException("TransformOrHierarchy");
         }
-        if (nodes[nodeIndex].TryGetProperty("children", out var children))
+        if (nodes[current.NodeIndex].TryGetProperty("children", out var children))
         {
           foreach (var child in children.EnumerateArray())
           {
-            pending.Push(child.GetInt32());
+            pending.Push((child.GetInt32(), current.Depth + 1));
           }
         }
       }
@@ -1065,12 +1126,32 @@ namespace EarthTool.GLTF.Internal
         throw new UnsupportedGltfDomainException("SceneMembership");
       }
 
+      var primitiveCounts = meshes.EnumerateArray()
+        .Select(mesh => mesh.GetProperty("primitives").GetArrayLength())
+        .ToArray();
+      long expandedPartitionCount = 0;
+      foreach (var node in nodes.EnumerateArray())
+      {
+        if (node.TryGetProperty("mesh", out var mesh))
+        {
+          expandedPartitionCount = checked(expandedPartitionCount + primitiveCounts[mesh.GetInt32()]);
+        }
+      }
+      if (expandedPartitionCount > MshOperationProfile.Default.MaxStaticRenderObjects)
+      {
+        throw new ResourceLimitException(
+          expandedPartitionCount,
+          MshOperationProfile.Default.MaxStaticRenderObjects);
+      }
+
       var supportedAttributes = new HashSet<string>(StringComparer.Ordinal)
       {
         "POSITION",
         "NORMAL",
         "TEXCOORD_0"
       };
+      var accessors = root.GetProperty("accessors");
+      var geometryByMesh = new List<IReadOnlyList<(int VertexCount, int TriangleCount)>>();
       foreach (var mesh in meshes.EnumerateArray())
       {
         var primitives = mesh.GetProperty("primitives");
@@ -1079,16 +1160,61 @@ namespace EarthTool.GLTF.Internal
           throw new UnsupportedGltfDomainException("Geometry");
         }
 
+        var geometry = new List<(int VertexCount, int TriangleCount)>();
         foreach (var primitive in primitives.EnumerateArray())
         {
           var attributes = primitive.GetProperty("attributes");
           if (attributes.EnumerateObject().Any(attribute => !supportedAttributes.Contains(attribute.Name))
-            || attributes.EnumerateObject().Count() != supportedAttributes.Count
+            || !attributes.TryGetProperty("POSITION", out _)
+            || !attributes.TryGetProperty("NORMAL", out _)
+            || intent == GltfImportIntent.Edit && !attributes.TryGetProperty("TEXCOORD_0", out _)
             || primitive.TryGetProperty("targets", out _))
           {
             throw new UnsupportedGltfDomainException("PrimitiveAttributes");
           }
+
+          foreach (var attribute in attributes.EnumerateObject())
+          {
+            var count = accessors[attribute.Value.GetInt32()]
+              .GetProperty("count").GetInt32();
+            if (count > profile.MaxActiveRenderVertices)
+            {
+              throw new ResourceLimitException(count, profile.MaxActiveRenderVertices);
+            }
+          }
+
+          var vertexCount = accessors[attributes.GetProperty("POSITION").GetInt32()]
+            .GetProperty("count").GetInt32();
+          var indexCount = primitive.TryGetProperty("indices", out var indices)
+            ? accessors[indices.GetInt32()].GetProperty("count").GetInt32()
+            : vertexCount;
+          var triangleCount = indexCount / 3;
+          if (triangleCount > MshOperationProfile.Default.MaxStaticTrianglesPerObject)
+          {
+            throw new ResourceLimitException(
+              triangleCount,
+              MshOperationProfile.Default.MaxStaticTrianglesPerObject);
+          }
+          geometry.Add((vertexCount, triangleCount));
         }
+        geometryByMesh.Add(geometry.AsReadOnly());
+      }
+
+      long serializedLength;
+      try
+      {
+        serializedLength = EarthTool.MSH.Internal.MshCanonicalSerializer.GetCanonicalStaticSerializedLength(
+          nodes.EnumerateArray()
+            .Where(node => node.TryGetProperty("mesh", out _))
+            .SelectMany(node => geometryByMesh[node.GetProperty("mesh").GetInt32()]));
+      }
+      catch (OverflowException)
+      {
+        throw new ResourceLimitException(long.MaxValue, profile.MaxOutputBytes);
+      }
+      if (serializedLength > profile.MaxOutputBytes)
+      {
+        throw new ResourceLimitException(serializedLength, profile.MaxOutputBytes);
       }
 
       foreach (var domain in new[] { "animations", "materials", "textures", "images", "skins", "cameras" })
@@ -1182,6 +1308,24 @@ namespace EarthTool.GLTF.Internal
       }
 
       return metadata.GetString() ?? throw new InvalidDataException("EarthTool metadata cannot be null.");
+    }
+
+    private static bool HasReservedMetadata(JsonElement element)
+    {
+      if (element.ValueKind == JsonValueKind.Object)
+      {
+        if (element.TryGetProperty("extras", out var extras)
+          && extras.ValueKind == JsonValueKind.Object
+          && extras.TryGetProperty("earthtool", out _))
+        {
+          return true;
+        }
+
+        return element.EnumerateObject().Any(property => HasReservedMetadata(property.Value));
+      }
+
+      return element.ValueKind == JsonValueKind.Array
+        && element.EnumerateArray().Any(HasReservedMetadata);
     }
 
     private static Matrix4x4 ReadNodeTransform(JsonElement node)
@@ -1286,13 +1430,10 @@ namespace EarthTool.GLTF.Internal
         attributes.GetProperty("NORMAL").GetInt32(),
         3,
         "VEC3");
-      var textureCoordinates = ReadFloatAccessor(
-        root,
-        binary,
-        attributes.GetProperty("TEXCOORD_0").GetInt32(),
-        2,
-        "VEC2");
       var vertexCount = positions.Length / 3;
+      var textureCoordinates = attributes.TryGetProperty("TEXCOORD_0", out var textureAccessor)
+        ? ReadFloatAccessor(root, binary, textureAccessor.GetInt32(), 2, "VEC2")
+        : new float[vertexCount * 2];
       if (vertexCount == 0
         || normals.Length != vertexCount * 3
         || textureCoordinates.Length != vertexCount * 2)

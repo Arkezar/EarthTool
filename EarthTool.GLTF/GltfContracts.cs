@@ -65,6 +65,12 @@ namespace EarthTool.GLTF
     /// <summary>Gets the maximum active render vertices accepted in one partition.</summary>
     public int MaxActiveRenderVertices { get; }
 
+    /// <summary>Gets the maximum number of nodes accepted in the glTF graph.</summary>
+    public int MaxNodes { get; }
+
+    /// <summary>Gets the maximum node hierarchy depth, including the scene root.</summary>
+    public int MaxHierarchyDepth { get; }
+
     /// <summary>Initializes finite glTF operation limits.</summary>
     public GltfOperationProfile(
       int maxInputBytes = 32 * 1024 * 1024,
@@ -72,6 +78,26 @@ namespace EarthTool.GLTF
       int maxMetadataBytes = 4 * 1024 * 1024,
       int maxJsonDepth = 32,
       int maxActiveRenderVertices = 65536)
+      : this(
+        maxInputBytes,
+        maxOutputBytes,
+        maxMetadataBytes,
+        maxJsonDepth,
+        maxActiveRenderVertices,
+        4096,
+        15)
+    {
+    }
+
+    /// <summary>Initializes finite glTF operation limits including graph depth.</summary>
+    public GltfOperationProfile(
+      int maxInputBytes,
+      int maxOutputBytes,
+      int maxMetadataBytes,
+      int maxJsonDepth,
+      int maxActiveRenderVertices,
+      int maxNodes,
+      int maxHierarchyDepth)
     {
       MaxInputBytes = RequirePositive(maxInputBytes, nameof(maxInputBytes));
       MaxOutputBytes = RequirePositive(maxOutputBytes, nameof(maxOutputBytes));
@@ -80,6 +106,8 @@ namespace EarthTool.GLTF
       MaxActiveRenderVertices = maxActiveRenderVertices is > 0 and <= 65536
         ? maxActiveRenderVertices
         : throw new ArgumentOutOfRangeException(nameof(maxActiveRenderVertices));
+      MaxNodes = RequirePositive(maxNodes, nameof(maxNodes));
+      MaxHierarchyDepth = RequirePositive(maxHierarchyDepth, nameof(maxHierarchyDepth));
     }
 
     private static int RequirePositive(int value, string parameterName)
@@ -203,6 +231,29 @@ namespace EarthTool.GLTF
       Preservation = preservation;
       RestoredSerializedRepresentationPaths = Array.AsReadOnly(
         new List<string>(restoredSerializedRepresentationPaths).ToArray());
+    }
+  }
+
+  /// <summary>Reports a successful new-model import and its first interchange baseline.</summary>
+  public sealed class GltfNewModelImportResult
+  {
+    /// <summary>Gets the immutable canonical authored static mesh asset.</summary>
+    public StaticMeshAsset Asset { get; }
+
+    /// <summary>Gets the initial lineage and document identity for the authored asset.</summary>
+    public InterchangeBaseline Baseline { get; }
+
+    /// <summary>Gets the serialized representation paths canonicalized during authoring.</summary>
+    public PreservationReport Preservation { get; }
+
+    internal GltfNewModelImportResult(
+      StaticMeshAsset asset,
+      InterchangeBaseline baseline,
+      PreservationReport preservation)
+    {
+      Asset = asset;
+      Baseline = baseline;
+      Preservation = preservation;
     }
   }
 }

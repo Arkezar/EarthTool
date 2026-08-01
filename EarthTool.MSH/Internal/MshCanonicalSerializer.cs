@@ -26,9 +26,23 @@ namespace EarthTool.MSH.Internal
     {
       var framing = new MeshArchiveFraming(0x20D0A1FF, null, creationGuid);
       var records = FlattenStaticTree(rootSourceObject);
-      var vertices = records.SelectMany(record => record.RenderObject.RenderVertices).ToArray();
+      var vertices = rootSourceObject.RenderObjects
+        .SelectMany(record => record.RenderVertices)
+        .ToArray();
       var commonHeader = CreateCanonicalCommonHeader(0, animationLengths, vertices);
       return CreateStatic(framing, commonHeader, records, Array.Empty<byte>());
+    }
+
+    internal static long GetCanonicalStaticSerializedLength(
+      IEnumerable<(int VertexCount, int TriangleCount)> geometry)
+    {
+      var length = sizeof(uint) + 16L + BaseHeaderSize + sizeof(uint);
+      foreach (var record in geometry)
+      {
+        var blocks = checked((record.VertexCount + 3L) / 4L);
+        length = checked(length + 53L + (blocks * 0xA0L) + (record.TriangleCount * 8L));
+      }
+      return length;
     }
 
     internal static byte[] RewriteStatic(
@@ -617,6 +631,10 @@ namespace EarthTool.MSH.Internal
     {
       var records = new List<CanonicalStaticRecord>();
       Flatten(root, 0, records);
+      var encounteredSources = new HashSet<CanonicalStaticSourceObject>
+      {
+        records[0].Source
+      };
       for (var index = 0; index < records.Count; index++)
       {
         var current = records[index];
@@ -626,9 +644,15 @@ namespace EarthTool.MSH.Internal
         }
 
         var previousDepth = records[index - 1].Depth;
-        var unwind = previousDepth - (current.Depth - 1);
-        current.ObjectFlags = (uint)StaticRenderObjectFlags.BeginsNestedSourceObject
-          | checked((byte)unwind);
+        var beginsNested = encounteredSources.Add(current.Source);
+        var unwind = beginsNested
+          ? previousDepth - (current.Depth - 1)
+          : previousDepth - current.Depth;
+        current.ObjectFlags = checked((byte)unwind);
+        if (beginsNested)
+        {
+          current.ObjectFlags |= (uint)StaticRenderObjectFlags.BeginsNestedSourceObject;
+        }
       }
 
       return records;
@@ -639,12 +663,13 @@ namespace EarthTool.MSH.Internal
       int depth,
       List<CanonicalStaticRecord> records)
     {
-      records.AddRange(source.RenderObjects.Select(renderObject =>
-        new CanonicalStaticRecord(source, renderObject, depth)));
+      records.Add(new CanonicalStaticRecord(source, source.RenderObjects[0], depth));
       foreach (var child in source.Children)
       {
         Flatten(child, depth + 1, records);
       }
+      records.AddRange(source.RenderObjects.Skip(1).Select(renderObject =>
+        new CanonicalStaticRecord(source, renderObject, depth)));
     }
 
     private static int GetStaticRecordLength(CanonicalStaticRecord record)

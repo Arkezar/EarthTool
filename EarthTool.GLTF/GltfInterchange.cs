@@ -81,7 +81,7 @@ namespace EarthTool.GLTF
           return Failed<GltfExportReceipt>(Limit("$", glb.Length, profile.MaxOutputBytes));
         }
 
-        GlbDocument.Validate(glb, profile.MaxJsonDepth);
+        GlbDocument.Validate(glb, profile);
         cancellationToken.ThrowIfCancellationRequested();
         await destination.WriteAsync(glb, 0, glb.Length, cancellationToken).ConfigureAwait(false);
         return new OperationResult<GltfExportReceipt>(
@@ -199,7 +199,7 @@ namespace EarthTool.GLTF
         }
 
         ValidateGeometryProfile(
-          GlbDocument.ParseSeparate(package.Json, package.Binary, profile.MaxJsonDepth),
+          GlbDocument.ParseSeparate(package.Json, package.Binary, profile),
           profile);
         GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferFileName);
         var directory = Path.GetDirectoryName(Path.GetFullPath(destinationPath))
@@ -322,7 +322,7 @@ namespace EarthTool.GLTF
       try
       {
         var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken).ConfigureAwait(false);
-        var parsed = GlbDocument.Parse(bytes, profile.MaxJsonDepth);
+        var parsed = GlbDocument.Parse(bytes, profile);
         ValidateGeometryProfile(parsed, profile);
         ValidateMetadataProfile(parsed, profile);
         return await ImportParsedAsync(
@@ -363,8 +363,8 @@ namespace EarthTool.GLTF
       {
         var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
           .ConfigureAwait(false);
+        var parsed = GlbDocument.ParseSeparate(package.Json, package.Binary, profile);
         GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri);
-        var parsed = GlbDocument.ParseSeparate(package.Json, package.Binary, profile.MaxJsonDepth);
         ValidateGeometryProfile(parsed, profile);
         return await ImportParsedAsync(parsed, expectedBaseline, profile, cancellationToken)
           .ConfigureAwait(false);
@@ -376,6 +376,70 @@ namespace EarthTool.GLTF
       catch (Exception ex)
       {
         return Failed<GltfEditImportResult>(ToDiagnostic(ex, sourcePath));
+      }
+    }
+
+    /// <summary>Imports a metadata-free GLB as a canonical authored static mesh representation.</summary>
+    public async Task<OperationResult<GltfNewModelImportResult>> ImportNewModelGlbAsync(
+      Stream source,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      if (source is null)
+      {
+        throw new ArgumentNullException(nameof(source));
+      }
+
+      profile ??= GltfOperationProfile.Default;
+      try
+      {
+        var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
+          .ConfigureAwait(false);
+        var parsed = GlbDocument.ParseNewModel(bytes, profile);
+        ValidateGeometryProfile(parsed, profile);
+        return ImportNewModelParsed(parsed, profile, cancellationToken);
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfNewModelImportResult>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfNewModelImportResult>(ToDiagnostic(ex));
+      }
+    }
+
+    /// <summary>Imports metadata-free separate glTF as a canonical authored static mesh representation.</summary>
+    public async Task<OperationResult<GltfNewModelImportResult>> ImportNewModelGltfFileAsync(
+      string sourcePath,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      if (sourcePath is null)
+      {
+        throw new ArgumentNullException(nameof(sourcePath));
+      }
+
+      profile ??= GltfOperationProfile.Default;
+      try
+      {
+        var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
+          .ConfigureAwait(false);
+        var parsed = GlbDocument.ParseSeparateNewModel(
+          package.Json,
+          package.Binary,
+          profile);
+        GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri);
+        ValidateGeometryProfile(parsed, profile);
+        return ImportNewModelParsed(parsed, profile, cancellationToken);
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfNewModelImportResult>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfNewModelImportResult>(ToDiagnostic(ex, sourcePath));
       }
     }
 
@@ -394,7 +458,7 @@ namespace EarthTool.GLTF
       try
       {
         var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken).ConfigureAwait(false);
-        var parsed = GlbDocument.Parse(bytes, profile.MaxJsonDepth);
+        var parsed = GlbDocument.Parse(bytes, profile);
         ValidateGeometryProfile(parsed, profile);
         ValidateMetadataProfile(parsed, profile);
         return new OperationResult(OperationStatus.Succeeded);
@@ -425,7 +489,7 @@ namespace EarthTool.GLTF
       {
         var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
           .ConfigureAwait(false);
-        var parsed = GlbDocument.ParseSeparate(package.Json, package.Binary, profile.MaxJsonDepth);
+        var parsed = GlbDocument.ParseSeparate(package.Json, package.Binary, profile);
         ValidateGeometryProfile(parsed, profile);
         ValidateMetadataProfile(parsed, profile);
         GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri);
@@ -455,7 +519,7 @@ namespace EarthTool.GLTF
         true);
       var json = await ReadBoundedAsync(jsonStream, profile.MaxInputBytes, cancellationToken)
         .ConfigureAwait(false);
-      var bufferUri = GlbDocument.GetSeparateBufferUri(json, profile.MaxJsonDepth);
+      var bufferUri = GlbDocument.GetSeparateBufferUri(json, profile);
       if (Path.IsPathRooted(bufferUri)
         || !string.Equals(Path.GetFileName(bufferUri), bufferUri, StringComparison.Ordinal)
         || bufferUri.IndexOfAny(new[] { '/', '\\' }) >= 0)
@@ -484,6 +548,240 @@ namespace EarthTool.GLTF
       return (json, binary, bufferUri);
     }
 
+    private static OperationResult<GltfNewModelImportResult> ImportNewModelParsed(
+      ParsedGlb parsed,
+      GltfOperationProfile profile,
+      CancellationToken cancellationToken)
+    {
+      cancellationToken.ThrowIfCancellationRequested();
+      if (parsed.HasReservedMetadata)
+      {
+        return Failed<GltfNewModelImportResult>(Diagnostic(
+          GltfDiagnosticCodes.MisplacedMetadata,
+          2009,
+          "$",
+          "New-model import requires input without reserved EarthTool metadata."));
+      }
+
+      long serializedLength;
+      try
+      {
+        serializedLength = EarthTool.MSH.Internal.MshCanonicalSerializer
+          .GetCanonicalStaticSerializedLength(parsed.Nodes
+            .Where(node => node.MeshIndex.HasValue)
+            .SelectMany(node => parsed.Meshes[node.MeshIndex!.Value].Primitives)
+            .Select(primitive => (
+              primitive.Vertices.Count,
+              primitive.Triangles.Count)));
+      }
+      catch (OverflowException)
+      {
+        throw new ResourceLimitException(long.MaxValue, profile.MaxOutputBytes);
+      }
+      if (serializedLength > profile.MaxOutputBytes)
+      {
+        throw new ResourceLimitException(serializedLength, profile.MaxOutputBytes);
+      }
+
+      var draft = CreateNewModelSourceTree(parsed);
+      var lineage = new MeshAssetLineageId(Guid.NewGuid());
+      var build = StaticMeshBuilder.Create(Guid.NewGuid(), lineage)
+        .SetRootSourceObject(draft.Source)
+        .Build(new MshOperationProfile(
+          maxOutputBytes: profile.MaxOutputBytes,
+          maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
+          maxStaticHierarchyDepth: profile.MaxHierarchyDepth));
+      if (!build.TryGetValue(out var asset))
+      {
+        return new OperationResult<GltfNewModelImportResult>(
+          OperationStatus.Failed,
+          diagnostics: build.Diagnostics.Select(ToGltfAuthoringDiagnostic));
+      }
+
+      var edit = asset.Edit();
+      ApplyNewModelPivots(draft, asset.RootSourceObject, edit);
+      var committed = edit.Commit(new MshOperationProfile(
+        maxOutputBytes: profile.MaxOutputBytes,
+        maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
+        maxStaticHierarchyDepth: profile.MaxHierarchyDepth));
+      if (!committed.TryGetValue(out var authored))
+      {
+        return new OperationResult<GltfNewModelImportResult>(
+          OperationStatus.Failed,
+          diagnostics: committed.Diagnostics.Select(ToGltfAuthoringDiagnostic));
+      }
+
+      var baseline = new InterchangeBaseline(lineage.Value, Guid.NewGuid());
+      return new OperationResult<GltfNewModelImportResult>(
+        OperationStatus.Succeeded,
+        new GltfNewModelImportResult(authored, baseline, CreateNewModelPreservationReport()));
+    }
+
+    private static NewModelSourceDraft CreateNewModelSourceTree(ParsedGlb parsed)
+    {
+      var roots = CreateNewModelSources(
+        parsed.RootNodeIndex,
+        System.Numerics.Matrix4x4.Identity,
+        parsed);
+      if (roots.Count != 1)
+      {
+        throw new UnsupportedGltfDomainException("SceneMembership");
+      }
+
+      return roots[0];
+    }
+
+    private static IReadOnlyList<NewModelSourceDraft> CreateNewModelSources(
+      int nodeIndex,
+      System.Numerics.Matrix4x4 inheritedLinearTransform,
+      ParsedGlb parsed)
+    {
+      var node = parsed.Nodes[nodeIndex];
+      var effectiveTransform = node.LocalTransform * inheritedLinearTransform;
+      if (!node.MeshIndex.HasValue)
+      {
+        var collapsed = node.Children
+          .SelectMany(child => CreateNewModelSources(child, effectiveTransform, parsed))
+          .ToArray();
+        if (collapsed.Length == 0)
+        {
+          throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+        }
+        return Array.AsReadOnly(collapsed);
+      }
+
+      var translation = effectiveTransform.Translation;
+      var linearTransform = effectiveTransform;
+      linearTransform.Translation = System.Numerics.Vector3.Zero;
+      if (!System.Numerics.Matrix4x4.Invert(linearTransform, out var inverse))
+      {
+        throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+      }
+
+      var normalTransform = System.Numerics.Matrix4x4.Transpose(inverse);
+      var reverseWinding = linearTransform.GetDeterminant() < 0;
+      var mesh = parsed.Meshes[node.MeshIndex.Value];
+      var renderObjects = mesh.Primitives.Select(primitive => new CanonicalStaticRenderObject(
+        primitive.Vertices.Select(vertex => TransformNewModelVertex(
+          vertex,
+          linearTransform,
+          normalTransform)),
+        primitive.Triangles.Select(triangle => reverseWinding
+          ? new CanonicalTriangle(triangle.Vertex0, triangle.Vertex2, triangle.Vertex1)
+          : new CanonicalTriangle(triangle.Vertex0, triangle.Vertex1, triangle.Vertex2))))
+        .ToArray();
+      var children = node.Children
+        .SelectMany(child => CreateNewModelSources(child, linearTransform, parsed))
+        .ToArray();
+      var pivot = new System.Numerics.Vector3(translation.X, -translation.Z, translation.Y);
+      return new[]
+      {
+        new NewModelSourceDraft(
+          new CanonicalStaticSourceObject(renderObjects, children.Select(child => child.Source)),
+          pivot,
+          children)
+      };
+    }
+
+    private static CanonicalStaticVertex TransformNewModelVertex(
+      RenderVertex vertex,
+      System.Numerics.Matrix4x4 linearTransform,
+      System.Numerics.Matrix4x4 normalTransform)
+    {
+      var position = System.Numerics.Vector3.Transform(vertex.Position, linearTransform);
+      var normal = System.Numerics.Vector3.TransformNormal(vertex.Normal, normalTransform);
+      var normalLengthSquared = normal.LengthSquared();
+      if (!IsFinite(position)
+        || !IsFinite(normal)
+        || !float.IsFinite(normalLengthSquared)
+        || normalLengthSquared == 0)
+      {
+        throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+      }
+
+      normal = System.Numerics.Vector3.Normalize(normal);
+      if (!IsFinite(normal) || normal.LengthSquared() == 0)
+      {
+        throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+      }
+      return new CanonicalStaticVertex(
+        new System.Numerics.Vector3(position.X, -position.Z, position.Y),
+        new System.Numerics.Vector3(normal.X, -normal.Z, normal.Y),
+        vertex.TextureCoordinate);
+    }
+
+    private static void ApplyNewModelPivots(
+      NewModelSourceDraft draft,
+      StaticSourceObject source,
+      StaticMeshEditSession edit)
+    {
+      if (draft.Pivot != System.Numerics.Vector3.Zero)
+      {
+        edit.ReplacePivot(source.StaticRenderObjectIds[0], draft.Pivot);
+      }
+      for (var index = 0; index < draft.Children.Count; index++)
+      {
+        ApplyNewModelPivots(draft.Children[index], source.Children[index], edit);
+      }
+    }
+
+    private static PreservationReport CreateNewModelPreservationReport()
+    {
+      return new PreservationReport(new[]
+      {
+        Canonicalized("ArchiveFraming"),
+        Canonicalized("CommonBaseHeader"),
+        Canonicalized("CommonBaseHeader.AnimationLengths"),
+        Canonicalized("CommonBaseHeader.AnimationFrameIndices"),
+        Canonicalized("CommonBaseHeader.Footprint"),
+        Canonicalized("CommonBaseHeader.AttachmentTable"),
+        Canonicalized("CommonBaseHeader.CannonRenderPositions"),
+        Canonicalized("CommonBaseHeader.StaticLights"),
+        Canonicalized("CommonBaseHeader.HorizontalExtents"),
+        Canonicalized("StaticRenderObjectSequence"),
+        Canonicalized("RootSourceObject"),
+        Canonicalized("RootTrailingBytes")
+      });
+    }
+
+    private static PreservationChange Canonicalized(string path)
+    {
+      return new PreservationChange(path, PreservationDisposition.Canonicalized, "NewModelImport");
+    }
+
+    private static OperationDiagnostic ToGltfAuthoringDiagnostic(OperationDiagnostic diagnostic)
+    {
+      return new OperationDiagnostic(
+        diagnostic.Code == MshDiagnosticCodes.ResourceLimitExceeded
+          ? GltfDiagnosticCodes.ResourceLimitExceeded
+          : GltfDiagnosticCodes.InvalidGeometry,
+        diagnostic.Code == MshDiagnosticCodes.ResourceLimitExceeded ? 1101 : 1106,
+        diagnostic.Severity,
+        diagnostic.Path,
+        diagnostic.Message,
+        diagnostic.ByteOffset,
+        diagnostic.Data);
+    }
+
+    private sealed class NewModelSourceDraft
+    {
+      internal CanonicalStaticSourceObject Source { get; }
+
+      internal System.Numerics.Vector3 Pivot { get; }
+
+      internal IReadOnlyList<NewModelSourceDraft> Children { get; }
+
+      internal NewModelSourceDraft(
+        CanonicalStaticSourceObject source,
+        System.Numerics.Vector3 pivot,
+        IReadOnlyList<NewModelSourceDraft> children)
+      {
+        Source = source;
+        Pivot = pivot;
+        Children = children;
+      }
+    }
+
     private static async Task<OperationResult<GltfEditImportResult>> ImportParsedAsync(
       ParsedGlb parsed,
       InterchangeBaseline expectedBaseline,
@@ -491,7 +789,7 @@ namespace EarthTool.GLTF
       CancellationToken cancellationToken)
     {
       var manifest = GlbDocument.ParseMetadata(
-        parsed.ManifestMetadata,
+        parsed.ManifestMetadata ?? throw new MissingMetadataException("scene"),
         profile.MaxMetadataBytes,
         profile.MaxJsonDepth);
       ValidateManifestMetadata(manifest, expectedBaseline);
@@ -570,7 +868,7 @@ namespace EarthTool.GLTF
         {
           Parsed = mesh,
           Metadata = GlbDocument.ParseMetadata(
-            mesh.Metadata,
+            mesh.Metadata ?? throw new MissingMetadataException("mesh"),
             profile.MaxMetadataBytes,
             profile.MaxJsonDepth)
         })
@@ -769,7 +1067,7 @@ namespace EarthTool.GLTF
     private static void ValidateMetadataProfile(ParsedGlb parsed, GltfOperationProfile profile)
     {
       GlbDocument.ParseMetadata(
-        parsed.ManifestMetadata,
+        parsed.ManifestMetadata ?? throw new MissingMetadataException("scene"),
         profile.MaxMetadataBytes,
         profile.MaxJsonDepth);
       foreach (var metadata in parsed.Nodes.Select(node => node.Metadata)
