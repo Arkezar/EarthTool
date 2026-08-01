@@ -5,17 +5,32 @@ using EarthTool.MSH.Assets;
 using EarthTool.TEX;
 using SkiaSharp;
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 
 namespace EarthTool.GLTF.Internal
 {
+  internal sealed class TexPreview
+  {
+    internal byte[] Png { get; }
+
+    internal string ContentAddress { get; }
+
+    internal TexPreview(byte[] png, string contentAddress)
+    {
+      Png = png;
+      ContentAddress = contentAddress;
+    }
+  }
+
   internal sealed class TexPreviewLoadResult
   {
-    internal IReadOnlyDictionary<StaticRenderObjectId, byte[]> Previews { get; }
+    internal IReadOnlyDictionary<StaticRenderObjectId, TexPreview> Previews { get; }
 
     internal IReadOnlyList<OperationDiagnostic> Diagnostics { get; }
 
@@ -23,7 +38,7 @@ namespace EarthTool.GLTF.Internal
       diagnostic.Severity == DiagnosticSeverity.Error);
 
     internal TexPreviewLoadResult(
-      IReadOnlyDictionary<StaticRenderObjectId, byte[]> previews,
+      IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
       IReadOnlyList<OperationDiagnostic> diagnostics)
     {
       Previews = previews;
@@ -42,11 +57,17 @@ namespace EarthTool.GLTF.Internal
       int maxPreviewOutputBytes,
       CancellationToken cancellationToken)
     {
-      var previews = new Dictionary<StaticRenderObjectId, byte[]>();
+      if (options.TextureSearchRoots.Count > profile.MaxTextureSearchRoots)
+      {
+        throw new ResourceLimitException(
+          options.TextureSearchRoots.Count,
+          profile.MaxTextureSearchRoots);
+      }
+      var previews = new Dictionary<StaticRenderObjectId, TexPreview>();
       var diagnostics = new List<OperationDiagnostic>();
-      var cache = new Dictionary<string, DecodedPreview?>(StringComparer.OrdinalIgnoreCase);
-      long decodedPixels = 0;
+      var cache = new Dictionary<string, PreviewResolution>(StringComparer.OrdinalIgnoreCase);
       var previewOutputBytes = 0;
+      var budget = new TexResolutionBudget(profile);
       for (var recordIndex = 0; recordIndex < asset.StaticRenderObjectSequence.Count; recordIndex++)
       {
         var record = asset.StaticRenderObjectSequence[recordIndex];
@@ -65,75 +86,24 @@ namespace EarthTool.GLTF.Internal
             "The exact TEX binding cannot be used as a safe host resource path."));
           continue;
         }
-        if (!cache.TryGetValue(path, out var png))
+        if (!cache.TryGetValue(path, out var resolution))
         {
-          var resolution = Resolve(path, options.TextureSearchRoots);
-          if (resolution.Ambiguous)
-          {
-            diagnostics.Add(new OperationDiagnostic(
-              GltfDiagnosticCodes.AmbiguousTextureResource,
-              1108,
-              DiagnosticSeverity.Error,
-              BindingPath(recordIndex),
-              "The TEX resource key has more than one case-insensitive match in the winning root."));
-            continue;
-          }
-          if (resolution.Path is null)
-          {
-            diagnostics.Add(Warning(
-              GltfDiagnosticCodes.TextureResourceMissing,
-              1107,
-              recordIndex,
-              "The explicit TEX resource binding was not found in the configured roots."));
-            cache.Add(path, null);
-            continue;
-          }
-          if (resolution.Shadowed)
-          {
-            diagnostics.Add(Warning(
-              GltfDiagnosticCodes.TextureResourceShadowed,
-              1110,
-              recordIndex,
-              "A later TEX search root contains a shadowed match for this binding."));
-          }
-          try
-          {
-            png = Decode(
-              resolution.Path,
-              resolution.Root!,
-              profile,
-              profile.MaxPreviewPixels - decodedPixels);
-            decodedPixels = checked(decodedPixels + png.PixelCount);
-          }
-          catch (Exception ex) when (ex is IOException
-            || ex is EndOfStreamException
-            || ex is InvalidDataException
-            || ex is NotSupportedException
-            || ex is OverflowException
-            || ex is ArgumentException)
-          {
-            diagnostics.Add(Warning(
-              GltfDiagnosticCodes.TexturePreviewUnavailable,
-              1109,
-              recordIndex,
-              ex.Message));
-            png = null;
-          }
-          if (png is not null && png.Png.Length > maxPreviewOutputBytes - previewOutputBytes)
-          {
-            diagnostics.Add(Warning(
-              GltfDiagnosticCodes.TexturePreviewUnavailable,
-              1109,
-              recordIndex,
-              "The decoded TEX previews exceed the remaining output budget."));
-            png = null;
-          }
-          cache.Add(path, png);
+          resolution = LoadPreview(
+            path,
+            options.TextureSearchRoots,
+            profile,
+            budget);
+          cache.Add(path, resolution);
         }
-        if (png is not null)
+
+        var preview = resolution.Preview;
+        if (preview is not null)
         {
-          if (png.Png.Length > maxPreviewOutputBytes - previewOutputBytes)
+          var isNewPreview = !previews.Values.Any(existing =>
+            existing.ContentAddress == preview.ContentAddress);
+          if (isNewPreview && preview.Png.Length > maxPreviewOutputBytes - previewOutputBytes)
           {
+            AddDiagnostics(diagnostics, resolution, recordIndex, false);
             diagnostics.Add(Warning(
               GltfDiagnosticCodes.TexturePreviewUnavailable,
               1109,
@@ -141,12 +111,156 @@ namespace EarthTool.GLTF.Internal
               "The decoded TEX previews exceed the remaining output budget."));
             continue;
           }
-          previewOutputBytes += png.Png.Length;
-          previews.Add(record.Id, png.Png);
+          if (isNewPreview)
+          {
+            previewOutputBytes += preview.Png.Length;
+          }
+          AddDiagnostics(diagnostics, resolution, recordIndex, true);
+          previews.Add(record.Id, preview);
+        }
+        else
+        {
+          AddDiagnostics(diagnostics, resolution, recordIndex, false);
         }
       }
 
       return new TexPreviewLoadResult(previews, diagnostics);
+    }
+
+    private static PreviewResolution LoadPreview(
+      string relativePath,
+      IReadOnlyList<string> roots,
+      GltfOperationProfile profile,
+      TexResolutionBudget budget)
+    {
+      var match = Resolve(relativePath, roots, budget);
+      if (match.Ambiguous)
+      {
+        return PreviewResolution.AmbiguousResource();
+      }
+      if (match.Path is not null)
+      {
+        try
+        {
+          var decoded = Decode(match.Path, match.Root!, profile, budget);
+          return PreviewResolution.Resolved(decoded.Preview, match.Shadowed, decoded.HasVariants);
+        }
+        catch (Exception ex) when (IsPreviewFailure(ex))
+        {
+          return PreviewResolution.Unavailable(match.Shadowed, ex.Message);
+        }
+      }
+
+      var defaultMatch = Resolve(Path.Combine("Textures", "Default.tex"), roots, budget);
+      if (defaultMatch.Ambiguous)
+      {
+        return PreviewResolution.AmbiguousResource();
+      }
+      if (defaultMatch.Path is not null)
+      {
+        try
+        {
+          var decoded = Decode(defaultMatch.Path, defaultMatch.Root!, profile, budget);
+          return PreviewResolution.Default(
+            decoded.Preview,
+            defaultMatch.Shadowed,
+            decoded.HasVariants);
+        }
+        catch (Exception ex) when (IsPreviewFailure(ex))
+        {
+          return CreateDiagnosticResolution(budget, ex.Message);
+        }
+      }
+
+      return CreateDiagnosticResolution(budget, null);
+    }
+
+    private static PreviewResolution CreateDiagnosticResolution(
+      TexResolutionBudget budget,
+      string? unavailableReason)
+    {
+      if (!budget.TryConsumePixels(4))
+      {
+        return PreviewResolution.DiagnosticUnavailable(
+          unavailableReason ?? "The diagnostic TEX preview exceeds the configured pixel limit.");
+      }
+      return PreviewResolution.Diagnostic(CreateDiagnosticPreview(), unavailableReason);
+    }
+
+    private static bool IsPreviewFailure(Exception exception)
+    {
+      return exception is IOException
+        or EndOfStreamException
+        or InvalidDataException
+        or NotSupportedException
+        or OverflowException
+        or ArgumentException;
+    }
+
+    private static void AddDiagnostics(
+      ICollection<OperationDiagnostic> diagnostics,
+      PreviewResolution resolution,
+      int recordIndex,
+      bool previewEmitted)
+    {
+      if (resolution.Ambiguous)
+      {
+        diagnostics.Add(new OperationDiagnostic(
+          GltfDiagnosticCodes.AmbiguousTextureResource,
+          1108,
+          DiagnosticSeverity.Error,
+          BindingPath(recordIndex),
+          "The TEX resource key has more than one case-insensitive match in the winning root."));
+        return;
+      }
+      if (resolution.Missing)
+      {
+        diagnostics.Add(Warning(
+          GltfDiagnosticCodes.TextureResourceMissing,
+          1107,
+          recordIndex,
+          "The explicit TEX resource binding was not found in the configured roots."));
+      }
+      if (resolution.Shadowed)
+      {
+        diagnostics.Add(Warning(
+          GltfDiagnosticCodes.TextureResourceShadowed,
+          1110,
+          recordIndex,
+          "A later TEX search root contains a shadowed match for this preview resource."));
+      }
+      if (resolution.DefaultUsed && previewEmitted)
+      {
+        diagnostics.Add(Warning(
+          GltfDiagnosticCodes.TextureDefaultPreviewUsed,
+          1111,
+          recordIndex,
+          "The unresolved TEX binding uses the runtime default resource as its preview."));
+      }
+      if (resolution.DiagnosticUsed && previewEmitted)
+      {
+        diagnostics.Add(Warning(
+          GltfDiagnosticCodes.TextureDiagnosticPreviewUsed,
+          1112,
+          recordIndex,
+          "The unresolved TEX binding uses EarthTool's deterministic diagnostic preview."));
+      }
+      if (resolution.HasVariants && previewEmitted)
+      {
+        diagnostics.Add(Warning(
+          GltfDiagnosticCodes.TextureVariantsNotRepresented,
+          1113,
+          recordIndex,
+          "The decoded preview represents only the first highest-resolution TEX image."));
+      }
+      if (resolution.UnavailableReason is not null)
+      {
+        diagnostics.Add(Warning(
+          GltfDiagnosticCodes.TexturePreviewUnavailable,
+          1109,
+          recordIndex,
+          resolution.UnavailableReason));
+      }
     }
 
     private static string? TryGetRelativePath(IReadOnlyList<byte> bytes)
@@ -171,7 +285,8 @@ namespace EarthTool.GLTF.Internal
 
     private static (string? Path, string? Root, bool Ambiguous, bool Shadowed) Resolve(
       string relativePath,
-      IReadOnlyList<string> roots)
+      IReadOnlyList<string> roots,
+      TexResolutionBudget budget)
     {
       var segments = relativePath.Split(Path.DirectorySeparatorChar);
       string? selected = null;
@@ -188,7 +303,7 @@ namespace EarthTool.GLTF.Internal
         {
           candidates = candidates.SelectMany(current =>
               Directory.Exists(current)
-                ? Directory.EnumerateFileSystemEntries(current)
+                ? budget.EnumerateFileSystemEntries(current)
                 .Where(path => string.Equals(
                   Path.GetFileName(path),
                   segment,
@@ -247,11 +362,11 @@ namespace EarthTool.GLTF.Internal
       return false;
     }
 
-    private static DecodedPreview Decode(
+    private static (TexPreview Preview, bool HasVariants) Decode(
       string path,
       string root,
       GltfOperationProfile profile,
-      long remainingPixels)
+      TexResolutionBudget budget)
     {
       using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
       if (IsLink(path)
@@ -264,36 +379,36 @@ namespace EarthTool.GLTF.Internal
       {
         throw new InvalidDataException("The TEX resource exceeds the configured byte limit.");
       }
+      budget.ConsumeTextureBytes(stream.Length);
       using var reader = new BinaryReader(stream, Encoding.UTF8, true);
       if (!reader.ReadBytes(_identifier.Length).SequenceEqual(_identifier))
       {
         throw new InvalidDataException("The TEX resource header is invalid.");
       }
-      var flags = (TexFlags)reader.ReadUInt32();
-      var unsupportedLayout = TexFlags.Container
-        | TexFlags.DamageStates
-        | TexFlags.SideColors
-        | TexFlags.Cursor
-        | TexFlags.Lod;
-      if (!flags.HasFlag(TexFlags.Rgba32)
-        || !flags.HasFlag(TexFlags.Mipmap)
-        || (flags & unsupportedLayout) != 0)
+      var header = ReadHeader(reader);
+      var hasVariants = IsVariant(header.Flags);
+      if (IsMultiImage(header.Flags))
+      {
+        if (!reader.ReadBytes(_identifier.Length).SequenceEqual(_identifier))
+        {
+          throw new InvalidDataException("The first TEX variant header is invalid.");
+        }
+        header = ReadHeader(reader);
+      }
+      if (!header.Flags.HasFlag(TexFlags.Rgba32)
+        || !header.Flags.HasFlag(TexFlags.Mipmap))
       {
         throw new NotSupportedException("This TEX preview layout is not supported safely.");
       }
-      if (reader.ReadInt32() != 0x8888)
-      {
-        throw new InvalidDataException("The TEX image declaration is invalid.");
-      }
-      var width = reader.ReadInt32();
-      var height = reader.ReadInt32();
+      var width = header.Width;
+      var height = header.Height;
       var pixels = checked((long)width * height);
       if (width <= 0
         || height <= 0
         || width > 32768
         || height > 32768
         || pixels > profile.MaxPreviewPixels
-        || pixels > remainingPixels)
+        || !budget.TryConsumePixels(pixels))
       {
         throw new InvalidDataException("The TEX preview exceeds the configured pixel limit.");
       }
@@ -307,20 +422,122 @@ namespace EarthTool.GLTF.Internal
         height,
         SKColorType.Rgba8888,
         SKAlphaType.Unpremul);
+      var rgba = new byte[checked((int)pixels * 4)];
+      var pixelOffset = 0;
       for (var y = 0; y < height; y++)
       {
         for (var x = 0; x < width; x++)
         {
-          bitmap.SetPixel(x, y, new SKColor(
-            reader.ReadByte(),
-            reader.ReadByte(),
-            reader.ReadByte(),
-            reader.ReadByte()));
+          var red = reader.ReadByte();
+          var green = reader.ReadByte();
+          var blue = reader.ReadByte();
+          var alpha = reader.ReadByte();
+          rgba[pixelOffset++] = red;
+          rgba[pixelOffset++] = green;
+          rgba[pixelOffset++] = blue;
+          rgba[pixelOffset++] = alpha;
+          bitmap.SetPixel(x, y, new SKColor(red, green, blue, alpha));
         }
       }
       using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100)
         ?? throw new InvalidDataException("The TEX preview could not be encoded as PNG.");
-      return new DecodedPreview(data.ToArray(), pixels);
+      return (new TexPreview(data.ToArray(), GetContentAddress(width, height, rgba)), hasVariants);
+    }
+
+    private static TexHeader ReadHeader(BinaryReader reader)
+    {
+      var flags = (TexFlags)reader.ReadUInt32();
+      var count = 1;
+      if (flags.HasFlag(TexFlags.DamageStates))
+      {
+        count = reader.ReadInt32();
+      }
+      if (flags.HasFlag(TexFlags.Container) || flags.HasFlag(TexFlags.SideColors))
+      {
+        count = checked(count * reader.ReadInt32());
+      }
+      if (count <= 0)
+      {
+        throw new InvalidDataException("The TEX image count is invalid.");
+      }
+
+      var width = 0;
+      var height = 0;
+      if (flags.HasFlag(TexFlags.Mipmap) && !flags.HasFlag(TexFlags.DamageStates))
+      {
+        if (reader.ReadInt32() != 0x8888)
+        {
+          throw new InvalidDataException("The TEX image declaration is invalid.");
+        }
+        width = reader.ReadInt32();
+        height = reader.ReadInt32();
+      }
+      if (flags.HasFlag(TexFlags.Cursor))
+      {
+        reader.ReadInt32();
+        reader.ReadInt32();
+        reader.ReadInt32();
+        reader.ReadInt32();
+      }
+      if (flags.HasFlag(TexFlags.Lod))
+      {
+        var lodCount = reader.ReadInt32();
+        if (lodCount < 0)
+        {
+          throw new InvalidDataException("The TEX mip count is invalid.");
+        }
+      }
+      return new TexHeader(flags, width, height);
+    }
+
+    private static bool IsMultiImage(TexFlags flags)
+    {
+      return flags == TexFlags.None
+        || (flags & (TexFlags.Container | TexFlags.DamageStates | TexFlags.SideColors)) != 0;
+    }
+
+    private static bool IsVariant(TexFlags flags)
+    {
+      const TexFlags variants = TexFlags.Container
+        | TexFlags.DamageStates
+        | TexFlags.SideColors
+        | TexFlags.Animated
+        | TexFlags.Special;
+      return flags == TexFlags.None || (flags & variants) != 0;
+    }
+
+    private static TexPreview CreateDiagnosticPreview()
+    {
+      var rgba = new byte[]
+      {
+        0xFF, 0, 0xFF, 0xFF,
+        0, 0, 0, 0xFF,
+        0, 0, 0, 0xFF,
+        0xFF, 0, 0xFF, 0xFF
+      };
+      using var bitmap = new SKBitmap(2, 2, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+      for (var index = 0; index < 4; index++)
+      {
+        var offset = index * 4;
+        bitmap.SetPixel(
+          index % 2,
+          index / 2,
+          new SKColor(rgba[offset], rgba[offset + 1], rgba[offset + 2], rgba[offset + 3]));
+      }
+      using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100)
+        ?? throw new InvalidDataException("The diagnostic preview could not be encoded as PNG.");
+      return new TexPreview(data.ToArray(), GetContentAddress(2, 2, rgba));
+    }
+
+    private static string GetContentAddress(int width, int height, byte[] rgba)
+    {
+      var preimage = new byte[checked(sizeof(int) * 2 + rgba.Length)];
+      BinaryPrimitives.WriteInt32LittleEndian(preimage, width);
+      BinaryPrimitives.WriteInt32LittleEndian(preimage.AsSpan(sizeof(int)), height);
+      rgba.CopyTo(preimage, sizeof(int) * 2);
+      using var sha256 = SHA256.Create();
+      return BitConverter.ToString(sha256.ComputeHash(preimage)).Replace("-", string.Empty)
+        .ToLowerInvariant();
     }
 
     private static OperationDiagnostic Warning(
@@ -349,17 +566,183 @@ namespace EarthTool.GLTF.Internal
       return Path.GetFullPath(path).StartsWith(rootPath, StringComparison.OrdinalIgnoreCase);
     }
 
-    private sealed class DecodedPreview
+    private sealed class TexResolutionBudget
     {
-      internal byte[] Png { get; }
+      private readonly int _maximumDirectoryEntries;
+      private long _remainingTextureBytes;
+      private long _remainingPixels;
+      private int _examinedDirectoryEntries;
 
-      internal long PixelCount { get; }
-
-      internal DecodedPreview(byte[] png, long pixelCount)
+      internal TexResolutionBudget(GltfOperationProfile profile)
       {
-        Png = png;
-        PixelCount = pixelCount;
+        _remainingTextureBytes = profile.MaxTextureBytes;
+        _remainingPixels = profile.MaxPreviewPixels;
+        _maximumDirectoryEntries = profile.MaxTextureDirectoryEntries;
       }
+
+      internal IEnumerable<string> EnumerateFileSystemEntries(string path)
+      {
+        foreach (var entry in Directory.EnumerateFileSystemEntries(path))
+        {
+          _examinedDirectoryEntries = checked(_examinedDirectoryEntries + 1);
+          if (_examinedDirectoryEntries > _maximumDirectoryEntries)
+          {
+            throw new ResourceLimitException(
+              _examinedDirectoryEntries,
+              _maximumDirectoryEntries);
+          }
+          yield return entry;
+        }
+      }
+
+      internal void ConsumeTextureBytes(long count)
+      {
+        if (count > _remainingTextureBytes)
+        {
+          throw new InvalidDataException("The TEX resources exceed the aggregate byte limit.");
+        }
+        _remainingTextureBytes -= count;
+      }
+
+      internal bool TryConsumePixels(long count)
+      {
+        if (count > _remainingPixels)
+        {
+          return false;
+        }
+        _remainingPixels -= count;
+        return true;
+      }
+    }
+
+    private readonly struct TexHeader
+    {
+      internal TexFlags Flags { get; }
+
+      internal int Width { get; }
+
+      internal int Height { get; }
+
+      internal TexHeader(TexFlags flags, int width, int height)
+      {
+        Flags = flags;
+        Width = width;
+        Height = height;
+      }
+    }
+
+    private enum PreviewResolutionKind
+    {
+      Resolved,
+      MissingDefault,
+      MissingDiagnostic,
+      MissingUnavailable,
+      Ambiguous,
+      Unavailable
+    }
+
+    private sealed class PreviewResolution
+    {
+      private PreviewResolutionKind Kind { get; }
+
+      internal TexPreview? Preview { get; }
+
+      internal bool Missing => Kind is PreviewResolutionKind.MissingDefault
+        or PreviewResolutionKind.MissingDiagnostic
+        or PreviewResolutionKind.MissingUnavailable;
+
+      internal bool Ambiguous => Kind == PreviewResolutionKind.Ambiguous;
+
+      internal bool Shadowed { get; }
+
+      internal bool DefaultUsed => Kind == PreviewResolutionKind.MissingDefault;
+
+      internal bool DiagnosticUsed => Kind == PreviewResolutionKind.MissingDiagnostic;
+
+      internal bool HasVariants { get; }
+
+      internal string? UnavailableReason { get; }
+
+      private PreviewResolution(
+        PreviewResolutionKind kind,
+        TexPreview? preview,
+        bool shadowed,
+        bool hasVariants,
+        string? unavailableReason)
+      {
+        Kind = kind;
+        Preview = preview;
+        Shadowed = shadowed;
+        HasVariants = hasVariants;
+        UnavailableReason = unavailableReason;
+      }
+
+      internal static PreviewResolution Resolved(
+        TexPreview preview,
+        bool shadowed,
+        bool hasVariants)
+      {
+        return new PreviewResolution(
+          PreviewResolutionKind.Resolved,
+          preview,
+          shadowed,
+          hasVariants,
+          null);
+      }
+
+      internal static PreviewResolution Default(
+        TexPreview preview,
+        bool shadowed,
+        bool hasVariants)
+      {
+        return new PreviewResolution(
+          PreviewResolutionKind.MissingDefault,
+          preview,
+          shadowed,
+          hasVariants,
+          null);
+      }
+
+      internal static PreviewResolution Diagnostic(TexPreview preview, string? unavailableReason)
+      {
+        return new PreviewResolution(
+          PreviewResolutionKind.MissingDiagnostic,
+          preview,
+          false,
+          false,
+          unavailableReason);
+      }
+
+      internal static PreviewResolution DiagnosticUnavailable(string reason)
+      {
+        return new PreviewResolution(
+          PreviewResolutionKind.MissingUnavailable,
+          null,
+          false,
+          false,
+          reason);
+      }
+
+      internal static PreviewResolution AmbiguousResource()
+      {
+        return new PreviewResolution(
+          PreviewResolutionKind.Ambiguous,
+          null,
+          false,
+          false,
+          null);
+      }
+
+      internal static PreviewResolution Unavailable(bool shadowed, string reason)
+      {
+        return new PreviewResolution(
+          PreviewResolutionKind.Unavailable,
+          null,
+          shadowed,
+          false,
+          reason);
+      }
+
     }
   }
 }

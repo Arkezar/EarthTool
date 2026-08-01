@@ -76,7 +76,7 @@ namespace EarthTool.GLTF
         var withoutPreviews = GlbDocument.Create(
           asset,
           baseline,
-          new Dictionary<StaticRenderObjectId, byte[]>(),
+          new Dictionary<StaticRenderObjectId, TexPreview>(),
           out var fingerprint);
         if (withoutPreviews.Length > profile.MaxOutputBytes)
         {
@@ -101,10 +101,7 @@ namespace EarthTool.GLTF
         if (glb.Length > profile.MaxOutputBytes)
         {
           glb = withoutPreviews;
-          exportDiagnostics = previewResult.Diagnostics.Concat(new[]
-          {
-            PreviewOutputLimitWarning()
-          }).ToArray();
+          exportDiagnostics = WithoutEmittedPreviewDiagnostics(previewResult.Diagnostics);
         }
 
         GlbDocument.Validate(glb, profile);
@@ -193,7 +190,7 @@ namespace EarthTool.GLTF
       profile ??= GltfOperationProfile.Default;
       options ??= new GltfExportOptions();
       var manifestTemporaryPath = _fileSystem.GetTemporaryPath(destinationPath);
-      string? bufferTemporaryPath = null;
+      var sidecarTemporaryPaths = new Dictionary<string, string>(StringComparer.Ordinal);
       try
       {
         cancellationToken.ThrowIfCancellationRequested();
@@ -219,7 +216,7 @@ namespace EarthTool.GLTF
         var withoutPreviews = GlbDocument.CreateSeparate(
           asset,
           baseline,
-          new Dictionary<StaticRenderObjectId, byte[]>(),
+          new Dictionary<StaticRenderObjectId, TexPreview>(),
           out var fingerprint);
         var withoutPreviewLength = checked(withoutPreviews.Json.Length + withoutPreviews.Binary.Length);
         if (withoutPreviewLength > profile.MaxOutputBytes)
@@ -241,57 +238,111 @@ namespace EarthTool.GLTF
         var package = previewResult.Previews.Count == 0
           ? withoutPreviews
           : GlbDocument.CreateSeparate(asset, baseline, previewResult.Previews, out fingerprint);
-        var outputLength = checked(package.Json.Length + package.Binary.Length);
+        var outputLength = checked(package.Json.Length
+          + package.Binary.Length
+          + package.ImageSidecars.Values.Sum(bytes => bytes.Length));
         var exportDiagnostics = previewResult.Diagnostics;
         if (outputLength > profile.MaxOutputBytes)
         {
           package = withoutPreviews;
-          exportDiagnostics = previewResult.Diagnostics.Concat(new[]
-          {
-            PreviewOutputLimitWarning()
-          }).ToArray();
+          exportDiagnostics = WithoutEmittedPreviewDiagnostics(previewResult.Diagnostics);
         }
 
         ValidateGeometryProfile(
           GlbDocument.ParseSeparate(package.Json, package.Binary, profile),
           profile);
-        GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferFileName);
+        GlbDocument.ValidateSeparate(
+          package.Json,
+          package.Binary,
+          package.BufferFileName,
+          package.ImageSidecars);
         var directory = Path.GetDirectoryName(Path.GetFullPath(destinationPath))
           ?? Directory.GetCurrentDirectory();
-        var bufferPath = Path.Combine(directory, package.BufferFileName);
-        if (string.Equals(
-          Path.GetFullPath(destinationPath),
-          Path.GetFullPath(bufferPath),
-          StringComparison.OrdinalIgnoreCase))
+        var sidecars = new Dictionary<string, byte[]>(package.ImageSidecars, StringComparer.Ordinal)
         {
-          throw new IOException("The glTF manifest path collides with its content-addressed buffer.");
+          [package.BufferFileName] = package.Binary
+        };
+        var manifestFullPath = Path.GetFullPath(destinationPath);
+        if (Directory.Exists(manifestFullPath))
+        {
+          throw new IOException("The glTF manifest path collides with a directory.");
         }
+        var sidecarPaths = sidecars.ToDictionary(
+          sidecar => sidecar.Key,
+          sidecar => Path.Combine(directory, sidecar.Key),
+          StringComparer.Ordinal);
 
-        if (File.Exists(bufferPath))
+        foreach (var sidecar in sidecars.OrderBy(sidecar => sidecar.Key, StringComparer.Ordinal))
         {
-          if (!HasSameContent(bufferPath, package.Binary))
+          var sidecarPath = sidecarPaths[sidecar.Key];
+          if (string.Equals(
+            manifestFullPath,
+            Path.GetFullPath(sidecarPath),
+            StringComparison.OrdinalIgnoreCase))
           {
-            throw new IOException("A content-addressed glTF buffer has conflicting content.");
+            throw new IOException("The glTF manifest path collides with a content-addressed sidecar.");
+          }
+          if (Directory.Exists(sidecarPath))
+          {
+            throw new IOException("A content-addressed glTF sidecar collides with a directory.");
+          }
+          if (File.Exists(sidecarPath) && !HasSameContent(sidecarPath, sidecar.Value))
+          {
+            throw new IOException("A content-addressed glTF sidecar has conflicting content.");
           }
         }
-        else
+
+        foreach (var sidecar in sidecars.OrderBy(sidecar => sidecar.Key, StringComparer.Ordinal))
         {
-          bufferTemporaryPath = _fileSystem.GetTemporaryPath(bufferPath);
-          using (var temporary = _fileSystem.CreateTemporary(bufferTemporaryPath))
+          var sidecarPath = sidecarPaths[sidecar.Key];
+          if (File.Exists(sidecarPath))
+          {
+            continue;
+          }
+          var temporaryPath = _fileSystem.GetTemporaryPath(sidecarPath);
+          sidecarTemporaryPaths.Add(sidecar.Key, temporaryPath);
+          using (var temporary = _fileSystem.CreateTemporary(temporaryPath))
           {
             await temporary.WriteAsync(
-              package.Binary,
+              sidecar.Value,
               0,
-              package.Binary.Length,
+              sidecar.Value.Length,
               cancellationToken).ConfigureAwait(false);
             await temporary.FlushAsync(cancellationToken).ConfigureAwait(false);
           }
-
-          cancellationToken.ThrowIfCancellationRequested();
-          _fileSystem.Commit(bufferTemporaryPath, bufferPath);
-          bufferTemporaryPath = null;
         }
 
+        foreach (var sidecar in sidecars.OrderBy(sidecar => sidecar.Key, StringComparer.Ordinal))
+        {
+          var sidecarPath = sidecarPaths[sidecar.Key];
+          if (File.Exists(sidecarPath))
+          {
+            if (!HasSameContent(sidecarPath, sidecar.Value))
+            {
+              throw new IOException("A content-addressed glTF sidecar changed during commit.");
+            }
+            if (sidecarTemporaryPaths.Remove(sidecar.Key, out var unusedTemporaryPath))
+            {
+              _fileSystem.TryDelete(unusedTemporaryPath);
+            }
+            continue;
+          }
+          var temporaryPath = sidecarTemporaryPaths[sidecar.Key];
+          cancellationToken.ThrowIfCancellationRequested();
+          _fileSystem.Commit(temporaryPath, sidecarPath);
+          sidecarTemporaryPaths.Remove(sidecar.Key);
+        }
+
+        foreach (var sidecar in sidecars)
+        {
+          if (!File.Exists(sidecarPaths[sidecar.Key])
+            || !HasSameContent(sidecarPaths[sidecar.Key], sidecar.Value))
+          {
+            throw new IOException("A committed glTF sidecar is incomplete or invalid.");
+          }
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
         using (var temporary = _fileSystem.CreateTemporary(manifestTemporaryPath))
         {
           await temporary.WriteAsync(
@@ -320,9 +371,9 @@ namespace EarthTool.GLTF
       finally
       {
         _fileSystem.TryDelete(manifestTemporaryPath);
-        if (bufferTemporaryPath is not null)
+        foreach (var temporaryPath in sidecarTemporaryPaths.Values)
         {
-          _fileSystem.TryDelete(bufferTemporaryPath);
+          _fileSystem.TryDelete(temporaryPath);
         }
       }
     }
@@ -419,7 +470,7 @@ namespace EarthTool.GLTF
         var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
           .ConfigureAwait(false);
         var parsed = GlbDocument.ParseSeparate(package.Json, package.Binary, profile);
-        GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri);
+        GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri, package.Images);
         ValidateGeometryProfile(parsed, profile);
         return await ImportParsedAsync(parsed, expectedBaseline, profile, cancellationToken)
           .ConfigureAwait(false);
@@ -488,7 +539,7 @@ namespace EarthTool.GLTF
           package.Json,
           package.Binary,
           profile);
-        GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri);
+        GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri, package.Images);
         ValidateGeometryProfile(parsed, profile);
         return ImportNewModelParsed(parsed, profile, cancellationToken, options);
       }
@@ -551,7 +602,7 @@ namespace EarthTool.GLTF
         var parsed = GlbDocument.ParseSeparate(package.Json, package.Binary, profile);
         ValidateGeometryProfile(parsed, profile);
         ValidateMetadataProfile(parsed, profile);
-        GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri);
+        GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri, package.Images);
         return new OperationResult(OperationStatus.Succeeded);
       }
       catch (OperationCanceledException)
@@ -564,7 +615,11 @@ namespace EarthTool.GLTF
       }
     }
 
-    private static async Task<(byte[] Json, byte[] Binary, string BufferUri)> ReadSeparatePackageAsync(
+    private static async Task<(
+      byte[] Json,
+      byte[] Binary,
+      string BufferUri,
+      IReadOnlyDictionary<string, byte[]> Images)> ReadSeparatePackageAsync(
       string sourcePath,
       GltfOperationProfile profile,
       CancellationToken cancellationToken)
@@ -589,6 +644,7 @@ namespace EarthTool.GLTF
       var directory = Path.GetDirectoryName(Path.GetFullPath(sourcePath))
         ?? Directory.GetCurrentDirectory();
       var bufferPath = Path.Combine(directory, bufferUri);
+      EnsureRegularSidecar(bufferPath);
       await using var binaryStream = new FileStream(
         bufferPath,
         FileMode.Open,
@@ -596,6 +652,7 @@ namespace EarthTool.GLTF
         FileShare.Read,
         81920,
         true);
+      EnsureRegularSidecar(bufferPath);
       var remaining = profile.MaxInputBytes - json.Length;
       if (remaining <= 0)
       {
@@ -604,7 +661,47 @@ namespace EarthTool.GLTF
 
       var binary = await ReadBoundedAsync(binaryStream, remaining, cancellationToken)
         .ConfigureAwait(false);
-      return (json, binary, bufferUri);
+      remaining -= binary.Length;
+      var images = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+      foreach (var imageUri in GlbDocument.GetSeparateImageUris(json, profile))
+      {
+        if (Path.IsPathRooted(imageUri)
+          || !string.Equals(Path.GetFileName(imageUri), imageUri, StringComparison.Ordinal)
+          || imageUri.IndexOfAny(new[] { '/', '\\' }) >= 0
+          || (!imageUri.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+            && !imageUri.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
+            && !imageUri.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)))
+        {
+          throw new InvalidDataException("An external image URI must be a safe relative PNG or JPEG file name.");
+        }
+        if (remaining <= 0)
+        {
+          throw new ResourceLimitException(profile.MaxInputBytes, profile.MaxInputBytes);
+        }
+        var imagePath = Path.Combine(directory, imageUri);
+        EnsureRegularSidecar(imagePath);
+        await using var imageStream = new FileStream(
+          imagePath,
+          FileMode.Open,
+          FileAccess.Read,
+          FileShare.Read,
+          81920,
+          true);
+        EnsureRegularSidecar(imagePath);
+        var image = await ReadBoundedAsync(imageStream, remaining, cancellationToken).ConfigureAwait(false);
+        remaining -= image.Length;
+        images.Add(imageUri, image);
+      }
+      return (json, binary, bufferUri, images);
+    }
+
+    private static void EnsureRegularSidecar(string path)
+    {
+      var attributes = File.GetAttributes(path);
+      if ((attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0)
+      {
+        throw new InvalidDataException("A separate glTF sidecar must be a regular contained file.");
+      }
     }
 
     private static OperationResult<GltfNewModelImportResult> ImportNewModelParsed(
@@ -2022,6 +2119,17 @@ namespace EarthTool.GLTF
         DiagnosticSeverity.Warning,
         "$",
         "Decoded TEX previews were omitted to keep the package within the output limit.");
+    }
+
+    private static IReadOnlyList<OperationDiagnostic> WithoutEmittedPreviewDiagnostics(
+      IEnumerable<OperationDiagnostic> diagnostics)
+    {
+      return diagnostics.Where(diagnostic =>
+          diagnostic.Code != GltfDiagnosticCodes.TextureDefaultPreviewUsed
+          && diagnostic.Code != GltfDiagnosticCodes.TextureDiagnosticPreviewUsed
+          && diagnostic.Code != GltfDiagnosticCodes.TextureVariantsNotRepresented)
+        .Concat(new[] { PreviewOutputLimitWarning() })
+        .ToArray();
     }
 
     private static OperationDiagnostic Diagnostic(string code, int eventId, string path, string message)

@@ -11,9 +11,21 @@ does not add an axis-conversion root.
 texture coordinates, and unsigned-short indices. A partition that references
 vertex index `65535` uses unsigned-int indices so the maximum unsigned-short
 restart value is never emitted. `ExportGltfFileAsync` emits the same projection
-as a JSON manifest plus a content-addressed `.bin` sidecar. It commits the
-manifest last, so a committed package never references missing or partial
-output. A failed operation may leave an unreferenced content-addressed sidecar.
+as a JSON manifest plus content-addressed `.bin` and decoded `.png` sidecars.
+Identical canonical preview pixels share one image sidecar. The exporter
+validates every referenced sidecar and commits the manifest last, so a
+committed package never references missing or partial output. A failed
+operation may leave an unreferenced content-addressed sidecar.
+
+`GltfExportOptions.TextureSearchRoots` supplies ordered absolute roots for TEX
+preview lookup. Lookup is component-wise and ASCII case-insensitive, rejects
+symlink escapes, uses the first matching root, warns when later roots are
+shadowed, and rejects case-ambiguous matches in the winning root. An unresolved
+binding remains authoritative: EarthTool previews `Textures\Default.tex` when
+available, otherwise it emits a deterministic diagnostic image. Special TEX
+resources use their first highest-resolution image and report that variants are
+not represented. `GltfOperationProfile` bounds aggregate TEX bytes and decoded
+pixels as well as the number of search roots and directory entries examined.
 
 Both exports assign asset-lineage and document identities, write EarthTool
 metadata as string-valued `extras["earthtool"]`, and compute named version-1

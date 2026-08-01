@@ -34,6 +34,12 @@ namespace EarthTool.GLTF
     public const string TexturePreviewUnavailable = "ETG1009";
     /// <summary>A later TEX root contains a resource shadowed by the winning root.</summary>
     public const string TextureResourceShadowed = "ETG1010";
+    /// <summary>A missing TEX resource uses the runtime default preview.</summary>
+    public const string TextureDefaultPreviewUsed = "ETG1011";
+    /// <summary>A missing TEX resource uses EarthTool's deterministic diagnostic preview.</summary>
+    public const string TextureDiagnosticPreviewUsed = "ETG1012";
+    /// <summary>A representative preview omits special TEX variant behavior.</summary>
+    public const string TextureVariantsNotRepresented = "ETG1013";
     /// <summary>Required EarthTool manifest metadata is absent.</summary>
     public const string MissingManifest = "ETG2000";
     /// <summary>EarthTool metadata is malformed.</summary>
@@ -81,11 +87,17 @@ namespace EarthTool.GLTF
     /// <summary>Gets the maximum node hierarchy depth, including the scene root.</summary>
     public int MaxHierarchyDepth { get; }
 
-    /// <summary>Gets the maximum TEX resource bytes read for one preview.</summary>
+    /// <summary>Gets the maximum aggregate TEX resource bytes read.</summary>
     public int MaxTextureBytes { get; }
 
-    /// <summary>Gets the maximum decoded pixels accepted for one preview.</summary>
+    /// <summary>Gets the maximum aggregate decoded preview pixels.</summary>
     public int MaxPreviewPixels { get; }
+
+    /// <summary>Gets the maximum ordered TEX search roots.</summary>
+    public int MaxTextureSearchRoots { get; }
+
+    /// <summary>Gets the maximum directory entries examined during TEX lookup.</summary>
+    public int MaxTextureDirectoryEntries { get; }
 
     /// <summary>Initializes finite glTF operation limits.</summary>
     public GltfOperationProfile(
@@ -140,6 +152,34 @@ namespace EarthTool.GLTF
       int maxHierarchyDepth,
       int maxTextureBytes,
       int maxPreviewPixels)
+      : this(
+        maxInputBytes,
+        maxOutputBytes,
+        maxMetadataBytes,
+        maxJsonDepth,
+        maxActiveRenderVertices,
+        maxNodes,
+        maxHierarchyDepth,
+        maxTextureBytes,
+        maxPreviewPixels,
+        64,
+        65536)
+    {
+    }
+
+    /// <summary>Initializes all finite glTF operation and TEX lookup limits.</summary>
+    public GltfOperationProfile(
+      int maxInputBytes,
+      int maxOutputBytes,
+      int maxMetadataBytes,
+      int maxJsonDepth,
+      int maxActiveRenderVertices,
+      int maxNodes,
+      int maxHierarchyDepth,
+      int maxTextureBytes,
+      int maxPreviewPixels,
+      int maxTextureSearchRoots,
+      int maxTextureDirectoryEntries)
     {
       MaxInputBytes = RequirePositive(maxInputBytes, nameof(maxInputBytes));
       MaxOutputBytes = RequirePositive(maxOutputBytes, nameof(maxOutputBytes));
@@ -152,6 +192,10 @@ namespace EarthTool.GLTF
       MaxHierarchyDepth = RequirePositive(maxHierarchyDepth, nameof(maxHierarchyDepth));
       MaxTextureBytes = RequirePositive(maxTextureBytes, nameof(maxTextureBytes));
       MaxPreviewPixels = RequirePositive(maxPreviewPixels, nameof(maxPreviewPixels));
+      MaxTextureSearchRoots = RequirePositive(maxTextureSearchRoots, nameof(maxTextureSearchRoots));
+      MaxTextureDirectoryEntries = RequirePositive(
+        maxTextureDirectoryEntries,
+        nameof(maxTextureDirectoryEntries));
     }
 
     private static int RequirePositive(int value, string parameterName)

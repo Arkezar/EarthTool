@@ -8,6 +8,7 @@ using EarthTool.MSH.Services;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Numerics;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -280,9 +281,9 @@ public class GltfWalkingSkeletonTests
         && diagnostic.Severity == DiagnosticSeverity.Warning);
       using var json = ReadGlbJson(first.ToArray());
       var root = json.RootElement;
-      root.GetProperty("images").GetArrayLength().Should().Be(1);
+      root.GetProperty("images").GetArrayLength().Should().Be(2);
       root.GetProperty("images")[0].GetProperty("mimeType").GetString().Should().Be("image/png");
-      root.GetProperty("textures").GetArrayLength().Should().Be(1);
+      root.GetProperty("textures").GetArrayLength().Should().Be(2);
       root.GetProperty("materials")[0].GetProperty("pbrMetallicRoughness")
         .GetProperty("baseColorTexture").GetProperty("index").GetInt32().Should().Be(0);
       await using var withoutPreview = new MemoryStream();
@@ -311,6 +312,10 @@ public class GltfWalkingSkeletonTests
       constrainedResult.Status.Should().Be(OperationStatus.Succeeded);
       constrainedResult.Diagnostics.Should().Contain(diagnostic =>
         diagnostic.Code == GltfDiagnosticCodes.TexturePreviewUnavailable);
+      constrainedResult.Diagnostics.Should().NotContain(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.TextureDefaultPreviewUsed
+          || diagnostic.Code == GltfDiagnosticCodes.TextureDiagnosticPreviewUsed
+          || diagnostic.Code == GltfDiagnosticCodes.TextureVariantsNotRepresented);
       using var constrainedJson = ReadGlbJson(constrained.ToArray());
       constrainedJson.RootElement.TryGetProperty("images", out _).Should().BeFalse();
       var metadataFreePreview = RewriteJson(first.ToArray(), RemoveEarthToolMetadata);
@@ -366,6 +371,660 @@ public class GltfWalkingSkeletonTests
         .GetProperty("extras").GetProperty("earthtool").GetString()!);
       Convert.FromBase64String(metadata.RootElement.GetProperty("textureBinding").GetString()!)
         .Should().Equal("Textures\\root-a.tex"u8.ToArray());
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task OmittedLateDefaultPreviewDoesNotReportThatTheFallbackWasUsed()
+  {
+    var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var edit = asset.Edit();
+    edit.SetTextureResourceBinding(asset.StaticRenderObjectSequence[2].Id, null);
+    edit.SetTextureResourceBinding(asset.StaticRenderObjectSequence[3].Id, null);
+    edit.Commit().TryGetValue(out var twoMaterialAsset).Should().BeTrue();
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var textureDirectory = Path.Combine(directory, "Textures");
+    var options = new GltfExportOptions(LineageId, DocumentId, [directory]);
+    Directory.CreateDirectory(textureDirectory);
+    await File.WriteAllBytesAsync(
+      Path.Combine(textureDirectory, "root-a.tex"),
+      CreateRgbaTex(1, 1, [0xFF, 0, 0, 0xFF]));
+    await File.WriteAllBytesAsync(Path.Combine(textureDirectory, "Default.tex"), [1, 2, 3]);
+
+    try
+    {
+      var interchange = new GltfInterchange();
+      await using var firstOnly = new MemoryStream();
+      await interchange.ExportGlbAsync(
+        twoMaterialAsset!,
+        firstOnly,
+        options,
+        new GltfOperationProfile(
+          32 * 1024 * 1024,
+          32 * 1024 * 1024,
+          4 * 1024 * 1024,
+          32,
+          65536,
+          4096,
+          15,
+          16 * 1024 * 1024,
+          1));
+      var defaultPixels = new byte[64 * 64 * 4];
+      new Random(145).NextBytes(defaultPixels);
+      await File.WriteAllBytesAsync(
+        Path.Combine(textureDirectory, "Default.tex"),
+        CreateRgbaTex(64, 64, defaultPixels));
+      await using var constrained = new MemoryStream();
+
+      var result = await interchange.ExportGlbAsync(
+        twoMaterialAsset!,
+        constrained,
+        options,
+        new GltfOperationProfile(
+          32 * 1024 * 1024,
+          checked((int)firstOnly.Length),
+          4 * 1024 * 1024,
+          32,
+          65536,
+          4096,
+          15,
+          16 * 1024 * 1024,
+          64 * 64 + 1));
+
+      result.Status.Should().Be(OperationStatus.Succeeded);
+      result.Diagnostics.Should().Contain(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.TexturePreviewUnavailable
+        && diagnostic.Path == "StaticRenderObjectSequence[1].TexturePathBytes");
+      result.Diagnostics.Should().NotContain(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.TextureDefaultPreviewUsed);
+      using var json = ReadGlbJson(constrained.ToArray());
+      json.RootElement.GetProperty("images").GetArrayLength().Should().Be(1);
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task SeparateGltfUsesSharedContentAddressedPngSidecarsDeterministically()
+  {
+    var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var textureDirectory = Path.Combine(directory, "Textures");
+    var firstPath = Path.Combine(directory, "first.gltf");
+    var secondPath = Path.Combine(directory, "second.gltf");
+    var pixels = new byte[] { 0xFF, 0, 0, 0xFF, 0, 0, 0xFF, 0xFF };
+    Directory.CreateDirectory(textureDirectory);
+    foreach (var name in new[] { "root-a.tex", "barrel.tex", "root-b.tex", "rotor.tex" })
+    {
+      await File.WriteAllBytesAsync(Path.Combine(textureDirectory, name), CreateRgbaTex(2, 1, pixels));
+    }
+
+    try
+    {
+      var options = new GltfExportOptions(LineageId, DocumentId, [directory]);
+      var interchange = new GltfInterchange();
+
+      var first = await interchange.ExportGltfFileAsync(asset, firstPath, options);
+      var second = await interchange.ExportGltfFileAsync(asset, secondPath, options);
+
+      first.Status.Should().Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", first.Diagnostics.Select(diagnostic => diagnostic.Message)));
+      second.Status.Should().Be(OperationStatus.Succeeded);
+      (await File.ReadAllBytesAsync(secondPath)).Should().Equal(await File.ReadAllBytesAsync(firstPath));
+      using var json = JsonDocument.Parse(await File.ReadAllBytesAsync(firstPath));
+      var root = json.RootElement;
+      var image = root.GetProperty("images").EnumerateArray().Should().ContainSingle().Subject;
+      image.TryGetProperty("bufferView", out _).Should().BeFalse();
+      var expectedImageName = GetPreviewContentAddress(2, 1, pixels) + ".png";
+      image.GetProperty("uri").GetString().Should().Be(expectedImageName);
+      File.Exists(Path.Combine(directory, expectedImageName)).Should().BeTrue();
+      root.GetProperty("textures").EnumerateArray()
+        .Select(texture => texture.GetProperty("source").GetInt32()).Should().Equal(0);
+      root.GetProperty("materials").EnumerateArray()
+        .Select(material => material.GetProperty("pbrMetallicRoughness")
+          .GetProperty("baseColorTexture").GetProperty("index").GetInt32())
+        .Should().OnlyContain(index => index == 0);
+      Directory.EnumerateFiles(directory, "*.png").Should().ContainSingle();
+      Directory.EnumerateFiles(directory, "*.bin").Should().ContainSingle();
+
+      var validation = await interchange.ValidateGltfFileAsync(firstPath);
+      validation.Status.Should().Be(OperationStatus.Succeeded);
+      await AssertKhronosValidAsync(firstPath);
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task OrderedRootsWarnAboutShadowingAndMissingResourcesUseDefaultPreview()
+  {
+    var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var firstRoot = Path.Combine(directory, "first");
+    var secondRoot = Path.Combine(directory, "second");
+    var output = Path.Combine(directory, "model.gltf");
+    var selectedPixels = new byte[] { 0xFF, 0, 0, 0xFF };
+    var shadowedPixels = new byte[] { 0, 0, 0xFF, 0xFF };
+    var defaultPixels = new byte[] { 0xFF, 0, 0xFF, 0xFF };
+    Directory.CreateDirectory(Path.Combine(firstRoot, "Textures"));
+    Directory.CreateDirectory(Path.Combine(secondRoot, "Textures"));
+    await File.WriteAllBytesAsync(
+      Path.Combine(firstRoot, "Textures", "root-a.tex"),
+      CreateRgbaTex(1, 1, selectedPixels));
+    await File.WriteAllBytesAsync(
+      Path.Combine(secondRoot, "Textures", "root-a.tex"),
+      CreateRgbaTex(1, 1, shadowedPixels));
+    await File.WriteAllBytesAsync(
+      Path.Combine(firstRoot, "Textures", "Default.tex"),
+      CreateRgbaTex(1, 1, defaultPixels));
+
+    try
+    {
+      var result = await new GltfInterchange().ExportGltfFileAsync(
+        asset,
+        output,
+        new GltfExportOptions(LineageId, DocumentId, [firstRoot, secondRoot]));
+
+      result.Status.Should().Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+      result.Diagnostics.Should().ContainSingle(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.TextureResourceShadowed);
+      result.Diagnostics.Count(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.TextureResourceMissing).Should().Be(3);
+      result.Diagnostics.Count(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.TextureDefaultPreviewUsed).Should().Be(3);
+      result.Diagnostics.Where(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.TextureDefaultPreviewUsed).Should().OnlyContain(diagnostic =>
+          diagnostic.EventId == 1111
+          && diagnostic.Severity == DiagnosticSeverity.Warning
+          && diagnostic.Path.EndsWith(".TexturePathBytes", StringComparison.Ordinal));
+      using var json = JsonDocument.Parse(await File.ReadAllBytesAsync(output));
+      var imageUris = json.RootElement.GetProperty("images").EnumerateArray()
+        .Select(image => image.GetProperty("uri").GetString()).ToArray();
+      imageUris.Should().BeEquivalentTo(
+        GetPreviewContentAddress(1, 1, selectedPixels) + ".png",
+        GetPreviewContentAddress(1, 1, defaultPixels) + ".png");
+      imageUris.Should().NotContain(GetPreviewContentAddress(1, 1, shadowedPixels) + ".png");
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task MissingDefaultUsesOneDeterministicDiagnosticPreviewWithoutChangingBindings()
+  {
+    var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var output = Path.Combine(directory, "model.gltf");
+    Directory.CreateDirectory(directory);
+
+    try
+    {
+      var result = await new GltfInterchange().ExportGltfFileAsync(
+        asset,
+        output,
+        new GltfExportOptions(LineageId, DocumentId, [directory]));
+
+      result.Status.Should().Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+      result.Diagnostics.Count(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.TextureResourceMissing).Should().Be(4);
+      result.Diagnostics.Count(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.TextureDiagnosticPreviewUsed).Should().Be(4);
+      result.Diagnostics.Where(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.TextureDiagnosticPreviewUsed).Should().OnlyContain(diagnostic =>
+          diagnostic.EventId == 1112
+          && diagnostic.Severity == DiagnosticSeverity.Warning
+          && diagnostic.Path.EndsWith(".TexturePathBytes", StringComparison.Ordinal));
+      using var json = JsonDocument.Parse(await File.ReadAllBytesAsync(output));
+      json.RootElement.GetProperty("images").EnumerateArray().Should().ContainSingle();
+      Directory.EnumerateFiles(directory, "*.png").Should().ContainSingle();
+      var import = await new GltfInterchange().ImportEditGltfFileAsync(output, result.Value!.Baseline);
+      import.Status.Should().Be(OperationStatus.Succeeded);
+      import.Value!.Asset.StaticRenderObjectSequence.Select(record => record.TexturePathBytes.ToArray())
+        .Should().BeEquivalentTo(
+          asset.StaticRenderObjectSequence.Select(record => record.TexturePathBytes.ToArray()),
+          options => options.WithStrictOrdering());
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task SeparatePackageCollisionPreflightPreservesManifestAndWritesNothing()
+  {
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var edit = asset.Edit();
+    edit.SetTextureResourceBinding(asset.StaticRenderObjectSequence[0].Id, "Textures\\preview.tex");
+    edit.Commit().TryGetValue(out var boundAsset).Should().BeTrue();
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var referenceDirectory = Path.Combine(directory, "reference");
+    var collisionDirectory = Path.Combine(directory, "collision");
+    var textureDirectory = Path.Combine(directory, "Textures");
+    var referencePath = Path.Combine(referenceDirectory, "model.gltf");
+    var destinationPath = Path.Combine(collisionDirectory, "model.gltf");
+    var originalManifest = new byte[] { 7, 8, 9 };
+    Directory.CreateDirectory(referenceDirectory);
+    Directory.CreateDirectory(collisionDirectory);
+    Directory.CreateDirectory(textureDirectory);
+    await File.WriteAllBytesAsync(
+      Path.Combine(textureDirectory, "preview.tex"),
+      CreateRgbaTex(1, 1, [0xFF, 0, 0, 0xFF]));
+
+    try
+    {
+      var options = new GltfExportOptions(LineageId, DocumentId, [directory]);
+      var interchange = new GltfInterchange();
+      var reference = await interchange.ExportGltfFileAsync(boundAsset!, referencePath, options);
+      reference.Status.Should().Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", reference.Diagnostics.Select(diagnostic => diagnostic.Message)));
+      using var json = JsonDocument.Parse(await File.ReadAllBytesAsync(referencePath));
+      var imageName = json.RootElement.GetProperty("images")[0].GetProperty("uri").GetString()!;
+      await File.WriteAllBytesAsync(destinationPath, originalManifest);
+      await File.WriteAllBytesAsync(Path.Combine(collisionDirectory, imageName), [1, 2, 3]);
+
+      var result = await interchange.ExportGltfFileAsync(boundAsset!, destinationPath, options);
+
+      result.Status.Should().Be(OperationStatus.Failed);
+      result.Diagnostics.Should().ContainSingle().Subject.Code.Should().Be(GltfDiagnosticCodes.IoFailure);
+      (await File.ReadAllBytesAsync(destinationPath)).Should().Equal(originalManifest);
+      (await File.ReadAllBytesAsync(Path.Combine(collisionDirectory, imageName))).Should().Equal(1, 2, 3);
+      Directory.EnumerateFiles(collisionDirectory, "*.bin").Should().BeEmpty();
+      Directory.EnumerateFiles(collisionDirectory).Should().NotContain(path =>
+        path.EndsWith(".tmp", StringComparison.Ordinal));
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task SeparatePackagePreflightsDirectoryCollisionsBeforeWritingAnySidecar()
+  {
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var edit = asset.Edit();
+    edit.SetTextureResourceBinding(asset.StaticRenderObjectSequence[0].Id, "Textures\\preview.tex");
+    edit.Commit().TryGetValue(out var boundAsset).Should().BeTrue();
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var referenceDirectory = Path.Combine(directory, "reference");
+    var collisionDirectory = Path.Combine(directory, "collision");
+    var textureDirectory = Path.Combine(directory, "Textures");
+    var referencePath = Path.Combine(referenceDirectory, "model.gltf");
+    var destinationPath = Path.Combine(collisionDirectory, "model.gltf");
+    var originalManifest = new byte[] { 7, 8, 9 };
+    Directory.CreateDirectory(referenceDirectory);
+    Directory.CreateDirectory(collisionDirectory);
+    Directory.CreateDirectory(textureDirectory);
+    await File.WriteAllBytesAsync(
+      Path.Combine(textureDirectory, "preview.tex"),
+      CreateRgbaTex(1, 1, [0xFF, 0, 0, 0xFF]));
+
+    try
+    {
+      var options = new GltfExportOptions(LineageId, DocumentId, [directory]);
+      var interchange = new GltfInterchange();
+      (await interchange.ExportGltfFileAsync(boundAsset!, referencePath, options)).Status.Should()
+        .Be(OperationStatus.Succeeded);
+      using var json = JsonDocument.Parse(await File.ReadAllBytesAsync(referencePath));
+      var sidecarNames = new[]
+      {
+        json.RootElement.GetProperty("buffers")[0].GetProperty("uri").GetString()!,
+        json.RootElement.GetProperty("images")[0].GetProperty("uri").GetString()!
+      }.OrderBy(name => name, StringComparer.Ordinal).ToArray();
+      await File.WriteAllBytesAsync(destinationPath, originalManifest);
+      Directory.CreateDirectory(Path.Combine(collisionDirectory, sidecarNames[1]));
+
+      var result = await interchange.ExportGltfFileAsync(boundAsset!, destinationPath, options);
+
+      result.Status.Should().Be(OperationStatus.Failed);
+      result.Diagnostics.Should().ContainSingle().Subject.Code.Should().Be(GltfDiagnosticCodes.IoFailure);
+      (await File.ReadAllBytesAsync(destinationPath)).Should().Equal(originalManifest);
+      Directory.EnumerateFiles(collisionDirectory).Should().ContainSingle();
+      Directory.EnumerateFiles(collisionDirectory).Should().NotContain(path =>
+        path.EndsWith(".tmp", StringComparison.Ordinal));
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task SpecialTexUsesItsFirstImageAndWarnsThatVariantsAreNotRepresented()
+  {
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var edit = asset.Edit();
+    edit.SetTextureResourceBinding(asset.StaticRenderObjectSequence[0].Id, "Textures\\special.tex");
+    edit.Commit().TryGetValue(out var boundAsset).Should().BeTrue();
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var textureDirectory = Path.Combine(directory, "Textures");
+    var output = Path.Combine(directory, "model.gltf");
+    var pixels = new byte[] { 0x20, 0x40, 0x60, 0x80 };
+    Directory.CreateDirectory(textureDirectory);
+    await File.WriteAllBytesAsync(
+      Path.Combine(textureDirectory, "special.tex"),
+      CreateContainerTex(1, 1, pixels));
+
+    try
+    {
+      var result = await new GltfInterchange().ExportGltfFileAsync(
+        boundAsset!,
+        output,
+        new GltfExportOptions(LineageId, DocumentId, [directory]));
+
+      result.Status.Should().Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+      result.Diagnostics.Should().ContainSingle(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.TextureVariantsNotRepresented
+        && diagnostic.EventId == 1113
+        && diagnostic.Severity == DiagnosticSeverity.Warning
+        && diagnostic.Path == "StaticRenderObjectSequence[0].TexturePathBytes");
+      using var json = JsonDocument.Parse(await File.ReadAllBytesAsync(output));
+      json.RootElement.GetProperty("images")[0].GetProperty("uri").GetString().Should()
+        .Be(GetPreviewContentAddress(1, 1, pixels) + ".png");
+      (await new GltfInterchange().ValidateGltfFileAsync(output)).Status.Should()
+        .Be(OperationStatus.Succeeded);
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task CaseAmbiguityInWinningRootBlocksWithoutWritingAPackage()
+  {
+    if (OperatingSystem.IsWindows())
+    {
+      return;
+    }
+
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var edit = asset.Edit();
+    edit.SetTextureResourceBinding(asset.StaticRenderObjectSequence[0].Id, "Textures\\preview.tex");
+    edit.Commit().TryGetValue(out var boundAsset).Should().BeTrue();
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var textureDirectory = Path.Combine(directory, "Textures");
+    var output = Path.Combine(directory, "model.gltf");
+    var original = new byte[] { 7, 8, 9 };
+    Directory.CreateDirectory(textureDirectory);
+    await File.WriteAllBytesAsync(Path.Combine(textureDirectory, "preview.tex"), CreateRgbaTex(1, 1, [1, 2, 3, 4]));
+    await File.WriteAllBytesAsync(Path.Combine(textureDirectory, "PREVIEW.TEX"), CreateRgbaTex(1, 1, [5, 6, 7, 8]));
+    await File.WriteAllBytesAsync(output, original);
+
+    try
+    {
+      var result = await new GltfInterchange().ExportGltfFileAsync(
+        boundAsset!,
+        output,
+        new GltfExportOptions(LineageId, DocumentId, [directory]));
+
+      result.Status.Should().Be(OperationStatus.Failed);
+      result.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+        .Be(GltfDiagnosticCodes.AmbiguousTextureResource);
+      (await File.ReadAllBytesAsync(output)).Should().Equal(original);
+      Directory.EnumerateFiles(directory).Should().ContainSingle();
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task SymlinkEscapingTheSearchRootIsNotReadAndUsesTheContainedDefault()
+  {
+    if (OperatingSystem.IsWindows())
+    {
+      return;
+    }
+
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var edit = asset.Edit();
+    edit.SetTextureResourceBinding(asset.StaticRenderObjectSequence[0].Id, "Textures\\preview.tex");
+    edit.Commit().TryGetValue(out var boundAsset).Should().BeTrue();
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var root = Path.Combine(directory, "root");
+    var textureDirectory = Path.Combine(root, "Textures");
+    var outside = Path.Combine(directory, "outside.tex");
+    var output = Path.Combine(directory, "model.gltf");
+    var outsidePixels = new byte[] { 0xFF, 0, 0, 0xFF };
+    var defaultPixels = new byte[] { 0, 0xFF, 0, 0xFF };
+    Directory.CreateDirectory(textureDirectory);
+    await File.WriteAllBytesAsync(outside, CreateRgbaTex(1, 1, outsidePixels));
+    await File.WriteAllBytesAsync(
+      Path.Combine(textureDirectory, "Default.tex"),
+      CreateRgbaTex(1, 1, defaultPixels));
+    File.CreateSymbolicLink(Path.Combine(textureDirectory, "preview.tex"), outside);
+
+    try
+    {
+      var result = await new GltfInterchange().ExportGltfFileAsync(
+        boundAsset!,
+        output,
+        new GltfExportOptions(LineageId, DocumentId, [root]));
+
+      result.Status.Should().Be(OperationStatus.Succeeded);
+      result.Diagnostics.Should().Contain(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.TextureResourceMissing);
+      result.Diagnostics.Should().Contain(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.TextureDefaultPreviewUsed);
+      using var json = JsonDocument.Parse(await File.ReadAllBytesAsync(output));
+      var imageUri = json.RootElement.GetProperty("images")[0].GetProperty("uri").GetString();
+      imageUri.Should().Be(GetPreviewContentAddress(1, 1, defaultPixels) + ".png");
+      imageUri.Should().NotBe(GetPreviewContentAddress(1, 1, outsidePixels) + ".png");
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task SeparateGltfRejectsSymlinkedImageSidecarBeforeValidationOrImport()
+  {
+    if (OperatingSystem.IsWindows())
+    {
+      return;
+    }
+
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var edit = asset.Edit();
+    edit.SetTextureResourceBinding(asset.StaticRenderObjectSequence[0].Id, "Textures\\preview.tex");
+    edit.Commit().TryGetValue(out var boundAsset).Should().BeTrue();
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var packageDirectory = Path.Combine(directory, "package");
+    var textureDirectory = Path.Combine(directory, "Textures");
+    var output = Path.Combine(packageDirectory, "model.gltf");
+    var outsideImage = Path.Combine(directory, "outside.png");
+    Directory.CreateDirectory(packageDirectory);
+    Directory.CreateDirectory(textureDirectory);
+    await File.WriteAllBytesAsync(
+      Path.Combine(textureDirectory, "preview.tex"),
+      CreateRgbaTex(1, 1, [0xFF, 0, 0, 0xFF]));
+
+    try
+    {
+      var interchange = new GltfInterchange();
+      var export = await interchange.ExportGltfFileAsync(
+        boundAsset!,
+        output,
+        new GltfExportOptions(LineageId, DocumentId, [directory]));
+      using var json = JsonDocument.Parse(await File.ReadAllBytesAsync(output));
+      var imagePath = Path.Combine(
+        packageDirectory,
+        json.RootElement.GetProperty("images")[0].GetProperty("uri").GetString()!);
+      File.Move(imagePath, outsideImage);
+      File.CreateSymbolicLink(imagePath, outsideImage);
+
+      var validation = await interchange.ValidateGltfFileAsync(output);
+      var import = await interchange.ImportEditGltfFileAsync(output, export.Value!.Baseline);
+
+      validation.Status.Should().Be(OperationStatus.Failed);
+      import.Status.Should().Be(OperationStatus.Failed);
+      import.Value.Should().BeNull();
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task TextureRootLimitFailsBeforeWritingDestination()
+  {
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var firstRoot = Path.Combine(directory, "first");
+    var secondRoot = Path.Combine(directory, "second");
+    var output = Path.Combine(directory, "model.gltf");
+    var original = new byte[] { 7, 8, 9 };
+    Directory.CreateDirectory(firstRoot);
+    Directory.CreateDirectory(secondRoot);
+    await File.WriteAllBytesAsync(output, original);
+    var profile = new GltfOperationProfile(
+      32 * 1024 * 1024,
+      32 * 1024 * 1024,
+      4 * 1024 * 1024,
+      32,
+      65536,
+      4096,
+      15,
+      16 * 1024 * 1024,
+      16 * 1024 * 1024,
+      1,
+      64);
+
+    try
+    {
+      var result = await new GltfInterchange().ExportGltfFileAsync(
+        asset,
+        output,
+        new GltfExportOptions(LineageId, DocumentId, [firstRoot, secondRoot]),
+        profile);
+
+      result.Status.Should().Be(OperationStatus.Failed);
+      result.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+        .Be(GltfDiagnosticCodes.ResourceLimitExceeded);
+      (await File.ReadAllBytesAsync(output)).Should().Equal(original);
+      Directory.EnumerateFiles(directory).Should().ContainSingle();
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task TextureDirectoryEntryLimitFailsBeforeWritingDestination()
+  {
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var edit = asset.Edit();
+    edit.SetTextureResourceBinding(asset.StaticRenderObjectSequence[0].Id, "Textures\\preview.tex");
+    edit.Commit().TryGetValue(out var boundAsset).Should().BeTrue();
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var textureDirectory = Path.Combine(directory, "Textures");
+    var output = Path.Combine(directory, "model.gltf");
+    var original = new byte[] { 7, 8, 9 };
+    Directory.CreateDirectory(textureDirectory);
+    await File.WriteAllBytesAsync(
+      Path.Combine(textureDirectory, "preview.tex"),
+      CreateRgbaTex(1, 1, [0xFF, 0, 0, 0xFF]));
+    await File.WriteAllBytesAsync(Path.Combine(textureDirectory, "other.tex"), [1, 2, 3]);
+    await File.WriteAllBytesAsync(output, original);
+    var profile = new GltfOperationProfile(
+      32 * 1024 * 1024,
+      32 * 1024 * 1024,
+      4 * 1024 * 1024,
+      32,
+      65536,
+      4096,
+      15,
+      16 * 1024 * 1024,
+      16 * 1024 * 1024,
+      64,
+      1);
+
+    try
+    {
+      var result = await new GltfInterchange().ExportGltfFileAsync(
+        boundAsset!,
+        output,
+        new GltfExportOptions(LineageId, DocumentId, [directory]),
+        profile);
+
+      result.Status.Should().Be(OperationStatus.Failed);
+      result.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+        .Be(GltfDiagnosticCodes.ResourceLimitExceeded);
+      (await File.ReadAllBytesAsync(output)).Should().Equal(original);
+      Directory.EnumerateFiles(directory).Should().ContainSingle();
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task GlbAndSeparateGltfWithPreviewsRestoreEquivalentMshState()
+  {
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var edit = asset.Edit();
+    edit.SetTextureResourceBinding(asset.StaticRenderObjectSequence[0].Id, "Textures\\preview.tex");
+    edit.Commit().TryGetValue(out var boundAsset).Should().BeTrue();
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var textureDirectory = Path.Combine(directory, "Textures");
+    var separatePath = Path.Combine(directory, "model.gltf");
+    var glbPath = Path.Combine(directory, "model.glb");
+    Directory.CreateDirectory(textureDirectory);
+    await File.WriteAllBytesAsync(
+      Path.Combine(textureDirectory, "preview.tex"),
+      CreateRgbaTex(1, 1, [0xFF, 0, 0, 0xFF]));
+
+    try
+    {
+      var options = new GltfExportOptions(LineageId, DocumentId, [directory]);
+      var interchange = new GltfInterchange();
+      await using var glb = new MemoryStream();
+      var glbExport = await interchange.ExportGlbAsync(boundAsset!, glb, options);
+      var separateExport = await interchange.ExportGltfFileAsync(boundAsset!, separatePath, options);
+      await File.WriteAllBytesAsync(glbPath, glb.ToArray());
+
+      glbExport.Status.Should().Be(OperationStatus.Succeeded);
+      separateExport.Status.Should().Be(OperationStatus.Succeeded);
+      glb.Position = 0;
+      (await interchange.ValidateGlbAsync(glb)).Status.Should().Be(OperationStatus.Succeeded);
+      (await interchange.ValidateGltfFileAsync(separatePath)).Status.Should().Be(OperationStatus.Succeeded);
+      glb.Position = 0;
+      var glbImport = await interchange.ImportEditGlbAsync(glb, glbExport.Value!.Baseline);
+      var separateImport = await interchange.ImportEditGltfFileAsync(
+        separatePath,
+        separateExport.Value!.Baseline);
+      await using var glbMsh = new MemoryStream();
+      await using var separateMsh = new MemoryStream();
+      await new MshWriter().WriteAsync(glbImport.Value!.Asset, glbMsh);
+      await new MshWriter().WriteAsync(separateImport.Value!.Asset, separateMsh);
+      separateMsh.ToArray().Should().Equal(glbMsh.ToArray());
+      await AssertKhronosValidAsync(glbPath);
+      await AssertKhronosValidAsync(separatePath);
     }
     finally
     {
@@ -1087,6 +1746,103 @@ public class GltfWalkingSkeletonTests
       (await File.ReadAllBytesAsync(path)).Should().Equal(original);
       Directory.EnumerateFiles(directory).Should().HaveCount(2);
       Directory.EnumerateFiles(directory).Should().NotContain(file => file.EndsWith(".tmp", StringComparison.Ordinal));
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task RepeatedSeparateGltfFailuresProduceSameDiagnostics()
+  {
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var path = Path.Combine(directory, "model.gltf");
+    var original = new byte[] { 7, 8, 9 };
+    var options = new GltfExportOptions(LineageId, DocumentId);
+    Directory.CreateDirectory(directory);
+    await File.WriteAllBytesAsync(path, original);
+
+    try
+    {
+      var failing = new GltfInterchange(new FailingManifestTransactionalFileSystem());
+
+      var firstFailure = await failing.ExportGltfFileAsync(asset, path, options);
+      var repeatedFailure = await failing.ExportGltfFileAsync(asset, path, options);
+
+      repeatedFailure.Diagnostics.Select(diagnostic => (
+        diagnostic.Code,
+        diagnostic.EventId,
+        diagnostic.Severity,
+        diagnostic.Path,
+        diagnostic.ByteOffset,
+        Data: diagnostic.Data.ToArray())).Should().BeEquivalentTo(
+          firstFailure.Diagnostics.Select(diagnostic => (
+            diagnostic.Code,
+            diagnostic.EventId,
+            diagnostic.Severity,
+            diagnostic.Path,
+            diagnostic.ByteOffset,
+            Data: diagnostic.Data.ToArray())),
+          assertionOptions => assertionOptions.WithStrictOrdering());
+      (await File.ReadAllBytesAsync(path)).Should().Equal(original);
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task SeparateGltfRetryReusesSidecarsFromFailedManifestCommit()
+  {
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var path = Path.Combine(directory, "model.gltf");
+    var original = new byte[] { 7, 8, 9 };
+    var options = new GltfExportOptions(LineageId, DocumentId);
+    Directory.CreateDirectory(directory);
+    await File.WriteAllBytesAsync(path, original);
+    await new GltfInterchange(new FailingManifestTransactionalFileSystem())
+      .ExportGltfFileAsync(asset, path, options);
+
+    try
+    {
+      var retry = await new GltfInterchange().ExportGltfFileAsync(asset, path, options);
+
+      retry.Status.Should().Be(OperationStatus.Succeeded);
+      (await new GltfInterchange().ValidateGltfFileAsync(path)).Status.Should()
+        .Be(OperationStatus.Succeeded);
+      Directory.EnumerateFiles(directory).Should().HaveCount(2);
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task SeparateExportValidatesCommittedSidecarsBeforeReplacingManifest()
+  {
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var path = Path.Combine(directory, "model.gltf");
+    var original = new byte[] { 7, 8, 9 };
+    Directory.CreateDirectory(directory);
+    await File.WriteAllBytesAsync(path, original);
+
+    try
+    {
+      var result = await new GltfInterchange(new CorruptingSidecarTransactionalFileSystem())
+        .ExportGltfFileAsync(asset, path, new GltfExportOptions(LineageId, DocumentId));
+
+      result.Status.Should().Be(OperationStatus.Failed);
+      result.Diagnostics.Should().ContainSingle().Subject.Code.Should().Be(GltfDiagnosticCodes.IoFailure);
+      (await File.ReadAllBytesAsync(path)).Should().Equal(original);
+      Directory.EnumerateFiles(directory).Should().HaveCount(2);
+      Directory.EnumerateFiles(directory).Should().NotContain(file =>
+        file.EndsWith(".tmp", StringComparison.Ordinal));
     }
     finally
     {
@@ -2461,6 +3217,26 @@ public class GltfWalkingSkeletonTests
     return result;
   }
 
+  private static byte[] CreateContainerTex(int width, int height, byte[] pixels)
+  {
+    var image = CreateRgbaTex(width, height, pixels);
+    var result = new byte[16 + image.Length];
+    "TEX\0\x01\0\0\0"u8.CopyTo(result);
+    BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(8), 0x80000002);
+    BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(12), 1);
+    image.CopyTo(result, 16);
+    return result;
+  }
+
+  private static string GetPreviewContentAddress(int width, int height, byte[] pixels)
+  {
+    var preimage = new byte[sizeof(int) * 2 + pixels.Length];
+    BinaryPrimitives.WriteInt32LittleEndian(preimage, width);
+    BinaryPrimitives.WriteInt32LittleEndian(preimage.AsSpan(sizeof(int)), height);
+    pixels.CopyTo(preimage, sizeof(int) * 2);
+    return Convert.ToHexString(SHA256.HashData(preimage)).ToLowerInvariant();
+  }
+
   private static void SwapBlocks(byte[] data, int left, int right, int length)
   {
     var temporary = data.AsSpan(left, length).ToArray();
@@ -2626,6 +3402,44 @@ public class GltfWalkingSkeletonTests
         File.Delete(temporaryPath);
       }
 
+      return true;
+    }
+  }
+
+  private sealed class CorruptingSidecarTransactionalFileSystem : ITransactionalFileSystem
+  {
+    public string GetTemporaryPath(string destinationPath)
+    {
+      return destinationPath + $".{Guid.NewGuid():N}.tmp";
+    }
+
+    public Stream CreateTemporary(string temporaryPath)
+    {
+      return new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+    }
+
+    public void Commit(string temporaryPath, string destinationPath)
+    {
+      if (File.Exists(destinationPath))
+      {
+        File.Replace(temporaryPath, destinationPath, null);
+      }
+      else
+      {
+        File.Move(temporaryPath, destinationPath);
+      }
+      if (destinationPath.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
+      {
+        File.WriteAllBytes(destinationPath, [1, 2, 3]);
+      }
+    }
+
+    public bool TryDelete(string temporaryPath)
+    {
+      if (File.Exists(temporaryPath))
+      {
+        File.Delete(temporaryPath);
+      }
       return true;
     }
   }

@@ -14,9 +14,12 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String ResourceLimitExceeded = "ETG1001"
   field System.String StaleNativeProjection = "ETG2008"
   field System.String StrictValidationFailed = "ETG1003"
+  field System.String TextureDefaultPreviewUsed = "ETG1011"
+  field System.String TextureDiagnosticPreviewUsed = "ETG1012"
   field System.String TexturePreviewUnavailable = "ETG1009"
   field System.String TextureResourceMissing = "ETG1007"
   field System.String TextureResourceShadowed = "ETG1010"
+  field System.String TextureVariantsNotRepresented = "ETG1013"
   field System.String UnsupportedDomain = "ETG1002"
   field System.String UnsupportedMetadataVersion = "ETG2002"
 public sealed class EarthTool.GLTF.GltfEditImportResult
@@ -55,6 +58,7 @@ public sealed class EarthTool.GLTF.GltfOperationProfile
   constructor GltfOperationProfile(System.Int32 maxInputBytes = 33554432, System.Int32 maxOutputBytes = 33554432, System.Int32 maxMetadataBytes = 4194304, System.Int32 maxJsonDepth = 32, System.Int32 maxActiveRenderVertices = 65536)
   constructor GltfOperationProfile(System.Int32 maxInputBytes, System.Int32 maxOutputBytes, System.Int32 maxMetadataBytes, System.Int32 maxJsonDepth, System.Int32 maxActiveRenderVertices, System.Int32 maxNodes, System.Int32 maxHierarchyDepth)
   constructor GltfOperationProfile(System.Int32 maxInputBytes, System.Int32 maxOutputBytes, System.Int32 maxMetadataBytes, System.Int32 maxJsonDepth, System.Int32 maxActiveRenderVertices, System.Int32 maxNodes, System.Int32 maxHierarchyDepth, System.Int32 maxTextureBytes, System.Int32 maxPreviewPixels)
+  constructor GltfOperationProfile(System.Int32 maxInputBytes, System.Int32 maxOutputBytes, System.Int32 maxMetadataBytes, System.Int32 maxJsonDepth, System.Int32 maxActiveRenderVertices, System.Int32 maxNodes, System.Int32 maxHierarchyDepth, System.Int32 maxTextureBytes, System.Int32 maxPreviewPixels, System.Int32 maxTextureSearchRoots, System.Int32 maxTextureDirectoryEntries)
   property EarthTool.GLTF.GltfOperationProfile Default { get; }
   property System.Int32 MaxActiveRenderVertices { get; }
   property System.Int32 MaxHierarchyDepth { get; }
@@ -65,6 +69,8 @@ public sealed class EarthTool.GLTF.GltfOperationProfile
   property System.Int32 MaxOutputBytes { get; }
   property System.Int32 MaxPreviewPixels { get; }
   property System.Int32 MaxTextureBytes { get; }
+  property System.Int32 MaxTextureDirectoryEntries { get; }
+  property System.Int32 MaxTextureSearchRoots { get; }
 public sealed class EarthTool.GLTF.InterchangeBaseline
   constructor InterchangeBaseline(System.Guid assetLineageId, System.Guid documentId)
   property System.Guid AssetLineageId { get; }

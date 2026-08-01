@@ -30,11 +30,18 @@ namespace EarthTool.GLTF.Internal
 
     internal string BufferFileName { get; }
 
-    internal GltfPackage(byte[] json, byte[] binary, string bufferFileName)
+    internal IReadOnlyDictionary<string, byte[]> ImageSidecars { get; }
+
+    internal GltfPackage(
+      byte[] json,
+      byte[] binary,
+      string bufferFileName,
+      IReadOnlyDictionary<string, byte[]> imageSidecars)
     {
       Json = json;
       Binary = binary;
       BufferFileName = bufferFileName;
+      ImageSidecars = imageSidecars;
     }
   }
 
@@ -245,7 +252,7 @@ namespace EarthTool.GLTF.Internal
     internal static byte[] Create(
       StaticMeshAsset asset,
       InterchangeBaseline baseline,
-      IReadOnlyDictionary<StaticRenderObjectId, byte[]> previews,
+      IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
       out NativeProjectionFingerprint fingerprint)
     {
       var package = CreatePackage(asset, baseline, false, previews, out fingerprint);
@@ -255,7 +262,7 @@ namespace EarthTool.GLTF.Internal
     internal static GltfPackage CreateSeparate(
       StaticMeshAsset asset,
       InterchangeBaseline baseline,
-      IReadOnlyDictionary<StaticRenderObjectId, byte[]> previews,
+      IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
       out NativeProjectionFingerprint fingerprint)
     {
       return CreatePackage(asset, baseline, true, previews, out fingerprint);
@@ -297,7 +304,7 @@ namespace EarthTool.GLTF.Internal
       StaticMeshAsset asset,
       InterchangeBaseline baseline,
       bool separate,
-      IReadOnlyDictionary<StaticRenderObjectId, byte[]> previews,
+      IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
       out NativeProjectionFingerprint fingerprint)
     {
       var partitions = asset.StaticRenderObjectSequence
@@ -305,7 +312,12 @@ namespace EarthTool.GLTF.Internal
           item,
           item.RenderVertices.Select(ProjectToGltf).ToArray()))
         .ToArray();
-      var binary = CreateBinary(partitions, previews, out var layouts, out var previewLayouts);
+      var binary = CreateBinary(
+        partitions,
+        previews,
+        !separate,
+        out var layouts,
+        out var previewLayouts);
       var bufferFileName = separate ? Hash(binary) + ".bin" : null;
       fingerprint = StaticGeometryFingerprint.Create(baseline, partitions);
       var manifest = CreateMetadata(
@@ -323,7 +335,15 @@ namespace EarthTool.GLTF.Internal
         manifest,
         previewLayouts,
         bufferFileName);
-      return new GltfPackage(json, binary, bufferFileName ?? string.Empty);
+      var imageSidecars = separate
+        ? previews.Values
+          .GroupBy(preview => preview.ContentAddress, StringComparer.Ordinal)
+          .ToDictionary(
+            group => group.Key + ".png",
+            group => group.First().Png,
+            StringComparer.Ordinal)
+        : new Dictionary<string, byte[]>(StringComparer.Ordinal);
+      return new GltfPackage(json, binary, bufferFileName ?? string.Empty, imageSidecars);
     }
 
     internal static ParsedGlb Parse(byte[] glb, GltfOperationProfile profile)
@@ -399,13 +419,39 @@ namespace EarthTool.GLTF.Internal
       return uri.GetString() ?? throw new InvalidDataException("The buffer URI cannot be null.");
     }
 
-    internal static void ValidateSeparate(byte[] json, byte[] binary, string bufferUri)
+    internal static IReadOnlyList<string> GetSeparateImageUris(
+      byte[] json,
+      GltfOperationProfile profile)
+    {
+      using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = profile.MaxJsonDepth });
+      if (!document.RootElement.TryGetProperty("images", out var images))
+      {
+        return Array.Empty<string>();
+      }
+      return Array.AsReadOnly(images.EnumerateArray()
+        .Where(image => image.TryGetProperty("uri", out _))
+        .Select(image => image.GetProperty("uri").GetString()
+          ?? throw new InvalidDataException("An image URI cannot be null."))
+        .Where(uri => !uri.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+        .Distinct(StringComparer.Ordinal)
+        .ToArray());
+    }
+
+    internal static void ValidateSeparate(
+      byte[] json,
+      byte[] binary,
+      string bufferUri,
+      IReadOnlyDictionary<string, byte[]> imageResources)
     {
       var resources = new Dictionary<string, ArraySegment<byte>>(StringComparer.Ordinal)
       {
         ["model.gltf"] = new ArraySegment<byte>(json),
         [bufferUri] = new ArraySegment<byte>(binary)
       };
+      foreach (var image in imageResources)
+      {
+        resources.Add(image.Key, new ArraySegment<byte>(image.Value));
+      }
       ReadContext.CreateFromDictionary(resources)
         .WithSettingsFrom(new ReadSettings { Validation = ValidationMode.Strict })
         .ReadSchema2("model.gltf");
@@ -626,7 +672,8 @@ namespace EarthTool.GLTF.Internal
 
     private static byte[] CreateBinary(
       IReadOnlyList<ProjectedPartition> partitions,
-      IReadOnlyDictionary<StaticRenderObjectId, byte[]> previews,
+      IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
+      bool embedPreviews,
       out IReadOnlyDictionary<StaticRenderObjectId, PartitionLayout> layouts,
       out IReadOnlyDictionary<StaticRenderObjectId, PreviewLayout> previewLayouts)
     {
@@ -698,19 +745,34 @@ namespace EarthTool.GLTF.Internal
       }
 
       var createdPreviewLayouts = new Dictionary<StaticRenderObjectId, PreviewLayout>();
+      var sharedPreviewLayouts = new Dictionary<string, PreviewLayout>(StringComparer.Ordinal);
       foreach (var partition in partitions.Where(partition => previews.ContainsKey(
         partition.RenderObject.Id)))
       {
-        while (stream.Length % 4 != 0)
+        var preview = previews[partition.RenderObject.Id];
+        if (!sharedPreviewLayouts.TryGetValue(preview.ContentAddress, out var previewLayout))
         {
-          writer.Write((byte)0);
+          if (embedPreviews)
+          {
+            while (stream.Length % 4 != 0)
+            {
+              writer.Write((byte)0);
+            }
+            var offset = checked((int)stream.Position);
+            writer.Write(preview.Png);
+            previewLayout = new PreviewLayout(offset, preview.Png.Length, null, preview.ContentAddress);
+          }
+          else
+          {
+            previewLayout = new PreviewLayout(
+              0,
+              preview.Png.Length,
+              preview.ContentAddress + ".png",
+              preview.ContentAddress);
+          }
+          sharedPreviewLayouts.Add(preview.ContentAddress, previewLayout);
         }
-        var png = previews[partition.RenderObject.Id];
-        var offset = checked((int)stream.Position);
-        writer.Write(png);
-        createdPreviewLayouts.Add(
-          partition.RenderObject.Id,
-          new PreviewLayout(offset, png.Length));
+        createdPreviewLayouts.Add(partition.RenderObject.Id, previewLayout);
       }
       while (stream.Length % 4 != 0)
       {
@@ -750,8 +812,19 @@ namespace EarthTool.GLTF.Internal
         .Select(layout => (RenderObjectId: layout.Partition.RenderObject.Id,
           Layout: previewLayouts[layout.Partition.RenderObject.Id]))
         .ToArray();
+      var uniquePreviewLayouts = orderedPreviewLayouts
+        .GroupBy(preview => preview.Layout.ContentAddress, StringComparer.Ordinal)
+        .Select(group => group.First().Layout)
+        .ToArray();
+      var imageIndices = uniquePreviewLayouts
+        .Select((layout, index) => new { layout.ContentAddress, Index = index })
+        .ToDictionary(item => item.ContentAddress, item => item.Index, StringComparer.Ordinal);
       var previewIndices = orderedPreviewLayouts
-        .Select((preview, index) => new { preview.RenderObjectId, Index = index })
+        .Select(preview => new
+        {
+          preview.RenderObjectId,
+          Index = imageIndices[preview.Layout.ContentAddress]
+        })
         .ToDictionary(item => item.RenderObjectId, item => item.Index);
       using var stream = new MemoryStream();
       using (var writer = new Utf8JsonWriter(stream))
@@ -870,10 +943,10 @@ namespace EarthTool.GLTF.Internal
           writer.WriteEndObject();
         }
         writer.WriteEndArray();
-        if (orderedPreviewLayouts.Length > 0)
+        if (uniquePreviewLayouts.Length > 0)
         {
           writer.WriteStartArray("textures");
-          for (var index = 0; index < orderedPreviewLayouts.Length; index++)
+          for (var index = 0; index < uniquePreviewLayouts.Length; index++)
           {
             writer.WriteStartObject();
             writer.WriteNumber("source", index);
@@ -881,11 +954,19 @@ namespace EarthTool.GLTF.Internal
           }
           writer.WriteEndArray();
           writer.WriteStartArray("images");
-          for (var index = 0; index < orderedPreviewLayouts.Length; index++)
+          for (var index = 0; index < uniquePreviewLayouts.Length; index++)
           {
+            var preview = uniquePreviewLayouts[index];
             writer.WriteStartObject();
             writer.WriteString("name", $"Decoded TEX preview {index + 1}");
-            writer.WriteNumber("bufferView", orderedLayouts.Length * 4 + index);
+            if (preview.Uri is null)
+            {
+              writer.WriteNumber("bufferView", orderedLayouts.Length * 4 + index);
+            }
+            else
+            {
+              writer.WriteString("uri", preview.Uri);
+            }
             writer.WriteString("mimeType", "image/png");
             writer.WriteEndObject();
           }
@@ -910,9 +991,9 @@ namespace EarthTool.GLTF.Internal
           WriteBufferView(writer, layout.TextureOffset, vertexCount * 8, 34962);
           WriteBufferView(writer, layout.IndexOffset, layout.IndexLength, 34963);
         }
-        foreach (var preview in orderedPreviewLayouts)
+        foreach (var preview in uniquePreviewLayouts.Where(preview => preview.Uri is null))
         {
-          WriteBufferView(writer, preview.Layout.Offset, preview.Layout.Length, null);
+          WriteBufferView(writer, preview.Offset, preview.Length, null);
         }
 
         writer.WriteEndArray();
@@ -1507,11 +1588,16 @@ namespace EarthTool.GLTF.Internal
           || texture.GetProperty("source").GetInt32() != index
           || image.ValueKind != JsonValueKind.Object
           || image.EnumerateObject().Any(property =>
-            property.Name is not ("name" or "bufferView" or "mimeType"))
+            property.Name is not ("name" or "bufferView" or "uri" or "mimeType"))
           || image.GetProperty("mimeType").GetString() != "image/png"
-          || image.GetProperty("bufferView").GetInt32() < 0
-          || image.GetProperty("bufferView").GetInt32()
-            >= root.GetProperty("bufferViews").GetArrayLength())
+          || image.TryGetProperty("bufferView", out var bufferView)
+            == image.TryGetProperty("uri", out var uri)
+          || bufferView.ValueKind != JsonValueKind.Undefined
+            && (bufferView.GetInt32() < 0
+              || bufferView.GetInt32() >= root.GetProperty("bufferViews").GetArrayLength())
+          || uri.ValueKind != JsonValueKind.Undefined
+            && (uri.ValueKind != JsonValueKind.String
+              || string.IsNullOrEmpty(uri.GetString())))
         {
           throw new UnsupportedGltfDomainException("TexturePreviews");
         }
@@ -1597,10 +1683,16 @@ namespace EarthTool.GLTF.Internal
 
       internal int Length { get; }
 
-      internal PreviewLayout(int offset, int length)
+      internal string? Uri { get; }
+
+      internal string ContentAddress { get; }
+
+      internal PreviewLayout(int offset, int length, string? uri, string contentAddress)
       {
         Offset = offset;
         Length = length;
+        Uri = uri;
+        ContentAddress = contentAddress;
       }
     }
 
