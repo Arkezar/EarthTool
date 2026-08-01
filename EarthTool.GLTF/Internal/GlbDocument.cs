@@ -72,6 +72,8 @@ namespace EarthTool.GLTF.Internal
 
     internal IReadOnlyList<ParsedGltfMaterial> Materials { get; }
 
+    internal IReadOnlyList<ParsedGltfAnimation> Animations { get; }
+
     internal int RootNodeIndex { get; }
 
     internal ParsedGlb(
@@ -80,6 +82,7 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyList<ParsedGltfMesh> meshes,
       IReadOnlyList<ParsedGltfNode> nodes,
       IReadOnlyList<ParsedGltfMaterial> materials,
+      IReadOnlyList<ParsedGltfAnimation> animations,
       int rootNodeIndex)
     {
       ManifestMetadata = manifestMetadata;
@@ -87,6 +90,7 @@ namespace EarthTool.GLTF.Internal
       Meshes = meshes;
       Nodes = nodes;
       Materials = materials;
+      Animations = animations;
       RootNodeIndex = rootNodeIndex;
     }
   }
@@ -159,6 +163,32 @@ namespace EarthTool.GLTF.Internal
     }
   }
 
+  internal sealed class ParsedGltfAnimation
+  {
+    internal string? Name { get; }
+
+    internal IReadOnlyList<ParsedGltfAnimationObject> Objects { get; }
+
+    internal ParsedGltfAnimation(string? name, IReadOnlyList<ParsedGltfAnimationObject> objects)
+    {
+      Name = name;
+      Objects = objects;
+    }
+  }
+
+  internal sealed class ParsedGltfAnimationObject
+  {
+    internal int NodeIndex { get; }
+
+    internal IReadOnlyList<ProjectedAnimationFrame> Frames { get; }
+
+    internal ParsedGltfAnimationObject(int nodeIndex, IReadOnlyList<ProjectedAnimationFrame> frames)
+    {
+      NodeIndex = nodeIndex;
+      Frames = frames;
+    }
+  }
+
   internal sealed class MetadataPartition
   {
     internal int LocalId { get; }
@@ -169,6 +199,72 @@ namespace EarthTool.GLTF.Internal
     {
       LocalId = localId;
       Fingerprint = fingerprint;
+    }
+  }
+
+  internal sealed class MetadataAnimationClass
+  {
+    internal int ClassIndex { get; }
+
+    internal IReadOnlyList<int> Objects { get; }
+
+    internal IReadOnlyList<int> NativeObjects { get; }
+
+    internal string? Fingerprint { get; }
+
+    internal MetadataAnimationClass(
+      int classIndex,
+      IReadOnlyList<int> objects,
+      IReadOnlyList<int> nativeObjects,
+      string? fingerprint)
+    {
+      ClassIndex = classIndex;
+      Objects = objects;
+      NativeObjects = nativeObjects;
+      Fingerprint = fingerprint;
+    }
+  }
+
+  internal sealed class MetadataAnimationProjection
+  {
+    internal uint AnimationClassValue { get; }
+
+    internal int ClassIndex { get; }
+
+    internal byte DeclaredLength { get; }
+
+    internal bool IsNative { get; }
+
+    internal bool HasSourceTracks { get; }
+
+    internal string? Fingerprint { get; }
+
+    internal IReadOnlyList<byte> ScaleFrames { get; }
+
+    internal IReadOnlyList<byte> TranslationFrames { get; }
+
+    internal IReadOnlyList<byte> Matrices { get; }
+
+    internal MetadataAnimationProjection(
+      uint animationClassValue,
+      int classIndex,
+      byte declaredLength,
+      bool isNative,
+      bool hasSourceTracks,
+      string? fingerprint,
+      IReadOnlyList<byte> scaleFrames,
+      IReadOnlyList<byte> translationFrames,
+      IReadOnlyList<byte> matrices)
+    {
+      AnimationClassValue = animationClassValue;
+      ClassIndex = classIndex;
+      DeclaredLength = declaredLength;
+      IsNative = isNative;
+      HasSourceTracks = hasSourceTracks;
+      Fingerprint = fingerprint;
+      ScaleFrames = scaleFrames;
+      TranslationFrames = translationFrames;
+      Matrices = matrices;
     }
   }
 
@@ -206,6 +302,14 @@ namespace EarthTool.GLTF.Internal
 
     internal IReadOnlyList<byte>? TextureBinding { get; }
 
+    internal AnimationClassBytes? AnimationLengths { get; }
+
+    internal AnimationClassBytes? AnimationFrameIndices { get; }
+
+    internal IReadOnlyList<MetadataAnimationClass> AnimationClasses { get; }
+
+    internal MetadataAnimationProjection? AnimationProjection { get; }
+
     internal MetadataEnvelope(
       Guid assetLineageId,
       Guid documentId,
@@ -222,7 +326,11 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyList<int> sourceObjectInventory,
       int? nextStaticRenderObjectLocalId,
       int? nextSourceObjectLocalId,
-      IReadOnlyList<byte>? textureBinding)
+      IReadOnlyList<byte>? textureBinding,
+      AnimationClassBytes? animationLengths,
+      AnimationClassBytes? animationFrameIndices,
+      IReadOnlyList<MetadataAnimationClass> animationClasses,
+      MetadataAnimationProjection? animationProjection)
     {
       AssetLineageId = assetLineageId;
       DocumentId = documentId;
@@ -240,6 +348,10 @@ namespace EarthTool.GLTF.Internal
       NextStaticRenderObjectLocalId = nextStaticRenderObjectLocalId;
       NextSourceObjectLocalId = nextSourceObjectLocalId;
       TextureBinding = textureBinding;
+      AnimationLengths = animationLengths;
+      AnimationFrameIndices = animationFrameIndices;
+      AnimationClasses = animationClasses;
+      AnimationProjection = animationProjection;
     }
   }
 
@@ -268,11 +380,25 @@ namespace EarthTool.GLTF.Internal
       return CreatePackage(asset, baseline, true, previews, out fingerprint);
     }
 
-    internal static int GetManifestMetadataByteCount(StaticMeshAsset asset, InterchangeBaseline baseline)
+    internal static int GetMaximumMetadataByteCount(StaticMeshAsset asset, InterchangeBaseline baseline)
     {
-      var empty = CreateMetadata(baseline, "manifest", 0, string.Empty, null, asset);
+      var animations = StaticAnimationProjection.Create(asset, baseline);
+      var empty = CreateMetadata(baseline, "manifest", 0, string.Empty, null, asset, animations);
       var base64Length = checked(((asset.SerializedLength + 2) / 3) * 4);
-      return checked(Encoding.UTF8.GetByteCount(empty) + base64Length);
+      var maximum = checked(Encoding.UTF8.GetByteCount(empty) + base64Length);
+      foreach (var source in StaticSourceObjectTraversal.Flatten(asset.RootSourceObject))
+      {
+        var metadata = CreateMetadata(
+          baseline,
+          "object",
+          source.Id.Value,
+          null,
+          null,
+          animationProjection: animations.Objects.SingleOrDefault(item =>
+            item.SourceObjectLocalId == source.Id.Value));
+        maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(metadata));
+      }
+      return maximum;
     }
 
     internal static int GetMinimumOutputByteCount(
@@ -293,10 +419,18 @@ namespace EarthTool.GLTF.Internal
         binaryLength = (binaryLength + 3) & ~3L;
       }
 
+      var animations = StaticAnimationProjection.Create(asset, baseline);
+      foreach (var clip in animations.Clips)
+      {
+        binaryLength = checked(binaryLength
+          + (clip.FrameCount * sizeof(float))
+          + (clip.Objects.Count * clip.FrameCount * 10L * sizeof(float)));
+      }
+
       var containerBytes = glb ? 28 : 0;
       return checked((int)(
         binaryLength
-        + GetManifestMetadataByteCount(asset, baseline)
+        + GetMaximumMetadataByteCount(asset, baseline)
         + containerBytes));
     }
 
@@ -312,12 +446,15 @@ namespace EarthTool.GLTF.Internal
           item,
           item.RenderVertices.Select(ProjectToGltf).ToArray()))
         .ToArray();
+      var animations = StaticAnimationProjection.Create(asset, baseline);
       var binary = CreateBinary(
         partitions,
+        animations,
         previews,
         !separate,
         out var layouts,
-        out var previewLayouts);
+        out var previewLayouts,
+        out var animationLayouts);
       var bufferFileName = separate ? Hash(binary) + ".bin" : null;
       fingerprint = StaticGeometryFingerprint.Create(baseline, partitions);
       var manifest = CreateMetadata(
@@ -326,7 +463,8 @@ namespace EarthTool.GLTF.Internal
         0,
         Convert.ToBase64String(asset.GetSerializedRepresentation()),
         null,
-        asset);
+        asset,
+        animations);
       var json = CreateJson(
         asset.RootSourceObject,
         layouts,
@@ -334,6 +472,8 @@ namespace EarthTool.GLTF.Internal
         baseline,
         manifest,
         previewLayouts,
+        animations,
+        animationLayouts,
         bufferFileName);
       var imageSidecars = separate
         ? previews.Values
@@ -504,6 +644,7 @@ namespace EarthTool.GLTF.Internal
               && pbr.TryGetProperty("baseColorTexture", out _)))
           .ToArray()
         : Array.Empty<ParsedGltfMaterial>();
+      var animations = ReadAnimations(root, binary);
 
       return new ParsedGlb(
         manifest,
@@ -511,6 +652,7 @@ namespace EarthTool.GLTF.Internal
         meshes.AsReadOnly(),
         nodes.AsReadOnly(),
         Array.AsReadOnly(materials),
+        animations,
         root.GetProperty("scenes")[0].GetProperty("nodes")[0].GetInt32());
     }
 
@@ -611,6 +753,50 @@ namespace EarthTool.GLTF.Internal
         var sourceObjectLocalIds = ReadIntegerArray(root, "sourceObjectLocalIds");
         var staticRenderObjectInventory = ReadIntegerArray(root, "staticRenderObjectInventory");
         var sourceObjectInventory = ReadIntegerArray(root, "sourceObjectInventory");
+        AnimationClassBytes? animationLengths = null;
+        AnimationClassBytes? animationFrameIndices = null;
+        var animationClasses = new List<MetadataAnimationClass>();
+        MetadataAnimationProjection? animationProjection = null;
+        if (root.TryGetProperty("staticAnimation", out var staticAnimation))
+        {
+          if (staticAnimation.TryGetProperty("lengths", out var lengths))
+          {
+            animationLengths = ReadAnimationBytes(lengths, "staticAnimation.lengths");
+            animationFrameIndices = ReadAnimationBytes(
+              staticAnimation.GetProperty("frameIndices"),
+              "staticAnimation.frameIndices");
+            foreach (var item in staticAnimation.GetProperty("classes").EnumerateArray())
+            {
+              animationClasses.Add(new MetadataAnimationClass(
+                item.GetProperty("class").GetInt32(),
+                ReadIntegerArray(item, "objects"),
+                ReadIntegerArray(item, "nativeObjects"),
+                item.TryGetProperty("sha256", out var animationFingerprint)
+                  ? animationFingerprint.GetString()
+                  : null));
+            }
+          }
+          else
+          {
+            var status = staticAnimation.GetProperty("status").GetString();
+            animationProjection = new MetadataAnimationProjection(
+              staticAnimation.GetProperty("animationClassValue").GetUInt32(),
+              staticAnimation.GetProperty("class").GetInt32(),
+              staticAnimation.GetProperty("declaredLength").GetByte(),
+              status == "native",
+              status != "absent",
+              staticAnimation.TryGetProperty("sha256", out var animationFingerprint)
+                ? animationFingerprint.GetString()
+                : null,
+              ReadBase64(staticAnimation, "scaleFrames"),
+              ReadBase64(staticAnimation, "translationFrames"),
+              ReadBase64(staticAnimation, "matrices"));
+            if (status is not ("native" or "metadataOnly" or "absent"))
+            {
+              throw new MalformedMetadataException("Unsupported static animation status.");
+            }
+          }
+        }
 
         return new MetadataEnvelope(
           root.GetProperty("assetLineage").GetGuid(),
@@ -636,7 +822,11 @@ namespace EarthTool.GLTF.Internal
             ? Array.AsReadOnly(Convert.FromBase64String(
               textureBinding.GetString()
                 ?? throw new MalformedMetadataException("Missing TEX resource binding.")))
-            : null);
+            : null,
+          animationLengths,
+          animationFrameIndices,
+          animationClasses.AsReadOnly(),
+          animationProjection);
       }
       catch (UnsupportedMetadataVersionException)
       {
@@ -670,12 +860,31 @@ namespace EarthTool.GLTF.Internal
       return Array.AsReadOnly(array.EnumerateArray().Select(item => item.GetInt32()).ToArray());
     }
 
+    private static AnimationClassBytes ReadAnimationBytes(JsonElement array, string propertyName)
+    {
+      if (array.ValueKind != JsonValueKind.Array || array.GetArrayLength() != 4)
+      {
+        throw new MalformedMetadataException($"{propertyName} must contain four bytes.");
+      }
+      var values = array.EnumerateArray().Select(item => item.GetByte()).ToArray();
+      return new AnimationClassBytes(values[0], values[1], values[2], values[3]);
+    }
+
+    private static IReadOnlyList<byte> ReadBase64(JsonElement owner, string propertyName)
+    {
+      return Array.AsReadOnly(Convert.FromBase64String(
+        owner.GetProperty(propertyName).GetString()
+          ?? throw new MalformedMetadataException($"Missing {propertyName} animation data.")));
+    }
+
     private static byte[] CreateBinary(
       IReadOnlyList<ProjectedPartition> partitions,
+      AnimationProjectionSet animations,
       IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
       bool embedPreviews,
       out IReadOnlyDictionary<StaticRenderObjectId, PartitionLayout> layouts,
-      out IReadOnlyDictionary<StaticRenderObjectId, PreviewLayout> previewLayouts)
+      out IReadOnlyDictionary<StaticRenderObjectId, PreviewLayout> previewLayouts,
+      out IReadOnlyList<AnimationLayout> animationLayouts)
     {
       using var stream = new MemoryStream();
       using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
@@ -774,6 +983,49 @@ namespace EarthTool.GLTF.Internal
         }
         createdPreviewLayouts.Add(partition.RenderObject.Id, previewLayout);
       }
+
+      var createdAnimationLayouts = new List<AnimationLayout>();
+      foreach (var clip in animations.Clips)
+      {
+        Align(writer, stream);
+        var timeOffset = checked((int)stream.Position);
+        for (var frame = 0; frame < clip.FrameCount; frame++)
+        {
+          writer.Write(frame / 24f);
+        }
+
+        var objectLayouts = new List<AnimationObjectLayout>();
+        foreach (var item in clip.Objects)
+        {
+          var translationOffset = checked((int)stream.Position);
+          foreach (var frame in item.Frames)
+          {
+            Write(writer, frame.Translation);
+          }
+          var rotationOffset = checked((int)stream.Position);
+          foreach (var frame in item.Frames)
+          {
+            writer.Write(frame.Rotation.X);
+            writer.Write(frame.Rotation.Y);
+            writer.Write(frame.Rotation.Z);
+            writer.Write(frame.Rotation.W);
+          }
+          var scaleOffset = checked((int)stream.Position);
+          foreach (var frame in item.Frames)
+          {
+            Write(writer, frame.Scale);
+          }
+          objectLayouts.Add(new AnimationObjectLayout(
+            item,
+            translationOffset,
+            rotationOffset,
+            scaleOffset));
+        }
+        createdAnimationLayouts.Add(new AnimationLayout(
+          clip,
+          timeOffset,
+          objectLayouts.AsReadOnly()));
+      }
       while (stream.Length % 4 != 0)
       {
         writer.Write((byte)0);
@@ -781,6 +1033,7 @@ namespace EarthTool.GLTF.Internal
 
       layouts = createdLayouts;
       previewLayouts = createdPreviewLayouts;
+      animationLayouts = createdAnimationLayouts.AsReadOnly();
       return stream.ToArray();
     }
 
@@ -791,12 +1044,17 @@ namespace EarthTool.GLTF.Internal
       InterchangeBaseline baseline,
       string manifest,
       IReadOnlyDictionary<StaticRenderObjectId, PreviewLayout> previewLayouts,
+      AnimationProjectionSet animations,
+      IReadOnlyList<AnimationLayout> animationLayouts,
       string? bufferFileName)
     {
       var sources = StaticSourceObjectTraversal.Flatten(rootSourceObject).ToArray();
       var nodeIndices = sources
         .Select((source, index) => new { source.Id, Index = index })
         .ToDictionary(item => item.Id, item => item.Index);
+      var nodeIndicesByLocalId = sources
+        .Select((source, index) => new { LocalId = source.Id.Value, Index = index })
+        .ToDictionary(item => item.LocalId, item => item.Index);
       var orderedLayouts = sources
         .SelectMany(source => source.StaticRenderObjectIds)
         .Select(id => layouts[id])
@@ -878,7 +1136,9 @@ namespace EarthTool.GLTF.Internal
             "object",
             source.Id.Value,
             null,
-            null));
+            null,
+            animationProjection: animations.Objects.SingleOrDefault(item =>
+              item.SourceObjectLocalId == source.Id.Value)));
           writer.WriteEndObject();
         }
 
@@ -972,6 +1232,48 @@ namespace EarthTool.GLTF.Internal
           }
           writer.WriteEndArray();
         }
+        if (animationLayouts.Count > 0)
+        {
+          var firstAnimationAccessor = orderedLayouts.Length * 4;
+          writer.WriteStartArray("animations");
+          foreach (var animation in animationLayouts)
+          {
+            writer.WriteStartObject();
+            writer.WriteString("name", animation.Clip.Name);
+            writer.WriteStartArray("samplers");
+            var timeAccessor = firstAnimationAccessor++;
+            foreach (var item in animation.Objects)
+            {
+              for (var path = 0; path < 3; path++)
+              {
+                writer.WriteStartObject();
+                writer.WriteNumber("input", timeAccessor);
+                writer.WriteNumber("output", firstAnimationAccessor++);
+                writer.WriteString("interpolation", "LINEAR");
+                writer.WriteEndObject();
+              }
+            }
+            writer.WriteEndArray();
+            writer.WriteStartArray("channels");
+            var sampler = 0;
+            foreach (var item in animation.Objects)
+            {
+              foreach (var path in new[] { "translation", "rotation", "scale" })
+              {
+                writer.WriteStartObject();
+                writer.WriteNumber("sampler", sampler++);
+                writer.WriteStartObject("target");
+                writer.WriteNumber("node", nodeIndicesByLocalId[item.Projection.SourceObjectLocalId]);
+                writer.WriteString("path", path);
+                writer.WriteEndObject();
+                writer.WriteEndObject();
+              }
+            }
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+          }
+          writer.WriteEndArray();
+        }
         writer.WriteStartArray("buffers");
         writer.WriteStartObject();
         writer.WriteNumber("byteLength", binaryLength);
@@ -995,6 +1297,16 @@ namespace EarthTool.GLTF.Internal
         {
           WriteBufferView(writer, preview.Offset, preview.Length, null);
         }
+        foreach (var animation in animationLayouts)
+        {
+          WriteBufferView(writer, animation.TimeOffset, animation.Clip.FrameCount * sizeof(float), null);
+          foreach (var item in animation.Objects)
+          {
+            WriteBufferView(writer, item.TranslationOffset, animation.Clip.FrameCount * 12, null);
+            WriteBufferView(writer, item.RotationOffset, animation.Clip.FrameCount * 16, null);
+            WriteBufferView(writer, item.ScaleOffset, animation.Clip.FrameCount * 12, null);
+          }
+        }
 
         writer.WriteEndArray();
         writer.WriteStartArray("accessors");
@@ -1015,6 +1327,23 @@ namespace EarthTool.GLTF.Internal
             layout.IndexComponentType,
             layout.Partition.RenderObject.Triangles.Count * 3,
             "SCALAR");
+        }
+        var firstAnimationBufferView = orderedLayouts.Length * 4
+          + uniquePreviewLayouts.Count(preview => preview.Uri is null);
+        foreach (var animation in animationLayouts)
+        {
+          WriteScalarAccessor(
+            writer,
+            firstAnimationBufferView++,
+            animation.Clip.FrameCount,
+            0,
+            (animation.Clip.FrameCount - 1) / 24f);
+          foreach (var item in animation.Objects)
+          {
+            WriteAccessor(writer, firstAnimationBufferView++, 5126, animation.Clip.FrameCount, "VEC3");
+            WriteAccessor(writer, firstAnimationBufferView++, 5126, animation.Clip.FrameCount, "VEC4");
+            WriteAccessor(writer, firstAnimationBufferView++, 5126, animation.Clip.FrameCount, "VEC3");
+          }
         }
 
         writer.WriteEndArray();
@@ -1087,6 +1416,42 @@ namespace EarthTool.GLTF.Internal
       writer.WriteEndObject();
     }
 
+    private static void WriteScalarAccessor(
+      Utf8JsonWriter writer,
+      int bufferView,
+      int count,
+      float minimum,
+      float maximum)
+    {
+      writer.WriteStartObject();
+      writer.WriteNumber("bufferView", bufferView);
+      writer.WriteNumber("componentType", 5126);
+      writer.WriteNumber("count", count);
+      writer.WriteString("type", "SCALAR");
+      writer.WriteStartArray("min");
+      writer.WriteNumberValue(minimum);
+      writer.WriteEndArray();
+      writer.WriteStartArray("max");
+      writer.WriteNumberValue(maximum);
+      writer.WriteEndArray();
+      writer.WriteEndObject();
+    }
+
+    private static void Write(BinaryWriter writer, Vector3 value)
+    {
+      writer.Write(value.X);
+      writer.Write(value.Y);
+      writer.Write(value.Z);
+    }
+
+    private static void Align(BinaryWriter writer, MemoryStream stream)
+    {
+      while (stream.Length % 4 != 0)
+      {
+        writer.Write((byte)0);
+      }
+    }
+
     private static byte[] Pack(byte[] json, byte[] binary)
     {
       var paddedJsonLength = (json.Length + 3) & ~3;
@@ -1116,7 +1481,9 @@ namespace EarthTool.GLTF.Internal
       int localId,
       string? sourceMsh,
       string? fingerprint,
-      StaticMeshAsset? sourceAsset = null)
+      StaticMeshAsset? sourceAsset = null,
+      AnimationProjectionSet? animations = null,
+      ProjectedAnimationObject? animationProjection = null)
     {
       using var stream = new MemoryStream();
       using (var writer = new Utf8JsonWriter(stream))
@@ -1172,6 +1539,70 @@ namespace EarthTool.GLTF.Internal
           {
             writer.WriteNumber("nextSourceObjectLocalId", sourceAsset.NextSourceObjectLocalId.Value);
           }
+          if (animations is not null)
+          {
+            writer.WriteStartObject("staticAnimation");
+            WriteAnimationBytes(writer, "lengths", sourceAsset.CommonBaseHeader.AnimationLengths);
+            WriteAnimationBytes(writer, "frameIndices", sourceAsset.CommonBaseHeader.AnimationFrameIndices);
+            writer.WriteStartArray("classes");
+            foreach (var group in animations.Objects.Where(item => item.HasSourceTracks)
+              .GroupBy(item => item.ClassIndex).OrderBy(group => group.Key))
+            {
+              var clip = animations.Clips.SingleOrDefault(item => item.ClassIndex == group.Key);
+              writer.WriteStartObject();
+              writer.WriteNumber("class", group.Key);
+              writer.WriteStartArray("objects");
+              foreach (var item in group.OrderBy(item => item.SourceObjectLocalId))
+              {
+                writer.WriteNumberValue(item.SourceObjectLocalId);
+              }
+              writer.WriteEndArray();
+              writer.WriteStartArray("nativeObjects");
+              foreach (var item in group.Where(item => item.IsNative)
+                .OrderBy(item => item.SourceObjectLocalId))
+              {
+                writer.WriteNumberValue(item.SourceObjectLocalId);
+              }
+              writer.WriteEndArray();
+              if (clip is not null)
+              {
+                writer.WriteString("sha256", clip.Fingerprint);
+              }
+              writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+          }
+        }
+
+        if (animationProjection is not null)
+        {
+          writer.WriteStartObject("staticAnimation");
+          writer.WriteNumber("animationClassValue", animationProjection.AnimationClassValue);
+          writer.WriteNumber("class", animationProjection.ClassIndex);
+          writer.WriteNumber("declaredLength", animationProjection.DeclaredLength);
+          writer.WriteString(
+            "status",
+            animationProjection.IsNative
+              ? "native"
+              : animationProjection.HasSourceTracks ? "metadataOnly" : "absent");
+          writer.WriteString(
+            "scaleFrames",
+            Convert.ToBase64String(StaticAnimationProjection.SerializeScaleFrames(
+              animationProjection.SourceTracks)));
+          writer.WriteString(
+            "translationFrames",
+            Convert.ToBase64String(StaticAnimationProjection.SerializeTranslationFrames(
+              animationProjection.SourceTracks)));
+          writer.WriteString(
+            "matrices",
+            Convert.ToBase64String(StaticAnimationProjection.SerializeMatrices(
+              animationProjection.SourceTracks)));
+          if (animationProjection.Fingerprint is not null)
+          {
+            writer.WriteString("sha256", animationProjection.Fingerprint);
+          }
+          writer.WriteEndObject();
         }
 
         if (fingerprint is not null)
@@ -1187,6 +1618,19 @@ namespace EarthTool.GLTF.Internal
       }
 
       return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static void WriteAnimationBytes(
+      Utf8JsonWriter writer,
+      string propertyName,
+      AnimationClassBytes value)
+    {
+      writer.WriteStartArray(propertyName);
+      writer.WriteNumberValue(value.A);
+      writer.WriteNumberValue(value.B);
+      writer.WriteNumberValue(value.C);
+      writer.WriteNumberValue(value.D);
+      writer.WriteEndArray();
     }
 
     private static string CreateMeshMetadata(
@@ -1480,7 +1924,7 @@ namespace EarthTool.GLTF.Internal
       ValidateMaterials(root);
       ValidateTexturePreviews(root);
 
-      foreach (var domain in new[] { "animations", "skins", "cameras", "samplers" })
+      foreach (var domain in new[] { "skins", "cameras", "samplers" })
       {
         if (root.TryGetProperty(domain, out _))
         {
@@ -1696,6 +2140,48 @@ namespace EarthTool.GLTF.Internal
       }
     }
 
+    private sealed class AnimationLayout
+    {
+      internal ProjectedAnimationClip Clip { get; }
+
+      internal int TimeOffset { get; }
+
+      internal IReadOnlyList<AnimationObjectLayout> Objects { get; }
+
+      internal AnimationLayout(
+        ProjectedAnimationClip clip,
+        int timeOffset,
+        IReadOnlyList<AnimationObjectLayout> objects)
+      {
+        Clip = clip;
+        TimeOffset = timeOffset;
+        Objects = objects;
+      }
+    }
+
+    private sealed class AnimationObjectLayout
+    {
+      internal ProjectedAnimationObject Projection { get; }
+
+      internal int TranslationOffset { get; }
+
+      internal int RotationOffset { get; }
+
+      internal int ScaleOffset { get; }
+
+      internal AnimationObjectLayout(
+        ProjectedAnimationObject projection,
+        int translationOffset,
+        int rotationOffset,
+        int scaleOffset)
+      {
+        Projection = projection;
+        TranslationOffset = translationOffset;
+        RotationOffset = rotationOffset;
+        ScaleOffset = scaleOffset;
+      }
+    }
+
     private static string GetMetadata(JsonElement owner, string ownerName)
     {
       return TryGetMetadata(owner) ?? throw new MissingMetadataException(ownerName);
@@ -1817,6 +2303,148 @@ namespace EarthTool.GLTF.Internal
         value.M31, value.M32, value.M33, value.M34,
         value.M41, value.M42, value.M43, value.M44
       }.All(float.IsFinite);
+    }
+
+    private static IReadOnlyList<ParsedGltfAnimation> ReadAnimations(
+      JsonElement root,
+      ReadOnlySpan<byte> binary)
+    {
+      if (!root.TryGetProperty("animations", out var animations))
+      {
+        return Array.Empty<ParsedGltfAnimation>();
+      }
+      var result = new List<ParsedGltfAnimation>();
+      foreach (var animation in animations.EnumerateArray())
+      {
+        var samplers = animation.GetProperty("samplers");
+        var builders = new Dictionary<int, ParsedAnimationBuilder>();
+        foreach (var channel in animation.GetProperty("channels").EnumerateArray())
+        {
+          var target = channel.GetProperty("target");
+          var nodeIndex = target.GetProperty("node").GetInt32();
+          if (nodeIndex < 0 || nodeIndex >= root.GetProperty("nodes").GetArrayLength())
+          {
+            throw new UnsupportedGltfDomainException("animations");
+          }
+          var path = target.GetProperty("path").GetString();
+          var samplerIndex = channel.GetProperty("sampler").GetInt32();
+          if (samplerIndex < 0 || samplerIndex >= samplers.GetArrayLength())
+          {
+            throw new UnsupportedGltfDomainException("animations");
+          }
+          var sampler = samplers[samplerIndex];
+          if (sampler.TryGetProperty("interpolation", out var interpolation)
+            && interpolation.GetString() != "LINEAR")
+          {
+            throw new UnsupportedGltfDomainException("animations");
+          }
+          var times = ReadFloatAccessor(
+            root,
+            binary,
+            sampler.GetProperty("input").GetInt32(),
+            1,
+            "SCALAR");
+          if (times.Length > byte.MaxValue
+            || times.Select((time, frame) => Math.Abs(time - (frame / 24f)) <= 1e-6f)
+              .Any(valid => !valid))
+          {
+            throw new UnsupportedGltfDomainException("animations");
+          }
+          if (!builders.TryGetValue(nodeIndex, out var builder))
+          {
+            builder = new ParsedAnimationBuilder(nodeIndex);
+            builders.Add(nodeIndex, builder);
+          }
+          builder.Add(
+            path,
+            times,
+            ReadFloatAccessor(
+              root,
+              binary,
+              sampler.GetProperty("output").GetInt32(),
+              path == "rotation" ? 4 : 3,
+              path == "rotation" ? "VEC4" : "VEC3"));
+        }
+        if (builders.Count == 0)
+        {
+          throw new UnsupportedGltfDomainException("animations");
+        }
+        result.Add(new ParsedGltfAnimation(
+          animation.TryGetProperty("name", out var name) ? name.GetString() : null,
+          Array.AsReadOnly(builders.OrderBy(item => item.Key)
+            .Select(item => item.Value.Build()).ToArray())));
+      }
+      return result.AsReadOnly();
+    }
+
+    private sealed class ParsedAnimationBuilder
+    {
+      private readonly int _nodeIndex;
+      private float[]? _times;
+      private float[]? _translations;
+      private float[]? _rotations;
+      private float[]? _scales;
+
+      internal ParsedAnimationBuilder(int nodeIndex)
+      {
+        _nodeIndex = nodeIndex;
+      }
+
+      internal void Add(string? path, float[] times, float[] values)
+      {
+        if (_times is not null && !_times.SequenceEqual(times))
+        {
+          throw new UnsupportedGltfDomainException("animations");
+        }
+        _times ??= times;
+        switch (path)
+        {
+          case "translation" when _translations is null:
+            _translations = values;
+            break;
+          case "rotation" when _rotations is null:
+            _rotations = values;
+            break;
+          case "scale" when _scales is null:
+            _scales = values;
+            break;
+          default:
+            throw new UnsupportedGltfDomainException("animations");
+        }
+      }
+
+      internal ParsedGltfAnimationObject Build()
+      {
+        if (_times is null
+          || _translations is null
+          || _rotations is null
+          || _scales is null
+          || _translations.Length != _times.Length * 3
+          || _rotations.Length != _times.Length * 4
+          || _scales.Length != _times.Length * 3)
+        {
+          throw new UnsupportedGltfDomainException("animations");
+        }
+        var frames = new ProjectedAnimationFrame[_times.Length];
+        for (var frame = 0; frame < frames.Length; frame++)
+        {
+          frames[frame] = StaticAnimationProjection.Canonicalize(
+            new Vector3(
+              _translations[frame * 3],
+              _translations[frame * 3 + 1],
+              _translations[frame * 3 + 2]),
+            new Quaternion(
+              _rotations[frame * 4],
+              _rotations[frame * 4 + 1],
+              _rotations[frame * 4 + 2],
+              _rotations[frame * 4 + 3]),
+            new Vector3(
+              _scales[frame * 3],
+              _scales[frame * 3 + 1],
+              _scales[frame * 3 + 2]));
+        }
+        return new ParsedGltfAnimationObject(_nodeIndex, Array.AsReadOnly(frames));
+      }
     }
 
     private static ParsedGltfPrimitive ReadPrimitive(

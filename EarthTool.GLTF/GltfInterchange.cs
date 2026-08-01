@@ -62,7 +62,8 @@ namespace EarthTool.GLTF
         var baseline = new InterchangeBaseline(
           options.AssetLineageId ?? Guid.NewGuid(),
           options.DocumentId ?? Guid.NewGuid());
-        var metadataLength = GlbDocument.GetManifestMetadataByteCount(asset, baseline);
+        var animationDiagnostics = CreateAnimationDiagnostics(asset, baseline);
+        var metadataLength = GlbDocument.GetMaximumMetadataByteCount(asset, baseline);
         if (metadataLength > profile.MaxMetadataBytes)
         {
           return Failed<GltfExportReceipt>(Limit("scenes[0].extras.earthtool", metadataLength, profile.MaxMetadataBytes));
@@ -97,11 +98,12 @@ namespace EarthTool.GLTF
         var glb = previewResult.Previews.Count == 0
           ? withoutPreviews
           : GlbDocument.Create(asset, baseline, previewResult.Previews, out fingerprint);
-        var exportDiagnostics = previewResult.Diagnostics;
+        var exportDiagnostics = previewResult.Diagnostics.Concat(animationDiagnostics).ToArray();
         if (glb.Length > profile.MaxOutputBytes)
         {
           glb = withoutPreviews;
-          exportDiagnostics = WithoutEmittedPreviewDiagnostics(previewResult.Diagnostics);
+          exportDiagnostics = WithoutEmittedPreviewDiagnostics(previewResult.Diagnostics)
+            .Concat(animationDiagnostics).ToArray();
         }
 
         GlbDocument.Validate(glb, profile);
@@ -202,7 +204,8 @@ namespace EarthTool.GLTF
         var baseline = new InterchangeBaseline(
           options.AssetLineageId ?? Guid.NewGuid(),
           options.DocumentId ?? Guid.NewGuid());
-        var metadataLength = GlbDocument.GetManifestMetadataByteCount(asset, baseline);
+        var animationDiagnostics = CreateAnimationDiagnostics(asset, baseline);
+        var metadataLength = GlbDocument.GetMaximumMetadataByteCount(asset, baseline);
         if (metadataLength > profile.MaxMetadataBytes)
         {
           return Failed<GltfExportReceipt>(Limit("scenes[0].extras.earthtool", metadataLength, profile.MaxMetadataBytes));
@@ -241,11 +244,12 @@ namespace EarthTool.GLTF
         var outputLength = checked(package.Json.Length
           + package.Binary.Length
           + package.ImageSidecars.Values.Sum(bytes => bytes.Length));
-        var exportDiagnostics = previewResult.Diagnostics;
+        var exportDiagnostics = previewResult.Diagnostics.Concat(animationDiagnostics).ToArray();
         if (outputLength > profile.MaxOutputBytes)
         {
           package = withoutPreviews;
-          exportDiagnostics = WithoutEmittedPreviewDiagnostics(previewResult.Diagnostics);
+          exportDiagnostics = WithoutEmittedPreviewDiagnostics(previewResult.Diagnostics)
+            .Concat(animationDiagnostics).ToArray();
         }
 
         ValidateGeometryProfile(
@@ -741,6 +745,10 @@ namespace EarthTool.GLTF
       }
 
       ValidateNewModelMaterialBindings(parsed, options);
+      if (parsed.Animations.Count > 0)
+      {
+        throw new UnsupportedGltfDomainException("animations");
+      }
       var draft = CreateNewModelSourceTree(parsed, options);
       var lineage = new MeshAssetLineageId(Guid.NewGuid());
       var build = StaticMeshBuilder.Create(Guid.NewGuid(), lineage)
@@ -1094,6 +1102,23 @@ namespace EarthTool.GLTF
         asset,
         expectedBaseline,
         edit);
+      try
+      {
+        ValidateAnimationProjection(
+          parsed,
+          manifest,
+          nodes.Select(node => node.Metadata).ToArray(),
+          asset,
+          expectedBaseline);
+      }
+      catch (StaleNativeProjectionException ex)
+      {
+        return Failed<GltfEditImportResult>(Diagnostic(
+          GltfDiagnosticCodes.StaleNativeProjection,
+          2008,
+          "animations",
+          ex.Message));
+      }
       IReadOnlyList<PartitionMatch> partitionMatches;
       try
       {
@@ -1184,6 +1209,31 @@ namespace EarthTool.GLTF
         .Where(change => change.Disposition != PreservationDisposition.Retained)
         .Select(change => change.FieldPath)
         .ToArray();
+      var restoredRecordIndices = partitionMatches
+        .Where(match => match.Retained)
+        .Select(match => asset.StaticRenderObjectSequence
+          .Select((record, index) => (record, index))
+          .Single(item => item.record.LocalId == match.Partition.LocalId).index)
+        .Where(index => !changedRecordPaths.Any(path =>
+          path == $"StaticRenderObjectSequence[{index}]"
+          || path.StartsWith($"StaticRenderObjectSequence[{index}].", StringComparison.Ordinal)))
+        .Distinct()
+        .OrderBy(index => index)
+        .ToArray();
+      var restoredPaths = new[]
+      {
+        "ArchiveFraming",
+        "BaseHeader",
+        "CommonBaseHeader.AnimationLengths",
+        "CommonBaseHeader.AnimationFrameIndices"
+      }.Concat(restoredRecordIndices.Select(index => $"StaticRenderObjectSequence[{index}]"))
+        .Concat(restoredRecordIndices.SelectMany(index => new[]
+        {
+          $"StaticRenderObjectSequence[{index}].AnimationClassValue",
+          $"StaticRenderObjectSequence[{index}].AnimationTracks.ScaleFrames",
+          $"StaticRenderObjectSequence[{index}].AnimationTracks.TranslationFrames",
+          $"StaticRenderObjectSequence[{index}].AnimationTracks.Matrices"
+        }));
       return new OperationResult<GltfEditImportResult>(
         OperationStatus.Succeeded,
         new GltfEditImportResult(
@@ -1191,17 +1241,7 @@ namespace EarthTool.GLTF
           nextBaseline,
           fingerprint,
           committed.Preservation,
-          new[] { "ArchiveFraming", "BaseHeader" }
-            .Concat(partitionMatches
-              .Where(match => match.Retained)
-              .Select(match => asset.StaticRenderObjectSequence
-                .Select((record, index) => (record, index))
-                .Single(item => item.record.LocalId == match.Partition.LocalId).index)
-              .Where(index => !changedRecordPaths.Any(path =>
-                path == $"StaticRenderObjectSequence[{index}]"
-                || path.StartsWith($"StaticRenderObjectSequence[{index}].", StringComparison.Ordinal)))
-              .OrderBy(index => index)
-            .Select(index => $"StaticRenderObjectSequence[{index}]"))));
+          restoredPaths));
     }
 
     private static void ApplyMaterialBindings(
@@ -1395,6 +1435,158 @@ namespace EarthTool.GLTF
           "The GLB belongs to a different interchange document.");
       }
 
+    }
+
+    private static void ValidateAnimationProjection(
+      ParsedGlb parsed,
+      MetadataEnvelope manifest,
+      IReadOnlyList<MetadataEnvelope?> nodes,
+      StaticMeshAsset asset,
+      InterchangeBaseline baseline)
+    {
+      var expected = StaticAnimationProjection.Create(asset, baseline);
+      if (!manifest.AnimationLengths.HasValue
+        || !manifest.AnimationLengths.Value.Equals(asset.CommonBaseHeader.AnimationLengths)
+        || !manifest.AnimationFrameIndices.HasValue
+        || !manifest.AnimationFrameIndices.Value.Equals(asset.CommonBaseHeader.AnimationFrameIndices)
+        || manifest.AnimationClasses.Select(item => item.ClassIndex).Distinct().Count()
+          != manifest.AnimationClasses.Count)
+      {
+        throw new MalformedMetadataException("The manifest static animation metadata is malformed.");
+      }
+
+      var expectedGroups = expected.Objects.Where(item => item.HasSourceTracks)
+        .GroupBy(item => item.ClassIndex)
+        .OrderBy(group => group.Key).ToArray();
+      if (manifest.AnimationClasses.Count != expectedGroups.Length)
+      {
+        throw new MalformedMetadataException("The manifest static animation class set is incomplete.");
+      }
+      foreach (var group in expectedGroups)
+      {
+        var metadata = manifest.AnimationClasses.SingleOrDefault(item => item.ClassIndex == group.Key)
+          ?? throw new MalformedMetadataException("The manifest static animation class set is incomplete.");
+        var expectedObjects = group.OrderBy(item => item.SourceObjectLocalId).ToArray();
+        var expectedNativeObjects = expectedObjects.Where(item => item.IsNative).ToArray();
+        var expectedClip = expected.Clips.SingleOrDefault(item => item.ClassIndex == group.Key);
+        if (!metadata.Objects.SequenceEqual(expectedObjects.Select(item => item.SourceObjectLocalId))
+          || !metadata.NativeObjects.SequenceEqual(expectedNativeObjects.Select(item => item.SourceObjectLocalId))
+          || !string.Equals(metadata.Fingerprint, expectedClip?.Fingerprint, StringComparison.Ordinal))
+        {
+          throw new MalformedMetadataException("The manifest static animation class binding is malformed.");
+        }
+      }
+
+      var expectedBySource = expected.Objects.ToDictionary(item => item.SourceObjectLocalId);
+      var retainedNodeBySource = new Dictionary<int, int>();
+      for (var nodeIndex = 0; nodeIndex < nodes.Count; nodeIndex++)
+      {
+        var metadata = nodes[nodeIndex];
+        if (metadata is null)
+        {
+          continue;
+        }
+        if (!expectedBySource.TryGetValue(metadata.LocalId, out var expectedObject))
+        {
+          if (metadata.AnimationProjection is not null)
+          {
+            throw new MalformedMetadataException("Animation metadata appears on an object without source tracks.");
+          }
+          continue;
+        }
+        var animation = metadata.AnimationProjection;
+        if (animation is null
+          || animation.AnimationClassValue != expectedObject.AnimationClassValue
+          || animation.ClassIndex != expectedObject.ClassIndex
+          || animation.DeclaredLength != expectedObject.DeclaredLength
+          || animation.IsNative != expectedObject.IsNative
+          || animation.HasSourceTracks != expectedObject.HasSourceTracks
+          || !string.Equals(animation.Fingerprint, expectedObject.Fingerprint, StringComparison.Ordinal)
+          || !animation.ScaleFrames.SequenceEqual(
+            StaticAnimationProjection.SerializeScaleFrames(expectedObject.SourceTracks))
+          || !animation.TranslationFrames.SequenceEqual(
+            StaticAnimationProjection.SerializeTranslationFrames(expectedObject.SourceTracks))
+          || !animation.Matrices.SequenceEqual(
+            StaticAnimationProjection.SerializeMatrices(expectedObject.SourceTracks)))
+        {
+          throw new MalformedMetadataException("The object static animation metadata is malformed.");
+        }
+        retainedNodeBySource.Add(metadata.LocalId, nodeIndex);
+      }
+
+      var matchedClasses = new HashSet<int>();
+      foreach (var clip in parsed.Animations)
+      {
+        if (clip.Objects.Count == 0)
+        {
+          throw new StaleNativeProjectionException("A native animation clip has no participating objects.");
+        }
+        int? classIndex = null;
+        var projectedObjects = new List<ProjectedAnimationObject>();
+        foreach (var item in clip.Objects)
+        {
+          var sourcePair = retainedNodeBySource.SingleOrDefault(pair => pair.Value == item.NodeIndex);
+          if (sourcePair.Key == 0
+            || !expectedBySource.TryGetValue(sourcePair.Key, out var expectedObject)
+            || !expectedObject.IsNative)
+          {
+            throw new StaleNativeProjectionException(
+              "A native animation targets an unexpected or metadata-only object.");
+          }
+          if (classIndex.HasValue && classIndex.Value != expectedObject.ClassIndex)
+          {
+            throw new StaleNativeProjectionException("One native clip combines different animation classes.");
+          }
+          classIndex = expectedObject.ClassIndex;
+          var fingerprint = AnimationProjectionFingerprint.CreateObject(
+            baseline,
+            sourcePair.Key,
+            expectedObject.ClassIndex,
+            expectedObject.DeclaredLength,
+            item.Frames);
+          if (!string.Equals(fingerprint, expectedObject.Fingerprint, StringComparison.Ordinal))
+          {
+            throw new StaleNativeProjectionException(
+              "A native animation sample no longer matches its object/class preservation guard.");
+          }
+          projectedObjects.Add(new ProjectedAnimationObject(
+            sourcePair.Key,
+            expectedObject.AnimationClassValue,
+            expectedObject.ClassIndex,
+            expectedObject.DeclaredLength,
+            item.Frames,
+            null,
+            fingerprint,
+            true,
+            expectedObject.SourceTracks));
+        }
+
+        var resolvedClass = classIndex!.Value;
+        if (!matchedClasses.Add(resolvedClass))
+        {
+          throw new StaleNativeProjectionException("One animation class maps to multiple native clips.");
+        }
+        var expectedParticipants = expected.Objects.Where(item =>
+            item.ClassIndex == resolvedClass
+            && item.IsNative
+            && retainedNodeBySource.ContainsKey(item.SourceObjectLocalId))
+          .Select(item => item.SourceObjectLocalId)
+          .OrderBy(value => value);
+        if (!projectedObjects.Select(item => item.SourceObjectLocalId).OrderBy(value => value)
+          .SequenceEqual(expectedParticipants))
+        {
+          throw new StaleNativeProjectionException(
+            "A native animation clip does not contain its expected participating objects.");
+        }
+      }
+
+      var expectedClasses = expected.Objects.Where(item =>
+          item.IsNative && retainedNodeBySource.ContainsKey(item.SourceObjectLocalId))
+        .Select(item => item.ClassIndex).Distinct().OrderBy(value => value);
+      if (!matchedClasses.OrderBy(value => value).SequenceEqual(expectedClasses))
+      {
+        throw new StaleNativeProjectionException("The expected native animation class set is incomplete.");
+      }
     }
 
     private static IReadOnlyList<PartitionMatch> MatchPartitions(
@@ -2119,6 +2311,58 @@ namespace EarthTool.GLTF
         DiagnosticSeverity.Warning,
         "$",
         "Decoded TEX previews were omitted to keep the package within the output limit.");
+    }
+
+    private static IReadOnlyList<OperationDiagnostic> CreateAnimationDiagnostics(
+      StaticMeshAsset asset,
+      InterchangeBaseline baseline)
+    {
+      var sources = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
+        .ToDictionary(source => source.Id.Value);
+      var indices = asset.StaticRenderObjectSequence
+        .Select((record, index) => new { record.Id, Index = index })
+        .ToDictionary(item => item.Id, item => item.Index);
+      var diagnostics = new List<OperationDiagnostic>();
+      foreach (var item in StaticAnimationProjection.Create(asset, baseline).Objects
+        .OrderBy(item => item.ClassIndex)
+        .ThenBy(item => item.SourceObjectLocalId))
+      {
+        var recordIndex = indices[sources[item.SourceObjectLocalId].StaticRenderObjectIds[0]];
+        var commonData = new Dictionary<string, string>
+        {
+          ["sourceObject"] = item.SourceObjectLocalId.ToString(
+            System.Globalization.CultureInfo.InvariantCulture),
+          ["animationClassValue"] = item.AnimationClassValue.ToString(
+            System.Globalization.CultureInfo.InvariantCulture),
+          ["class"] = ((char)('A' + item.ClassIndex)).ToString()
+        };
+        if (item.AnimationClassValue > 3)
+        {
+          diagnostics.Add(new OperationDiagnostic(
+            GltfDiagnosticCodes.AnimationClassUnrecognized,
+            1115,
+            DiagnosticSeverity.Warning,
+            $"StaticRenderObjectSequence[{recordIndex}].AnimationClassValue",
+            "An unrecognized animation-class value uses its modulo-four class for native projection.",
+            data: commonData));
+        }
+        if (item.FailureFrame.HasValue)
+        {
+          var metadataOnlyData = new Dictionary<string, string>(commonData)
+          {
+            ["frame"] = item.FailureFrame!.Value.ToString(
+              System.Globalization.CultureInfo.InvariantCulture)
+          };
+          diagnostics.Add(new OperationDiagnostic(
+            GltfDiagnosticCodes.AnimationMetadataOnly,
+            1114,
+            DiagnosticSeverity.Warning,
+            $"StaticRenderObjectSequence[{recordIndex}].AnimationTracks",
+            "The source animation cannot be represented exactly as native glTF TRS and remains metadata-only.",
+            data: metadataOnlyData));
+        }
+      }
+      return diagnostics.AsReadOnly();
     }
 
     private static IReadOnlyList<OperationDiagnostic> WithoutEmittedPreviewDiagnostics(

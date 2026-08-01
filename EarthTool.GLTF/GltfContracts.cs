@@ -40,6 +40,10 @@ namespace EarthTool.GLTF
     public const string TextureDiagnosticPreviewUsed = "ETG1012";
     /// <summary>A representative preview omits special TEX variant behavior.</summary>
     public const string TextureVariantsNotRepresented = "ETG1013";
+    /// <summary>Source animation remains exact metadata because native TRS cannot represent it.</summary>
+    public const string AnimationMetadataOnly = "ETG1014";
+    /// <summary>An unrecognized serialized animation-class value uses modulo-four projection.</summary>
+    public const string AnimationClassUnrecognized = "ETG1015";
     /// <summary>Required EarthTool manifest metadata is absent.</summary>
     public const string MissingManifest = "ETG2000";
     /// <summary>EarthTool metadata is malformed.</summary>

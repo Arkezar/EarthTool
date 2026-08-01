@@ -37,6 +37,18 @@ internal sealed class StaticMeshSequenceFixture
       storedTrailingUnwind: 1);
   }
 
+  internal static StaticMeshSequenceFixture CreateTwoAnimationClasses(Matrix4x4? secondMatrix = null)
+  {
+    return Create(
+      new[]
+      {
+        new Record(0, string.Empty, Vector3.Zero, 0, 1, true, false, 0),
+        new Record(0x00000800, string.Empty, Vector3.Zero, 0, 0, true, false, 1,
+          secondMatrix)
+      },
+      storedTrailingUnwind: 2);
+  }
+
   private static StaticMeshSequenceFixture Create(
     IReadOnlyList<Record> records,
     uint storedTrailingUnwind)
@@ -49,7 +61,15 @@ internal sealed class StaticMeshSequenceFixture
     "MESH"u8.CopyTo(data.AsSpan(ArchiveHeaderSize));
     WriteUInt32(data, ArchiveHeaderSize + 4, 1);
     WriteUInt32(data, ArchiveHeaderSize + 8, 0);
-    data[ArchiveHeaderSize + 0x13] = 1;
+    foreach (var animationClass in records.Where(record => record.WithTracks)
+      .Select(record => (int)(record.AnimationClassValue & 3)).Distinct())
+    {
+      data[ArchiveHeaderSize + 0x13 - animationClass] = 1;
+    }
+    if (records.All(record => !record.WithTracks))
+    {
+      data[ArchiveHeaderSize + 0x13] = 1;
+    }
     for (var attachment = 0; attachment < 49; attachment++)
     {
       var offset = ArchiveHeaderSize + 0x1D8 + attachment * 8;
@@ -128,11 +148,11 @@ internal sealed class StaticMeshSequenceFixture
     cursor += 4;
     if (record.WithTracks)
     {
-      WriteMatrix(data, cursor, Matrix4x4.Identity);
+      WriteMatrix(data, cursor, record.AnimationMatrix ?? Matrix4x4.Identity);
       cursor += 64;
     }
 
-    WriteUInt32(data, cursor, 0);
+    WriteUInt32(data, cursor, record.AnimationClassValue);
     cursor += 4;
     WriteVector3(data, cursor, new Vector3(record.Pivot.X, -record.Pivot.Y, record.Pivot.Z));
     cursor += 12;
@@ -190,5 +210,7 @@ internal sealed class StaticMeshSequenceFixture
     byte BarrelMaximumAngle,
     uint NextRecordMarker,
     bool WithTracks,
-    bool NormalSharesFirstVertex);
+    bool NormalSharesFirstVertex,
+    uint AnimationClassValue = 0,
+    Matrix4x4? AnimationMatrix = null);
 }

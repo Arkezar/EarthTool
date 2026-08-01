@@ -1,6 +1,8 @@
 public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String AmbiguousPartitionCorrespondence = "ETG2012"
   field System.String AmbiguousTextureResource = "ETG1008"
+  field System.String AnimationClassUnrecognized = "ETG1015"
+  field System.String AnimationMetadataOnly = "ETG1014"
   field System.String AssetLineageMismatch = "ETG2003"
   field System.String Cancelled = "ETG1005"
   field System.String DocumentMismatch = "ETG2004"

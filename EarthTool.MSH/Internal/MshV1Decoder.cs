@@ -1107,13 +1107,13 @@ namespace EarthTool.MSH.Internal
       MshOperationProfile profile,
       List<OperationDiagnostic> diagnostics)
     {
-      var expected = animationClassValue switch
+      var effectiveAnimationClass = animationClassValue & 3;
+      var expected = effectiveAnimationClass switch
       {
         0 => commonHeader.AnimationLengths.A,
         1 => commonHeader.AnimationLengths.B,
         2 => commonHeader.AnimationLengths.C,
-        3 => commonHeader.AnimationLengths.D,
-        _ => (byte)0
+        _ => commonHeader.AnimationLengths.D
       };
       if (animationClassValue > 3)
       {
@@ -1125,7 +1125,6 @@ namespace EarthTool.MSH.Internal
           {
             ["actual"] = animationClassValue.ToString(CultureInfo.InvariantCulture)
           }));
-        return;
       }
 
       foreach (var track in new[]

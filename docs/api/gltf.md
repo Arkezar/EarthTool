@@ -33,6 +33,26 @@ geometry fingerprints. Partition fingerprints ignore index width, vertex
 numbering, cyclic triangle-index rotation, and triangle order. They retain
 winding and triangle multiplicity.
 
+Effective animation classes A through D export as `EarthTool A` through
+`EarthTool D` clips. Each participating source object has explicit dense
+translation, canonical-quaternion rotation, and scale channels sampled at
+`frame / 24` with `LINEAR` interpolation. Absent MSH tracks contribute their
+runtime identity or pivot fallback without losing their exact absent state.
+Declared zero-length animation with present tracks projects effective frame
+zero; longer serialized tails remain metadata and do not extend the clip.
+Unrecognized serialized animation-class values remain exact and report
+`ETG1015`, while their native projection uses the game's modulo-four class
+selection.
+
+Animation guards bind the class, declaration, participating object, and dense
+binary32 TRS values rather than clip names, array order, accessor layout, or
+quaternion sign. Unchanged edit import restores exact independent scale,
+translation, and matrix tracks, including constant tracks and retained tails.
+An edited native sample fails with `ETG2008` until animation reconciliation is
+explicitly requested. A finite affine frame that cannot be decomposed and
+recomposed within the binary32 tolerance remains metadata-only for that one
+object/class and reports `ETG1014`; other objects and classes still export.
+
 `ImportEditGlbAsync` and `ImportEditGltfFileAsync` require the expected lineage
 and document identities. They validate metadata carriers, object and mesh
 ownership, native hierarchy, projection name and version, and partition
