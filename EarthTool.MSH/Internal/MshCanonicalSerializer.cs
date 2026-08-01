@@ -33,28 +33,285 @@ namespace EarthTool.MSH.Internal
     internal static byte[] RewriteStatic(
       StaticMeshAsset source,
       IReadOnlyDictionary<StaticRenderObjectId, IReadOnlyList<CanonicalStaticVertex>> vertices,
-      IReadOnlyDictionary<StaticRenderObjectId, IReadOnlyList<CanonicalTriangle>> triangles)
+      IReadOnlyDictionary<StaticRenderObjectId, IReadOnlyList<CanonicalTriangle>> triangles,
+      IEnumerable<StaticRenderObjectId>? removedRenderObjects = null,
+      IReadOnlyList<StaticRenderObjectAddition>? additions = null)
     {
       var archiveHeader = CreateArchiveHeader(source.ArchiveFraming);
-      var records = source.StaticRenderObjectSequence.Select(record =>
-        vertices.TryGetValue(record.Id, out var replacementVertices)
-          ? RewriteStaticRecord(record, replacementVertices, triangles[record.Id])
-          : record.GetSerializedRepresentation()).ToArray();
+      var removed = new HashSet<StaticRenderObjectId>(
+        removedRenderObjects ?? Array.Empty<StaticRenderObjectId>());
+      additions ??= Array.Empty<StaticRenderObjectAddition>();
+      var sourceRecords = source.StaticRenderObjectSequence.ToDictionary(record => record.Id);
+      var addedRecords = additions.ToDictionary(addition => addition.Id);
+      var recordList = new List<RewrittenStaticRecord>();
+      var plan = PlanStaticRenderObjectIds(source, removed, additions);
+      foreach (var id in plan)
+      {
+        if (sourceRecords.TryGetValue(id, out var record))
+        {
+          recordList.Add(new RewrittenStaticRecord(
+            vertices.TryGetValue(record.Id, out var replacementVertices)
+              ? RewriteStaticRecord(record, replacementVertices, triangles[record.Id])
+              : record.GetSerializedRepresentation(),
+            record.SourceObjectId));
+          continue;
+        }
+
+        var addition = addedRecords[id];
+        recordList.Add(new RewrittenStaticRecord(
+          CreateStaticRecord(addition.Vertices, addition.Triangles),
+          addition.SourceObjectId));
+      }
+
+      var records = recordList.ToArray();
+      RewriteSharingLinks(source, records, plan, vertices, removed, additions);
+      var trailingHierarchyUnwindCount = RewriteHierarchyFlags(source.RootSourceObject, records);
+      for (var index = 0; index < records.Length; index++)
+      {
+        var markerOffset = records[index].Bytes.Length - sizeof(uint);
+        var marker = ReadUInt32(records[index].Bytes, markerOffset);
+        if (index == records.Length - 1)
+        {
+          WriteUInt32(records[index].Bytes, markerOffset, 0);
+        }
+        else if (marker == 0)
+        {
+          WriteUInt32(records[index].Bytes, markerOffset, 1);
+        }
+      }
       var length = archiveHeader.Length + BaseHeaderSize + sizeof(uint)
-        + records.Sum(record => record.Length) + source.RootTrailingBytes.Count;
+        + records.Sum(record => record.Bytes.Length) + source.RootTrailingBytes.Count;
       var result = new byte[length];
       archiveHeader.CopyTo(result, 0);
       source.CommonBaseHeader.SerializedRepresentation.CopyTo(result, archiveHeader.Length);
       var cursor = archiveHeader.Length + BaseHeaderSize;
-      WriteUInt32(result, cursor, source.StoredTrailingHierarchyUnwindCount);
+      WriteUInt32(result, cursor, trailingHierarchyUnwindCount);
       cursor += sizeof(uint);
       foreach (var record in records)
       {
-        record.CopyTo(result, cursor);
-        cursor += record.Length;
+        record.Bytes.CopyTo(result, cursor);
+        cursor += record.Bytes.Length;
       }
 
       source.RootTrailingBytes.CopyTo(result, cursor);
+      return result;
+    }
+
+    private static void RewriteSharingLinks(
+      StaticMeshAsset source,
+      IReadOnlyList<RewrittenStaticRecord> records,
+      IReadOnlyList<StaticRenderObjectId> plan,
+      IReadOnlyDictionary<StaticRenderObjectId, IReadOnlyList<CanonicalStaticVertex>> replacements,
+      ISet<StaticRenderObjectId> removed,
+      IReadOnlyList<StaticRenderObjectAddition> additions)
+    {
+      var oldStarts = new Dictionary<StaticRenderObjectId, int>();
+      var oldCursor = 0;
+      foreach (var record in source.StaticRenderObjectSequence)
+      {
+        oldStarts.Add(record.Id, oldCursor);
+        oldCursor = checked(oldCursor + record.RenderVertices.Count);
+      }
+
+      var sourceRecords = source.StaticRenderObjectSequence.ToDictionary(record => record.Id);
+      var addedRecords = additions.ToDictionary(addition => addition.Id);
+      var newStarts = new Dictionary<StaticRenderObjectId, int>();
+      var newCursor = 0;
+      foreach (var id in plan)
+      {
+        newStarts.Add(id, newCursor);
+        var count = sourceRecords.TryGetValue(id, out var sourceRecord)
+          ? replacements.TryGetValue(id, out var replacement) ? replacement.Count : sourceRecord.RenderVertices.Count
+          : addedRecords[id].Vertices.Count;
+        newCursor = checked(newCursor + count);
+      }
+
+      var targetMap = new Dictionary<int, int?>();
+      foreach (var sourceRecord in source.StaticRenderObjectSequence)
+      {
+        var invalidated = removed.Contains(sourceRecord.Id) || replacements.ContainsKey(sourceRecord.Id);
+        for (var localIndex = 0; localIndex < sourceRecord.RenderVertices.Count; localIndex++)
+        {
+          targetMap.Add(
+            oldStarts[sourceRecord.Id] + localIndex,
+            invalidated ? null : newStarts[sourceRecord.Id] + localIndex);
+        }
+      }
+
+      for (var recordIndex = 0; recordIndex < plan.Count; recordIndex++)
+      {
+        var id = plan[recordIndex];
+        if (!sourceRecords.TryGetValue(id, out var sourceRecord) || replacements.ContainsKey(id))
+        {
+          continue;
+        }
+
+        for (var localIndex = 0; localIndex < sourceRecord.RenderVertices.Count; localIndex++)
+        {
+          var blockOffset = 8 + localIndex / 4 * 0xA0;
+          var laneOffset = localIndex % 4 * sizeof(ushort);
+          RewriteSharingLink(
+            records[recordIndex].Bytes,
+            blockOffset + 0x90 + laneOffset,
+            sourceRecord.RenderVertices[localIndex].NormalSharingIndex,
+            targetMap);
+          RewriteSharingLink(
+            records[recordIndex].Bytes,
+            blockOffset + 0x98 + laneOffset,
+            sourceRecord.RenderVertices[localIndex].PositionSharingIndex,
+            targetMap);
+        }
+      }
+    }
+
+    private static void RewriteSharingLink(
+      byte[] record,
+      int offset,
+      ushort sourceTarget,
+      IReadOnlyDictionary<int, int?> targetMap)
+    {
+      if (sourceTarget == ushort.MaxValue)
+      {
+        return;
+      }
+
+      var target = targetMap.TryGetValue(sourceTarget, out var mapped) ? mapped : null;
+      WriteUInt16(
+        record,
+        offset,
+        target.HasValue && target.Value < ushort.MaxValue
+          ? (ushort)target.Value
+          : ushort.MaxValue);
+    }
+
+    internal static IReadOnlyList<StaticRenderObjectId> PlanStaticRenderObjectIds(
+      StaticMeshAsset source,
+      IEnumerable<StaticRenderObjectId> removedRenderObjects,
+      IReadOnlyList<StaticRenderObjectAddition> additions)
+    {
+      var removed = new HashSet<StaticRenderObjectId>(removedRenderObjects);
+      var additionsBySource = additions.GroupBy(item => item.SourceObjectId)
+        .ToDictionary(group => group.Key, group => group.ToArray());
+      var lastRetainedBySource = source.StaticRenderObjectSequence
+        .Where(record => !removed.Contains(record.Id))
+        .GroupBy(record => record.SourceObjectId)
+        .ToDictionary(group => group.Key, group => group.Last().Id);
+      var result = new List<StaticRenderObjectId>();
+      foreach (var record in source.StaticRenderObjectSequence)
+      {
+        if (removed.Contains(record.Id))
+        {
+          continue;
+        }
+
+        result.Add(record.Id);
+        if (lastRetainedBySource[record.SourceObjectId].Equals(record.Id)
+          && additionsBySource.TryGetValue(record.SourceObjectId, out var sourceAdditions))
+        {
+          result.AddRange(sourceAdditions.Select(addition => addition.Id));
+        }
+      }
+
+      return result.AsReadOnly();
+    }
+
+    private static uint RewriteHierarchyFlags(
+      StaticSourceObject root,
+      IReadOnlyList<RewrittenStaticRecord> records)
+    {
+      var parents = new Dictionary<SourceObjectId, SourceObjectId?>();
+      var depths = new Dictionary<SourceObjectId, int>();
+      AddSourceHierarchy(root, null, 0, parents, depths);
+      var established = new HashSet<SourceObjectId> { root.Id };
+      var current = root.Id;
+      for (var index = 0; index < records.Count; index++)
+      {
+        var target = records[index].SourceObjectId;
+        var unwind = 0;
+        var beginsNested = false;
+        if (index == 0)
+        {
+          if (!target.Equals(root.Id))
+          {
+            throw new InvalidOperationException("The first retained partition must belong to the root source object.");
+          }
+        }
+        else if (!target.Equals(current))
+        {
+          var ancestor = current;
+          while (!target.Equals(ancestor)
+            && (!parents.TryGetValue(target, out var targetParent)
+              || targetParent is null
+              || !targetParent.Value.Equals(ancestor)))
+          {
+            ancestor = parents[ancestor]
+              ?? throw new InvalidOperationException("The edited source sequence cannot be represented.");
+            unwind++;
+          }
+
+          if (target.Equals(ancestor))
+          {
+            current = target;
+          }
+          else if (established.Add(target))
+          {
+            beginsNested = true;
+            current = target;
+          }
+          else
+          {
+            throw new InvalidOperationException("The edited source sequence revisits a completed source object.");
+          }
+        }
+
+        if (unwind > byte.MaxValue)
+        {
+          throw new InvalidOperationException("The edited hierarchy unwind exceeds its serialized range.");
+        }
+
+        var objectFlagsOffset = GetObjectFlagsOffset(records[index].Bytes);
+        var objectFlags = ReadUInt32(records[index].Bytes, objectFlagsOffset);
+        objectFlags &= ~0x000008FFu;
+        objectFlags |= (uint)unwind;
+        if (beginsNested)
+        {
+          objectFlags |= (uint)StaticRenderObjectFlags.BeginsNestedSourceObject;
+        }
+        WriteUInt32(records[index].Bytes, objectFlagsOffset, objectFlags);
+      }
+
+      return checked((uint)depths[current] + 1);
+    }
+
+    private static void AddSourceHierarchy(
+      StaticSourceObject source,
+      SourceObjectId? parent,
+      int depth,
+      IDictionary<SourceObjectId, SourceObjectId?> parents,
+      IDictionary<SourceObjectId, int> depths)
+    {
+      parents.Add(source.Id, parent);
+      depths.Add(source.Id, depth);
+      foreach (var child in source.Children)
+      {
+        AddSourceHierarchy(child, source.Id, depth + 1, parents, depths);
+      }
+    }
+
+    private static int GetObjectFlagsOffset(byte[] record)
+    {
+      var blockCount = ReadUInt32(record, sizeof(uint));
+      return checked(8 + (int)blockCount * 0xA0);
+    }
+
+    private static byte[] CreateStaticRecord(
+      IReadOnlyList<CanonicalStaticVertex> vertices,
+      IReadOnlyList<CanonicalTriangle> triangles)
+    {
+      var blocks = (vertices.Count + 3) / 4;
+      var result = new byte[checked(53 + blocks * 0xA0 + triangles.Count * 8)];
+      var cursor = 0;
+      WriteStaticRecord(result, ref cursor, vertices, triangles, 0, 1);
       return result;
     }
 
@@ -492,6 +749,19 @@ namespace EarthTool.MSH.Internal
       }
     }
 
+    private sealed class RewrittenStaticRecord
+    {
+      internal byte[] Bytes { get; }
+
+      internal SourceObjectId SourceObjectId { get; }
+
+      internal RewrittenStaticRecord(byte[] bytes, SourceObjectId sourceObjectId)
+      {
+        Bytes = bytes;
+        SourceObjectId = sourceObjectId;
+      }
+    }
+
     private static void WriteRectangle(byte[] data, int offset)
     {
       WriteSingle(data, offset, -0.25f);
@@ -544,6 +814,11 @@ namespace EarthTool.MSH.Internal
     private static void WriteUInt16(byte[] data, int offset, ushort value)
     {
       BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(offset), value);
+    }
+
+    private static uint ReadUInt32(ReadOnlySpan<byte> data, int offset)
+    {
+      return BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(offset, sizeof(uint)));
     }
 
     private static void WriteUInt32(byte[] data, int offset, uint value)

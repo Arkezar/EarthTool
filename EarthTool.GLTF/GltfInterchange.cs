@@ -3,7 +3,8 @@
 using EarthTool.Common.Operations;
 using EarthTool.GLTF.Internal;
 using EarthTool.MSH.Assets;
-using EarthTool.MSH.Services;
+using EarthTool.MSH.Authoring;
+using EarthTool.MSH.Operations;
 using SharpGLTF.Validation;
 using System;
 using System.Collections.Generic;
@@ -509,15 +510,46 @@ namespace EarthTool.GLTF
           ex.Message));
       }
 
-      await using var mshStream = new MemoryStream(sourceMsh, false);
-      var read = await new MshReader().ReadAsync(mshStream, cancellationToken: cancellationToken).ConfigureAwait(false);
-      if (read.Value is not StaticMeshAsset asset)
+      cancellationToken.ThrowIfCancellationRequested();
+      if (manifest.StaticRenderObjectLocalIds.Count == 0
+        || manifest.SourceObjectLocalIds.Count == 0
+        || manifest.StaticRenderObjectLocalIds.Any(id => id < 0)
+        || manifest.SourceObjectLocalIds.Any(id => id < 0)
+        || manifest.StaticRenderObjectLocalIds.Distinct().Count()
+          != manifest.StaticRenderObjectLocalIds.Count
+        || manifest.SourceObjectLocalIds.Distinct().Count() != manifest.SourceObjectLocalIds.Count)
       {
         return Failed<GltfEditImportResult>(Diagnostic(
           GltfDiagnosticCodes.MalformedMetadata,
           2001,
           "scenes[0]",
           "Preserved MSH state did not pass the safe MSH reader."));
+      }
+
+      StaticMeshAsset asset;
+      try
+      {
+        var decoded = EarthTool.MSH.Internal.MshV1Decoder.Decode(
+          sourceMsh,
+          MshOperationProfile.Default,
+          cancellationToken,
+          new MeshAssetLineageId(expectedBaseline.AssetLineageId),
+          MeshAssetOrigin.Loaded,
+          rootSourceObjectLocalId: manifest.SourceObjectLocalIds[0],
+          staticRenderObjectLocalIds: manifest.StaticRenderObjectLocalIds,
+          sourceObjectLocalIds: manifest.SourceObjectLocalIds);
+        asset = decoded.Asset as StaticMeshAsset
+          ?? throw new InvalidDataException("Preserved MSH state is not static.");
+      }
+      catch (Exception ex) when (ex is EarthTool.MSH.Internal.MshContentException
+        || ex is ArgumentException
+        || ex is InvalidDataException)
+      {
+        return Failed<GltfEditImportResult>(Diagnostic(
+          GltfDiagnosticCodes.MalformedMetadata,
+          2001,
+          "scenes[0]",
+          ex.Message));
       }
 
       var meshes = parsed.Meshes
@@ -546,10 +578,10 @@ namespace EarthTool.GLTF
         meshes.Select(mesh => mesh.Metadata).ToArray(),
         asset,
         expectedBaseline);
-      IReadOnlyList<GeometryPartition> partitions;
+      IReadOnlyList<PartitionMatch> partitionMatches;
       try
       {
-        partitions = MatchPartitions(meshes.Select(mesh =>
+        partitionMatches = MatchPartitions(meshes.Select(mesh =>
           (mesh.Parsed, mesh.Metadata)).ToArray(), asset, expectedBaseline);
       }
       catch (StaleNativeProjectionException ex)
@@ -560,37 +592,75 @@ namespace EarthTool.GLTF
           "meshes",
           ex.Message));
       }
-
-      var fingerprint = StaticGeometryFingerprint.Create(expectedBaseline, partitions);
-      if (meshes.Any(mesh =>
-      {
-        var localIds = mesh.Metadata.Partitions.Select(partition => partition.LocalId).ToHashSet();
-        var meshFingerprint = StaticGeometryFingerprint.CreateMesh(
-          expectedBaseline,
-          mesh.Metadata.LocalId,
-          partitions.Where(partition => localIds.Contains(partition.LocalId)).ToArray());
-        return !string.Equals(
-          mesh.Metadata.Fingerprint,
-          meshFingerprint.Sha256,
-          StringComparison.Ordinal);
-      }))
+      catch (AmbiguousPartitionCorrespondenceException ex)
       {
         return Failed<GltfEditImportResult>(Diagnostic(
-          GltfDiagnosticCodes.StaleNativeProjection,
-          2008,
+          GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
+          2012,
           "meshes",
-          "The native geometry no longer matches its preservation fingerprint."));
+          ex.Message));
+      }
+
+      var edit = asset.Edit();
+      var matchedLocalIds = partitionMatches.Where(match => !match.Added)
+        .Select(match => match.Partition.LocalId).ToHashSet();
+      foreach (var removed in asset.StaticRenderObjectSequence.Where(record =>
+        !matchedLocalIds.Contains(record.LocalId)))
+      {
+        edit.RemoveRenderObject(removed.Id);
+      }
+
+      foreach (var match in partitionMatches.Where(match => !match.Retained))
+      {
+        var vertices = match.Partition.Vertices.Select(ToCanonicalVertex).ToArray();
+        var triangles = match.Partition.Triangles.Select(triangle => new CanonicalTriangle(
+          triangle.Vertex0,
+          triangle.Vertex1,
+          triangle.Vertex2)).ToArray();
+        if (match.Added)
+        {
+          var added = edit.AddRenderObject(match.SourceObjectId, vertices, triangles);
+          match.Partition.AssignLocalId(added.Value);
+        }
+        else
+        {
+          var renderObject = asset.StaticRenderObjectSequence.Single(record =>
+            record.LocalId == match.Partition.LocalId);
+          edit.ReplaceGeometry(renderObject.Id, vertices, triangles);
+        }
+      }
+
+      var partitions = partitionMatches.Select(match => match.Partition).ToArray();
+      var fingerprint = StaticGeometryFingerprint.Create(expectedBaseline, partitions);
+      var committed = edit.Commit();
+      if (!committed.TryGetValue(out var reconciled))
+      {
+        var message = string.Join("; ", committed.Diagnostics.Select(diagnostic => diagnostic.Message));
+        return Failed<GltfEditImportResult>(InvalidGeometry("meshes", message));
       }
 
       var nextBaseline = new InterchangeBaseline(expectedBaseline.AssetLineageId, Guid.NewGuid());
+      var changedRecordPaths = committed.Preservation.Changes
+        .Where(change => change.Disposition != PreservationDisposition.Retained)
+        .Select(change => change.FieldPath)
+        .ToArray();
       return new OperationResult<GltfEditImportResult>(
         OperationStatus.Succeeded,
         new GltfEditImportResult(
-          asset,
+          reconciled,
           nextBaseline,
           fingerprint,
+          committed.Preservation,
           new[] { "ArchiveFraming", "BaseHeader" }
-            .Concat(Enumerable.Range(0, asset.StaticRenderObjectSequence.Count)
+            .Concat(partitionMatches
+              .Where(match => match.Retained)
+              .Select(match => asset.StaticRenderObjectSequence
+                .Select((record, index) => (record, index))
+                .Single(item => item.record.LocalId == match.Partition.LocalId).index)
+              .Where(index => !changedRecordPaths.Any(path =>
+                path == $"StaticRenderObjectSequence[{index}]"
+                || path.StartsWith($"StaticRenderObjectSequence[{index}].", StringComparison.Ordinal)))
+              .OrderBy(index => index)
               .Select(index => $"StaticRenderObjectSequence[{index}]"))));
     }
 
@@ -636,6 +706,15 @@ namespace EarthTool.GLTF
           return InvalidGeometry(
             $"StaticRenderObjectSequence[{renderObject.LocalId}].Triangles",
             "Triangle index is outside the active render-vertex range.");
+        }
+
+        if (renderObject.RenderVertices.Any(vertex =>
+          !IsFinite(vertex.TextureCoordinate.X)
+          || !IsFinite(vertex.TextureCoordinate.Y)))
+        {
+          return InvalidGeometry(
+            $"StaticRenderObjectSequence[{renderObject.LocalId}].RenderVertices",
+            "Static geometry texture coordinates must be finite.");
         }
       }
 
@@ -700,7 +779,7 @@ namespace EarthTool.GLTF
 
     }
 
-    private static IReadOnlyList<GeometryPartition> MatchPartitions(
+    private static IReadOnlyList<PartitionMatch> MatchPartitions(
       IReadOnlyList<(ParsedGltfMesh Parsed, MetadataEnvelope Metadata)> meshes,
       StaticMeshAsset asset,
       InterchangeBaseline expected)
@@ -713,7 +792,7 @@ namespace EarthTool.GLTF
         throw new MalformedMetadataException("The mesh scope set does not match the source hierarchy.");
       }
 
-      var result = new List<GeometryPartition>();
+      var result = new List<PartitionMatch>();
       foreach (var mesh in meshes)
       {
         var metadata = mesh.Metadata;
@@ -725,7 +804,6 @@ namespace EarthTool.GLTF
           || metadata.DocumentId != expected.DocumentId
           || !sources.TryGetValue(metadata.LocalId, out var source)
           || metadata.Partitions.Count != source.StaticRenderObjectIds.Count
-          || mesh.Parsed.Primitives.Count != metadata.Partitions.Count
           || metadata.Partitions.Select(partition => partition.LocalId).Distinct().Count()
             != metadata.Partitions.Count
           || !metadata.Partitions.Select(partition => partition.LocalId)
@@ -735,57 +813,187 @@ namespace EarthTool.GLTF
           throw new MalformedMetadataException("The mesh metadata envelope is malformed.");
         }
 
+        var sourceRecords = source.StaticRenderObjectIds
+          .Select(id => asset.StaticRenderObjectSequence.Single(record => record.Id.Equals(id)))
+          .ToArray();
+        var sourceGeometry = sourceRecords.Select(record => new GeometryPartition(
+          record.LocalId,
+          record.RenderVertices.Select(GlbDocument.ProjectToGltf).ToArray(),
+          record.Triangles)).ToArray();
+        var currentGeometry = mesh.Parsed.Primitives.Select(primitive => new GeometryPartition(
+          0,
+          primitive.Vertices,
+          primitive.Triangles)).ToArray();
+        if (string.Equals(
+          StaticGeometryFingerprint.CreateSurfaceKey(sourceGeometry),
+          StaticGeometryFingerprint.CreateSurfaceKey(currentGeometry),
+          StringComparison.Ordinal))
+        {
+          result.AddRange(sourceGeometry.Select(partition => new PartitionMatch(
+            partition,
+            source.Id,
+            true,
+            false)));
+          continue;
+        }
+
+        var sourceSurfaceCounts = sourceRecords.GroupBy(record =>
+          StaticGeometryFingerprint.CreateSurfaceKey(
+            record.RenderVertices.Select(GlbDocument.ProjectToGltf).ToArray(),
+            record.Triangles)).ToDictionary(group => group.Key, group => group.Count());
+        var currentSurfaceCounts = mesh.Parsed.Primitives.GroupBy(primitive =>
+          StaticGeometryFingerprint.CreateSurfaceKey(primitive.Vertices, primitive.Triangles))
+          .ToDictionary(group => group.Key, group => group.Count());
+        if (sourceSurfaceCounts.Any(item => item.Value > 1
+          && (!currentSurfaceCounts.TryGetValue(item.Key, out var currentCount)
+            || currentCount < item.Value)))
+        {
+          throw new AmbiguousPartitionCorrespondenceException(
+            "Duplicate native geometry identifies more than one possible preserved partition deletion.");
+        }
+
         var unmatched = new List<MetadataPartition>(metadata.Partitions);
+        var pending = new List<(ParsedGltfPrimitive Primitive, int Index)>();
         for (var primitiveIndex = 0; primitiveIndex < mesh.Parsed.Primitives.Count; primitiveIndex++)
         {
           var primitive = mesh.Parsed.Primitives[primitiveIndex];
-          var positional = metadata.Partitions[primitiveIndex];
-          var positionalFingerprint = StaticGeometryFingerprint.CreatePartition(
-            expected,
-            positional.LocalId,
-            primitive.Vertices,
-            primitive.Triangles);
-          if (unmatched.Contains(positional)
-            && string.Equals(positional.Fingerprint, positionalFingerprint, StringComparison.Ordinal))
+          if (primitiveIndex < metadata.Partitions.Count)
           {
-            unmatched.Remove(positional);
-            result.Add(new GeometryPartition(
+            var positional = metadata.Partitions[primitiveIndex];
+            var positionalFingerprint = StaticGeometryFingerprint.CreatePartition(
+              expected,
               positional.LocalId,
               primitive.Vertices,
-              primitive.Triangles));
-            continue;
+              primitive.Triangles);
+            if (unmatched.Contains(positional)
+              && string.Equals(positional.Fingerprint, positionalFingerprint, StringComparison.Ordinal))
+            {
+              unmatched.Remove(positional);
+              result.Add(new PartitionMatch(
+                new GeometryPartition(
+                  positional.LocalId,
+                  primitive.Vertices,
+                  primitive.Triangles),
+                source.Id,
+                true,
+                false));
+              continue;
+            }
           }
 
-          var matches = unmatched.Where(partition => string.Equals(
-            partition.Fingerprint,
-            StaticGeometryFingerprint.CreatePartition(
-              expected,
-              partition.LocalId,
-              primitive.Vertices,
-              primitive.Triangles),
-            StringComparison.Ordinal)).ToArray();
-          if (matches.Length != 1)
+          pending.Add((primitive, primitiveIndex));
+        }
+
+        while (pending.Count > 0)
+        {
+          var resolved = false;
+          for (var pendingIndex = pending.Count - 1; pendingIndex >= 0; pendingIndex--)
           {
-            var actual = string.Join(",", unmatched.Select(partition =>
+            var primitive = pending[pendingIndex].Primitive;
+            var matches = unmatched.Where(partition => string.Equals(
+              partition.Fingerprint,
               StaticGeometryFingerprint.CreatePartition(
                 expected,
                 partition.LocalId,
                 primitive.Vertices,
-                primitive.Triangles)));
-            throw new StaleNativeProjectionException(
-              $"The native geometry did not match one partition fingerprint. Expected: {string.Join(",", unmatched.Select(partition => partition.Fingerprint))}. Actual: {actual}.");
+                primitive.Triangles),
+              StringComparison.Ordinal)).ToArray();
+            if (matches.Length != 1)
+            {
+              continue;
+            }
+
+            var match = matches[0];
+            unmatched.Remove(match);
+            pending.RemoveAt(pendingIndex);
+            result.Add(new PartitionMatch(
+              new GeometryPartition(
+                match.LocalId,
+                primitive.Vertices,
+                primitive.Triangles),
+              source.Id,
+              true,
+              false));
+            resolved = true;
           }
 
-          var match = matches[0];
-          unmatched.Remove(match);
-          result.Add(new GeometryPartition(
-            match.LocalId,
-            primitive.Vertices,
-            primitive.Triangles));
+          if (resolved)
+          {
+            continue;
+          }
+
+          if (unmatched.Count == 0)
+          {
+            result.AddRange(pending.Select(item => new PartitionMatch(
+              new GeometryPartition(-1, item.Primitive.Vertices, item.Primitive.Triangles),
+              source.Id,
+              false,
+              true)));
+            pending.Clear();
+            continue;
+          }
+
+          if (pending.Count == 1 && unmatched.Count == 1)
+          {
+            var stale = unmatched[0];
+            var primitive = pending[0].Primitive;
+            unmatched.Clear();
+            pending.Clear();
+            result.Add(new PartitionMatch(
+              new GeometryPartition(
+                stale.LocalId,
+                primitive.Vertices,
+                primitive.Triangles),
+              source.Id,
+              false,
+              false));
+            continue;
+          }
+
+          var actual = string.Join(",", pending.Select(item =>
+            string.Join(",", unmatched.Select(partition =>
+              StaticGeometryFingerprint.CreatePartition(
+                expected,
+                partition.LocalId,
+                item.Primitive.Vertices,
+                item.Primitive.Triangles)))));
+          throw new AmbiguousPartitionCorrespondenceException(
+            $"The native geometry did not identify one partition correspondence. Expected: {string.Join(",", unmatched.Select(partition => partition.Fingerprint))}. Actual: {actual}.");
         }
       }
 
       return result.AsReadOnly();
+    }
+
+    private static CanonicalStaticVertex ToCanonicalVertex(RenderVertex vertex)
+    {
+      return new CanonicalStaticVertex(
+        new System.Numerics.Vector3(vertex.Position.X, -vertex.Position.Z, vertex.Position.Y),
+        new System.Numerics.Vector3(vertex.Normal.X, -vertex.Normal.Z, vertex.Normal.Y),
+        vertex.TextureCoordinate);
+    }
+
+    private sealed class PartitionMatch
+    {
+      internal GeometryPartition Partition { get; }
+
+      internal bool Retained { get; }
+
+      internal SourceObjectId SourceObjectId { get; }
+
+      internal bool Added { get; }
+
+      internal PartitionMatch(
+        GeometryPartition partition,
+        SourceObjectId sourceObjectId,
+        bool retained,
+        bool added)
+      {
+        Partition = partition;
+        SourceObjectId = sourceObjectId;
+        Retained = retained;
+        Added = added;
+      }
     }
 
     private static void ValidateHierarchy(
@@ -1004,6 +1212,14 @@ namespace EarthTool.GLTF
   internal sealed class StaleNativeProjectionException : Exception
   {
     internal StaleNativeProjectionException(string message)
+      : base(message)
+    {
+    }
+  }
+
+  internal sealed class AmbiguousPartitionCorrespondenceException : Exception
+  {
+    internal AmbiguousPartitionCorrespondenceException(string message)
       : base(message)
     {
     }

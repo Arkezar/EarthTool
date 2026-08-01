@@ -381,6 +381,7 @@ public sealed class EarthTool.MSH.Authoring.StaticMeshBuilder
   method EarthTool.MSH.Authoring.StaticMeshBuilder SetRenderObject(System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticVertex> vertices, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalTriangle> triangles)
   method EarthTool.MSH.Authoring.StaticMeshBuilder SetRootSourceObject(EarthTool.MSH.Authoring.CanonicalStaticSourceObject rootSourceObject)
 public sealed class EarthTool.MSH.Authoring.StaticMeshEditSession
+  method EarthTool.MSH.Assets.StaticRenderObjectId AddRenderObject(EarthTool.MSH.Assets.SourceObjectId sourceObject, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticVertex> vertices, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalTriangle> triangles)
   method EarthTool.MSH.Assets.StaticRenderObjectId AddRenderObject(System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticVertex> vertices, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalTriangle> triangles)
   method EarthTool.MSH.Authoring.MshEditResult<EarthTool.MSH.Assets.StaticMeshAsset> Commit(EarthTool.MSH.Operations.MshOperationProfile? profile = null)
   method EarthTool.MSH.Authoring.StaticMeshEditSession RemoveRenderObject(EarthTool.MSH.Assets.StaticRenderObjectId renderObject)

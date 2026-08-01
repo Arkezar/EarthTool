@@ -146,6 +146,10 @@ namespace EarthTool.GLTF.Internal
 
     internal IReadOnlyList<MetadataPartition> Partitions { get; }
 
+    internal IReadOnlyList<int> StaticRenderObjectLocalIds { get; }
+
+    internal IReadOnlyList<int> SourceObjectLocalIds { get; }
+
     internal MetadataEnvelope(
       Guid assetLineageId,
       Guid documentId,
@@ -155,7 +159,9 @@ namespace EarthTool.GLTF.Internal
       string? fingerprint,
       string? fingerprintName,
       int? fingerprintVersion,
-      IReadOnlyList<MetadataPartition> partitions)
+      IReadOnlyList<MetadataPartition> partitions,
+      IReadOnlyList<int> staticRenderObjectLocalIds,
+      IReadOnlyList<int> sourceObjectLocalIds)
     {
       AssetLineageId = assetLineageId;
       DocumentId = documentId;
@@ -166,6 +172,8 @@ namespace EarthTool.GLTF.Internal
       FingerprintName = fingerprintName;
       FingerprintVersion = fingerprintVersion;
       Partitions = partitions;
+      StaticRenderObjectLocalIds = staticRenderObjectLocalIds;
+      SourceObjectLocalIds = sourceObjectLocalIds;
     }
   }
 
@@ -194,7 +202,7 @@ namespace EarthTool.GLTF.Internal
 
     internal static int GetManifestMetadataByteCount(StaticMeshAsset asset, InterchangeBaseline baseline)
     {
-      var empty = CreateMetadata(baseline, "manifest", 0, string.Empty, null);
+      var empty = CreateMetadata(baseline, "manifest", 0, string.Empty, null, asset);
       var base64Length = checked(((asset.SerializedLength + 2) / 3) * 4);
       return checked(Encoding.UTF8.GetByteCount(empty) + base64Length);
     }
@@ -207,9 +215,13 @@ namespace EarthTool.GLTF.Internal
       long binaryLength = 0;
       foreach (var renderObject in asset.StaticRenderObjectSequence)
       {
+        var indexSize = renderObject.Triangles.Any(triangle =>
+          triangle.Vertex0 == ushort.MaxValue
+          || triangle.Vertex1 == ushort.MaxValue
+          || triangle.Vertex2 == ushort.MaxValue) ? 4L : 2L;
         binaryLength = checked(binaryLength
           + (renderObject.RenderVertices.Count * 32L)
-          + (renderObject.Triangles.Count * 6L));
+          + (renderObject.Triangles.Count * 3L * indexSize));
         binaryLength = (binaryLength + 3) & ~3L;
       }
 
@@ -239,7 +251,8 @@ namespace EarthTool.GLTF.Internal
         "manifest",
         0,
         Convert.ToBase64String(asset.GetSerializedRepresentation()),
-        null);
+        null,
+        asset);
       var json = CreateJson(
         asset.RootSourceObject,
         layouts,
@@ -433,6 +446,9 @@ namespace EarthTool.GLTF.Internal
           }
         }
 
+        var staticRenderObjectLocalIds = ReadIntegerArray(root, "staticRenderObjectLocalIds");
+        var sourceObjectLocalIds = ReadIntegerArray(root, "sourceObjectLocalIds");
+
         return new MetadataEnvelope(
           root.GetProperty("assetLineage").GetGuid(),
           root.GetProperty("document").GetGuid(),
@@ -442,7 +458,9 @@ namespace EarthTool.GLTF.Internal
           hasProjection ? projection.GetProperty("sha256").GetString() : null,
           hasProjection ? projection.GetProperty("name").GetString() : null,
           hasProjection ? projection.GetProperty("version").GetInt32() : null,
-          partitions.AsReadOnly());
+          partitions.AsReadOnly(),
+          staticRenderObjectLocalIds,
+          sourceObjectLocalIds);
       }
       catch (UnsupportedMetadataVersionException)
       {
@@ -456,6 +474,21 @@ namespace EarthTool.GLTF.Internal
       {
         throw new MalformedMetadataException("Malformed EarthTool metadata.", ex);
       }
+    }
+
+    private static IReadOnlyList<int> ReadIntegerArray(JsonElement root, string propertyName)
+    {
+      if (!root.TryGetProperty(propertyName, out var array))
+      {
+        return Array.Empty<int>();
+      }
+
+      if (array.ValueKind != JsonValueKind.Array)
+      {
+        throw new MalformedMetadataException($"{propertyName} must be an array.");
+      }
+
+      return Array.AsReadOnly(array.EnumerateArray().Select(item => item.GetInt32()).ToArray());
     }
 
     private static byte[] CreateBinary(
@@ -491,14 +524,28 @@ namespace EarthTool.GLTF.Internal
         }
 
         var indexOffset = checked((int)stream.Position);
+        var indexComponentType = partition.RenderObject.Triangles.Any(triangle =>
+          triangle.Vertex0 == ushort.MaxValue
+          || triangle.Vertex1 == ushort.MaxValue
+          || triangle.Vertex2 == ushort.MaxValue) ? 5125 : 5123;
         foreach (var triangle in partition.RenderObject.Triangles)
         {
-          writer.Write(triangle.Vertex0);
-          writer.Write(triangle.Vertex1);
-          writer.Write(triangle.Vertex2);
+          if (indexComponentType == 5125)
+          {
+            writer.Write((uint)triangle.Vertex0);
+            writer.Write((uint)triangle.Vertex1);
+            writer.Write((uint)triangle.Vertex2);
+          }
+          else
+          {
+            writer.Write(triangle.Vertex0);
+            writer.Write(triangle.Vertex1);
+            writer.Write(triangle.Vertex2);
+          }
         }
 
-        var indexLength = checked(partition.RenderObject.Triangles.Count * 3 * sizeof(ushort));
+        var indexLength = checked(partition.RenderObject.Triangles.Count * 3
+          * (indexComponentType == 5125 ? sizeof(uint) : sizeof(ushort)));
         createdLayouts.Add(
           partition.RenderObject.Id,
           new PartitionLayout(
@@ -507,7 +554,8 @@ namespace EarthTool.GLTF.Internal
             normalOffset,
             textureOffset,
             indexOffset,
-            indexLength));
+            indexLength,
+            indexComponentType));
         while (stream.Length % 4 != 0)
         {
           writer.Write((byte)0);
@@ -646,7 +694,7 @@ namespace EarthTool.GLTF.Internal
           WriteAccessor(
             writer,
             firstBufferView + 3,
-            5123,
+            layout.IndexComponentType,
             layout.Partition.RenderObject.Triangles.Count * 3,
             "SCALAR");
         }
@@ -746,7 +794,8 @@ namespace EarthTool.GLTF.Internal
       string scopeKind,
       int localId,
       string? sourceMsh,
-      string? fingerprint)
+      string? fingerprint,
+      StaticMeshAsset? sourceAsset = null)
     {
       using var stream = new MemoryStream();
       using (var writer = new Utf8JsonWriter(stream))
@@ -763,6 +812,22 @@ namespace EarthTool.GLTF.Internal
         if (sourceMsh is not null)
         {
           writer.WriteString("sourceMsh", sourceMsh);
+        }
+
+        if (sourceAsset is not null)
+        {
+          writer.WriteStartArray("staticRenderObjectLocalIds");
+          foreach (var record in sourceAsset.StaticRenderObjectSequence)
+          {
+            writer.WriteNumberValue(record.LocalId);
+          }
+          writer.WriteEndArray();
+          writer.WriteStartArray("sourceObjectLocalIds");
+          foreach (var source in StaticSourceObjectTraversal.Flatten(sourceAsset.RootSourceObject))
+          {
+            writer.WriteNumberValue(source.Id.Value);
+          }
+          writer.WriteEndArray();
         }
 
         if (fingerprint is not null)
@@ -919,7 +984,7 @@ namespace EarthTool.GLTF.Internal
       }
     }
 
-    private static RenderVertex ProjectToGltf(RenderVertex vertex)
+    internal static RenderVertex ProjectToGltf(RenderVertex vertex)
     {
       return new RenderVertex(
         new Vector3(vertex.Position.X, vertex.Position.Z, -vertex.Position.Y),
@@ -956,13 +1021,16 @@ namespace EarthTool.GLTF.Internal
 
       internal int IndexLength { get; }
 
+      internal int IndexComponentType { get; }
+
       internal PartitionLayout(
         ProjectedPartition partition,
         int positionOffset,
         int normalOffset,
         int textureOffset,
         int indexOffset,
-        int indexLength)
+        int indexLength,
+        int indexComponentType)
       {
         Partition = partition;
         PositionOffset = positionOffset;
@@ -970,6 +1038,7 @@ namespace EarthTool.GLTF.Internal
         TextureOffset = textureOffset;
         IndexOffset = indexOffset;
         IndexLength = indexLength;
+        IndexComponentType = indexComponentType;
       }
     }
 
@@ -1035,49 +1104,62 @@ namespace EarthTool.GLTF.Internal
         throw new UnsupportedGltfDomainException("PrimitiveTopology");
       }
 
-      var accessor = root.GetProperty("accessors")[primitive.GetProperty("indices").GetInt32()];
-      var componentType = accessor.GetProperty("componentType").GetInt32();
-      var indexCount = accessor.GetProperty("count").GetInt32();
-      if (componentType is not (5121 or 5123 or 5125)
-        || indexCount == 0
-        || indexCount % 3 != 0
-        || accessor.GetProperty("type").GetString() != "SCALAR"
-        || accessor.TryGetProperty("sparse", out _))
+      ushort[] indices;
+      if (!primitive.TryGetProperty("indices", out var indexAccessorIndex))
       {
-        throw new UnsupportedGltfDomainException("Indices");
-      }
-
-      var view = root.GetProperty("bufferViews")[accessor.GetProperty("bufferView").GetInt32()];
-      EnsureBufferView(view);
-      var componentSize = componentType == 5121 ? 1 : componentType == 5123 ? 2 : 4;
-      var stride = view.TryGetProperty("byteStride", out var strideValue)
-        ? strideValue.GetInt32()
-        : componentSize;
-      if (stride < componentSize)
-      {
-        throw new InvalidDataException("Index accessor stride is too small.");
-      }
-
-      var offset = checked(GetOffset(view) + GetOffset(accessor));
-      EnsureRange(binary.Length, offset, indexCount, stride, componentSize);
-      var indices = new ushort[indexCount];
-      for (var index = 0; index < indices.Length; index++)
-      {
-        var componentOffset = checked(offset + index * stride);
-        var value = componentType == 5121
-          ? binary[componentOffset]
-          : componentType == 5123
-            ? ReadUInt16(binary, componentOffset)
-            : ReadUInt32(binary, componentOffset);
-        if (value >= vertexCount || value > ushort.MaxValue)
+        if (vertexCount % 3 != 0)
         {
-          throw new InvalidDataException("Triangle index is outside the vertex range.");
+          throw new UnsupportedGltfDomainException("Indices");
         }
 
-        indices[index] = (ushort)value;
+        indices = Enumerable.Range(0, vertexCount).Select(index => (ushort)index).ToArray();
+      }
+      else
+      {
+        var accessor = root.GetProperty("accessors")[indexAccessorIndex.GetInt32()];
+        var componentType = accessor.GetProperty("componentType").GetInt32();
+        var indexCount = accessor.GetProperty("count").GetInt32();
+        if (componentType is not (5121 or 5123 or 5125)
+          || indexCount == 0
+          || indexCount % 3 != 0
+          || accessor.GetProperty("type").GetString() != "SCALAR"
+          || accessor.TryGetProperty("sparse", out _))
+        {
+          throw new UnsupportedGltfDomainException("Indices");
+        }
+
+        var view = root.GetProperty("bufferViews")[accessor.GetProperty("bufferView").GetInt32()];
+        EnsureBufferView(view);
+        var componentSize = componentType == 5121 ? 1 : componentType == 5123 ? 2 : 4;
+        var stride = view.TryGetProperty("byteStride", out var strideValue)
+          ? strideValue.GetInt32()
+          : componentSize;
+        if (stride < componentSize)
+        {
+          throw new InvalidDataException("Index accessor stride is too small.");
+        }
+
+        var offset = checked(GetOffset(view) + GetOffset(accessor));
+        EnsureRange(binary.Length, offset, indexCount, stride, componentSize);
+        indices = new ushort[indexCount];
+        for (var index = 0; index < indices.Length; index++)
+        {
+          var componentOffset = checked(offset + index * stride);
+          var value = componentType == 5121
+            ? binary[componentOffset]
+            : componentType == 5123
+              ? ReadUInt16(binary, componentOffset)
+              : ReadUInt32(binary, componentOffset);
+          if (value >= vertexCount || value > ushort.MaxValue)
+          {
+            throw new InvalidDataException("Triangle index is outside the vertex range.");
+          }
+
+          indices[index] = (ushort)value;
+        }
       }
 
-      var triangles = new StaticTriangle[indexCount / 3];
+      var triangles = new StaticTriangle[indices.Length / 3];
       for (var triangle = 0; triangle < triangles.Length; triangle++)
       {
         triangles[triangle] = new StaticTriangle(
@@ -1186,7 +1268,7 @@ namespace EarthTool.GLTF.Internal
 
   internal sealed class GeometryPartition
   {
-    internal int LocalId { get; }
+    internal int LocalId { get; private set; }
 
     internal IReadOnlyList<RenderVertex> Vertices { get; }
 
@@ -1200,6 +1282,16 @@ namespace EarthTool.GLTF.Internal
       LocalId = localId;
       Vertices = vertices;
       Triangles = triangles;
+    }
+
+    internal void AssignLocalId(int localId)
+    {
+      if (LocalId >= 0)
+      {
+        throw new InvalidOperationException("The geometry partition already has an identity.");
+      }
+
+      LocalId = localId;
     }
   }
 
@@ -1292,6 +1384,33 @@ namespace EarthTool.GLTF.Internal
         writer.Write(localId);
         var triangleTokens = triangles
           .Select(triangle => CreateTriangleToken(vertices, triangle))
+          .OrderBy(token => token, ByteArrayComparer.Instance)
+          .ToArray();
+        writer.Write(triangleTokens.Length);
+        foreach (var token in triangleTokens)
+        {
+          writer.Write(token);
+        }
+      }
+
+      return Hash(preimage.ToArray());
+    }
+
+    internal static string CreateSurfaceKey(
+      IReadOnlyList<RenderVertex> vertices,
+      IReadOnlyList<StaticTriangle> triangles)
+    {
+      return CreateSurfaceKey(new[] { new GeometryPartition(0, vertices, triangles) });
+    }
+
+    internal static string CreateSurfaceKey(IReadOnlyList<GeometryPartition> partitions)
+    {
+      using var preimage = new MemoryStream();
+      using (var writer = new BinaryWriter(preimage, Encoding.UTF8, true))
+      {
+        var triangleTokens = partitions
+          .SelectMany(partition => partition.Triangles.Select(triangle =>
+            CreateTriangleToken(partition.Vertices, triangle)))
           .OrderBy(token => token, ByteArrayComparer.Instance)
           .ToArray();
         writer.Write(triangleTokens.Length);

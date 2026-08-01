@@ -32,7 +32,11 @@ immutable snapshot, operation diagnostics, and a `PreservationReport` whose
 field paths are classified as retained, regenerated, invalidated, or
 canonicalized. Retained objects keep lineage-scoped identities; removing and
 adding a render object allocates a new identity. Source collections are copied
-at builder and edit boundaries.
+at builder and edit boundaries. The source-object overload of `AddRenderObject`
+adds a canonical material partition after that source object's final retained
+partition. Partition insertion and deletion preserve unaffected record bytes,
+regenerate only dependent sequence markers, and fail closed if they would shift
+later absolute shared-vertex indices.
 
 ```csharp
 var build = StaticMeshBuilder.Create(creationGuid, lineageId)

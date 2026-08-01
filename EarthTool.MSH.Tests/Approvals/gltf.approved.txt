@@ -1,4 +1,5 @@
 public static class EarthTool.GLTF.GltfDiagnosticCodes
+  field System.String AmbiguousPartitionCorrespondence = "ETG2012"
   field System.String AssetLineageMismatch = "ETG2003"
   field System.String Cancelled = "ETG1005"
   field System.String DocumentMismatch = "ETG2004"
@@ -18,6 +19,7 @@ public sealed class EarthTool.GLTF.GltfEditImportResult
   property EarthTool.GLTF.NativeProjectionFingerprint AppliedFingerprint { get; }
   property EarthTool.MSH.Assets.StaticMeshAsset Asset { get; }
   property EarthTool.GLTF.InterchangeBaseline NextBaseline { get; }
+  property EarthTool.MSH.Authoring.PreservationReport Preservation { get; }
   property System.Collections.Generic.IReadOnlyList<System.String> RestoredSerializedRepresentationPaths { get; }
 public sealed class EarthTool.GLTF.GltfExportOptions
   constructor GltfExportOptions(System.Guid? assetLineageId = null, System.Guid? documentId = null)

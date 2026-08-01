@@ -2,6 +2,7 @@
 using EarthTool.Common.Operations;
 using EarthTool.MSH.Assets;
 using EarthTool.MSH.Authoring;
+using EarthTool.MSH.Internal;
 using EarthTool.MSH.Operations;
 using EarthTool.MSH.Services;
 using System.Buffers.Binary;
@@ -212,7 +213,7 @@ public class StaticMeshAssetTests
   }
 
   [Fact]
-  public void GeometryEditRejectsVertexCountShiftBeforeLaterAbsoluteSharingLinks()
+  public void GeometryEditCanonicalizesLaterLinkIntoRegeneratedTopology()
   {
     var fixture = StaticMeshSequenceFixture.CreateInterleaved();
     var build = EarthTool.MSH.Expert.MshExpert.CreateStatic(
@@ -226,8 +227,95 @@ public class StaticMeshAssetTests
       .ReplaceGeometry(source.StaticRenderObjectSequence[0].Id, vertices, Triangles())
       .Commit();
 
-    edit.TryGetValue(out _).Should().BeFalse();
-    edit.Diagnostics.Should().ContainSingle().Subject.Code.Should().Be(MshDiagnosticCodes.InvalidEdit);
+    edit.TryGetValue(out var edited).Should().BeTrue();
+    edited!.StaticRenderObjectSequence[1].RenderVertices[0].NormalSharingIndex.Should()
+      .Be(ushort.MaxValue);
+    edit.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "StaticRenderObjectSequence[1].RenderVertices[0].NormalSharingIndex"
+      && change.Disposition == PreservationDisposition.Canonicalized);
+  }
+
+  [Fact]
+  public void PartitionDeletionRebasesLaterLinkToRetainedTopology()
+  {
+    var lineage = new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"));
+    var build = StaticMeshBuilder.Create(
+        new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+        lineage)
+      .SetRootSourceObject(new CanonicalStaticSourceObject(
+        [RenderObject(), RenderObject(), RenderObject()]))
+      .Build();
+    build.TryGetValue(out var canonical).Should().BeTrue();
+    var bytes = canonical!.GetSerializedRepresentation();
+    const int firstRecordOffset = 0x14 + 0x368 + sizeof(uint);
+    const int canonicalRecordLength = 0xDD;
+    BinaryPrimitives.WriteUInt16LittleEndian(
+      bytes.AsSpan(firstRecordOffset + (2 * canonicalRecordLength) + 8 + 0x90),
+      3);
+    var expert = EarthTool.MSH.Expert.MshExpert.CreateStatic(bytes, lineage);
+    expert.TryGetValue(out var source).Should().BeTrue();
+
+    var edit = source!.Edit()
+      .RemoveRenderObject(source.StaticRenderObjectSequence[0].Id)
+      .Commit();
+
+    edit.TryGetValue(out var edited).Should().BeTrue();
+    edited!.StaticRenderObjectSequence[1].RenderVertices[0].NormalSharingIndex.Should().Be(0);
+    edit.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "StaticRenderObjectSequence[1].RenderVertices[0].NormalSharingIndex"
+      && change.Disposition == PreservationDisposition.Regenerated);
+  }
+
+  [Fact]
+  public void PartitionDeletionTransfersNestedSourceHierarchyMarker()
+  {
+    var build = StaticMeshBuilder.Create(
+        new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+        new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555")))
+      .SetRootSourceObject(new CanonicalStaticSourceObject(
+        [RenderObject()],
+        [new CanonicalStaticSourceObject([RenderObject(), RenderObject()])]))
+      .Build();
+    build.TryGetValue(out var source).Should().BeTrue();
+    var retainedChildId = source!.StaticRenderObjectSequence[2].Id;
+
+    var edit = source.Edit()
+      .RemoveRenderObject(source.StaticRenderObjectSequence[1].Id)
+      .Commit();
+
+    edit.TryGetValue(out var edited).Should().BeTrue();
+    edited!.StaticRenderObjectSequence.Should().HaveCount(2);
+    edited.StaticRenderObjectSequence[1].Id.Should().Be(retainedChildId);
+    edited.StaticRenderObjectSequence[1].KnownFlags.Should()
+      .HaveFlag(StaticRenderObjectFlags.BeginsNestedSourceObject);
+    edited.RootSourceObject.Children.Should().ContainSingle().Subject.StaticRenderObjectIds.Should()
+      .Equal(retainedChildId);
+    edit.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "StaticRenderObjectSequence[1].ObjectFlags"
+      && change.Disposition == PreservationDisposition.Regenerated);
+  }
+
+  [Fact]
+  public void PartitionAdditionFailsWhenLineageLocalIdentityRangeIsExhausted()
+  {
+    var decoded = MshV1Decoder.Decode(
+      StaticMeshSequenceFixture.CreateSingle().Data,
+      MshOperationProfile.Default,
+      CancellationToken.None,
+      new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555")),
+      staticRenderObjectLocalIds: [int.MaxValue],
+      sourceObjectLocalIds: [1]);
+    var source = (StaticMeshAsset)decoded.Asset;
+    var session = source.Edit();
+
+    Action add = () => session.AddRenderObject(
+      source.RootSourceObjectId,
+      Vertices(),
+      Triangles());
+
+    add.Should().Throw<InvalidOperationException>();
+    source.StaticRenderObjectSequence.Should().ContainSingle()
+      .Subject.LocalId.Should().Be(int.MaxValue);
   }
 
   [Fact]

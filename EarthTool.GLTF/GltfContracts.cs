@@ -1,6 +1,7 @@
 ﻿#nullable enable
 
 using EarthTool.MSH.Assets;
+using EarthTool.MSH.Authoring;
 using System;
 using System.Collections.Generic;
 
@@ -39,6 +40,8 @@ namespace EarthTool.GLTF
     public const string StaleNativeProjection = "ETG2008";
     /// <summary>EarthTool metadata appears on an unsupported carrier.</summary>
     public const string MisplacedMetadata = "ETG2009";
+    /// <summary>Native geometry cannot be associated with one unique preserved partition set.</summary>
+    public const string AmbiguousPartitionCorrespondence = "ETG2012";
   }
 
   /// <summary>Defines finite resource limits for one glTF operation.</summary>
@@ -169,7 +172,7 @@ namespace EarthTool.GLTF
     }
   }
 
-  /// <summary>Reports a successful unchanged edit import.</summary>
+  /// <summary>Reports a successful reconciled edit import.</summary>
   public sealed class GltfEditImportResult
   {
     /// <summary>Gets the restored immutable static mesh asset.</summary>
@@ -184,15 +187,20 @@ namespace EarthTool.GLTF
     /// <summary>Gets the serialized representation paths restored from applicable metadata.</summary>
     public IReadOnlyList<string> RestoredSerializedRepresentationPaths { get; }
 
+    /// <summary>Gets exact retained, regenerated, invalidated, and canonicalized MSH paths.</summary>
+    public PreservationReport Preservation { get; }
+
     internal GltfEditImportResult(
       StaticMeshAsset asset,
       InterchangeBaseline nextBaseline,
       NativeProjectionFingerprint appliedFingerprint,
+      PreservationReport preservation,
       IEnumerable<string> restoredSerializedRepresentationPaths)
     {
       Asset = asset;
       NextBaseline = nextBaseline;
       AppliedFingerprint = appliedFingerprint;
+      Preservation = preservation;
       RestoredSerializedRepresentationPaths = Array.AsReadOnly(
         new List<string>(restoredSerializedRepresentationPaths).ToArray());
     }
