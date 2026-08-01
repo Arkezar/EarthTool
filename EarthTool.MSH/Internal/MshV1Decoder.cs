@@ -56,7 +56,9 @@ namespace EarthTool.MSH.Internal
       int staticRenderObjectLocalId = 1,
       int rootSourceObjectLocalId = 1,
       IReadOnlyList<int>? staticRenderObjectLocalIds = null,
-      IReadOnlyList<int>? sourceObjectLocalIds = null)
+      IReadOnlyList<int>? sourceObjectLocalIds = null,
+      int? nextStaticRenderObjectLocalId = null,
+      int? nextSourceObjectLocalId = null)
     {
       cancellationToken.ThrowIfCancellationRequested();
       var data = source.AsSpan();
@@ -251,6 +253,14 @@ namespace EarthTool.MSH.Internal
         record.NextRecordMarker,
         record.SerializedRepresentation)).ToArray();
       hierarchy.AssignRenderObjectIds(renderObjects);
+      var nextRenderObjectId = ResolveNextLocalId(
+        renderObjects.Select(record => record.LocalId),
+        nextStaticRenderObjectLocalId,
+        nameof(nextStaticRenderObjectLocalId));
+      var nextSourceId = ResolveNextLocalId(
+        GetSourceObjectLocalIds(hierarchy.BuildRoot()),
+        nextSourceObjectLocalId,
+        nameof(nextSourceObjectLocalId));
       var payloadEnd = cursor;
       var trailingLength = data.Length - payloadEnd;
       if (trailingLength > profile.MaxRootTrailingBytes)
@@ -285,8 +295,37 @@ namespace EarthTool.MSH.Internal
         origin,
         hierarchy.BuildRoot(),
         storedTrailingUnwind,
-        expectedTrailingUnwind);
+        expectedTrailingUnwind,
+        nextRenderObjectId,
+        nextSourceId);
       return new MshDecodeResult(asset, CapDiagnostics(diagnostics, profile.MaxDiagnostics));
+    }
+
+    private static int? ResolveNextLocalId(
+      IEnumerable<int> localIds,
+      int? requested,
+      string parameterName)
+    {
+      var maximum = localIds.Max();
+      if (requested.HasValue && requested.Value <= maximum)
+      {
+        throw new ArgumentOutOfRangeException(
+          parameterName,
+          "The next lineage-local identity must exceed every allocated identity.");
+      }
+      return requested ?? (maximum == int.MaxValue ? null : maximum + 1);
+    }
+
+    private static IEnumerable<int> GetSourceObjectLocalIds(StaticSourceObject source)
+    {
+      yield return source.Id.Value;
+      foreach (var child in source.Children)
+      {
+        foreach (var id in GetSourceObjectLocalIds(child))
+        {
+          yield return id;
+        }
+      }
     }
 
     private static MshDecodeResult DecodeDynamic(

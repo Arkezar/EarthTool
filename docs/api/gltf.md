@@ -4,7 +4,8 @@
 SharpGLTF type appears in the public API. Static source objects are emitted as
 native nodes and meshes. Their child relationships remain native node
 relationships, and each material partition becomes one triangle primitive.
-EarthTool does not add an axis-conversion root.
+The effective first-partition pivot is emitted as node translation. EarthTool
+does not add an axis-conversion root.
 
 `ExportGlbAsync` emits a standard glTF 2.0 +Y-up GLB with positions, normals,
 texture coordinates, and unsigned-short indices. A partition that references
@@ -33,6 +34,24 @@ normal, UV, or multiplicity edit canonically regenerates only that partition;
 unaffected records remain exact. Unique partition deletion and copy/fork edits
 retain existing identities and allocate fresh identities for canonical copies.
 Ambiguous duplicate correspondence fails with `ETG2012` and no partial asset.
+A deliberate hierarchy edit switches from the preserved source sequence to the
+canonical first-partition, child-subtree, remaining-partition order. Import then
+regenerates hierarchy unwind and nesting flags, canonical `1`/`0` next-record
+markers, and trailing unwind while retaining unrelated record and common-header
+state. Node translation regenerates only the effective pivot. Static rotation
+and scale regenerate the affected object's geometry and normals, reversing
+winding once for a reflection. Transform-only grouping nodes collapse into the
+descendant local transform.
+
+Source-object deletion retains identity high-water marks, so gaps are never
+reused after re-export. An untagged copy gets fresh source-object and
+render-object identities whether it keeps a linked glTF mesh or receives a
+single-user mesh copy with an explicitly forked mesh identity. Its MSH records
+are canonical and do not inherit raw padding, sharing links, or source-only
+flags. Duplicate object or mesh metadata blocks until an explicit fork
+resolution removes the old identity. An untagged object is new only when it
+cannot be confused with a missing expected scope. Ambiguous identity blocks
+with `ETG2012`.
 A successful import retains the asset lineage and rotates the document
 identity. `GltfEditImportResult.Preservation` reports retained, regenerated,
 invalidated, and canonicalized MSH paths.

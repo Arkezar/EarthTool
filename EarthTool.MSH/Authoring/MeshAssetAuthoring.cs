@@ -476,8 +476,12 @@ namespace EarthTool.MSH.Authoring
     private readonly StaticMeshAsset _source;
     private readonly Dictionary<StaticRenderObjectId, CanonicalTriangle[]> _replacementTriangles = new();
     private readonly Dictionary<StaticRenderObjectId, CanonicalStaticVertex[]> _replacementVertices = new();
+    private readonly Dictionary<StaticRenderObjectId, Vector3> _replacementPivots = new();
     private readonly HashSet<StaticRenderObjectId> _removedRenderObjects = new();
+    private readonly HashSet<SourceObjectId> _allocatedSourceObjects = new();
     private readonly List<StaticRenderObjectAddition> _additions = new();
+    private StaticSourceObject? _editedRootSourceObject;
+    private IReadOnlyList<StaticRenderObjectId>? _editedSequence;
     private StaticRenderObjectId _resultId;
     private CanonicalTriangle[]? _triangles;
     private CanonicalStaticVertex[]? _vertices;
@@ -486,13 +490,14 @@ namespace EarthTool.MSH.Authoring
     private bool _removed;
     private bool _replacementAdded;
     private int? _nextLocalId;
+    private int? _nextSourceObjectLocalId;
 
     internal StaticMeshEditSession(StaticMeshAsset source)
     {
       _source = source;
       _resultId = source.StaticRenderObjectSequence[0].Id;
-      var maximumLocalId = source.StaticRenderObjectSequence.Max(item => item.Id.Value);
-      _nextLocalId = maximumLocalId == int.MaxValue ? null : maximumLocalId + 1;
+      _nextLocalId = source.NextStaticRenderObjectLocalId;
+      _nextSourceObjectLocalId = source.NextSourceObjectLocalId;
     }
 
     /// <summary>Replaces geometry while retaining the render-object identity.</summary>
@@ -556,7 +561,8 @@ namespace EarthTool.MSH.Authoring
       IEnumerable<CanonicalTriangle> triangles)
     {
       EnsureOpen();
-      if (!GetSourceObjects(_source.RootSourceObject).Any(source => source.Id.Equals(sourceObject)))
+      if (!GetSourceObjects(_source.RootSourceObject).Any(source => source.Id.Equals(sourceObject))
+        && !_allocatedSourceObjects.Contains(sourceObject))
       {
         throw new ArgumentException("The source-object identity does not belong to this source snapshot.",
           nameof(sourceObject));
@@ -569,6 +575,51 @@ namespace EarthTool.MSH.Authoring
         vertices?.ToArray() ?? throw new ArgumentNullException(nameof(vertices)),
         triangles?.ToArray() ?? throw new ArgumentNullException(nameof(triangles))));
       return id;
+    }
+
+    internal SourceObjectId AllocateSourceObjectId()
+    {
+      EnsureOpen();
+      if (!_nextSourceObjectLocalId.HasValue)
+      {
+        throw new InvalidOperationException("No lineage-local source-object identity remains available.");
+      }
+
+      var value = _nextSourceObjectLocalId.Value;
+      _nextSourceObjectLocalId = value == int.MaxValue ? null : value + 1;
+      var id = new SourceObjectId(_source.LineageId, value);
+      _allocatedSourceObjects.Add(id);
+      return id;
+    }
+
+    internal StaticMeshEditSession ReplacePivot(StaticRenderObjectId renderObject, Vector3 pivot)
+    {
+      EnsureOpen();
+      if (!_source.StaticRenderObjectSequence.Any(item => item.Id.Equals(renderObject))
+        && !_additions.Any(item => item.Id.Equals(renderObject)))
+      {
+        throw new ArgumentException("The render-object identity does not belong to this edit session.",
+          nameof(renderObject));
+      }
+      if (!IsFinite(pivot))
+      {
+        throw new ArgumentException("The source-object pivot must be finite.", nameof(pivot));
+      }
+
+      _replacementPivots[renderObject] = pivot;
+      return this;
+    }
+
+    internal StaticMeshEditSession ApplyHierarchy(
+      StaticSourceObject rootSourceObject,
+      IReadOnlyList<StaticRenderObjectId> sequence)
+    {
+      EnsureOpen();
+      _editedRootSourceObject = rootSourceObject
+        ?? throw new ArgumentNullException(nameof(rootSourceObject));
+      _editedSequence = sequence?.ToArray()
+        ?? throw new ArgumentNullException(nameof(sequence));
+      return this;
     }
 
     /// <summary>Commits this session once and returns a new immutable snapshot.</summary>
@@ -617,16 +668,19 @@ namespace EarthTool.MSH.Authoring
       }
 
       if (_removedRenderObjects.Count == _source.StaticRenderObjectSequence.Count
-        && !_replacementAdded)
+        && !_replacementAdded
+        && _additions.Count == 0)
       {
         return FailedEdit("StaticRenderObjectSequence",
           "At least one static render object must remain.");
       }
 
-      foreach (var sourceObject in GetSourceObjects(_source.RootSourceObject))
+      foreach (var sourceObject in GetSourceObjects(
+        _editedRootSourceObject ?? _source.RootSourceObject))
       {
-        if (sourceObject.StaticRenderObjectIds.All(id => _removedRenderObjects.Contains(id))
-          && !_replacementAdded)
+        if (sourceObject.StaticRenderObjectIds.Count == 0
+          || sourceObject.StaticRenderObjectIds.All(id => _removedRenderObjects.Contains(id))
+            && !_replacementAdded)
         {
           return FailedEdit("StaticRenderObjectSequence",
             "A retained source object must contain at least one static render object.");
@@ -651,8 +705,10 @@ namespace EarthTool.MSH.Authoring
       }
 
       var bytes = _replacementVertices.Count == 0
+        && _replacementPivots.Count == 0
         && _removedRenderObjects.Count == 0
         && _additions.Count == 0
+        && _editedRootSourceObject is null
         ? _source.GetSerializedRepresentation()
         : MshCanonicalSerializer.RewriteStatic(
           _source,
@@ -663,7 +719,11 @@ namespace EarthTool.MSH.Authoring
             item => item.Key,
             item => (IReadOnlyList<CanonicalTriangle>)item.Value),
           _replacementAdded ? Array.Empty<StaticRenderObjectId>() : _removedRenderObjects,
-          _additions);
+          _additions,
+          _editedRootSourceObject,
+          _editedSequence,
+          _replacementPivots,
+          _editedRootSourceObject is not null);
       if (bytes.Length > profile.MaxOutputBytes)
       {
         return new MshEditResult<StaticMeshAsset>(
@@ -688,8 +748,12 @@ namespace EarthTool.MSH.Authoring
           CancellationToken.None,
           _source.LineageId,
           _source.Origin,
+          rootSourceObjectLocalId: (_editedRootSourceObject ?? _source.RootSourceObject).Id.Value,
           staticRenderObjectLocalIds: renderObjectLocalIds,
-          sourceObjectLocalIds: GetSourceObjectIds(_source.RootSourceObject).Select(item => item.Value).ToArray());
+          sourceObjectLocalIds: GetSourceObjectIds(
+            _editedRootSourceObject ?? _source.RootSourceObject).Select(item => item.Value).ToArray(),
+          nextStaticRenderObjectLocalId: _nextLocalId,
+          nextSourceObjectLocalId: _nextSourceObjectLocalId);
       }
       catch (MshContentException ex)
       {
@@ -715,6 +779,13 @@ namespace EarthTool.MSH.Authoring
         Change("CommonBaseHeader", PreservationDisposition.Retained, "IndependentRepresentation"),
         Change("RootSourceObjectId", PreservationDisposition.Retained, "RetainedSourceObject")
       };
+      if (_editedRootSourceObject is not null)
+      {
+        changes.Add(Change("StaticRenderObjectSequence", PreservationDisposition.Regenerated,
+          "HierarchyEdit"));
+        changes.Add(Change("RootSourceObject", PreservationDisposition.Regenerated,
+          "HierarchyEdit"));
+      }
       if (_replacementAdded)
       {
         changes.Add(Change("StaticRenderObjectSequence[0]", PreservationDisposition.Invalidated,
@@ -743,6 +814,11 @@ namespace EarthTool.MSH.Authoring
               PreservationDisposition.Regenerated, "GeometryEdit"));
             changes.Add(Change($"StaticRenderObjectSequence[{index}].VertexBlockPadding",
               PreservationDisposition.Canonicalized, "GeometryPacking"));
+          }
+          if (_replacementPivots.ContainsKey(record.Id))
+          {
+            changes.Add(Change($"StaticRenderObjectSequence[{index}].Pivot",
+              PreservationDisposition.Regenerated, "TransformEdit"));
           }
         }
 
@@ -872,6 +948,15 @@ namespace EarthTool.MSH.Authoring
         yield break;
       }
 
+      if (_editedSequence is not null)
+      {
+        foreach (var id in _editedSequence)
+        {
+          yield return id;
+        }
+        yield break;
+      }
+
       foreach (var id in MshCanonicalSerializer.PlanStaticRenderObjectIds(
         _source,
         _removedRenderObjects,
@@ -903,6 +988,11 @@ namespace EarthTool.MSH.Authoring
       var value = _nextLocalId.Value;
       _nextLocalId = value == int.MaxValue ? null : value + 1;
       return new StaticRenderObjectId(_source.LineageId, value);
+    }
+
+    private static bool IsFinite(Vector3 value)
+    {
+      return float.IsFinite(value.X) && float.IsFinite(value.Y) && float.IsFinite(value.Z);
     }
 
     private void EnsureOpen()

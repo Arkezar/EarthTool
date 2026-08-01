@@ -513,11 +513,22 @@ namespace EarthTool.GLTF
       cancellationToken.ThrowIfCancellationRequested();
       if (manifest.StaticRenderObjectLocalIds.Count == 0
         || manifest.SourceObjectLocalIds.Count == 0
-        || manifest.StaticRenderObjectLocalIds.Any(id => id < 0)
-        || manifest.SourceObjectLocalIds.Any(id => id < 0)
+        || manifest.StaticRenderObjectLocalIds.Any(id => id <= 0)
+        || manifest.SourceObjectLocalIds.Any(id => id <= 0)
         || manifest.StaticRenderObjectLocalIds.Distinct().Count()
           != manifest.StaticRenderObjectLocalIds.Count
-        || manifest.SourceObjectLocalIds.Distinct().Count() != manifest.SourceObjectLocalIds.Count)
+        || manifest.SourceObjectLocalIds.Distinct().Count() != manifest.SourceObjectLocalIds.Count
+        || !IsStrictlyIncreasing(manifest.StaticRenderObjectInventory)
+        || !IsStrictlyIncreasing(manifest.SourceObjectInventory)
+        || !manifest.StaticRenderObjectInventory.SequenceEqual(
+          manifest.StaticRenderObjectLocalIds.OrderBy(id => id))
+        || !manifest.SourceObjectInventory.SequenceEqual(
+          manifest.SourceObjectLocalIds.OrderBy(id => id))
+        || !manifest.NextStaticRenderObjectLocalId.HasValue
+        || manifest.NextStaticRenderObjectLocalId.Value
+          <= manifest.StaticRenderObjectLocalIds.Max()
+        || !manifest.NextSourceObjectLocalId.HasValue
+        || manifest.NextSourceObjectLocalId.Value <= manifest.SourceObjectLocalIds.Max())
       {
         return Failed<GltfEditImportResult>(Diagnostic(
           GltfDiagnosticCodes.MalformedMetadata,
@@ -537,7 +548,9 @@ namespace EarthTool.GLTF
           MeshAssetOrigin.Loaded,
           rootSourceObjectLocalId: manifest.SourceObjectLocalIds[0],
           staticRenderObjectLocalIds: manifest.StaticRenderObjectLocalIds,
-          sourceObjectLocalIds: manifest.SourceObjectLocalIds);
+          sourceObjectLocalIds: manifest.SourceObjectLocalIds,
+          nextStaticRenderObjectLocalId: manifest.NextStaticRenderObjectLocalId,
+          nextSourceObjectLocalId: manifest.NextSourceObjectLocalId);
         asset = decoded.Asset as StaticMeshAsset
           ?? throw new InvalidDataException("Preserved MSH state is not static.");
       }
@@ -566,23 +579,33 @@ namespace EarthTool.GLTF
         .Select(node => new
         {
           Parsed = node,
-          Metadata = GlbDocument.ParseMetadata(
-            node.Metadata,
-            profile.MaxMetadataBytes,
-            profile.MaxJsonDepth)
+          Metadata = node.Metadata is null
+            ? null
+            : GlbDocument.ParseMetadata(
+              node.Metadata,
+              profile.MaxMetadataBytes,
+              profile.MaxJsonDepth)
         })
         .ToArray();
-      ValidateHierarchy(
+      var edit = asset.Edit();
+      var hierarchy = ReconcileHierarchy(
         parsed,
         nodes.Select(node => (node.Parsed, node.Metadata)).ToArray(),
-        meshes.Select(mesh => mesh.Metadata).ToArray(),
+        meshes.Select(mesh => (mesh.Parsed, mesh.Metadata)).ToArray(),
         asset,
-        expectedBaseline);
+        expectedBaseline,
+        edit);
       IReadOnlyList<PartitionMatch> partitionMatches;
       try
       {
-        partitionMatches = MatchPartitions(meshes.Select(mesh =>
-          (mesh.Parsed, mesh.Metadata)).ToArray(), asset, expectedBaseline);
+        partitionMatches = MatchPartitions(meshes.Select((mesh, index) =>
+          (mesh.Parsed, mesh.Metadata, Index: index))
+          .Where(mesh => hierarchy.RetainedMeshIndices.Contains(mesh.Index))
+          .Select(mesh => (mesh.Parsed, mesh.Metadata)).ToArray(), asset, expectedBaseline);
+        partitionMatches = partitionMatches.Select(match =>
+          hierarchy.Transforms.TryGetValue(match.SourceObjectId, out var transform)
+            ? TransformPartition(match, transform)
+            : match).ToArray();
       }
       catch (StaleNativeProjectionException ex)
       {
@@ -601,7 +624,10 @@ namespace EarthTool.GLTF
           ex.Message));
       }
 
-      var edit = asset.Edit();
+      foreach (var replacement in hierarchy.Pivots)
+      {
+        edit.ReplacePivot(replacement.Key, replacement.Value);
+      }
       var matchedLocalIds = partitionMatches.Where(match => !match.Added)
         .Select(match => match.Partition.LocalId).ToHashSet();
       foreach (var removed in asset.StaticRenderObjectSequence.Where(record =>
@@ -630,7 +656,13 @@ namespace EarthTool.GLTF
         }
       }
 
-      var partitions = partitionMatches.Select(match => match.Partition).ToArray();
+      if (hierarchy.Changed)
+      {
+        edit.ApplyHierarchy(hierarchy.Root, hierarchy.Sequence);
+      }
+
+      var partitions = partitionMatches.Select(match => match.Partition)
+        .Concat(hierarchy.AddedPartitions).ToArray();
       var fingerprint = StaticGeometryFingerprint.Create(expectedBaseline, partitions);
       var committed = edit.Commit();
       if (!committed.TryGetValue(out var reconciled))
@@ -743,7 +775,10 @@ namespace EarthTool.GLTF
       foreach (var metadata in parsed.Nodes.Select(node => node.Metadata)
         .Concat(parsed.Meshes.Select(mesh => mesh.Metadata)))
       {
-        GlbDocument.ParseMetadata(metadata, profile.MaxMetadataBytes, profile.MaxJsonDepth);
+        if (metadata is not null)
+        {
+          GlbDocument.ParseMetadata(metadata, profile.MaxMetadataBytes, profile.MaxJsonDepth);
+        }
       }
     }
 
@@ -755,6 +790,13 @@ namespace EarthTool.GLTF
     private static bool IsFinite(float value)
     {
       return !float.IsNaN(value) && !float.IsInfinity(value);
+    }
+
+    private static bool IsStrictlyIncreasing(IReadOnlyList<int> values)
+    {
+      return values.Count > 0
+        && values[0] > 0
+        && values.Zip(values.Skip(1), (left, right) => left < right).All(increasing => increasing);
     }
 
     private static void ValidateManifestMetadata(
@@ -786,8 +828,7 @@ namespace EarthTool.GLTF
     {
       var sources = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
         .ToDictionary(source => source.Id.Value);
-      if (meshes.Count != sources.Count
-        || meshes.Select(mesh => mesh.Metadata.LocalId).Distinct().Count() != meshes.Count)
+      if (meshes.Select(mesh => mesh.Metadata.LocalId).Distinct().Count() != meshes.Count)
       {
         throw new MalformedMetadataException("The mesh scope set does not match the source hierarchy.");
       }
@@ -797,6 +838,7 @@ namespace EarthTool.GLTF
       {
         var metadata = mesh.Metadata;
         if (metadata.ScopeKind != "mesh"
+          || metadata.LocalId <= 0
           || metadata.Fingerprint is null
           || metadata.FingerprintName != "static-geometry"
           || metadata.FingerprintVersion != 1
@@ -996,54 +1038,330 @@ namespace EarthTool.GLTF
       }
     }
 
-    private static void ValidateHierarchy(
+    private static StaticHierarchyPlan ReconcileHierarchy(
       ParsedGlb parsed,
-      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope Metadata)> nodes,
-      IReadOnlyList<MetadataEnvelope> meshes,
+      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
+      IReadOnlyList<(ParsedGltfMesh Parsed, MetadataEnvelope Metadata)> meshes,
       StaticMeshAsset asset,
-      InterchangeBaseline expected)
+      InterchangeBaseline expected,
+      StaticMeshEditSession edit)
     {
       var sources = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
         .ToDictionary(source => source.Id.Value);
-      if (nodes.Count != sources.Count
-        || nodes.Select(node => node.Metadata.LocalId).Distinct().Count() != nodes.Count)
+      if (nodes.Any(node => !node.Parsed.MeshIndex.HasValue
+        && (node.Metadata is not null || node.Parsed.Children.Count == 0)))
       {
         throw new MalformedMetadataException("The object scope set does not match the source hierarchy.");
       }
 
+      var identifiedSourceIds = nodes.Where(node => node.Parsed.MeshIndex.HasValue && node.Metadata is not null)
+        .Select(node => node.Metadata!.LocalId).ToArray();
+      if (identifiedSourceIds.Distinct().Count() != identifiedSourceIds.Length)
+      {
+        throw new MetadataIdentityException(
+          GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
+          2012,
+          "Duplicate object scope identities require an explicit fork resolution.");
+      }
+      if (nodes.Any(node => node.Parsed.MeshIndex.HasValue && node.Metadata is null)
+        && sources.Keys.Any(id => !identifiedSourceIds.Contains(id)))
+      {
+        throw new MetadataIdentityException(
+          GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
+          2012,
+          "An untagged object cannot be distinguished from a missing expected object scope.");
+      }
+      if (nodes.Count(node => node.Parsed.MeshIndex.HasValue && node.Metadata is null) > 1)
+      {
+        throw new MetadataIdentityException(
+          GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
+          2012,
+          "Multiple untagged objects require explicit scope identities.");
+      }
+      var meshLocalIds = meshes.Select(mesh => mesh.Metadata.LocalId).ToArray();
+      if (meshLocalIds.Distinct().Count() != meshLocalIds.Length)
+      {
+        throw new MetadataIdentityException(
+          GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
+          2012,
+          "Duplicate mesh scope identities require an explicit fork resolution.");
+      }
+
+      var effectiveTransforms = CreateEffectiveTransforms(parsed.RootNodeIndex, nodes);
+      var sourceByNode = new Dictionary<int, StaticSourceObject>();
+      var pivots = new Dictionary<StaticRenderObjectId, System.Numerics.Vector3>();
+      var transforms = new Dictionary<SourceObjectId, System.Numerics.Matrix4x4>();
+      var retainedMeshIndices = new HashSet<int>();
+      var addedPartitions = new List<GeometryPartition>();
       for (var nodeIndex = 0; nodeIndex < nodes.Count; nodeIndex++)
       {
         var node = nodes[nodeIndex];
+        if (!node.Parsed.MeshIndex.HasValue)
+        {
+          continue;
+        }
         var metadata = node.Metadata;
-        if (metadata.ScopeKind != "object"
-          || metadata.SourceMsh is not null
-          || metadata.Fingerprint is not null
-          || metadata.Partitions.Count != 0
-          || metadata.AssetLineageId != expected.AssetLineageId
-          || metadata.DocumentId != expected.DocumentId
-          || !sources.TryGetValue(metadata.LocalId, out var source))
+        StaticSourceObject? originalSource = null;
+        if (metadata is not null
+          && (metadata.ScopeKind != "object"
+            || metadata.LocalId <= 0
+            || metadata.SourceMsh is not null
+            || metadata.Fingerprint is not null
+            || metadata.Partitions.Count != 0
+            || metadata.AssetLineageId != expected.AssetLineageId
+            || metadata.DocumentId != expected.DocumentId
+            || !sources.TryGetValue(metadata.LocalId, out originalSource)))
         {
           throw new MalformedMetadataException("The object metadata envelope is malformed.");
         }
 
-        if (node.Parsed.MeshIndex < 0
-          || node.Parsed.MeshIndex >= meshes.Count
-          || meshes[node.Parsed.MeshIndex].LocalId != metadata.LocalId)
+        if (!node.Parsed.MeshIndex.HasValue
+          || node.Parsed.MeshIndex.Value >= meshes.Count
+          || meshes[node.Parsed.MeshIndex.Value].Metadata.ScopeKind != "mesh")
         {
           throw new UnsupportedGltfDomainException("HierarchyEdits");
         }
 
-        var childLocalIds = node.Parsed.Children
-          .Select(childIndex => nodes[childIndex].Metadata.LocalId);
-        if (!childLocalIds.SequenceEqual(source.Children.Select(child => child.Id.Value)))
+        var effectiveTransform = effectiveTransforms[nodeIndex];
+        var translation = effectiveTransform.Translation;
+        var linearTransform = effectiveTransform;
+        linearTransform.Translation = System.Numerics.Vector3.Zero;
+        if (!System.Numerics.Matrix4x4.Invert(linearTransform, out _))
         {
-          throw new UnsupportedGltfDomainException("HierarchyEdits");
+          throw new UnsupportedGltfDomainException("TransformOrHierarchy");
         }
+        var hasLinearTransform = linearTransform != System.Numerics.Matrix4x4.Identity;
+        var pivot = new System.Numerics.Vector3(translation.X, -translation.Z, translation.Y);
+
+        if (metadata is not null)
+        {
+          if (meshes[node.Parsed.MeshIndex.Value].Metadata.LocalId != metadata.LocalId)
+          {
+            throw new UnsupportedGltfDomainException("HierarchyEdits");
+          }
+          retainedMeshIndices.Add(node.Parsed.MeshIndex.Value);
+          sourceByNode.Add(nodeIndex, originalSource!);
+          if (hasLinearTransform)
+          {
+            transforms.Add(originalSource!.Id, linearTransform);
+          }
+          var pivotRecordId = originalSource!.StaticRenderObjectIds[0];
+          var sourcePivot = asset.StaticRenderObjectSequence.Single(record =>
+            record.Id.Equals(pivotRecordId)).Pivot;
+          if (pivot != sourcePivot)
+          {
+            pivots.Add(pivotRecordId, pivot);
+          }
+          continue;
+        }
+
+        var sourceId = edit.AllocateSourceObjectId();
+        var renderObjectIds = new List<StaticRenderObjectId>();
+        foreach (var primitive in meshes[node.Parsed.MeshIndex.Value].Parsed.Primitives)
+        {
+          var partition = new GeometryPartition(-1, primitive.Vertices, primitive.Triangles);
+          if (hasLinearTransform)
+          {
+            partition = TransformPartition(
+              new PartitionMatch(partition, sourceId, false, true),
+              linearTransform).Partition;
+          }
+          var vertices = partition.Vertices.Select(ToCanonicalVertex).ToArray();
+          var triangles = partition.Triangles.Select(triangle => new CanonicalTriangle(
+            triangle.Vertex0,
+            triangle.Vertex1,
+            triangle.Vertex2)).ToArray();
+          var renderObjectId = edit.AddRenderObject(sourceId, vertices, triangles);
+          partition.AssignLocalId(renderObjectId.Value);
+          renderObjectIds.Add(renderObjectId);
+          addedPartitions.Add(partition);
+        }
+        if (renderObjectIds.Count == 0)
+        {
+          throw new UnsupportedGltfDomainException("Geometry");
+        }
+        pivots.Add(renderObjectIds[0], pivot);
+        sourceByNode.Add(nodeIndex, new StaticSourceObject(
+          sourceId,
+          renderObjectIds,
+          Array.Empty<StaticSourceObject>()));
       }
 
-      if (nodes[parsed.RootNodeIndex].Metadata.LocalId != asset.RootSourceObjectId.Value)
+      var editedRoots = BuildHierarchy(parsed.RootNodeIndex, nodes, sourceByNode);
+      if (editedRoots.Count != 1 || !editedRoots[0].Id.Equals(asset.RootSourceObjectId))
       {
         throw new UnsupportedGltfDomainException("HierarchyEdits");
+      }
+
+      var editedRoot = editedRoots[0];
+      var changed = !SameHierarchy(asset.RootSourceObject, editedRoot);
+      if (changed)
+      {
+        editedRoot = SortHierarchy(editedRoot);
+      }
+      var sequence = changed
+        ? FlattenCanonical(editedRoot).ToArray()
+        : asset.StaticRenderObjectSequence.Select(record => record.Id).ToArray();
+      return new StaticHierarchyPlan(
+        editedRoot,
+        sequence,
+        pivots,
+        transforms,
+        retainedMeshIndices,
+        addedPartitions,
+        changed);
+    }
+
+    private static IReadOnlyList<StaticSourceObject> BuildHierarchy(
+      int nodeIndex,
+      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
+      IReadOnlyDictionary<int, StaticSourceObject> sources)
+    {
+      var children = nodes[nodeIndex].Parsed.Children
+        .SelectMany(child => BuildHierarchy(child, nodes, sources))
+        .ToArray();
+      if (!sources.TryGetValue(nodeIndex, out var source))
+      {
+        return children;
+      }
+      return new[] { new StaticSourceObject(source.Id, source.StaticRenderObjectIds, children) };
+    }
+
+    private static StaticSourceObject SortHierarchy(StaticSourceObject source)
+    {
+      return new StaticSourceObject(
+        source.Id,
+        source.StaticRenderObjectIds,
+        source.Children.OrderBy(child => child.Id.Value).Select(SortHierarchy));
+    }
+
+    private static IReadOnlyDictionary<int, System.Numerics.Matrix4x4> CreateEffectiveTransforms(
+      int rootNodeIndex,
+      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes)
+    {
+      var result = new Dictionary<int, System.Numerics.Matrix4x4>();
+      AddEffectiveTransforms(
+        rootNodeIndex,
+        System.Numerics.Matrix4x4.Identity,
+        nodes,
+        result);
+      return result;
+    }
+
+    private static void AddEffectiveTransforms(
+      int nodeIndex,
+      System.Numerics.Matrix4x4 scaffoldingTransform,
+      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
+      IDictionary<int, System.Numerics.Matrix4x4> result)
+    {
+      var node = nodes[nodeIndex].Parsed;
+      // System.Numerics uses row-vector composition, so a collapsed parent follows the child.
+      var effective = node.LocalTransform * scaffoldingTransform;
+      if (node.MeshIndex.HasValue)
+      {
+        result.Add(nodeIndex, effective);
+        foreach (var child in node.Children)
+        {
+          AddEffectiveTransforms(child, System.Numerics.Matrix4x4.Identity, nodes, result);
+        }
+        return;
+      }
+
+      foreach (var child in node.Children)
+      {
+        AddEffectiveTransforms(child, effective, nodes, result);
+      }
+    }
+
+    private static bool SameHierarchy(StaticSourceObject left, StaticSourceObject right)
+    {
+      return left.Id.Equals(right.Id)
+        && left.Children.Select(child => child.Id).SequenceEqual(right.Children.Select(child => child.Id))
+        && left.Children.Zip(right.Children, SameHierarchy).All(value => value);
+    }
+
+    private static IEnumerable<StaticRenderObjectId> FlattenCanonical(StaticSourceObject source)
+    {
+      yield return source.StaticRenderObjectIds[0];
+      foreach (var child in source.Children.OrderBy(item => item.Id.Value))
+      {
+        foreach (var id in FlattenCanonical(child))
+        {
+          yield return id;
+        }
+      }
+      foreach (var id in source.StaticRenderObjectIds.Skip(1).OrderBy(item => item.Value))
+      {
+        yield return id;
+      }
+    }
+
+    private static PartitionMatch TransformPartition(
+      PartitionMatch match,
+      System.Numerics.Matrix4x4 transform)
+    {
+      if (!System.Numerics.Matrix4x4.Invert(transform, out var inverse))
+      {
+        throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+      }
+      // Normals follow the inverse transpose; a reflected basis reverses winding exactly once.
+      var normalTransform = System.Numerics.Matrix4x4.Transpose(inverse);
+      var vertices = match.Partition.Vertices.Select(vertex =>
+      {
+        var normal = System.Numerics.Vector3.TransformNormal(vertex.Normal, normalTransform);
+        if (normal.LengthSquared() == 0
+          || !float.IsFinite(normal.X)
+          || !float.IsFinite(normal.Y)
+          || !float.IsFinite(normal.Z))
+        {
+          throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+        }
+        return new RenderVertex(
+          System.Numerics.Vector3.Transform(vertex.Position, transform),
+          System.Numerics.Vector3.Normalize(normal),
+          vertex.TextureCoordinate);
+      }).ToArray();
+      var reversesWinding = transform.GetDeterminant() < 0;
+      var triangles = match.Partition.Triangles.Select(triangle => reversesWinding
+        ? new StaticTriangle(
+          triangle.Vertex0,
+          triangle.Vertex2,
+          triangle.Vertex1,
+          triangle.TriangleRenderPassFlags)
+        : triangle).ToArray();
+      return new PartitionMatch(
+        new GeometryPartition(match.Partition.LocalId, vertices, triangles),
+        match.SourceObjectId,
+        false,
+        match.Added);
+    }
+
+    private sealed class StaticHierarchyPlan
+    {
+      internal StaticSourceObject Root { get; }
+      internal IReadOnlyList<StaticRenderObjectId> Sequence { get; }
+      internal IReadOnlyDictionary<StaticRenderObjectId, System.Numerics.Vector3> Pivots { get; }
+      internal IReadOnlyDictionary<SourceObjectId, System.Numerics.Matrix4x4> Transforms { get; }
+      internal IReadOnlyCollection<int> RetainedMeshIndices { get; }
+      internal IReadOnlyList<GeometryPartition> AddedPartitions { get; }
+      internal bool Changed { get; }
+
+      internal StaticHierarchyPlan(
+        StaticSourceObject root,
+        IReadOnlyList<StaticRenderObjectId> sequence,
+        IReadOnlyDictionary<StaticRenderObjectId, System.Numerics.Vector3> pivots,
+        IReadOnlyDictionary<SourceObjectId, System.Numerics.Matrix4x4> transforms,
+        IReadOnlyCollection<int> retainedMeshIndices,
+        IReadOnlyList<GeometryPartition> addedPartitions,
+        bool changed)
+      {
+        Root = root;
+        Sequence = sequence;
+        Pivots = pivots;
+        Transforms = transforms;
+        RetainedMeshIndices = retainedMeshIndices;
+        AddedPartitions = addedPartitions;
+        Changed = changed;
       }
     }
 

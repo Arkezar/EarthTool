@@ -71,17 +71,24 @@ namespace EarthTool.GLTF.Internal
 
   internal sealed class ParsedGltfNode
   {
-    internal string Metadata { get; }
+    internal string? Metadata { get; }
 
-    internal int MeshIndex { get; }
+    internal int? MeshIndex { get; }
 
     internal IReadOnlyList<int> Children { get; }
 
-    internal ParsedGltfNode(string metadata, int meshIndex, IReadOnlyList<int> children)
+    internal Matrix4x4 LocalTransform { get; }
+
+    internal ParsedGltfNode(
+      string? metadata,
+      int? meshIndex,
+      IReadOnlyList<int> children,
+      Matrix4x4 localTransform)
     {
       Metadata = metadata;
       MeshIndex = meshIndex;
       Children = children;
+      LocalTransform = localTransform;
     }
   }
 
@@ -150,6 +157,14 @@ namespace EarthTool.GLTF.Internal
 
     internal IReadOnlyList<int> SourceObjectLocalIds { get; }
 
+    internal IReadOnlyList<int> StaticRenderObjectInventory { get; }
+
+    internal IReadOnlyList<int> SourceObjectInventory { get; }
+
+    internal int? NextStaticRenderObjectLocalId { get; }
+
+    internal int? NextSourceObjectLocalId { get; }
+
     internal MetadataEnvelope(
       Guid assetLineageId,
       Guid documentId,
@@ -161,7 +176,11 @@ namespace EarthTool.GLTF.Internal
       int? fingerprintVersion,
       IReadOnlyList<MetadataPartition> partitions,
       IReadOnlyList<int> staticRenderObjectLocalIds,
-      IReadOnlyList<int> sourceObjectLocalIds)
+      IReadOnlyList<int> sourceObjectLocalIds,
+      IReadOnlyList<int> staticRenderObjectInventory,
+      IReadOnlyList<int> sourceObjectInventory,
+      int? nextStaticRenderObjectLocalId,
+      int? nextSourceObjectLocalId)
     {
       AssetLineageId = assetLineageId;
       DocumentId = documentId;
@@ -174,6 +193,10 @@ namespace EarthTool.GLTF.Internal
       Partitions = partitions;
       StaticRenderObjectLocalIds = staticRenderObjectLocalIds;
       SourceObjectLocalIds = sourceObjectLocalIds;
+      StaticRenderObjectInventory = staticRenderObjectInventory;
+      SourceObjectInventory = sourceObjectInventory;
+      NextStaticRenderObjectLocalId = nextStaticRenderObjectLocalId;
+      NextSourceObjectLocalId = nextSourceObjectLocalId;
     }
   }
 
@@ -328,9 +351,10 @@ namespace EarthTool.GLTF.Internal
           ? childArray.EnumerateArray().Select(child => child.GetInt32()).ToArray()
           : Array.Empty<int>();
         nodes.Add(new ParsedGltfNode(
-          GetMetadata(node, "node"),
-          node.GetProperty("mesh").GetInt32(),
-          Array.AsReadOnly(children)));
+          TryGetMetadata(node),
+          node.TryGetProperty("mesh", out var mesh) ? mesh.GetInt32() : null,
+          Array.AsReadOnly(children),
+          ReadNodeTransform(node)));
       }
 
       var meshes = new List<ParsedGltfMesh>();
@@ -448,6 +472,8 @@ namespace EarthTool.GLTF.Internal
 
         var staticRenderObjectLocalIds = ReadIntegerArray(root, "staticRenderObjectLocalIds");
         var sourceObjectLocalIds = ReadIntegerArray(root, "sourceObjectLocalIds");
+        var staticRenderObjectInventory = ReadIntegerArray(root, "staticRenderObjectInventory");
+        var sourceObjectInventory = ReadIntegerArray(root, "sourceObjectInventory");
 
         return new MetadataEnvelope(
           root.GetProperty("assetLineage").GetGuid(),
@@ -460,7 +486,15 @@ namespace EarthTool.GLTF.Internal
           hasProjection ? projection.GetProperty("version").GetInt32() : null,
           partitions.AsReadOnly(),
           staticRenderObjectLocalIds,
-          sourceObjectLocalIds);
+          sourceObjectLocalIds,
+          staticRenderObjectInventory,
+          sourceObjectInventory,
+          root.TryGetProperty("nextStaticRenderObjectLocalId", out var nextRenderObjectId)
+            ? nextRenderObjectId.GetInt32()
+            : null,
+          root.TryGetProperty("nextSourceObjectLocalId", out var nextSourceObjectId)
+            ? nextSourceObjectId.GetInt32()
+            : null);
       }
       catch (UnsupportedMetadataVersionException)
       {
@@ -608,6 +642,16 @@ namespace EarthTool.GLTF.Internal
           writer.WriteStartObject();
           writer.WriteString("name", $"Source object {source.Id.Value}");
           writer.WriteNumber("mesh", nodeIndices[source.Id]);
+          var effectivePivot = layouts[source.StaticRenderObjectIds[0]].Partition.RenderObject.Pivot;
+          var translation = ProjectToGltf(effectivePivot);
+          if (translation != Vector3.Zero)
+          {
+            writer.WriteStartArray("translation");
+            writer.WriteNumberValue(translation.X);
+            writer.WriteNumberValue(translation.Y);
+            writer.WriteNumberValue(translation.Z);
+            writer.WriteEndArray();
+          }
           if (source.Children.Count > 0)
           {
             writer.WriteStartArray("children");
@@ -828,6 +872,29 @@ namespace EarthTool.GLTF.Internal
             writer.WriteNumberValue(source.Id.Value);
           }
           writer.WriteEndArray();
+          writer.WriteStartArray("staticRenderObjectInventory");
+          foreach (var record in sourceAsset.StaticRenderObjectSequence.OrderBy(record => record.LocalId))
+          {
+            writer.WriteNumberValue(record.LocalId);
+          }
+          writer.WriteEndArray();
+          writer.WriteStartArray("sourceObjectInventory");
+          foreach (var source in StaticSourceObjectTraversal.Flatten(sourceAsset.RootSourceObject)
+            .OrderBy(source => source.Id.Value))
+          {
+            writer.WriteNumberValue(source.Id.Value);
+          }
+          writer.WriteEndArray();
+          if (sourceAsset.NextStaticRenderObjectLocalId.HasValue)
+          {
+            writer.WriteNumber(
+              "nextStaticRenderObjectLocalId",
+              sourceAsset.NextStaticRenderObjectLocalId.Value);
+          }
+          if (sourceAsset.NextSourceObjectLocalId.HasValue)
+          {
+            writer.WriteNumber("nextSourceObjectLocalId", sourceAsset.NextSourceObjectLocalId.Value);
+          }
         }
 
         if (fingerprint is not null)
@@ -909,7 +976,7 @@ namespace EarthTool.GLTF.Internal
       if (root.GetProperty("scene").GetInt32() != 0
         || root.GetProperty("scenes").GetArrayLength() != 1
         || nodes.GetArrayLength() == 0
-        || nodes.GetArrayLength() != meshes.GetArrayLength()
+        || meshes.GetArrayLength() == 0
         || root.GetProperty("buffers").GetArrayLength() != 1)
       {
         throw new UnsupportedGltfDomainException("SceneGraph");
@@ -923,30 +990,79 @@ namespace EarthTool.GLTF.Internal
         throw new UnsupportedGltfDomainException("SceneMembership");
       }
 
-      var seenMeshes = new HashSet<int>();
+      var referencedMeshes = new HashSet<int>();
+      var parentCounts = new int[nodes.GetArrayLength()];
       for (var index = 0; index < nodes.GetArrayLength(); index++)
       {
         var node = nodes[index];
-        if (!node.TryGetProperty("mesh", out var mesh)
-          || mesh.GetInt32() < 0
-          || mesh.GetInt32() >= meshes.GetArrayLength()
-          || !seenMeshes.Add(mesh.GetInt32())
-          || node.TryGetProperty("matrix", out _)
-          || node.TryGetProperty("translation", out _)
-          || node.TryGetProperty("rotation", out _)
-          || node.TryGetProperty("scale", out _)
-          || node.TryGetProperty("skin", out _)
+        if (node.TryGetProperty("mesh", out var mesh)
+          && (mesh.GetInt32() < 0
+            || mesh.GetInt32() >= meshes.GetArrayLength()))
+        {
+          throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+        }
+        if (mesh.ValueKind != JsonValueKind.Undefined)
+        {
+          referencedMeshes.Add(mesh.GetInt32());
+        }
+        if (node.TryGetProperty("matrix", out _)
+          && (node.TryGetProperty("translation", out _)
+            || node.TryGetProperty("rotation", out _)
+            || node.TryGetProperty("scale", out _)))
+        {
+          throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+        }
+        if (node.TryGetProperty("skin", out _)
           || node.TryGetProperty("camera", out _))
         {
           throw new UnsupportedGltfDomainException("TransformOrHierarchy");
         }
 
-        if (node.TryGetProperty("children", out var children)
-          && children.EnumerateArray().Any(child =>
-            child.GetInt32() < 0 || child.GetInt32() >= nodes.GetArrayLength()))
+        if (node.TryGetProperty("children", out var children))
+        {
+          foreach (var child in children.EnumerateArray())
+          {
+            var childIndex = child.GetInt32();
+            if (childIndex < 0
+              || childIndex >= nodes.GetArrayLength()
+              || childIndex == index
+              || ++parentCounts[childIndex] > 1)
+            {
+              throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+            }
+          }
+        }
+      }
+
+      if (referencedMeshes.Count != meshes.GetArrayLength()
+        || parentCounts[sceneNodes[0].GetInt32()] != 0
+        || parentCounts.Where((_, index) => index != sceneNodes[0].GetInt32())
+          .Any(count => count != 1))
+      {
+        throw new UnsupportedGltfDomainException("SceneMembership");
+      }
+
+      var reachable = new HashSet<int>();
+      var pending = new Stack<int>();
+      pending.Push(sceneNodes[0].GetInt32());
+      while (pending.Count > 0)
+      {
+        var nodeIndex = pending.Pop();
+        if (!reachable.Add(nodeIndex))
         {
           throw new UnsupportedGltfDomainException("TransformOrHierarchy");
         }
+        if (nodes[nodeIndex].TryGetProperty("children", out var children))
+        {
+          foreach (var child in children.EnumerateArray())
+          {
+            pending.Push(child.GetInt32());
+          }
+        }
+      }
+      if (reachable.Count != nodes.GetArrayLength())
+      {
+        throw new UnsupportedGltfDomainException("SceneMembership");
       }
 
       var supportedAttributes = new HashSet<string>(StringComparer.Ordinal)
@@ -990,6 +1106,11 @@ namespace EarthTool.GLTF.Internal
         new Vector3(vertex.Position.X, vertex.Position.Z, -vertex.Position.Y),
         new Vector3(vertex.Normal.X, vertex.Normal.Z, -vertex.Normal.Y),
         vertex.TextureCoordinate);
+    }
+
+    internal static Vector3 ProjectToGltf(Vector3 value)
+    {
+      return new Vector3(value.X, value.Z, -value.Y);
     }
 
     internal sealed class ProjectedPartition
@@ -1044,10 +1165,15 @@ namespace EarthTool.GLTF.Internal
 
     private static string GetMetadata(JsonElement owner, string ownerName)
     {
+      return TryGetMetadata(owner) ?? throw new MissingMetadataException(ownerName);
+    }
+
+    private static string? TryGetMetadata(JsonElement owner)
+    {
       if (!owner.TryGetProperty("extras", out var extras)
         || !extras.TryGetProperty("earthtool", out var metadata))
       {
-        throw new MissingMetadataException(ownerName);
+        return null;
       }
 
       if (metadata.ValueKind != JsonValueKind.String)
@@ -1056,6 +1182,90 @@ namespace EarthTool.GLTF.Internal
       }
 
       return metadata.GetString() ?? throw new InvalidDataException("EarthTool metadata cannot be null.");
+    }
+
+    private static Matrix4x4 ReadNodeTransform(JsonElement node)
+    {
+      if (node.TryGetProperty("matrix", out var matrix))
+      {
+        var values = ReadFloatArray(matrix, 16, "matrix");
+        // glTF's column-major array maps to these fields because System.Numerics
+        // composes row vectors and stores translation in M41-M43 (array slots 12-14).
+        return ValidateNodeTransform(new Matrix4x4(
+          values[0], values[1], values[2], values[3],
+          values[4], values[5], values[6], values[7],
+          values[8], values[9], values[10], values[11],
+          values[12], values[13], values[14], values[15]));
+      }
+
+      var translation = node.TryGetProperty("translation", out var translationElement)
+        ? ReadVector3(translationElement, "translation")
+        : Vector3.Zero;
+      var scale = node.TryGetProperty("scale", out var scaleElement)
+        ? ReadVector3(scaleElement, "scale")
+        : Vector3.One;
+      var rotation = Quaternion.Identity;
+      if (node.TryGetProperty("rotation", out var rotationElement))
+      {
+        var values = ReadFloatArray(rotationElement, 4, "rotation");
+        rotation = new Quaternion(values[0], values[1], values[2], values[3]);
+        var lengthSquared = rotation.LengthSquared();
+        if (!float.IsFinite(lengthSquared) || lengthSquared == 0)
+        {
+          throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+        }
+        rotation = Quaternion.Normalize(rotation);
+      }
+
+      // System.Numerics row-vector composition applies scale, then rotation, then translation.
+      return ValidateNodeTransform(
+        Matrix4x4.CreateScale(scale)
+        * Matrix4x4.CreateFromQuaternion(rotation)
+        * Matrix4x4.CreateTranslation(translation));
+    }
+
+    private static Matrix4x4 ValidateNodeTransform(Matrix4x4 transform)
+    {
+      if (!IsFinite(transform)
+        || transform.M14 != 0
+        || transform.M24 != 0
+        || transform.M34 != 0
+        || transform.M44 != 1)
+      {
+        throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+      }
+      return transform;
+    }
+
+    private static Vector3 ReadVector3(JsonElement value, string propertyName)
+    {
+      var values = ReadFloatArray(value, 3, propertyName);
+      return new Vector3(values[0], values[1], values[2]);
+    }
+
+    private static float[] ReadFloatArray(JsonElement value, int count, string propertyName)
+    {
+      if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() != count)
+      {
+        throw new InvalidDataException($"Node {propertyName} must contain {count} numbers.");
+      }
+      var values = value.EnumerateArray().Select(item => item.GetSingle()).ToArray();
+      if (values.Any(item => !float.IsFinite(item)))
+      {
+        throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+      }
+      return values;
+    }
+
+    private static bool IsFinite(Matrix4x4 value)
+    {
+      return new[]
+      {
+        value.M11, value.M12, value.M13, value.M14,
+        value.M21, value.M22, value.M23, value.M24,
+        value.M31, value.M32, value.M33, value.M34,
+        value.M41, value.M42, value.M43, value.M44
+      }.All(float.IsFinite);
     }
 
     private static ParsedGltfPrimitive ReadPrimitive(

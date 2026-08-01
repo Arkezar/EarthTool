@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Numerics;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace EarthTool.MSH.Tests;
 
@@ -41,12 +42,11 @@ public class GltfWalkingSkeletonTests
     root.GetProperty("meshes").GetArrayLength().Should().Be(3);
     root.GetProperty("nodes")[0].GetProperty("children").EnumerateArray()
       .Select(node => node.GetInt32()).Should().Equal(1, 2);
-    foreach (var node in root.GetProperty("nodes").EnumerateArray())
-    {
-      node.TryGetProperty("mesh", out var _).Should().BeTrue();
-      node.TryGetProperty("matrix", out var _).Should().BeFalse();
-      node.TryGetProperty("rotation", out var _).Should().BeFalse();
-    }
+    root.GetProperty("nodes")[0].TryGetProperty("translation", out _).Should().BeFalse();
+    root.GetProperty("nodes")[1].GetProperty("translation").EnumerateArray()
+      .Select(value => value.GetSingle()).Should().Equal(1, 3, -2);
+    root.GetProperty("nodes")[2].GetProperty("translation").EnumerateArray()
+      .Select(value => value.GetSingle()).Should().Equal(7, 9, -8);
     root.GetProperty("meshes")[0].GetProperty("primitives").GetArrayLength().Should().Be(2);
     root.GetProperty("meshes")[1].GetProperty("primitives").GetArrayLength().Should().Be(1);
     root.GetProperty("meshes")[2].GetProperty("primitives").GetArrayLength().Should().Be(1);
@@ -443,10 +443,94 @@ public class GltfWalkingSkeletonTests
     }
   }
 
-  [Theory]
-  [InlineData("children")]
-  [InlineData("mesh-owner")]
-  public async Task EditImportRejectsHierarchyAndMeshOwnershipChanges(string mutation)
+  [Fact]
+  public async Task DeepReparentRegeneratesCanonicalSequenceAndHierarchyState()
+  {
+    var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var commonHeader = asset.CommonBaseHeader.SerializedRepresentation.ToArray();
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = RewriteJson(glb.ToArray(), "\"children\":[1,2]", "\"children\":[1]");
+    bytes = RewriteJson(
+      bytes,
+      "\"name\":\"Source object 2\",\"mesh\":1,\"translation\":[1,3,-2],",
+      "\"name\":\"Source object 2\",\"mesh\":1,\"translation\":[1,3,-2],\"children\":[2],");
+
+    await using var edited = new MemoryStream(bytes);
+
+    var import = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    var reconciled = import.Value!.Asset;
+    reconciled.StaticRenderObjectSequence.Select(record => record.LocalId).Should().Equal(1, 2, 4, 3);
+    reconciled.StaticRenderObjectSequence.Select(record => record.HierarchyUnwindCount).Should()
+      .Equal(0, 0, 0, 2);
+    reconciled.StaticRenderObjectSequence.Select(record => record.KnownFlags
+      .HasFlag(StaticRenderObjectFlags.BeginsNestedSourceObject)).Should()
+      .Equal(false, true, true, false);
+    reconciled.StaticRenderObjectSequence.Select(record => record.NextRecordMarker).Should()
+      .Equal(1, 1, 1, 0);
+    reconciled.StoredTrailingHierarchyUnwindCount.Should().Be(1);
+    reconciled.RootSourceObject.Children.Should().ContainSingle().Subject.Children.Should()
+      .ContainSingle();
+    reconciled.CommonBaseHeader.SerializedRepresentation.Should().Equal(commonHeader);
+    foreach (var record in reconciled.StaticRenderObjectSequence)
+    {
+      var original = asset.StaticRenderObjectSequence.Single(item => item.LocalId == record.LocalId);
+      record.TexturePathBytes.Should().Equal(original.TexturePathBytes);
+      record.RenderVertices.Should().Equal(original.RenderVertices);
+      record.Triangles.Should().Equal(original.Triangles);
+      record.AnimationTracks.ScaleFrames.Should().Equal(original.AnimationTracks.ScaleFrames);
+      record.AnimationTracks.TranslationFrames.Should().Equal(original.AnimationTracks.TranslationFrames);
+      record.AnimationTracks.Matrices.Should().Equal(original.AnimationTracks.Matrices);
+      (record.ObjectFlags & ~0x000008FFu).Should().Be(original.ObjectFlags & ~0x000008FFu);
+    }
+    import.Value.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "StaticRenderObjectSequence" &&
+      change.Disposition == PreservationDisposition.Regenerated);
+  }
+
+  [Fact]
+  public async Task TranslationEditRegeneratesOnlyEffectivePivot()
+  {
+    var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var sourceRecord = asset.StaticRenderObjectSequence[1];
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = RewriteJson(glb.ToArray(), "\"translation\":[1,3,-2]", "\"translation\":[2,3,-2]");
+    await using var edited = new MemoryStream(bytes);
+
+    var import = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    var record = import.Value!.Asset.StaticRenderObjectSequence[1];
+    record.Pivot.Should().Be(new Vector3(2, 2, 3));
+    record.RenderVertices.Should().Equal(sourceRecord.RenderVertices);
+    record.Triangles.Should().Equal(sourceRecord.Triangles);
+    record.TexturePathBytes.Should().Equal(sourceRecord.TexturePathBytes);
+    record.ObjectFlags.Should().Be(sourceRecord.ObjectFlags);
+    record.AnimationTracks.ScaleFrames.Should().Equal(sourceRecord.AnimationTracks.ScaleFrames);
+    import.Value.Asset.StaticRenderObjectSequence[0].GetSerializedRepresentation().Should()
+      .Equal(asset.StaticRenderObjectSequence[0].GetSerializedRepresentation());
+    import.Value.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "StaticRenderObjectSequence[1].Pivot" &&
+      change.Disposition == PreservationDisposition.Regenerated);
+  }
+
+  [Fact]
+  public async Task UniqueSourceObjectDeletionRetainsUnrelatedRecordsAndIdentityGaps()
   {
     var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
     var interchange = new GltfInterchange();
@@ -455,18 +539,247 @@ public class GltfWalkingSkeletonTests
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId));
-    var bytes = glb.ToArray();
-    if (mutation == "children")
+    var bytes = RewriteJson(glb.ToArray(), root =>
     {
-      ReplaceFirst(bytes, "\"children\":[1,2]", "\"children\":[2,1]");
-    }
-    else
-    {
-      ReplaceFirst(bytes, "\"mesh\":0", "\"mesh\":9");
-      ReplaceFirst(bytes, "\"mesh\":1", "\"mesh\":0");
-      ReplaceFirst(bytes, "\"mesh\":9", "\"mesh\":1");
-    }
+      root["nodes"]!.AsArray().RemoveAt(2);
+      root["meshes"]!.AsArray().RemoveAt(2);
+      root["nodes"]![0]!["children"]!.AsArray().RemoveAt(1);
+    });
+    await using var edited = new MemoryStream(bytes);
 
+    var import = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    var reconciled = import.Value!.Asset;
+    reconciled.StaticRenderObjectSequence.Select(record => record.LocalId).Should().Equal(1, 2, 3);
+    reconciled.StaticRenderObjectSequence.Should().NotContain(record => record.LocalId == 4);
+    reconciled.RootSourceObject.Children.Should().ContainSingle().Subject.Id.Value.Should().Be(2);
+    reconciled.StaticRenderObjectSequence.Select(record => record.NextRecordMarker).Should()
+      .Equal(1, 1, 0);
+    reconciled.StoredTrailingHierarchyUnwindCount.Should().Be(1);
+    reconciled.CommonBaseHeader.SerializedRepresentation.Should()
+      .Equal(asset.CommonBaseHeader.SerializedRepresentation);
+  }
+
+  [Fact]
+  public async Task ReflectedNodeTransformRegeneratesGeometryAndReversesWindingOnce()
+  {
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = RewriteJson(glb.ToArray(), root =>
+      root["nodes"]![0]!["scale"] = new JsonArray(-1, 1, 1));
+    await using var edited = new MemoryStream(bytes);
+
+    var import = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    var record = import.Value!.Asset.StaticRenderObjectSequence.Should().ContainSingle().Subject;
+    record.RenderVertices.Select(vertex => vertex.Position.X).Should().Equal(0, -1, 0);
+    record.Triangles.Should().ContainSingle().Subject.Should().Match<StaticTriangle>(triangle =>
+      triangle.Vertex0 == 0 && triangle.Vertex1 == 2 && triangle.Vertex2 == 1);
+    import.Value.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "StaticRenderObjectSequence[0].RenderVertices" &&
+      change.Disposition == PreservationDisposition.Regenerated);
+  }
+
+  [Fact]
+  public async Task MatrixTransformUsesTheSameGeometryDependencyPathAsTrs()
+  {
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = RewriteJson(glb.ToArray(), root =>
+      root["nodes"]![0]!["matrix"] = new JsonArray(
+        2, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1));
+    await using var edited = new MemoryStream(bytes);
+
+    var import = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    import.Value!.Asset.StaticRenderObjectSequence[0].RenderVertices.Should().NotEqual(
+      asset.StaticRenderObjectSequence[0].RenderVertices);
+    import.Value.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "StaticRenderObjectSequence[0].RenderVertices" &&
+      change.Disposition == PreservationDisposition.Regenerated);
+  }
+
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task UntaggedCopyExpandsLinkedMeshAndRequiresForkForDuplicateMesh(bool singleUserMesh)
+  {
+    var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = RewriteJson(glb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      var copy = nodes[1]!.DeepClone().AsObject();
+      copy["name"] = "Copied source object";
+      copy.Remove("extras");
+      if (singleUserMesh)
+      {
+        var meshes = root["meshes"]!.AsArray();
+        meshes.Add(meshes[1]!.DeepClone());
+        copy["mesh"] = meshes.Count - 1;
+      }
+      nodes.Add(copy);
+      root["nodes"]![0]!["children"]!.AsArray().Add(nodes.Count - 1);
+    });
+    await using var edited = new MemoryStream(bytes);
+
+    var import = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    if (singleUserMesh)
+    {
+      import.Status.Should().Be(OperationStatus.Failed);
+      import.Value.Should().BeNull();
+      import.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+        .Be(GltfDiagnosticCodes.AmbiguousPartitionCorrespondence);
+      return;
+    }
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    var reconciled = import.Value!.Asset;
+    reconciled.RootSourceObject.Children.Select(child => child.Id.Value).Should().Equal(2, 3, 4);
+    reconciled.StaticRenderObjectSequence.Select(record => record.LocalId).Should()
+      .Equal(1, 2, 4, 5, 3);
+    var copied = reconciled.StaticRenderObjectSequence.Single(record => record.LocalId == 5);
+    copied.SourceObjectId.Value.Should().Be(4);
+    copied.Pivot.Should().Be(new Vector3(1, 2, 3));
+    copied.RenderVertices.Select(vertex => vertex.Position).Should().Equal(
+      asset.StaticRenderObjectSequence[1].RenderVertices.Select(vertex => vertex.Position));
+    copied.RenderVertices.Should().OnlyContain(vertex =>
+      vertex.NormalSharingIndex == ushort.MaxValue
+      && vertex.PositionSharingIndex == ushort.MaxValue
+      && vertex.ReservedTextureComponent == 0);
+    copied.KnownFlags.Should().Be(StaticRenderObjectFlags.BeginsNestedSourceObject);
+    copied.HierarchyUnwindCount.Should().Be(1);
+  }
+
+  [Fact]
+  public async Task TransformOnlyScaffoldingCollapsesIntoDescendantLocalTransform()
+  {
+    var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = RewriteJson(glb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      nodes.Add(new JsonObject
+      {
+        ["name"] = "Blender Empty",
+        ["translation"] = new JsonArray(1, 0, 0),
+        ["children"] = new JsonArray(1)
+      });
+      root["nodes"]![0]!["children"] = new JsonArray(nodes.Count - 1, 2);
+    });
+    await using var edited = new MemoryStream(bytes);
+
+    var import = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    var reconciled = import.Value!.Asset;
+    reconciled.RootSourceObject.Children.Select(child => child.Id.Value).Should().Equal(2, 3);
+    reconciled.StaticRenderObjectSequence[1].Pivot.Should().Be(new Vector3(2, 2, 3));
+    reconciled.StaticRenderObjectSequence.Select(record => record.LocalId).Should().Equal(1, 2, 3, 4);
+    reconciled.StaticRenderObjectSequence[0].GetSerializedRepresentation().Should()
+      .Equal(asset.StaticRenderObjectSequence[0].GetSerializedRepresentation());
+  }
+
+  [Fact]
+  public async Task SeparateGltfHierarchyAndTransformEditUsesSameReconciliationRules()
+  {
+    var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var interchange = new GltfInterchange();
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var path = Path.Combine(directory, "model.gltf");
+    Directory.CreateDirectory(directory);
+    try
+    {
+      var export = await interchange.ExportGltfFileAsync(
+        asset,
+        path,
+        new GltfExportOptions(LineageId, DocumentId));
+      var root = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+      var nodes = root["nodes"]!.AsArray();
+      nodes.Add(new JsonObject
+      {
+        ["name"] = "Blender Empty",
+        ["translation"] = new JsonArray(1, 0, 0),
+        ["children"] = new JsonArray(1)
+      });
+      root["nodes"]![1]!["translation"] = new JsonArray(2, 3, -2);
+      root["nodes"]![0]!["children"] = new JsonArray(nodes.Count - 1);
+      root["nodes"]![1]!["children"] = new JsonArray(2);
+      await File.WriteAllTextAsync(path, root.ToJsonString());
+
+      var import = await interchange.ImportEditGltfFileAsync(path, export.Value!.Baseline);
+
+      import.Status.Should().Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+      import.Value!.Asset.StaticRenderObjectSequence.Select(record => record.LocalId).Should()
+        .Equal(1, 2, 4, 3);
+      import.Value.Asset.StaticRenderObjectSequence[1].Pivot.Should().Be(new Vector3(3, 2, 3));
+      import.Value.Asset.StoredTrailingHierarchyUnwindCount.Should().Be(1);
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task UntaggedObjectWithMissingExpectedScopeIsAmbiguous()
+  {
+    var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = RewriteJson(glb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      nodes.RemoveAt(2);
+      root["meshes"]!.AsArray().RemoveAt(2);
+      var unidentified = nodes[1]!.DeepClone().AsObject();
+      unidentified.Remove("extras");
+      unidentified["name"] = "Unidentified object";
+      nodes.Add(unidentified);
+      root["nodes"]![0]!["children"] = new JsonArray(1, 2);
+    });
     await using var edited = new MemoryStream(bytes);
 
     var import = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
@@ -474,7 +787,100 @@ public class GltfWalkingSkeletonTests
     import.Status.Should().Be(OperationStatus.Failed);
     import.Value.Should().BeNull();
     import.Diagnostics.Should().ContainSingle().Subject.Code.Should()
-      .Be(GltfDiagnosticCodes.UnsupportedDomain);
+      .Be(GltfDiagnosticCodes.AmbiguousPartitionCorrespondence);
+  }
+
+  [Fact]
+  public async Task DuplicateObjectIdentityRequiresExplicitForkResolution()
+  {
+    var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = RewriteJson(glb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      nodes.Add(nodes[1]!.DeepClone());
+      root["nodes"]![0]!["children"]!.AsArray().Add(nodes.Count - 1);
+    });
+    await using var edited = new MemoryStream(bytes);
+
+    var import = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Failed);
+    import.Value.Should().BeNull();
+    import.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+      .Be(GltfDiagnosticCodes.AmbiguousPartitionCorrespondence);
+  }
+
+  [Fact]
+  public async Task DeletedHighestIdentitiesAreNotReusedAfterReExport()
+  {
+    var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var interchange = new GltfInterchange();
+    await using var firstGlb = new MemoryStream();
+    var firstExport = await interchange.ExportGlbAsync(
+      asset,
+      firstGlb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var deletedBytes = RewriteJson(firstGlb.ToArray(), root =>
+    {
+      root["nodes"]!.AsArray().RemoveAt(2);
+      root["meshes"]!.AsArray().RemoveAt(2);
+      root["nodes"]![0]!["children"]!.AsArray().RemoveAt(1);
+    });
+    await using var deletedGlb = new MemoryStream(deletedBytes);
+    var deleted = await interchange.ImportEditGlbAsync(deletedGlb, firstExport.Value!.Baseline);
+    deleted.Status.Should().Be(OperationStatus.Succeeded);
+    await using var secondGlb = new MemoryStream();
+    var secondExport = await interchange.ExportGlbAsync(
+      deleted.Value!.Asset,
+      secondGlb,
+      new GltfExportOptions(LineageId, deleted.Value.NextBaseline.DocumentId));
+    var copiedBytes = RewriteJson(secondGlb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      var copy = nodes[1]!.DeepClone().AsObject();
+      copy.Remove("extras");
+      nodes.Add(copy);
+      root["nodes"]![0]!["children"]!.AsArray().Add(nodes.Count - 1);
+    });
+    await using var copiedGlb = new MemoryStream(copiedBytes);
+
+    var copied = await interchange.ImportEditGlbAsync(copiedGlb, secondExport.Value!.Baseline);
+
+    copied.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", copied.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    copied.Value!.Asset.RootSourceObject.Children.Select(child => child.Id.Value).Should().Equal(2, 4);
+    copied.Value.Asset.StaticRenderObjectSequence.Select(record => record.LocalId).Should()
+      .Equal(1, 2, 5, 3);
+  }
+
+  [Fact]
+  public async Task SiblingReorderTriggersDeterministicCanonicalSequencing()
+  {
+    var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = RewriteJson(glb.ToArray(), "\"children\":[1,2]", "\"children\":[2,1]");
+    await using var edited = new MemoryStream(bytes);
+
+    var import = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Succeeded);
+    import.Value!.Asset.RootSourceObject.Children.Select(child => child.Id.Value).Should().Equal(2, 3);
+    import.Value.Asset.StaticRenderObjectSequence.Select(record => record.LocalId).Should()
+      .Equal(1, 2, 4, 3);
+    import.Value.Asset.StaticRenderObjectSequence.Select(record => record.NextRecordMarker).Should()
+      .Equal(1, 1, 1, 0);
   }
 
   [Fact]
@@ -1361,6 +1767,20 @@ public class GltfWalkingSkeletonTests
     var json = Encoding.UTF8.GetString(glb, 20, jsonLength).TrimEnd();
     json.Should().Contain(oldValue);
     var rewrittenJson = Encoding.UTF8.GetBytes(json.Replace(oldValue, newValue, StringComparison.Ordinal));
+    return RewriteJsonChunk(glb, rewrittenJson);
+  }
+
+  private static byte[] RewriteJson(byte[] glb, Action<JsonObject> rewrite)
+  {
+    var jsonLength = BinaryPrimitives.ReadInt32LittleEndian(glb.AsSpan(12));
+    var root = JsonNode.Parse(glb.AsSpan(20, jsonLength))!.AsObject();
+    rewrite(root);
+    return RewriteJsonChunk(glb, Encoding.UTF8.GetBytes(root.ToJsonString()));
+  }
+
+  private static byte[] RewriteJsonChunk(byte[] glb, byte[] rewrittenJson)
+  {
+    var jsonLength = BinaryPrimitives.ReadInt32LittleEndian(glb.AsSpan(12));
     var paddedJsonLength = (rewrittenJson.Length + 3) & ~3;
     var oldBinaryHeader = 20 + jsonLength;
     var binaryLength = BinaryPrimitives.ReadInt32LittleEndian(glb.AsSpan(oldBinaryHeader));

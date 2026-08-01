@@ -16,6 +16,7 @@ namespace EarthTool.MSH.Internal
     internal const int BaseHeaderSize = 0x368;
     internal const int StaticRecordSize = 0xDD;
     internal const int DynamicRecordSize = 0x410;
+    private const int StaticRecordPivotOffsetFromEnd = 17;
     private static readonly Encoding _dynamicStringEncoding = CreateDynamicStringEncoding();
 
     internal static byte[] CreateStatic(
@@ -35,37 +36,55 @@ namespace EarthTool.MSH.Internal
       IReadOnlyDictionary<StaticRenderObjectId, IReadOnlyList<CanonicalStaticVertex>> vertices,
       IReadOnlyDictionary<StaticRenderObjectId, IReadOnlyList<CanonicalTriangle>> triangles,
       IEnumerable<StaticRenderObjectId>? removedRenderObjects = null,
-      IReadOnlyList<StaticRenderObjectAddition>? additions = null)
+      IReadOnlyList<StaticRenderObjectAddition>? additions = null,
+      StaticSourceObject? rootSourceObject = null,
+      IReadOnlyList<StaticRenderObjectId>? explicitSequence = null,
+      IReadOnlyDictionary<StaticRenderObjectId, Vector3>? pivots = null,
+      bool canonicalizeNextRecordMarkers = false)
     {
       var archiveHeader = CreateArchiveHeader(source.ArchiveFraming);
       var removed = new HashSet<StaticRenderObjectId>(
         removedRenderObjects ?? Array.Empty<StaticRenderObjectId>());
       additions ??= Array.Empty<StaticRenderObjectAddition>();
+      rootSourceObject ??= source.RootSourceObject;
+      pivots ??= new Dictionary<StaticRenderObjectId, Vector3>();
       var sourceRecords = source.StaticRenderObjectSequence.ToDictionary(record => record.Id);
       var addedRecords = additions.ToDictionary(addition => addition.Id);
+      var finalRecordSources = new Dictionary<StaticRenderObjectId, SourceObjectId>();
+      AddRecordSources(rootSourceObject, finalRecordSources);
       var recordList = new List<RewrittenStaticRecord>();
-      var plan = PlanStaticRenderObjectIds(source, removed, additions);
+      var plan = explicitSequence ?? PlanStaticRenderObjectIds(source, removed, additions);
       foreach (var id in plan)
       {
         if (sourceRecords.TryGetValue(id, out var record))
         {
+          var pivot = pivots.TryGetValue(record.Id, out var replacementPivot)
+            ? replacementPivot
+            : record.Pivot;
           recordList.Add(new RewrittenStaticRecord(
             vertices.TryGetValue(record.Id, out var replacementVertices)
-              ? RewriteStaticRecord(record, replacementVertices, triangles[record.Id])
-              : record.GetSerializedRepresentation(),
-            record.SourceObjectId));
+              ? RewriteStaticRecord(record, replacementVertices, triangles[record.Id], pivot)
+              : pivots.ContainsKey(record.Id)
+                ? RewriteStaticPivot(record, pivot)
+                : record.GetSerializedRepresentation(),
+            finalRecordSources[id]));
           continue;
         }
 
         var addition = addedRecords[id];
         recordList.Add(new RewrittenStaticRecord(
-          CreateStaticRecord(addition.Vertices, addition.Triangles),
+          CreateStaticRecord(
+            addition.Vertices,
+            addition.Triangles,
+            pivots.TryGetValue(addition.Id, out var additionPivot)
+              ? additionPivot
+              : Vector3.Zero),
           addition.SourceObjectId));
       }
 
       var records = recordList.ToArray();
       RewriteSharingLinks(source, records, plan, vertices, removed, additions);
-      var trailingHierarchyUnwindCount = RewriteHierarchyFlags(source.RootSourceObject, records);
+      var trailingHierarchyUnwindCount = RewriteHierarchyFlags(rootSourceObject, records);
       for (var index = 0; index < records.Length; index++)
       {
         var markerOffset = records[index].Bytes.Length - sizeof(uint);
@@ -74,7 +93,7 @@ namespace EarthTool.MSH.Internal
         {
           WriteUInt32(records[index].Bytes, markerOffset, 0);
         }
-        else if (marker == 0)
+        else if (canonicalizeNextRecordMarkers || marker == 0)
         {
           WriteUInt32(records[index].Bytes, markerOffset, 1);
         }
@@ -95,6 +114,20 @@ namespace EarthTool.MSH.Internal
 
       source.RootTrailingBytes.CopyTo(result, cursor);
       return result;
+    }
+
+    private static void AddRecordSources(
+      StaticSourceObject source,
+      IDictionary<StaticRenderObjectId, SourceObjectId> recordSources)
+    {
+      foreach (var id in source.StaticRenderObjectIds)
+      {
+        recordSources.Add(id, source.Id);
+      }
+      foreach (var child in source.Children)
+      {
+        AddRecordSources(child, recordSources);
+      }
     }
 
     private static void RewriteSharingLinks(
@@ -306,19 +339,22 @@ namespace EarthTool.MSH.Internal
 
     private static byte[] CreateStaticRecord(
       IReadOnlyList<CanonicalStaticVertex> vertices,
-      IReadOnlyList<CanonicalTriangle> triangles)
+      IReadOnlyList<CanonicalTriangle> triangles,
+      Vector3 pivot)
     {
       var blocks = (vertices.Count + 3) / 4;
       var result = new byte[checked(53 + blocks * 0xA0 + triangles.Count * 8)];
       var cursor = 0;
       WriteStaticRecord(result, ref cursor, vertices, triangles, 0, 1);
+      WriteVector3(result, result.Length - StaticRecordPivotOffsetFromEnd, pivot, invertY: true);
       return result;
     }
 
     private static byte[] RewriteStaticRecord(
       StaticRenderObject source,
       IReadOnlyList<CanonicalStaticVertex> vertices,
-      IReadOnlyList<CanonicalTriangle> triangles)
+      IReadOnlyList<CanonicalTriangle> triangles,
+      Vector3 pivot)
     {
       var blockCount = (vertices.Count + 3) / 4;
       var tracks = source.AnimationTracks;
@@ -391,10 +427,17 @@ namespace EarthTool.MSH.Internal
 
       WriteUInt32(data, cursor, source.AnimationClassValue);
       cursor += 4;
-      WriteVector3(data, cursor, source.Pivot, invertY: true);
+      WriteVector3(data, cursor, pivot, invertY: true);
       cursor += 12;
       data[cursor++] = source.BarrelMaximumAngle;
       WriteUInt32(data, cursor, source.NextRecordMarker);
+      return data;
+    }
+
+    private static byte[] RewriteStaticPivot(StaticRenderObject source, Vector3 pivot)
+    {
+      var data = source.GetSerializedRepresentation();
+      WriteVector3(data, data.Length - StaticRecordPivotOffsetFromEnd, pivot, invertY: true);
       return data;
     }
 

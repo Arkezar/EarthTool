@@ -348,6 +348,10 @@ namespace EarthTool.MSH.Assets
     /// <summary>Gets the trailing hierarchy unwind derived from the reconstructed final source depth.</summary>
     public uint ExpectedTrailingHierarchyUnwindCount { get; }
 
+    internal int? NextStaticRenderObjectLocalId { get; }
+
+    internal int? NextSourceObjectLocalId { get; }
+
     internal StaticMeshAsset(
       MeshAssetLineageId lineageId,
       MeshArchiveFraming archiveFraming,
@@ -358,7 +362,9 @@ namespace EarthTool.MSH.Assets
       MeshAssetOrigin origin,
       StaticSourceObject rootSourceObject,
       uint storedTrailingHierarchyUnwindCount,
-      uint expectedTrailingHierarchyUnwindCount)
+      uint expectedTrailingHierarchyUnwindCount,
+      int? nextStaticRenderObjectLocalId,
+      int? nextSourceObjectLocalId)
       : base(lineageId, archiveFraming, commonBaseHeader, rootTrailingBytes, origin, serializedRepresentation)
     {
       StaticRenderObjectSequence = Array.AsReadOnly(
@@ -367,6 +373,8 @@ namespace EarthTool.MSH.Assets
       RootSourceObjectId = rootSourceObject.Id;
       StoredTrailingHierarchyUnwindCount = storedTrailingHierarchyUnwindCount;
       ExpectedTrailingHierarchyUnwindCount = expectedTrailingHierarchyUnwindCount;
+      NextStaticRenderObjectLocalId = nextStaticRenderObjectLocalId;
+      NextSourceObjectLocalId = nextSourceObjectLocalId;
     }
 
     /// <summary>Starts a one-shot edit session for this snapshot.</summary>
