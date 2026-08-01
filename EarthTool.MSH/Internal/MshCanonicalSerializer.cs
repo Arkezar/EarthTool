@@ -21,25 +21,124 @@ namespace EarthTool.MSH.Internal
     internal static byte[] CreateStatic(
       Guid creationGuid,
       AnimationClassBytes animationLengths,
-      IReadOnlyList<CanonicalStaticVertex> vertices,
-      IReadOnlyList<CanonicalTriangle> triangles)
+      CanonicalStaticSourceObject rootSourceObject)
     {
       var framing = new MeshArchiveFraming(0x20D0A1FF, null, creationGuid);
+      var records = FlattenStaticTree(rootSourceObject);
+      var vertices = records.SelectMany(record => record.RenderObject.RenderVertices).ToArray();
       var commonHeader = CreateCanonicalCommonHeader(0, animationLengths, vertices);
-      return CreateStatic(framing, commonHeader, vertices, triangles, Array.Empty<byte>());
+      return CreateStatic(framing, commonHeader, records, Array.Empty<byte>());
     }
 
     internal static byte[] RewriteStatic(
       StaticMeshAsset source,
+      IReadOnlyDictionary<StaticRenderObjectId, IReadOnlyList<CanonicalStaticVertex>> vertices,
+      IReadOnlyDictionary<StaticRenderObjectId, IReadOnlyList<CanonicalTriangle>> triangles)
+    {
+      var archiveHeader = CreateArchiveHeader(source.ArchiveFraming);
+      var records = source.StaticRenderObjectSequence.Select(record =>
+        vertices.TryGetValue(record.Id, out var replacementVertices)
+          ? RewriteStaticRecord(record, replacementVertices, triangles[record.Id])
+          : record.GetSerializedRepresentation()).ToArray();
+      var length = archiveHeader.Length + BaseHeaderSize + sizeof(uint)
+        + records.Sum(record => record.Length) + source.RootTrailingBytes.Count;
+      var result = new byte[length];
+      archiveHeader.CopyTo(result, 0);
+      source.CommonBaseHeader.SerializedRepresentation.CopyTo(result, archiveHeader.Length);
+      var cursor = archiveHeader.Length + BaseHeaderSize;
+      WriteUInt32(result, cursor, source.StoredTrailingHierarchyUnwindCount);
+      cursor += sizeof(uint);
+      foreach (var record in records)
+      {
+        record.CopyTo(result, cursor);
+        cursor += record.Length;
+      }
+
+      source.RootTrailingBytes.CopyTo(result, cursor);
+      return result;
+    }
+
+    private static byte[] RewriteStaticRecord(
+      StaticRenderObject source,
       IReadOnlyList<CanonicalStaticVertex> vertices,
       IReadOnlyList<CanonicalTriangle> triangles)
     {
-      return CreateStatic(
-        source.ArchiveFraming,
-        source.CommonBaseHeader.SerializedRepresentation.ToArray(),
-        vertices,
-        triangles,
-        source.RootTrailingBytes.ToArray());
+      var blockCount = (vertices.Count + 3) / 4;
+      var tracks = source.AnimationTracks;
+      var length = checked(53 + blockCount * 0xA0 + source.TexturePathBytes.Count
+        + triangles.Count * 8
+        + tracks.ScaleFrames.Count * 12
+        + tracks.TranslationFrames.Count * 12
+        + tracks.Matrices.Count * 64);
+      var data = new byte[length];
+      WriteUInt32(data, 0, checked((uint)vertices.Count));
+      WriteUInt32(data, 4, checked((uint)blockCount));
+      for (var index = 0; index < vertices.Count; index++)
+      {
+        var vertex = vertices[index];
+        var blockOffset = 8 + index / 4 * 0xA0;
+        var laneOffset = index % 4 * 4;
+        WriteSingle(data, blockOffset + laneOffset, vertex.Position.X);
+        WriteSingle(data, blockOffset + 0x10 + laneOffset, -vertex.Position.Y);
+        WriteSingle(data, blockOffset + 0x20 + laneOffset, vertex.Position.Z);
+        WriteSingle(data, blockOffset + 0x30 + laneOffset, vertex.Normal.X);
+        WriteSingle(data, blockOffset + 0x40 + laneOffset, -vertex.Normal.Y);
+        WriteSingle(data, blockOffset + 0x50 + laneOffset, vertex.Normal.Z);
+        WriteSingle(data, blockOffset + 0x60 + laneOffset, vertex.TextureCoordinate.X);
+        WriteSingle(data, blockOffset + 0x70 + laneOffset, vertex.TextureCoordinate.Y);
+        WriteUInt16(data, blockOffset + 0x90 + index % 4 * 2, ushort.MaxValue);
+        WriteUInt16(data, blockOffset + 0x98 + index % 4 * 2, ushort.MaxValue);
+      }
+
+      var cursor = 8 + blockCount * 0xA0;
+      WriteUInt32(data, cursor, source.ObjectFlags);
+      cursor += 4;
+      WriteUInt32(data, cursor, checked((uint)source.TexturePathBytes.Count));
+      cursor += 4;
+      source.TexturePathBytes.CopyTo(data, cursor);
+      cursor += source.TexturePathBytes.Count;
+      WriteUInt32(data, cursor, checked((uint)triangles.Count));
+      cursor += 4;
+      foreach (var triangle in triangles)
+      {
+        WriteUInt16(data, cursor, triangle.Vertex0);
+        WriteUInt16(data, cursor + 2, triangle.Vertex1);
+        WriteUInt16(data, cursor + 4, triangle.Vertex2);
+        WriteUInt16(data, cursor + 6, CalculateTriangleFlags(vertices, triangle));
+        cursor += 8;
+      }
+
+      WriteUInt32(data, cursor, checked((uint)tracks.ScaleFrames.Count));
+      cursor += 4;
+      foreach (var frame in tracks.ScaleFrames)
+      {
+        WriteVector3(data, cursor, frame, invertY: false);
+        cursor += 12;
+      }
+
+      WriteUInt32(data, cursor, checked((uint)tracks.TranslationFrames.Count));
+      cursor += 4;
+      foreach (var frame in tracks.TranslationFrames)
+      {
+        WriteVector3(data, cursor, frame, invertY: true);
+        cursor += 12;
+      }
+
+      WriteUInt32(data, cursor, checked((uint)tracks.Matrices.Count));
+      cursor += 4;
+      foreach (var matrix in tracks.Matrices)
+      {
+        WriteMatrix(data, cursor, matrix);
+        cursor += 64;
+      }
+
+      WriteUInt32(data, cursor, source.AnimationClassValue);
+      cursor += 4;
+      WriteVector3(data, cursor, source.Pivot, invertY: true);
+      cursor += 12;
+      data[cursor++] = source.BarrelMaximumAngle;
+      WriteUInt32(data, cursor, source.NextRecordMarker);
+      return data;
     }
 
     internal static byte[] CreateDynamic(
@@ -185,21 +284,73 @@ namespace EarthTool.MSH.Internal
     private static byte[] CreateStatic(
       MeshArchiveFraming framing,
       IReadOnlyList<byte> commonHeader,
-      IReadOnlyList<CanonicalStaticVertex> vertices,
-      IReadOnlyList<CanonicalTriangle> triangles,
+      IReadOnlyList<CanonicalStaticRecord> records,
       IReadOnlyList<byte> rootTrailingBytes)
     {
       var archiveHeader = CreateArchiveHeader(framing);
-      var result = new byte[
-        archiveHeader.Length + BaseHeaderSize + sizeof(uint) + StaticRecordSize + rootTrailingBytes.Count];
+      var recordLength = records.Sum(GetStaticRecordLength);
+      var result = new byte[archiveHeader.Length + BaseHeaderSize + sizeof(uint) + recordLength
+        + rootTrailingBytes.Count];
       archiveHeader.CopyTo(result, 0);
       commonHeader.CopyTo(result, archiveHeader.Length);
       var cursor = archiveHeader.Length + BaseHeaderSize;
-      WriteUInt32(result, cursor, 1);
+      WriteUInt32(result, cursor, checked((uint)records[^1].Depth + 1));
       cursor += sizeof(uint);
-      WriteStaticRecord(result, cursor, vertices, triangles);
-      rootTrailingBytes.CopyTo(result, cursor + StaticRecordSize);
+      for (var index = 0; index < records.Count; index++)
+      {
+        var record = records[index];
+        WriteStaticRecord(
+          result,
+          ref cursor,
+          record.RenderObject.RenderVertices,
+          record.RenderObject.Triangles,
+          record.ObjectFlags,
+          index == records.Count - 1 ? 0u : 1u);
+      }
+
+      rootTrailingBytes.CopyTo(result, cursor);
       return result;
+    }
+
+    private static IReadOnlyList<CanonicalStaticRecord> FlattenStaticTree(
+      CanonicalStaticSourceObject root)
+    {
+      var records = new List<CanonicalStaticRecord>();
+      Flatten(root, 0, records);
+      for (var index = 0; index < records.Count; index++)
+      {
+        var current = records[index];
+        if (index == 0 || ReferenceEquals(current.Source, records[index - 1].Source))
+        {
+          continue;
+        }
+
+        var previousDepth = records[index - 1].Depth;
+        var unwind = previousDepth - (current.Depth - 1);
+        current.ObjectFlags = (uint)StaticRenderObjectFlags.BeginsNestedSourceObject
+          | checked((byte)unwind);
+      }
+
+      return records;
+    }
+
+    private static void Flatten(
+      CanonicalStaticSourceObject source,
+      int depth,
+      List<CanonicalStaticRecord> records)
+    {
+      records.AddRange(source.RenderObjects.Select(renderObject =>
+        new CanonicalStaticRecord(source, renderObject, depth)));
+      foreach (var child in source.Children)
+      {
+        Flatten(child, depth + 1, records);
+      }
+    }
+
+    private static int GetStaticRecordLength(CanonicalStaticRecord record)
+    {
+      var blocks = (record.RenderObject.RenderVertices.Count + 3) / 4;
+      return checked(53 + blocks * 0xA0 + record.RenderObject.Triangles.Count * 8);
     }
 
     private static byte[] CreateArchiveHeader(MeshArchiveFraming framing)
@@ -257,46 +408,55 @@ namespace EarthTool.MSH.Internal
 
     private static void WriteStaticRecord(
       byte[] data,
-      int recordOffset,
+      ref int cursor,
       IReadOnlyList<CanonicalStaticVertex> vertices,
-      IReadOnlyList<CanonicalTriangle> triangles)
+      IReadOnlyList<CanonicalTriangle> triangles,
+      uint objectFlags,
+      uint nextRecordMarker)
     {
+      var recordOffset = cursor;
       WriteUInt32(data, recordOffset, checked((uint)vertices.Count));
-      WriteUInt32(data, recordOffset + 4, 1);
+      var blockCount = (vertices.Count + 3) / 4;
+      WriteUInt32(data, recordOffset + 4, checked((uint)blockCount));
       var vertexOffset = recordOffset + 8;
       for (var lane = 0; lane < vertices.Count; lane++)
       {
         var vertex = vertices[lane];
-        var laneOffset = lane * sizeof(float);
-        WriteSingle(data, vertexOffset + laneOffset, vertex.Position.X);
-        WriteSingle(data, vertexOffset + 0x10 + laneOffset, -vertex.Position.Y);
-        WriteSingle(data, vertexOffset + 0x20 + laneOffset, vertex.Position.Z);
-        WriteSingle(data, vertexOffset + 0x30 + laneOffset, vertex.Normal.X);
-        WriteSingle(data, vertexOffset + 0x40 + laneOffset, -vertex.Normal.Y);
-        WriteSingle(data, vertexOffset + 0x50 + laneOffset, vertex.Normal.Z);
-        WriteSingle(data, vertexOffset + 0x60 + laneOffset, vertex.TextureCoordinate.X);
-        WriteSingle(data, vertexOffset + 0x70 + laneOffset, vertex.TextureCoordinate.Y);
-        WriteUInt16(data, vertexOffset + 0x90 + (lane * sizeof(ushort)), ushort.MaxValue);
-        WriteUInt16(data, vertexOffset + 0x98 + (lane * sizeof(ushort)), ushort.MaxValue);
+        var blockOffset = vertexOffset + lane / 4 * 0xA0;
+        var laneOffset = lane % 4 * sizeof(float);
+        WriteSingle(data, blockOffset + laneOffset, vertex.Position.X);
+        WriteSingle(data, blockOffset + 0x10 + laneOffset, -vertex.Position.Y);
+        WriteSingle(data, blockOffset + 0x20 + laneOffset, vertex.Position.Z);
+        WriteSingle(data, blockOffset + 0x30 + laneOffset, vertex.Normal.X);
+        WriteSingle(data, blockOffset + 0x40 + laneOffset, -vertex.Normal.Y);
+        WriteSingle(data, blockOffset + 0x50 + laneOffset, vertex.Normal.Z);
+        WriteSingle(data, blockOffset + 0x60 + laneOffset, vertex.TextureCoordinate.X);
+        WriteSingle(data, blockOffset + 0x70 + laneOffset, vertex.TextureCoordinate.Y);
+        WriteUInt16(data, blockOffset + 0x90 + lane % 4 * sizeof(ushort), ushort.MaxValue);
+        WriteUInt16(data, blockOffset + 0x98 + lane % 4 * sizeof(ushort), ushort.MaxValue);
       }
 
-      var cursor = vertexOffset + 0xA0;
-      WriteUInt32(data, cursor, 0);
+      cursor = vertexOffset + blockCount * 0xA0;
+      WriteUInt32(data, cursor, objectFlags);
       cursor += sizeof(uint);
       WriteUInt32(data, cursor, 0);
       cursor += sizeof(uint);
       WriteUInt32(data, cursor, checked((uint)triangles.Count));
       cursor += sizeof(uint);
-      var triangle = triangles[0];
-      WriteUInt16(data, cursor, triangle.Vertex0);
-      WriteUInt16(data, cursor + 2, triangle.Vertex1);
-      WriteUInt16(data, cursor + 4, triangle.Vertex2);
-      WriteUInt16(data, cursor + 6, CalculateTriangleFlags(vertices, triangle));
-      cursor += 8;
+      foreach (var triangle in triangles)
+      {
+        WriteUInt16(data, cursor, triangle.Vertex0);
+        WriteUInt16(data, cursor + 2, triangle.Vertex1);
+        WriteUInt16(data, cursor + 4, triangle.Vertex2);
+        WriteUInt16(data, cursor + 6, CalculateTriangleFlags(vertices, triangle));
+        cursor += 8;
+      }
+
       cursor += 12;
       cursor += sizeof(uint) + 12;
       cursor++;
-      WriteUInt32(data, cursor, 0);
+      WriteUInt32(data, cursor, nextRecordMarker);
+      cursor += sizeof(uint);
     }
 
     private static ushort CalculateTriangleFlags(
@@ -312,6 +472,24 @@ namespace EarthTool.MSH.Internal
       }
 
       return Vector3.Normalize(cross).Z > 0.5f ? (ushort)3 : (ushort)1;
+    }
+
+    private sealed class CanonicalStaticRecord
+    {
+      internal CanonicalStaticSourceObject Source { get; }
+      internal CanonicalStaticRenderObject RenderObject { get; }
+      internal int Depth { get; }
+      internal uint ObjectFlags { get; set; }
+
+      internal CanonicalStaticRecord(
+        CanonicalStaticSourceObject source,
+        CanonicalStaticRenderObject renderObject,
+        int depth)
+      {
+        Source = source;
+        RenderObject = renderObject;
+        Depth = depth;
+      }
     }
 
     private static void WriteRectangle(byte[] data, int offset)
@@ -335,6 +513,21 @@ namespace EarthTool.MSH.Internal
       WriteSingle(data, offset, value.X);
       WriteSingle(data, offset + 4, invertY && value.Y != 0 ? -value.Y : value.Y);
       WriteSingle(data, offset + 8, value.Z);
+    }
+
+    private static void WriteMatrix(byte[] data, int offset, Matrix4x4 value)
+    {
+      var values = new[]
+      {
+        value.M11, value.M12, value.M13, value.M14,
+        value.M21, value.M22, value.M23, value.M24,
+        value.M31, value.M32, value.M33, value.M34,
+        value.M41, value.M42, value.M43, value.M44
+      };
+      for (var index = 0; index < values.Length; index++)
+      {
+        WriteSingle(data, offset + index * 4, values[index]);
+      }
     }
 
     private static void WriteAnimationClassBytes(byte[] data, int offset, AnimationClassBytes value)

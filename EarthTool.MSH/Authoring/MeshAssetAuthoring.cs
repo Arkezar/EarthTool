@@ -70,6 +70,51 @@ namespace EarthTool.MSH.Authoring
     }
   }
 
+  /// <summary>Describes one canonical static material-partition render object.</summary>
+  public sealed class CanonicalStaticRenderObject
+  {
+    /// <summary>Gets ordered canonical render vertices.</summary>
+    public IReadOnlyList<CanonicalStaticVertex> RenderVertices { get; }
+
+    /// <summary>Gets ordered canonical triangles.</summary>
+    public IReadOnlyList<CanonicalTriangle> Triangles { get; }
+
+    /// <summary>Initializes one canonical static render-object draft.</summary>
+    public CanonicalStaticRenderObject(
+      IEnumerable<CanonicalStaticVertex> renderVertices,
+      IEnumerable<CanonicalTriangle> triangles)
+    {
+      RenderVertices = Array.AsReadOnly(
+        (renderVertices ?? throw new ArgumentNullException(nameof(renderVertices))).ToArray());
+      Triangles = Array.AsReadOnly(
+        (triangles ?? throw new ArgumentNullException(nameof(triangles))).ToArray());
+    }
+  }
+
+  /// <summary>Describes one canonical source object and its material partitions.</summary>
+  public sealed class CanonicalStaticSourceObject
+  {
+    /// <summary>Gets this source object's canonical material partitions.</summary>
+    public IReadOnlyList<CanonicalStaticRenderObject> RenderObjects { get; }
+
+    /// <summary>Gets ordered canonical child source objects.</summary>
+    public IReadOnlyList<CanonicalStaticSourceObject> Children { get; }
+
+    /// <summary>Initializes one canonical source-object draft.</summary>
+    public CanonicalStaticSourceObject(
+      IEnumerable<CanonicalStaticRenderObject> renderObjects,
+      IEnumerable<CanonicalStaticSourceObject>? children = null)
+    {
+      RenderObjects = Array.AsReadOnly(
+        (renderObjects ?? throw new ArgumentNullException(nameof(renderObjects))).ToArray());
+      Children = Array.AsReadOnly((children ?? Array.Empty<CanonicalStaticSourceObject>()).ToArray());
+      if (RenderObjects.Any(item => item is null) || Children.Any(item => item is null))
+      {
+        throw new ArgumentException("Canonical static collections cannot contain null values.");
+      }
+    }
+  }
+
   /// <summary>Returns a canonical or expert value without a partial value on expected failure.</summary>
   public sealed class MshBuildResult<T> where T : class
   {
@@ -101,8 +146,7 @@ namespace EarthTool.MSH.Authoring
     private readonly Guid _creationGuid;
     private readonly MeshAssetLineageId _lineageId;
     private AnimationClassBytes _animationLengths;
-    private CanonicalTriangle[]? _triangles;
-    private CanonicalStaticVertex[]? _vertices;
+    private CanonicalStaticSourceObject? _rootSourceObject;
 
     private StaticMeshBuilder(Guid creationGuid, MeshAssetLineageId lineageId)
     {
@@ -129,7 +173,7 @@ namespace EarthTool.MSH.Authoring
       return this;
     }
 
-    /// <summary>Sets the one render object supported by the current static authoring slice.</summary>
+    /// <summary>Sets a single root material partition.</summary>
     public StaticMeshBuilder SetRenderObject(
       IEnumerable<CanonicalStaticVertex> vertices,
       IEnumerable<CanonicalTriangle> triangles)
@@ -144,8 +188,15 @@ namespace EarthTool.MSH.Authoring
         throw new ArgumentNullException(nameof(triangles));
       }
 
-      _vertices = vertices.ToArray();
-      _triangles = triangles.ToArray();
+      _rootSourceObject = new CanonicalStaticSourceObject(
+        new[] { new CanonicalStaticRenderObject(vertices, triangles) });
+      return this;
+    }
+
+    /// <summary>Sets the complete canonical source-object tree.</summary>
+    public StaticMeshBuilder SetRootSourceObject(CanonicalStaticSourceObject rootSourceObject)
+    {
+      _rootSourceObject = rootSourceObject ?? throw new ArgumentNullException(nameof(rootSourceObject));
       return this;
     }
 
@@ -153,7 +204,7 @@ namespace EarthTool.MSH.Authoring
     public MshBuildResult<StaticMeshAsset> Build(MshOperationProfile? profile = null)
     {
       profile ??= MshOperationProfile.Default;
-      var failure = AuthoringValidation.ValidateStatic(_vertices, _triangles);
+      var failure = AuthoringValidation.ValidateStaticTree(_rootSourceObject, profile);
       if (failure is not null)
       {
         return new MshBuildResult<StaticMeshAsset>(false, null, new[] { failure });
@@ -164,8 +215,7 @@ namespace EarthTool.MSH.Authoring
         var bytes = MshCanonicalSerializer.CreateStatic(
           _creationGuid,
           _animationLengths,
-          _vertices!,
-          _triangles!);
+          _rootSourceObject!);
         if (bytes.Length > profile.MaxOutputBytes)
         {
           return new MshBuildResult<StaticMeshAsset>(false, null,
@@ -187,6 +237,10 @@ namespace EarthTool.MSH.Authoring
       {
         return new MshBuildResult<StaticMeshAsset>(false, null,
           new[] { AuthoringValidation.Invalid("CommonBaseHeader", "A derived fixed-point value is out of range.") });
+      }
+      catch (MshContentException ex)
+      {
+        return new MshBuildResult<StaticMeshAsset>(false, null, new[] { ex.Diagnostic });
       }
     }
   }
@@ -396,6 +450,8 @@ namespace EarthTool.MSH.Authoring
   public sealed class StaticMeshEditSession
   {
     private readonly StaticMeshAsset _source;
+    private readonly Dictionary<StaticRenderObjectId, CanonicalTriangle[]> _replacementTriangles = new();
+    private readonly Dictionary<StaticRenderObjectId, CanonicalStaticVertex[]> _replacementVertices = new();
     private StaticRenderObjectId _resultId;
     private CanonicalTriangle[]? _triangles;
     private CanonicalStaticVertex[]? _vertices;
@@ -425,8 +481,10 @@ namespace EarthTool.MSH.Authoring
         _invalidSequence = true;
       }
 
-      _vertices = vertices?.ToArray() ?? throw new ArgumentNullException(nameof(vertices));
-      _triangles = triangles?.ToArray() ?? throw new ArgumentNullException(nameof(triangles));
+      _replacementVertices[renderObject] = vertices?.ToArray()
+        ?? throw new ArgumentNullException(nameof(vertices));
+      _replacementTriangles[renderObject] = triangles?.ToArray()
+        ?? throw new ArgumentNullException(nameof(triangles));
       return this;
     }
 
@@ -479,25 +537,57 @@ namespace EarthTool.MSH.Authoring
           "The current safe edit slice requires exactly one final render object.");
       }
 
-      var vertices = _vertices ?? _source.StaticRenderObjectSequence[0].RenderVertices
-        .Select(vertex => new CanonicalStaticVertex(vertex.Position, vertex.Normal, vertex.TextureCoordinate))
-        .ToArray();
-      var triangles = _triangles ?? _source.StaticRenderObjectSequence[0].Triangles
-        .Select(triangle => new CanonicalTriangle(triangle.Vertex0, triangle.Vertex1, triangle.Vertex2))
-        .ToArray();
-      var failure = AuthoringValidation.ValidateStatic(vertices, triangles);
-      if (failure is not null)
+      if (_removed && _source.StaticRenderObjectSequence.Count != 1)
       {
-        return new MshEditResult<StaticMeshAsset>(
-          false,
-          null,
-          new PreservationReport(Array.Empty<PreservationChange>()),
-          new[] { failure });
+        return FailedEdit("StaticRenderObjectSequence",
+          "Removing static render objects requires explicit source-hierarchy authoring.");
       }
 
-      var bytes = _vertices is null
+      if (_removed)
+      {
+        _replacementVertices[_source.StaticRenderObjectSequence[0].Id] = _vertices!;
+        _replacementTriangles[_source.StaticRenderObjectSequence[0].Id] = _triangles!;
+      }
+
+      foreach (var replacement in _replacementVertices)
+      {
+        var recordIndex = _source.StaticRenderObjectSequence
+          .Select((item, index) => (item, index))
+          .Single(item => item.item.Id.Equals(replacement.Key)).index;
+        if (recordIndex < _source.StaticRenderObjectSequence.Count - 1
+          && replacement.Value.Length
+            != _source.StaticRenderObjectSequence[recordIndex].RenderVertices.Count)
+        {
+          return FailedEdit(
+            $"StaticRenderObjectSequence[{recordIndex}].RenderVertices",
+            "Changing this vertex count would shift later absolute shared-vertex indices.");
+        }
+
+        var failure = AuthoringValidation.ValidateStaticForProfile(
+          replacement.Value,
+          _replacementTriangles[replacement.Key],
+          profile,
+          $"StaticRenderObjectSequence[{recordIndex}]");
+        if (failure is not null)
+        {
+          return new MshEditResult<StaticMeshAsset>(
+            false,
+            null,
+            new PreservationReport(Array.Empty<PreservationChange>()),
+            new[] { failure });
+        }
+      }
+
+      var bytes = _replacementVertices.Count == 0
         ? _source.GetSerializedRepresentation()
-        : MshCanonicalSerializer.RewriteStatic(_source, vertices, triangles);
+        : MshCanonicalSerializer.RewriteStatic(
+          _source,
+          _replacementVertices.ToDictionary(
+            item => item.Key,
+            item => (IReadOnlyList<CanonicalStaticVertex>)item.Value),
+          _replacementTriangles.ToDictionary(
+            item => item.Key,
+            item => (IReadOnlyList<CanonicalTriangle>)item.Value));
       if (bytes.Length > profile.MaxOutputBytes)
       {
         return new MshEditResult<StaticMeshAsset>(
@@ -507,14 +597,33 @@ namespace EarthTool.MSH.Authoring
           new[] { AuthoringValidation.ResourceLimit(bytes.Length, profile.MaxOutputBytes) });
       }
 
-      var decoded = MshV1Decoder.Decode(
-        bytes,
-        profile,
-        CancellationToken.None,
-        _source.LineageId,
-        _source.Origin,
-        _resultId.Value,
-        _source.RootSourceObjectId.Value);
+      var renderObjectLocalIds = _source.StaticRenderObjectSequence.Select(item => item.Id.Value).ToArray();
+      if (_removed)
+      {
+        renderObjectLocalIds[0] = _resultId.Value;
+      }
+
+      MshDecodeResult decoded;
+      try
+      {
+        decoded = MshV1Decoder.Decode(
+          bytes,
+          profile,
+          CancellationToken.None,
+          _source.LineageId,
+          _source.Origin,
+          staticRenderObjectLocalIds: renderObjectLocalIds,
+          sourceObjectLocalIds: GetSourceObjectIds(_source.RootSourceObject).Select(item => item.Value).ToArray());
+      }
+      catch (MshContentException ex)
+      {
+        return new MshEditResult<StaticMeshAsset>(
+          false,
+          null,
+          new PreservationReport(Array.Empty<PreservationChange>()),
+          new[] { ex.Diagnostic });
+      }
+
       return new MshEditResult<StaticMeshAsset>(
         true,
         (StaticMeshAsset)decoded.Asset,
@@ -539,16 +648,20 @@ namespace EarthTool.MSH.Authoring
       }
       else
       {
-        changes.Add(Change("StaticRenderObjectSequence[0].Id", PreservationDisposition.Retained,
-          "RetainedRenderObject"));
-        if (_vertices is not null)
+        for (var index = 0; index < _source.StaticRenderObjectSequence.Count; index++)
         {
-          changes.Add(Change("StaticRenderObjectSequence[0].RenderVertices",
-            PreservationDisposition.Regenerated, "GeometryEdit"));
-          changes.Add(Change("StaticRenderObjectSequence[0].Triangles",
-            PreservationDisposition.Regenerated, "GeometryEdit"));
-          changes.Add(Change("StaticRenderObjectSequence[0].VertexBlockPadding",
-            PreservationDisposition.Canonicalized, "GeometryPacking"));
+          var record = _source.StaticRenderObjectSequence[index];
+          changes.Add(Change($"StaticRenderObjectSequence[{index}].Id",
+            PreservationDisposition.Retained, "RetainedRenderObject"));
+          if (_replacementVertices.ContainsKey(record.Id))
+          {
+            changes.Add(Change($"StaticRenderObjectSequence[{index}].RenderVertices",
+              PreservationDisposition.Regenerated, "GeometryEdit"));
+            changes.Add(Change($"StaticRenderObjectSequence[{index}].Triangles",
+              PreservationDisposition.Regenerated, "GeometryEdit"));
+            changes.Add(Change($"StaticRenderObjectSequence[{index}].VertexBlockPadding",
+              PreservationDisposition.Canonicalized, "GeometryPacking"));
+          }
         }
       }
 
@@ -582,6 +695,18 @@ namespace EarthTool.MSH.Authoring
       }
     }
 
+    private static IEnumerable<SourceObjectId> GetSourceObjectIds(StaticSourceObject source)
+    {
+      yield return source.Id;
+      foreach (var child in source.Children)
+      {
+        foreach (var id in GetSourceObjectIds(child))
+        {
+          yield return id;
+        }
+      }
+    }
+
     private void EnsureOpen()
     {
       if (_committed)
@@ -593,6 +718,19 @@ namespace EarthTool.MSH.Authoring
 
   internal static class AuthoringValidation
   {
+    internal static OperationDiagnostic? ValidateStaticTree(
+      CanonicalStaticSourceObject? root,
+      MshOperationProfile profile)
+    {
+      if (root is null)
+      {
+        return Invalid("RootSourceObject", "A canonical root source object is required.");
+      }
+
+      var renderObjectCount = 0;
+      return ValidateStaticSourceObject(root, "RootSourceObject", 1, profile, ref renderObjectCount);
+    }
+
     internal static OperationDiagnostic? ValidateDynamic(
       CanonicalDynamicObject root,
       MshOperationProfile profile,
@@ -637,9 +775,9 @@ namespace EarthTool.MSH.Authoring
         return Invalid("StaticRenderObject", "Canonical static geometry is required.");
       }
 
-      if (vertices.Count != 3 || triangles.Count != 1)
+      if (vertices.Count == 0 || vertices.Count > 65536 || triangles.Count == 0)
       {
-        return Unsupported("Geometry");
+        return Invalid("StaticRenderObject", "Canonical static geometry counts are outside the supported format range.");
       }
 
       for (var index = 0; index < vertices.Count; index++)
@@ -675,12 +813,98 @@ namespace EarthTool.MSH.Authoring
         return Invalid("CommonBaseHeader", "Derived footprint or horizontal extents are out of range.");
       }
 
-      var triangle = triangles[0];
-      if (triangle.Vertex0 >= vertices.Count
-        || triangle.Vertex1 >= vertices.Count
-        || triangle.Vertex2 >= vertices.Count)
+      for (var index = 0; index < triangles.Count; index++)
       {
-        return Invalid("StaticRenderObject.Triangles[0]", "Triangle indices must reference active vertices.");
+        var triangle = triangles[index];
+        if (triangle.Vertex0 >= vertices.Count
+          || triangle.Vertex1 >= vertices.Count
+          || triangle.Vertex2 >= vertices.Count)
+        {
+          return Invalid(
+            $"StaticRenderObject.Triangles[{index}]",
+            "Triangle indices must reference active vertices.");
+        }
+      }
+
+      return null;
+    }
+
+    internal static OperationDiagnostic? ValidateStaticForProfile(
+      IReadOnlyList<CanonicalStaticVertex>? vertices,
+      IReadOnlyList<CanonicalTriangle>? triangles,
+      MshOperationProfile profile,
+      string path)
+    {
+      var failure = ValidateStatic(vertices, triangles);
+      if (failure is not null || vertices is null || triangles is null)
+      {
+        return failure;
+      }
+
+      if (vertices.Count > profile.MaxStaticVerticesPerObject)
+      {
+        return ResourceLimit(vertices.Count, profile.MaxStaticVerticesPerObject, path + ".RenderVertices");
+      }
+
+      var blockCount = (vertices.Count + 3) / 4;
+      if (blockCount > profile.MaxStaticVertexBlocksPerObject)
+      {
+        return ResourceLimit(blockCount, profile.MaxStaticVertexBlocksPerObject, path + ".VertexBlockCount");
+      }
+
+      return triangles.Count > profile.MaxStaticTrianglesPerObject
+        ? ResourceLimit(triangles.Count, profile.MaxStaticTrianglesPerObject, path + ".Triangles")
+        : null;
+    }
+
+    private static OperationDiagnostic? ValidateStaticSourceObject(
+      CanonicalStaticSourceObject source,
+      string path,
+      int depth,
+      MshOperationProfile profile,
+      ref int renderObjectCount)
+    {
+      if (depth > profile.MaxStaticHierarchyDepth)
+      {
+        return ResourceLimit(depth, profile.MaxStaticHierarchyDepth, path);
+      }
+
+      if (source.RenderObjects.Count == 0)
+      {
+        return Invalid(path + ".RenderObjects", "Every canonical source object requires a material partition.");
+      }
+
+      foreach (var renderObject in source.RenderObjects)
+      {
+        renderObjectCount++;
+        if (renderObjectCount > profile.MaxStaticRenderObjects)
+        {
+          return ResourceLimit(renderObjectCount, profile.MaxStaticRenderObjects, "StaticRenderObjectSequence");
+        }
+
+        var failure = ValidateStaticForProfile(
+          renderObject.RenderVertices,
+          renderObject.Triangles,
+          profile,
+          path + ".RenderObjects");
+        if (failure is not null)
+        {
+          return failure;
+        }
+      }
+
+      for (var index = 0; index < source.Children.Count; index++)
+      {
+        var failure = ValidateStaticSourceObject(
+          source.Children[index],
+          path + ".Children[" + index.ToString(System.Globalization.CultureInfo.InvariantCulture) + "]",
+          depth + 1,
+          profile,
+          ref renderObjectCount);
+        if (failure is not null)
+        {
+          return failure;
+        }
       }
 
       return null;

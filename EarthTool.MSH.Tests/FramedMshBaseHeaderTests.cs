@@ -302,11 +302,26 @@ public class FramedMshBaseHeaderTests
     }
   }
 
+  [Fact]
+  public async Task PublicReaderAcceptsAllActiveLanesInDeclaredVertexBlock()
+  {
+    var fixture = OneTriangleMshFixture.Create();
+    System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(fixture.AsSpan(0x380), 4);
+    await using var source = new MemoryStream(fixture);
+
+    var result = await new MshReader().ReadAsync(source);
+
+    result.Status.Should().Be(OperationStatus.Succeeded);
+    result.Value.Should().BeOfType<StaticMeshAsset>().Subject
+      .StaticRenderObjectSequence[0].RenderVertices.Should().HaveCount(4);
+  }
+
   [Theory]
-  [InlineData(0u)]
-  [InlineData(4u)]
-  [InlineData(uint.MaxValue)]
-  public async Task PublicReaderRejectsUnsupportedVertexCountsBeforeMaterialization(uint vertexCount)
+  [InlineData(0u, MshDiagnosticCodes.StructuralHazard)]
+  [InlineData(uint.MaxValue, MshDiagnosticCodes.ResourceLimitExceeded)]
+  public async Task PublicReaderRejectsUnsafeVertexDeclarationsBeforeMaterialization(
+    uint vertexCount,
+    string expectedCode)
   {
     var fixture = OneTriangleMshFixture.Create();
     System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(fixture.AsSpan(0x380), vertexCount);
@@ -316,13 +331,11 @@ public class FramedMshBaseHeaderTests
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
-    var diagnostic = result.Diagnostics.Should().ContainSingle().Subject;
-    diagnostic.Code.Should().Be(MshDiagnosticCodes.UnsupportedDomain);
-    diagnostic.Data["domain"].Should().Be("Geometry");
+    result.Diagnostics.Should().ContainSingle().Subject.Code.Should().Be(expectedCode);
   }
 
   [Fact]
-  public async Task PublicReaderFailsClosedForStoredHierarchyUnwindUntilHierarchyIsSupported()
+  public async Task PublicReaderRejectsMismatchedStoredHierarchyUnwind()
   {
     var fixture = OneTriangleMshFixture.Create();
     System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(fixture.AsSpan(0x37C), 2);
@@ -333,8 +346,8 @@ public class FramedMshBaseHeaderTests
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
     var diagnostic = result.Diagnostics.Should().ContainSingle().Subject;
-    diagnostic.Code.Should().Be(MshDiagnosticCodes.UnsupportedDomain);
-    diagnostic.Data["domain"].Should().Be("Hierarchy");
+    diagnostic.Code.Should().Be(MshDiagnosticCodes.StructuralHazard);
+    diagnostic.Path.Should().Be("StoredTrailingHierarchyUnwindCount");
   }
 
   [Fact]

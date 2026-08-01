@@ -70,6 +70,27 @@ namespace EarthTool.MSH.Operations
     /// <summary>Gets the maximum total dynamic string bytes.</summary>
     public int MaxDynamicStringBytes { get; }
 
+    /// <summary>Gets the maximum static render-object count.</summary>
+    public int MaxStaticRenderObjects { get; }
+
+    /// <summary>Gets the maximum active render vertices in one static render object.</summary>
+    public int MaxStaticVerticesPerObject { get; }
+
+    /// <summary>Gets the maximum triangles in one static render object.</summary>
+    public int MaxStaticTrianglesPerObject { get; }
+
+    /// <summary>Gets the maximum physical vertex blocks in one static render object.</summary>
+    public int MaxStaticVertexBlocksPerObject { get; }
+
+    /// <summary>Gets the maximum frames in one static animation track.</summary>
+    public int MaxStaticAnimationFramesPerTrack { get; }
+
+    /// <summary>Gets the maximum texture-path bytes in one static render object.</summary>
+    public int MaxStaticTexturePathBytes { get; }
+
+    /// <summary>Gets the maximum reconstructed static source-object depth, including the root.</summary>
+    public int MaxStaticHierarchyDepth { get; }
+
     /// <summary>Initializes finite MSH operation limits.</summary>
     public MshOperationProfile(
       int maxInputBytes = 16 * 1024 * 1024,
@@ -79,7 +100,14 @@ namespace EarthTool.MSH.Operations
       int maxDynamicDepth = 64,
       int maxDynamicObjects = 4096,
       int maxDynamicChildrenPerObject = 1024,
-      int maxDynamicStringBytes = 1024 * 1024)
+      int maxDynamicStringBytes = 1024 * 1024,
+      int maxStaticRenderObjects = 4096,
+      int maxStaticVerticesPerObject = 65536,
+      int maxStaticTrianglesPerObject = 1024 * 1024,
+      int maxStaticVertexBlocksPerObject = 16384,
+      int maxStaticAnimationFramesPerTrack = 65536,
+      int maxStaticTexturePathBytes = 1024 * 1024,
+      int maxStaticHierarchyDepth = 15)
     {
       MaxInputBytes = RequirePositive(maxInputBytes, nameof(maxInputBytes));
       MaxOutputBytes = RequirePositive(maxOutputBytes, nameof(maxOutputBytes));
@@ -91,6 +119,25 @@ namespace EarthTool.MSH.Operations
         maxDynamicChildrenPerObject,
         nameof(maxDynamicChildrenPerObject));
       MaxDynamicStringBytes = RequireNonNegative(maxDynamicStringBytes, nameof(maxDynamicStringBytes));
+      MaxStaticRenderObjects = RequirePositive(maxStaticRenderObjects, nameof(maxStaticRenderObjects));
+      MaxStaticVerticesPerObject = maxStaticVerticesPerObject is > 0 and <= 65536
+        ? maxStaticVerticesPerObject
+        : throw new ArgumentOutOfRangeException(nameof(maxStaticVerticesPerObject));
+      MaxStaticTrianglesPerObject = RequireNonNegative(
+        maxStaticTrianglesPerObject,
+        nameof(maxStaticTrianglesPerObject));
+      MaxStaticVertexBlocksPerObject = RequireNonNegative(
+        maxStaticVertexBlocksPerObject,
+        nameof(maxStaticVertexBlocksPerObject));
+      MaxStaticAnimationFramesPerTrack = RequireNonNegative(
+        maxStaticAnimationFramesPerTrack,
+        nameof(maxStaticAnimationFramesPerTrack));
+      MaxStaticTexturePathBytes = RequireNonNegative(
+        maxStaticTexturePathBytes,
+        nameof(maxStaticTexturePathBytes));
+      MaxStaticHierarchyDepth = RequirePositive(
+        maxStaticHierarchyDepth,
+        nameof(maxStaticHierarchyDepth));
     }
 
     private static int RequirePositive(int value, string parameterName)

@@ -4,6 +4,7 @@ using EarthTool.MSH.Authoring;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 
 namespace EarthTool.MSH.Assets
@@ -242,6 +243,19 @@ namespace EarthTool.MSH.Assets
     }
   }
 
+  /// <summary>Names the four recognized static animation classes.</summary>
+  public enum StaticAnimationClass
+  {
+    /// <summary>Animation class A.</summary>
+    A = 0,
+    /// <summary>Animation class B.</summary>
+    B = 1,
+    /// <summary>Animation class C.</summary>
+    C = 2,
+    /// <summary>Animation class D.</summary>
+    D = 3
+  }
+
   /// <summary>Provides exact fixed-region ownership and named semantic views for a MESH base header.</summary>
   public sealed class CommonMeshBaseHeader
   {
@@ -319,11 +333,20 @@ namespace EarthTool.MSH.Assets
     /// <inheritdoc />
     public override MeshAssetKind Kind => MeshAssetKind.Static;
 
-    /// <summary>Gets the root source-object identity for the current supported static slice.</summary>
+    /// <summary>Gets the root source-object identity.</summary>
     public SourceObjectId RootSourceObjectId { get; }
+
+    /// <summary>Gets the source-object grouping view reconstructed from the authoritative sequence.</summary>
+    public StaticSourceObject RootSourceObject { get; }
 
     /// <summary>Gets the authoritative static render-object sequence.</summary>
     public IReadOnlyList<StaticRenderObject> StaticRenderObjectSequence { get; }
+
+    /// <summary>Gets the hierarchy unwind serialized before the static render-object sequence.</summary>
+    public uint StoredTrailingHierarchyUnwindCount { get; }
+
+    /// <summary>Gets the trailing hierarchy unwind derived from the reconstructed final source depth.</summary>
+    public uint ExpectedTrailingHierarchyUnwindCount { get; }
 
     internal StaticMeshAsset(
       MeshAssetLineageId lineageId,
@@ -333,12 +356,17 @@ namespace EarthTool.MSH.Assets
       IEnumerable<StaticRenderObject> staticRenderObjectSequence,
       byte[] serializedRepresentation,
       MeshAssetOrigin origin,
-      SourceObjectId rootSourceObjectId)
+      StaticSourceObject rootSourceObject,
+      uint storedTrailingHierarchyUnwindCount,
+      uint expectedTrailingHierarchyUnwindCount)
       : base(lineageId, archiveFraming, commonBaseHeader, rootTrailingBytes, origin, serializedRepresentation)
     {
       StaticRenderObjectSequence = Array.AsReadOnly(
         new List<StaticRenderObject>(staticRenderObjectSequence).ToArray());
-      RootSourceObjectId = rootSourceObjectId;
+      RootSourceObject = rootSourceObject;
+      RootSourceObjectId = rootSourceObject.Id;
+      StoredTrailingHierarchyUnwindCount = storedTrailingHierarchyUnwindCount;
+      ExpectedTrailingHierarchyUnwindCount = expectedTrailingHierarchyUnwindCount;
     }
 
     /// <summary>Starts a one-shot edit session for this snapshot.</summary>
@@ -382,14 +410,89 @@ namespace EarthTool.MSH.Assets
     }
   }
 
+  /// <summary>Names recognized static render-object flag roles using their serialized bit values.</summary>
+  [Flags]
+  public enum StaticRenderObjectFlags : uint
+  {
+    /// <summary>No recognized role.</summary>
+    None = 0,
+    /// <summary>Faces the active viewer.</summary>
+    ViewerFaced = 0x00000100,
+    /// <summary>Uses the barrel transform role.</summary>
+    Barrel = 0x00000200,
+    /// <summary>Uses the rotor transform role.</summary>
+    Rotor = 0x00000400,
+    /// <summary>Begins a nested source object after applying the hierarchy unwind.</summary>
+    BeginsNestedSourceObject = 0x00000800,
+    /// <summary>Uses marker attachment 1.</summary>
+    MarkerAttachment1 = 0x00001000,
+    /// <summary>Uses marker attachment 2.</summary>
+    MarkerAttachment2 = 0x00002000,
+    /// <summary>Uses marker attachment 3.</summary>
+    MarkerAttachment3 = 0x00004000,
+    /// <summary>Uses marker attachment 4.</summary>
+    MarkerAttachment4 = 0x00008000
+  }
+
+  /// <summary>Groups render-object identities belonging to one reconstructed source object.</summary>
+  public sealed class StaticSourceObject
+  {
+    /// <summary>Gets the lineage-scoped source-object identity.</summary>
+    public SourceObjectId Id { get; }
+
+    /// <summary>Gets render-object references in authoritative sequence order.</summary>
+    public IReadOnlyList<StaticRenderObjectId> StaticRenderObjectIds { get; }
+
+    /// <summary>Gets nested source objects in first-seen sequence order.</summary>
+    public IReadOnlyList<StaticSourceObject> Children { get; }
+
+    internal StaticSourceObject(
+      SourceObjectId id,
+      IEnumerable<StaticRenderObjectId> staticRenderObjectIds,
+      IEnumerable<StaticSourceObject> children)
+    {
+      Id = id;
+      StaticRenderObjectIds = Array.AsReadOnly(staticRenderObjectIds.ToArray());
+      Children = Array.AsReadOnly(children.ToArray());
+    }
+  }
+
+  /// <summary>Preserves the three optional baked animation tracks of one static render object.</summary>
+  public sealed class StaticAnimationTracks
+  {
+    /// <summary>Gets ordered baked scale frames.</summary>
+    public IReadOnlyList<Vector3> ScaleFrames { get; }
+
+    /// <summary>Gets ordered baked translation frames in MSH coordinates.</summary>
+    public IReadOnlyList<Vector3> TranslationFrames { get; }
+
+    /// <summary>Gets ordered baked transform matrices.</summary>
+    public IReadOnlyList<Matrix4x4> Matrices { get; }
+
+    internal StaticAnimationTracks(
+      IEnumerable<Vector3> scaleFrames,
+      IEnumerable<Vector3> translationFrames,
+      IEnumerable<Matrix4x4> matrices)
+    {
+      ScaleFrames = Array.AsReadOnly(scaleFrames.ToArray());
+      TranslationFrames = Array.AsReadOnly(translationFrames.ToArray());
+      Matrices = Array.AsReadOnly(matrices.ToArray());
+    }
+  }
+
   /// <summary>Represents one immutable static render object.</summary>
   public sealed class StaticRenderObject
   {
+    private readonly byte[] _serializedRepresentation;
+
     /// <summary>Gets the lineage-scoped render-object identity.</summary>
     public StaticRenderObjectId Id { get; }
 
     /// <summary>Gets the lineage-local render-object identity.</summary>
     public int LocalId => Id.Value;
+
+    /// <summary>Gets the source object that groups this render object.</summary>
+    public SourceObjectId SourceObjectId { get; }
 
     /// <summary>Gets the ordered active render vertices.</summary>
     public IReadOnlyList<RenderVertex> RenderVertices { get; }
@@ -397,14 +500,83 @@ namespace EarthTool.MSH.Assets
     /// <summary>Gets the ordered triangles.</summary>
     public IReadOnlyList<StaticTriangle> Triangles { get; }
 
+    /// <summary>Gets the exact serialized vertex-block count.</summary>
+    public uint VertexBlockCount { get; }
+
+    /// <summary>Gets exact bytes belonging to inactive vertex-block lanes.</summary>
+    public IReadOnlyList<byte> VertexBlockPadding { get; }
+
+    /// <summary>Gets the exact serialized object flags.</summary>
+    public uint ObjectFlags { get; }
+
+    /// <summary>Gets recognized object-flag roles.</summary>
+    public StaticRenderObjectFlags KnownFlags =>
+      (StaticRenderObjectFlags)(ObjectFlags & 0x0000FF00);
+
+    /// <summary>Gets the low-byte source hierarchy unwind.</summary>
+    public byte HierarchyUnwindCount => (byte)ObjectFlags;
+
+    /// <summary>Gets unclassified object-flag bits 16 through 31.</summary>
+    public ushort UnclassifiedObjectFlagsHighWord => (ushort)(ObjectFlags >> 16);
+
+    /// <summary>Gets the exact length-prefixed texture-path bytes.</summary>
+    public IReadOnlyList<byte> TexturePathBytes { get; }
+
+    /// <summary>Gets the three independent baked animation tracks.</summary>
+    public StaticAnimationTracks AnimationTracks { get; }
+
+    /// <summary>Gets the exact serialized animation-class selector.</summary>
+    public uint AnimationClassValue { get; }
+
+    /// <summary>Gets the recognized animation class, or null for another exact value.</summary>
+    public StaticAnimationClass? KnownAnimationClass => AnimationClassValue <= 3
+      ? (StaticAnimationClass)AnimationClassValue
+      : null;
+
+    /// <summary>Gets the source-object pivot in MSH coordinates.</summary>
+    public Vector3 Pivot { get; }
+
+    /// <summary>Gets the exact barrel maximum-angle byte.</summary>
+    public byte BarrelMaximumAngle { get; }
+
+    /// <summary>Gets the exact zero/nonzero marker linking the next sequence record.</summary>
+    public uint NextRecordMarker { get; }
+
     internal StaticRenderObject(
       StaticRenderObjectId id,
+      SourceObjectId sourceObjectId,
       IEnumerable<RenderVertex> renderVertices,
-      IEnumerable<StaticTriangle> triangles)
+      IEnumerable<StaticTriangle> triangles,
+      uint vertexBlockCount,
+      IEnumerable<byte> vertexBlockPadding,
+      uint objectFlags,
+      IEnumerable<byte> texturePathBytes,
+      StaticAnimationTracks animationTracks,
+      uint animationClassValue,
+      Vector3 pivot,
+      byte barrelMaximumAngle,
+      uint nextRecordMarker,
+      byte[] serializedRepresentation)
     {
       Id = id;
+      SourceObjectId = sourceObjectId;
       RenderVertices = Array.AsReadOnly(new List<RenderVertex>(renderVertices).ToArray());
       Triangles = Array.AsReadOnly(new List<StaticTriangle>(triangles).ToArray());
+      VertexBlockCount = vertexBlockCount;
+      VertexBlockPadding = Array.AsReadOnly(vertexBlockPadding.ToArray());
+      ObjectFlags = objectFlags;
+      TexturePathBytes = Array.AsReadOnly(texturePathBytes.ToArray());
+      AnimationTracks = animationTracks;
+      AnimationClassValue = animationClassValue;
+      Pivot = pivot;
+      BarrelMaximumAngle = barrelMaximumAngle;
+      NextRecordMarker = nextRecordMarker;
+      _serializedRepresentation = (byte[])serializedRepresentation.Clone();
+    }
+
+    internal byte[] GetSerializedRepresentation()
+    {
+      return (byte[])_serializedRepresentation.Clone();
     }
   }
 
@@ -760,11 +932,29 @@ namespace EarthTool.MSH.Assets
     /// <summary>Gets the native texture coordinate.</summary>
     public Vector2 TextureCoordinate { get; }
 
-    internal RenderVertex(Vector3 position, Vector3 normal, Vector2 textureCoordinate)
+    /// <summary>Gets the exact reserved third texture-coordinate lane.</summary>
+    public float ReservedTextureComponent { get; }
+
+    /// <summary>Gets an earlier absolute render-vertex index sharing the lighting normal.</summary>
+    public ushort NormalSharingIndex { get; }
+
+    /// <summary>Gets an earlier absolute render-vertex index sharing the transformed position.</summary>
+    public ushort PositionSharingIndex { get; }
+
+    internal RenderVertex(
+      Vector3 position,
+      Vector3 normal,
+      Vector2 textureCoordinate,
+      float textureCoordinateReserved = 0,
+      ushort normalSharingIndex = ushort.MaxValue,
+      ushort positionSharingIndex = ushort.MaxValue)
     {
       Position = position;
       Normal = normal;
       TextureCoordinate = textureCoordinate;
+      ReservedTextureComponent = textureCoordinateReserved;
+      NormalSharingIndex = normalSharingIndex;
+      PositionSharingIndex = positionSharingIndex;
     }
 
     /// <inheritdoc />
@@ -772,7 +962,10 @@ namespace EarthTool.MSH.Assets
     {
       return Position.Equals(other.Position)
         && Normal.Equals(other.Normal)
-        && TextureCoordinate.Equals(other.TextureCoordinate);
+        && TextureCoordinate.Equals(other.TextureCoordinate)
+        && ReservedTextureComponent.Equals(other.ReservedTextureComponent)
+        && NormalSharingIndex == other.NormalSharingIndex
+        && PositionSharingIndex == other.PositionSharingIndex;
     }
 
     /// <inheritdoc />
@@ -784,7 +977,8 @@ namespace EarthTool.MSH.Assets
     /// <inheritdoc />
     public override int GetHashCode()
     {
-      return (Position, Normal, TextureCoordinate).GetHashCode();
+      return (Position, Normal, TextureCoordinate, ReservedTextureComponent,
+        NormalSharingIndex, PositionSharingIndex).GetHashCode();
     }
   }
 

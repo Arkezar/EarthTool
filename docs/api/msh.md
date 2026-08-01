@@ -8,11 +8,13 @@ casts. Every accepted asset receives a `MeshAssetLineageId`; static render and
 source object identities are scoped to that lineage and are not serialized in
 MSH bytes.
 
-`StaticMeshBuilder` authors the current canonical one-render-object geometry
-slice. It derives static archive framing, a persistent creation GUID, the
-historical one-cell footprint, horizontal extents, zero-filled vertex padding,
-triangle render-pass flags, and canonically absent attachments. All finite and
-fixed-point conversions are checked. `DynamicMeshBuilder` authors ordered trees
+`StaticMeshBuilder` authors canonical source-object trees whose material
+partitions become one authoritative `StaticRenderObjectSequence`. It derives
+hierarchy flags, next-record markers, trailing hierarchy unwind, static archive
+framing, a persistent creation GUID, the historical one-cell footprint,
+horizontal extents, zero-filled vertex padding, triangle render-pass flags, and
+canonically absent attachments. All finite and fixed-point conversions are
+checked. `DynamicMeshBuilder` authors ordered trees
 of recognized `DynamicEffectType` values with dynamic framing and the observed
 zero/absent common-header profile. `CanonicalDynamicObject` copies constructor
 collections, and build rejects cycles, reused instances, excessive depth,
@@ -61,8 +63,9 @@ result-based API for the safe MSH production slice. The reader copies
 caller-owned input under a finite `MshOperationProfile`, returns an immutable
 `MeshAsset`, and produces no partial value on failure or cancellation.
 
-The supported branches are the one-render-object `StaticMeshAsset` and complete
-ordered `DynamicMeshAsset` trees. Every `DynamicObject` owns its inherited
+The supported branches are complete static render-object sequences with a
+reconstructed source-object grouping view and complete ordered
+`DynamicMeshAsset` trees. Every `DynamicObject` owns its inherited
 `CommonMeshBaseHeader`, complete `DynamicEffectExtension`, and immutable ordered
 children. `DynamicEffectExtension.EffectType` and `LightType` retain exact
 numeric values; nullable known-value views name recognized values without
@@ -70,9 +73,10 @@ collapsing unrecognized ones. Its exact fixed extension, mesh-name bytes, and
 texture-path bytes remain independently available. Dynamic child records begin
 at bare `MESH` headers and never carry archive framing.
 
-`MshOperationProfile` bounds total input and output, trailing bytes, dynamic
-depth, total dynamic objects, children per object, total dynamic string bytes,
-and retained diagnostics. Limits are checked before child or string
+`MshOperationProfile` bounds total input and output, trailing bytes, static
+record, geometry, animation, texture-path and hierarchy sizes, dynamic depth,
+total dynamic objects, children per object, total dynamic string bytes, and
+retained diagnostics. Limits are checked before child, record, or string
 materialization. Domains assigned to later slices fail with `ETM1005` rather
 than being silently dropped. `IMshWriter.WriteFileAsync` validates and stages a
 sibling temporary file before atomically replacing an existing destination.

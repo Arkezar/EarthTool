@@ -424,7 +424,14 @@ namespace EarthTool.MSH.Services
             maxDynamicDepth: profile.MaxDynamicDepth,
             maxDynamicObjects: profile.MaxDynamicObjects,
             maxDynamicChildrenPerObject: profile.MaxDynamicChildrenPerObject,
-            maxDynamicStringBytes: profile.MaxDynamicStringBytes);
+            maxDynamicStringBytes: profile.MaxDynamicStringBytes,
+            maxStaticRenderObjects: profile.MaxStaticRenderObjects,
+            maxStaticVerticesPerObject: profile.MaxStaticVerticesPerObject,
+            maxStaticTrianglesPerObject: profile.MaxStaticTrianglesPerObject,
+            maxStaticVertexBlocksPerObject: profile.MaxStaticVertexBlocksPerObject,
+            maxStaticAnimationFramesPerTrack: profile.MaxStaticAnimationFramesPerTrack,
+            maxStaticTexturePathBytes: profile.MaxStaticTexturePathBytes,
+            maxStaticHierarchyDepth: profile.MaxStaticHierarchyDepth);
           var stagedValidation = await new MshReader()
             .ReadAsync(staged, stagedProfile, cancellationToken)
             .ConfigureAwait(false);

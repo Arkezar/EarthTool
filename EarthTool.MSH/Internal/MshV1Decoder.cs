@@ -54,7 +54,9 @@ namespace EarthTool.MSH.Internal
       MeshAssetLineageId? lineageId = null,
       MeshAssetOrigin origin = MeshAssetOrigin.Loaded,
       int staticRenderObjectLocalId = 1,
-      int rootSourceObjectLocalId = 1)
+      int rootSourceObjectLocalId = 1,
+      IReadOnlyList<int>? staticRenderObjectLocalIds = null,
+      IReadOnlyList<int>? sourceObjectLocalIds = null)
     {
       cancellationToken.ThrowIfCancellationRequested();
       var data = source.AsSpan();
@@ -175,18 +177,81 @@ namespace EarthTool.MSH.Internal
       cursor = baseOffset + BaseHeaderSize;
       Ensure(data, cursor, sizeof(uint), "StoredTrailingHierarchyUnwindCount");
       var storedTrailingUnwind = ReadUInt32(data, cursor);
-      if (storedTrailingUnwind != 1)
+      cursor += sizeof(uint);
+      var commonBaseHeader = new CommonMeshBaseHeader(baseHeader.ToArray());
+      var decodedRecords = new List<DecodedStaticRecord>();
+      var absoluteVertexCount = 0;
+      while (true)
       {
-        throw Unsupported("Hierarchy", "StoredTrailingHierarchyUnwindCount", cursor);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (decodedRecords.Count == profile.MaxStaticRenderObjects)
+        {
+          throw ResourceLimit(
+            "StaticRenderObjectSequence",
+            cursor,
+            (long)decodedRecords.Count + 1,
+            profile.MaxStaticRenderObjects);
+        }
+
+        var record = DecodeRenderObject(
+          data,
+          cursor,
+          decodedRecords.Count,
+          absoluteVertexCount,
+          commonBaseHeader,
+          profile,
+          diagnostics,
+          out cursor);
+        decodedRecords.Add(record);
+        absoluteVertexCount = checked(absoluteVertexCount + record.RenderVertices.Count);
+        if (record.NextRecordMarker == 0)
+        {
+          break;
+        }
       }
 
-      cursor += sizeof(uint);
-      cancellationToken.ThrowIfCancellationRequested();
-      var renderObject = DecodeRenderObject(
-        data,
-        cursor,
-        new StaticRenderObjectId(assetLineageId, staticRenderObjectLocalId),
-        out var payloadEnd);
+      var hierarchy = ReconstructHierarchy(
+        decodedRecords,
+        assetLineageId,
+        rootSourceObjectLocalId,
+        sourceObjectLocalIds,
+        profile);
+      var expectedTrailingUnwind = checked((uint)hierarchy.FinalDepth + 1);
+      if (storedTrailingUnwind != expectedTrailingUnwind)
+      {
+        throw Structural(
+          "StoredTrailingHierarchyUnwindCount",
+          baseOffset + BaseHeaderSize,
+          $"Expected {expectedTrailingUnwind}, found {storedTrailingUnwind}.");
+      }
+
+      if (staticRenderObjectLocalIds is not null
+        && staticRenderObjectLocalIds.Count != decodedRecords.Count)
+      {
+        throw new ArgumentException(
+          "Static render-object identities must match the decoded sequence.",
+          nameof(staticRenderObjectLocalIds));
+      }
+
+      var renderObjects = decodedRecords.Select((record, index) => new StaticRenderObject(
+        new StaticRenderObjectId(
+          assetLineageId,
+          staticRenderObjectLocalIds?[index] ?? checked(staticRenderObjectLocalId + index)),
+        hierarchy.RecordSourceIds[index],
+        record.RenderVertices,
+        record.Triangles,
+        record.VertexBlockCount,
+        record.VertexBlockPadding,
+        record.ObjectFlags,
+        record.TexturePathBytes,
+        record.AnimationTracks,
+        record.AnimationClassValue,
+        record.Pivot,
+        record.BarrelMaximumAngle,
+        record.NextRecordMarker,
+        record.SerializedRepresentation)).ToArray();
+      hierarchy.AssignRenderObjectIds(renderObjects);
+      var payloadEnd = cursor;
       var trailingLength = data.Length - payloadEnd;
       if (trailingLength > profile.MaxRootTrailingBytes)
       {
@@ -213,12 +278,14 @@ namespace EarthTool.MSH.Internal
       var asset = new StaticMeshAsset(
         assetLineageId,
         new MeshArchiveFraming(declaration, archiveType, creationGuid),
-        new CommonMeshBaseHeader(baseHeader.ToArray()),
+        commonBaseHeader,
         rootTrailingBytes,
-        new[] { renderObject },
+        renderObjects,
         source,
         origin,
-        new SourceObjectId(assetLineageId, rootSourceObjectLocalId));
+        hierarchy.BuildRoot(),
+        storedTrailingUnwind,
+        expectedTrailingUnwind);
       return new MshDecodeResult(asset, CapDiagnostics(diagnostics, profile.MaxDiagnostics));
     }
 
@@ -717,114 +784,574 @@ namespace EarthTool.MSH.Internal
       return result;
     }
 
-    private static StaticRenderObject DecodeRenderObject(
+    private static DecodedStaticRecord DecodeRenderObject(
       ReadOnlySpan<byte> data,
       int recordOffset,
-      StaticRenderObjectId id,
+      int recordIndex,
+      int absoluteVertexStart,
+      CommonMeshBaseHeader commonHeader,
+      MshOperationProfile profile,
+      List<OperationDiagnostic> diagnostics,
       out int payloadEnd)
     {
-      Ensure(data, recordOffset, StaticRecordSize, "StaticRenderObjectSequence[0]");
-      if (ReadUInt32(data, recordOffset) != 3 || ReadUInt32(data, recordOffset + 4) != 1)
+      var path = $"StaticRenderObjectSequence[{recordIndex}]";
+      Ensure(data, recordOffset, 8, path + ".RenderVertices");
+      var vertexCount = ReadUInt32(data, recordOffset);
+      var blockCount = ReadUInt32(data, recordOffset + 4);
+      if (vertexCount > profile.MaxStaticVerticesPerObject)
       {
-        throw Unsupported("Geometry", "StaticRenderObjectSequence[0].RenderVertices", recordOffset);
+        throw ResourceLimit(
+          path + ".RenderVertices",
+          recordOffset,
+          vertexCount,
+          profile.MaxStaticVerticesPerObject);
       }
 
-      var vertices = new RenderVertex[3];
+      if (blockCount > profile.MaxStaticVertexBlocksPerObject)
+      {
+        throw ResourceLimit(
+          path + ".VertexBlockCount",
+          recordOffset + 4,
+          blockCount,
+          profile.MaxStaticVertexBlocksPerObject);
+      }
+
+      var minimumBlockCount = (vertexCount + 3) / 4;
+      if (blockCount < minimumBlockCount)
+      {
+        throw Structural(
+          path + ".VertexBlockCount",
+          recordOffset + 4,
+          "The declared vertex blocks cannot contain all active render vertices.");
+      }
+
+      EnsureCounted(data, recordOffset + 8, blockCount, 0xA0, path + ".VertexBlocks");
+      if (blockCount > minimumBlockCount)
+      {
+        AddCompatibilityBounded(diagnostics, profile, Compatibility(
+          path + ".VertexBlockCount",
+          recordOffset + 4,
+          "Excess physical vertex blocks were preserved as padding.",
+          new Dictionary<string, string>()));
+      }
+
+      var vertices = new RenderVertex[(int)vertexCount];
       var vertexDataOffset = recordOffset + 8;
       for (var lane = 0; lane < vertices.Length; lane++)
       {
-        var laneFloatOffset = lane * sizeof(float);
+        var blockOffset = vertexDataOffset + lane / 4 * 0xA0;
+        var laneOffset = lane % 4;
+        var laneFloatOffset = laneOffset * sizeof(float);
         var position = new Vector3(
-          ReadSingle(data, vertexDataOffset + laneFloatOffset),
-          -ReadSingle(data, vertexDataOffset + 0x10 + laneFloatOffset),
-          ReadSingle(data, vertexDataOffset + 0x20 + laneFloatOffset));
+          ReadSingle(data, blockOffset + laneFloatOffset),
+          -ReadSingle(data, blockOffset + 0x10 + laneFloatOffset),
+          ReadSingle(data, blockOffset + 0x20 + laneFloatOffset));
         var normal = new Vector3(
-          ReadSingle(data, vertexDataOffset + 0x30 + laneFloatOffset),
-          -ReadSingle(data, vertexDataOffset + 0x40 + laneFloatOffset),
-          ReadSingle(data, vertexDataOffset + 0x50 + laneFloatOffset));
+          ReadSingle(data, blockOffset + 0x30 + laneFloatOffset),
+          -ReadSingle(data, blockOffset + 0x40 + laneFloatOffset),
+          ReadSingle(data, blockOffset + 0x50 + laneFloatOffset));
         var textureCoordinate = new Vector2(
-          ReadSingle(data, vertexDataOffset + 0x60 + laneFloatOffset),
-          ReadSingle(data, vertexDataOffset + 0x70 + laneFloatOffset));
-        var reserved = ReadSingle(data, vertexDataOffset + 0x80 + laneFloatOffset);
-        var normalSharing = ReadUInt16(data, vertexDataOffset + 0x90 + (lane * sizeof(ushort)));
-        var positionSharing = ReadUInt16(data, vertexDataOffset + 0x98 + (lane * sizeof(ushort)));
+          ReadSingle(data, blockOffset + 0x60 + laneFloatOffset),
+          ReadSingle(data, blockOffset + 0x70 + laneFloatOffset));
+        var reserved = ReadSingle(data, blockOffset + 0x80 + laneFloatOffset);
+        var normalSharing = ReadUInt16(data, blockOffset + 0x90 + laneOffset * sizeof(ushort));
+        var positionSharing = ReadUInt16(data, blockOffset + 0x98 + laneOffset * sizeof(ushort));
+        ValidateSharingLink(normalSharing, absoluteVertexStart + lane, path, lane, "NormalSharingIndex", blockOffset);
+        ValidateSharingLink(positionSharing, absoluteVertexStart + lane, path, lane, "PositionSharingIndex", blockOffset);
+        vertices[lane] = new RenderVertex(
+          position,
+          normal,
+          textureCoordinate,
+          reserved,
+          normalSharing,
+          positionSharing);
+      }
 
-        if (!IsFinite(position) || !IsFinite(normal) || !IsFinite(textureCoordinate)
-          || reserved != 0 || normalSharing != ushort.MaxValue || positionSharing != ushort.MaxValue)
+      var padding = new List<byte>();
+      for (var lane = vertices.Length; lane < checked((int)blockCount * 4); lane++)
+      {
+        var blockOffset = vertexDataOffset + lane / 4 * 0xA0;
+        var laneOffset = lane % 4;
+        for (var channel = 0; channel < 9; channel++)
         {
-          throw Unsupported(
-            "Geometry",
-            $"StaticRenderObjectSequence[0].RenderVertices[{lane}]",
-            vertexDataOffset);
+          padding.AddRange(data.Slice(blockOffset + channel * 0x10 + laneOffset * 4, 4).ToArray());
         }
 
-        vertices[lane] = new RenderVertex(position, normal, textureCoordinate);
+        padding.AddRange(data.Slice(blockOffset + 0x90 + laneOffset * 2, 2).ToArray());
+        padding.AddRange(data.Slice(blockOffset + 0x98 + laneOffset * 2, 2).ToArray());
       }
 
-      for (var offset = vertexDataOffset + 0x0C; offset < vertexDataOffset + 0xA0; offset++)
+      var cursor = checked(vertexDataOffset + (int)blockCount * 0xA0);
+      Ensure(data, cursor, 8, path + ".ObjectFlags");
+      var objectFlags = ReadUInt32(data, cursor);
+      var unclassifiedFlags = objectFlags & 0xFFFF0000;
+      if (unclassifiedFlags != 0)
       {
-        if (!IsActiveVertexByte(offset - vertexDataOffset) && data[offset] != 0)
+        AddCompatibilityBounded(diagnostics, profile, Compatibility(
+          path + ".UnclassifiedObjectFlagsHighWord",
+          cursor + 2,
+          "Unclassified object-flag bits were preserved.",
+          new Dictionary<string, string> { ["actual"] = $"0x{unclassifiedFlags:X8}" }));
+      }
+
+      cursor += 4;
+      var textureLengthOffset = cursor;
+      var textureLength = ReadUInt32(data, cursor);
+      cursor += 4;
+      if (textureLength > profile.MaxStaticTexturePathBytes)
+      {
+        throw ResourceLimit(
+          path + ".TexturePathBytes",
+          textureLengthOffset,
+          textureLength,
+          profile.MaxStaticTexturePathBytes);
+      }
+
+      Ensure(data, cursor, (int)textureLength, path + ".TexturePathBytes");
+      var texturePathBytes = data.Slice(cursor, (int)textureLength).ToArray();
+      cursor += (int)textureLength;
+      Ensure(data, cursor, 4, path + ".Triangles");
+      var triangleCountOffset = cursor;
+      var triangleCount = ReadUInt32(data, cursor);
+      cursor += 4;
+      if (triangleCount > profile.MaxStaticTrianglesPerObject)
+      {
+        throw ResourceLimit(
+          path + ".Triangles",
+          triangleCountOffset,
+          triangleCount,
+          profile.MaxStaticTrianglesPerObject);
+      }
+
+      EnsureCounted(data, cursor, triangleCount, 8, path + ".Triangles");
+      var triangles = new StaticTriangle[(int)triangleCount];
+      for (var index = 0; index < triangles.Length; index++)
+      {
+        var triangleOffset = cursor + index * 8;
+        var triangle = new StaticTriangle(
+          ReadUInt16(data, triangleOffset),
+          ReadUInt16(data, triangleOffset + 2),
+          ReadUInt16(data, triangleOffset + 4),
+          ReadUInt16(data, triangleOffset + 6));
+        if (triangle.Vertex0 >= vertexCount
+          || triangle.Vertex1 >= vertexCount
+          || triangle.Vertex2 >= vertexCount)
         {
-          throw Unsupported(
-            "VertexBlockPadding",
-            "StaticRenderObjectSequence[0].VertexBlockPadding",
-            offset);
+          throw Structural(
+            path + $".Triangles[{index}]",
+            triangleOffset,
+            "A triangle index is outside the active render-vertex range.");
         }
+
+        triangles[index] = triangle;
       }
 
-      var cursor = vertexDataOffset + 0xA0;
-      if (ReadUInt32(data, cursor) != 0)
-      {
-        throw Unsupported("Hierarchy", "StaticRenderObjectSequence[0].ObjectFlags", cursor);
-      }
-
+      cursor += checked((int)triangleCount * 8);
+      var scaleFrames = ReadVectorTrack(data, ref cursor, path + ".AnimationTracks.ScaleFrames", false, profile);
+      var translationFrames = ReadVectorTrack(
+        data,
+        ref cursor,
+        path + ".AnimationTracks.TranslationFrames",
+        true,
+        profile);
+      var matrices = ReadMatrixTrack(data, ref cursor, path + ".AnimationTracks.Matrices", profile);
+      Ensure(data, cursor, 21, path + ".Transform");
+      var animationClassValue = ReadUInt32(data, cursor);
       cursor += 4;
-      if (ReadUInt32(data, cursor) != 0)
-      {
-        throw Unsupported("Texture", "StaticRenderObjectSequence[0].Texture", cursor);
-      }
-
-      cursor += 4;
-      if (ReadUInt32(data, cursor) != 1)
-      {
-        throw Unsupported("Geometry", "StaticRenderObjectSequence[0].Triangles", cursor);
-      }
-
-      cursor += 4;
-      var triangle = new StaticTriangle(
-        ReadUInt16(data, cursor),
-        ReadUInt16(data, cursor + 2),
-        ReadUInt16(data, cursor + 4),
-        ReadUInt16(data, cursor + 6));
-      if (triangle.Vertex0 >= 3 || triangle.Vertex1 >= 3 || triangle.Vertex2 >= 3
-        || (triangle.TriangleRenderPassFlags & 1) == 0
-        || (triangle.TriangleRenderPassFlags & ~3) != 0)
-      {
-        throw Unsupported("Geometry", "StaticRenderObjectSequence[0].Triangles[0]", cursor);
-      }
-
-      cursor += 8;
-      if (ReadUInt32(data, cursor) != 0
-        || ReadUInt32(data, cursor + 4) != 0
-        || ReadUInt32(data, cursor + 8) != 0)
-      {
-        throw Unsupported("Animation", "StaticRenderObjectSequence[0].AnimationTracks", cursor);
-      }
-
+      ValidateTrackLengths(
+        commonHeader,
+        animationClassValue,
+        scaleFrames.Count,
+        translationFrames.Count,
+        matrices.Count,
+        path,
+        recordOffset,
+        profile,
+        diagnostics);
+      var pivot = ReadVector3(data, cursor, invertY: true);
       cursor += 12;
-      if (ReadUInt32(data, cursor) != 0 || !data.Slice(cursor + 4, 13).SequenceEqual(new byte[13]))
-      {
-        throw Unsupported("Transform", "StaticRenderObjectSequence[0].Transform", cursor);
-      }
-
-      cursor += 17;
-      if (ReadUInt32(data, cursor) != 0)
-      {
-        throw Unsupported("Hierarchy", "StaticRenderObjectSequence[0].NextRecordMarker", cursor);
-      }
-
+      var barrelMaximumAngle = data[cursor++];
+      var nextRecordMarker = ReadUInt32(data, cursor);
       payloadEnd = cursor + sizeof(uint);
-      return new StaticRenderObject(id, vertices, new[] { triangle });
+      return new DecodedStaticRecord(
+        recordOffset,
+        vertices,
+        triangles,
+        blockCount,
+        padding,
+        objectFlags,
+        texturePathBytes,
+        new StaticAnimationTracks(scaleFrames, translationFrames, matrices),
+        animationClassValue,
+        pivot,
+        barrelMaximumAngle,
+        nextRecordMarker,
+        data.Slice(recordOffset, payloadEnd - recordOffset).ToArray());
+    }
+
+    private static IReadOnlyList<Vector3> ReadVectorTrack(
+      ReadOnlySpan<byte> data,
+      ref int cursor,
+      string path,
+      bool invertY,
+      MshOperationProfile profile)
+    {
+      Ensure(data, cursor, 4, path);
+      var countOffset = cursor;
+      var count = ReadUInt32(data, cursor);
+      cursor += 4;
+      if (count > profile.MaxStaticAnimationFramesPerTrack)
+      {
+        throw ResourceLimit(path, countOffset, count, profile.MaxStaticAnimationFramesPerTrack);
+      }
+
+      EnsureCounted(data, cursor, count, 12, path);
+      var result = new Vector3[(int)count];
+      for (var index = 0; index < result.Length; index++)
+      {
+        result[index] = ReadVector3(data, cursor + index * 12, invertY);
+      }
+
+      cursor += checked((int)count * 12);
+      return result;
+    }
+
+    private static IReadOnlyList<Matrix4x4> ReadMatrixTrack(
+      ReadOnlySpan<byte> data,
+      ref int cursor,
+      string path,
+      MshOperationProfile profile)
+    {
+      Ensure(data, cursor, 4, path);
+      var countOffset = cursor;
+      var count = ReadUInt32(data, cursor);
+      cursor += 4;
+      if (count > profile.MaxStaticAnimationFramesPerTrack)
+      {
+        throw ResourceLimit(path, countOffset, count, profile.MaxStaticAnimationFramesPerTrack);
+      }
+
+      EnsureCounted(data, cursor, count, 64, path);
+      var result = new Matrix4x4[(int)count];
+      for (var index = 0; index < result.Length; index++)
+      {
+        var offset = cursor + index * 64;
+        result[index] = new Matrix4x4(
+          ReadSingle(data, offset), ReadSingle(data, offset + 4),
+          ReadSingle(data, offset + 8), ReadSingle(data, offset + 12),
+          ReadSingle(data, offset + 16), ReadSingle(data, offset + 20),
+          ReadSingle(data, offset + 24), ReadSingle(data, offset + 28),
+          ReadSingle(data, offset + 32), ReadSingle(data, offset + 36),
+          ReadSingle(data, offset + 40), ReadSingle(data, offset + 44),
+          ReadSingle(data, offset + 48), ReadSingle(data, offset + 52),
+          ReadSingle(data, offset + 56), ReadSingle(data, offset + 60));
+      }
+
+      cursor += checked((int)count * 64);
+      return result;
+    }
+
+    private static Vector3 ReadVector3(ReadOnlySpan<byte> data, int offset, bool invertY)
+    {
+      var y = ReadSingle(data, offset + 4);
+      return new Vector3(ReadSingle(data, offset), invertY ? -y : y, ReadSingle(data, offset + 8));
+    }
+
+    private static void ValidateTrackLengths(
+      CommonMeshBaseHeader commonHeader,
+      uint animationClassValue,
+      int scaleCount,
+      int translationCount,
+      int matrixCount,
+      string path,
+      int recordOffset,
+      MshOperationProfile profile,
+      List<OperationDiagnostic> diagnostics)
+    {
+      var expected = animationClassValue switch
+      {
+        0 => commonHeader.AnimationLengths.A,
+        1 => commonHeader.AnimationLengths.B,
+        2 => commonHeader.AnimationLengths.C,
+        3 => commonHeader.AnimationLengths.D,
+        _ => (byte)0
+      };
+      if (animationClassValue > 3)
+      {
+        AddCompatibilityBounded(diagnostics, profile, Compatibility(
+          path + ".AnimationClassValue",
+          recordOffset,
+          "An unrecognized animation class was preserved.",
+          new Dictionary<string, string>
+          {
+            ["actual"] = animationClassValue.ToString(CultureInfo.InvariantCulture)
+          }));
+        return;
+      }
+
+      foreach (var track in new[]
+      {
+        (Name: "ScaleFrames", Count: scaleCount),
+        (Name: "TranslationFrames", Count: translationCount),
+        (Name: "Matrices", Count: matrixCount)
+      })
+      {
+        if (track.Count > 0 && track.Count < expected)
+        {
+          throw Structural(
+            path + ".AnimationTracks." + track.Name,
+            recordOffset,
+            $"A present animation track has {track.Count} frames but class {animationClassValue} declares {expected}.");
+        }
+
+        if (track.Count > expected)
+        {
+          AddCompatibilityBounded(diagnostics, profile, Compatibility(
+            path + ".AnimationTracks." + track.Name,
+            recordOffset,
+            "An animation track longer than its selected declaration was preserved.",
+            new Dictionary<string, string>
+            {
+              ["actual"] = track.Count.ToString(CultureInfo.InvariantCulture),
+              ["expected"] = expected.ToString(CultureInfo.InvariantCulture)
+            }));
+        }
+      }
+    }
+
+    private static void ValidateSharingLink(
+      ushort link,
+      int absoluteVertexIndex,
+      string path,
+      int localVertexIndex,
+      string field,
+      int blockOffset)
+    {
+      if (link != ushort.MaxValue && link >= absoluteVertexIndex)
+      {
+        throw Structural(
+          $"{path}.RenderVertices[{localVertexIndex}].{field}",
+          blockOffset,
+          "A shared vertex index must reference an earlier absolute render vertex.");
+      }
+    }
+
+    private static StaticHierarchy ReconstructHierarchy(
+      IReadOnlyList<DecodedStaticRecord> records,
+      MeshAssetLineageId lineageId,
+      int rootSourceObjectLocalId,
+      IReadOnlyList<int>? sourceObjectLocalIds,
+      MshOperationProfile profile)
+    {
+      if (records.Count == 0)
+      {
+        throw Structural("StaticRenderObjectSequence", 0, "At least one static render object is required.");
+      }
+
+      var sourceIndex = 0;
+      var root = new StaticSourceBuilder(
+        SourceId(lineageId, rootSourceObjectLocalId, sourceObjectLocalIds, sourceIndex++),
+        null,
+        0);
+      var current = root;
+      var recordSources = new SourceObjectId[records.Count];
+      for (var index = 0; index < records.Count; index++)
+      {
+        var record = records[index];
+        var unwind = (byte)record.ObjectFlags;
+        var beginsNested = (record.ObjectFlags & (uint)StaticRenderObjectFlags.BeginsNestedSourceObject) != 0;
+        if (index == 0 && (unwind != 0 || beginsNested))
+        {
+          throw Structural(
+            "StaticRenderObjectSequence[0].ObjectFlags",
+            record.RecordOffset,
+            "The first static render object must establish the root source object.");
+        }
+
+        if (unwind > current.Depth)
+        {
+          throw Structural(
+            $"StaticRenderObjectSequence[{index}].ObjectFlags",
+            record.RecordOffset,
+            "The hierarchy unwind exceeds the current source-object depth.");
+        }
+
+        for (var count = 0; count < unwind; count++)
+        {
+          current = current.Parent!;
+        }
+
+        if (beginsNested)
+        {
+          var depth = current.Depth + 1;
+          if (depth + 1 > profile.MaxStaticHierarchyDepth)
+          {
+            throw ResourceLimit(
+              $"StaticRenderObjectSequence[{index}].ObjectFlags",
+              record.RecordOffset,
+              depth + 1,
+              profile.MaxStaticHierarchyDepth);
+          }
+
+          var child = new StaticSourceBuilder(
+            SourceId(lineageId, rootSourceObjectLocalId, sourceObjectLocalIds, sourceIndex++),
+            current,
+            depth);
+          current.Children.Add(child);
+          current = child;
+        }
+
+        current.RecordIndices.Add(index);
+        recordSources[index] = current.Id;
+      }
+
+      if (sourceObjectLocalIds is not null && sourceObjectLocalIds.Count != sourceIndex)
+      {
+        throw new ArgumentException(
+          "Source-object identities must match the reconstructed hierarchy.",
+          nameof(sourceObjectLocalIds));
+      }
+
+      return new StaticHierarchy(root, recordSources, current.Depth);
+    }
+
+    private static SourceObjectId SourceId(
+      MeshAssetLineageId lineageId,
+      int firstLocalId,
+      IReadOnlyList<int>? sourceObjectLocalIds,
+      int index)
+    {
+      return new SourceObjectId(
+        lineageId,
+        sourceObjectLocalIds is null
+          ? checked(firstLocalId + index)
+          : index < sourceObjectLocalIds.Count
+            ? sourceObjectLocalIds[index]
+            : throw new ArgumentException(
+              "Source-object identities must match the reconstructed hierarchy.",
+              nameof(sourceObjectLocalIds)));
+    }
+
+    private static void EnsureCounted(
+      ReadOnlySpan<byte> data,
+      int offset,
+      uint count,
+      int elementSize,
+      string path)
+    {
+      var length = (long)count * elementSize;
+      if (length > int.MaxValue || offset < 0 || offset > data.Length - length)
+      {
+        throw Structural(path, Math.Min(offset, data.Length), "The declared elements do not fit in the serialized representation.");
+      }
+    }
+
+    private sealed class DecodedStaticRecord
+    {
+      internal int RecordOffset { get; }
+      internal IReadOnlyList<RenderVertex> RenderVertices { get; }
+      internal IReadOnlyList<StaticTriangle> Triangles { get; }
+      internal uint VertexBlockCount { get; }
+      internal IReadOnlyList<byte> VertexBlockPadding { get; }
+      internal uint ObjectFlags { get; }
+      internal IReadOnlyList<byte> TexturePathBytes { get; }
+      internal StaticAnimationTracks AnimationTracks { get; }
+      internal uint AnimationClassValue { get; }
+      internal Vector3 Pivot { get; }
+      internal byte BarrelMaximumAngle { get; }
+      internal uint NextRecordMarker { get; }
+      internal byte[] SerializedRepresentation { get; }
+
+      internal DecodedStaticRecord(
+        int recordOffset,
+        IReadOnlyList<RenderVertex> renderVertices,
+        IReadOnlyList<StaticTriangle> triangles,
+        uint vertexBlockCount,
+        IReadOnlyList<byte> vertexBlockPadding,
+        uint objectFlags,
+        IReadOnlyList<byte> texturePathBytes,
+        StaticAnimationTracks animationTracks,
+        uint animationClassValue,
+        Vector3 pivot,
+        byte barrelMaximumAngle,
+        uint nextRecordMarker,
+        byte[] serializedRepresentation)
+      {
+        RecordOffset = recordOffset;
+        RenderVertices = renderVertices;
+        Triangles = triangles;
+        VertexBlockCount = vertexBlockCount;
+        VertexBlockPadding = vertexBlockPadding;
+        ObjectFlags = objectFlags;
+        TexturePathBytes = texturePathBytes;
+        AnimationTracks = animationTracks;
+        AnimationClassValue = animationClassValue;
+        Pivot = pivot;
+        BarrelMaximumAngle = barrelMaximumAngle;
+        NextRecordMarker = nextRecordMarker;
+        SerializedRepresentation = serializedRepresentation;
+      }
+    }
+
+    private sealed class StaticSourceBuilder
+    {
+      internal SourceObjectId Id { get; }
+      internal StaticSourceBuilder? Parent { get; }
+      internal int Depth { get; }
+      internal List<int> RecordIndices { get; } = new List<int>();
+      internal List<StaticRenderObjectId> RenderObjectIds { get; } = new List<StaticRenderObjectId>();
+      internal List<StaticSourceBuilder> Children { get; } = new List<StaticSourceBuilder>();
+
+      internal StaticSourceBuilder(SourceObjectId id, StaticSourceBuilder? parent, int depth)
+      {
+        Id = id;
+        Parent = parent;
+        Depth = depth;
+      }
+
+      internal StaticSourceObject Build()
+      {
+        return new StaticSourceObject(Id, RenderObjectIds, Children.Select(child => child.Build()));
+      }
+    }
+
+    private sealed class StaticHierarchy
+    {
+      private readonly StaticSourceBuilder _root;
+
+      internal IReadOnlyList<SourceObjectId> RecordSourceIds { get; }
+      internal int FinalDepth { get; }
+
+      internal StaticHierarchy(
+        StaticSourceBuilder root,
+        IReadOnlyList<SourceObjectId> recordSourceIds,
+        int finalDepth)
+      {
+        _root = root;
+        RecordSourceIds = recordSourceIds;
+        FinalDepth = finalDepth;
+      }
+
+      internal void AssignRenderObjectIds(IReadOnlyList<StaticRenderObject> renderObjects)
+      {
+        Assign(_root, renderObjects);
+      }
+
+      internal StaticSourceObject BuildRoot()
+      {
+        return _root.Build();
+      }
+
+      private static void Assign(
+        StaticSourceBuilder source,
+        IReadOnlyList<StaticRenderObject> renderObjects)
+      {
+        source.RenderObjectIds.AddRange(source.RecordIndices.Select(index => renderObjects[index].Id));
+        foreach (var child in source.Children)
+        {
+          Assign(child, renderObjects);
+        }
+      }
     }
 
     private static IReadOnlyList<OperationDiagnostic> CapDiagnostics(
