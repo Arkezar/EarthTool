@@ -21,6 +21,8 @@ namespace EarthTool.GLTF
     public const string IoFailure = "ETG1004";
     /// <summary>glTF operation cancellation.</summary>
     public const string Cancelled = "ETG1005";
+    /// <summary>Static geometry cannot be represented safely.</summary>
+    public const string InvalidGeometry = "ETG1006";
     /// <summary>Required EarthTool manifest metadata is absent.</summary>
     public const string MissingManifest = "ETG2000";
     /// <summary>EarthTool metadata is malformed.</summary>
@@ -57,17 +59,24 @@ namespace EarthTool.GLTF
     /// <summary>Gets the maximum accepted JSON depth.</summary>
     public int MaxJsonDepth { get; }
 
+    /// <summary>Gets the maximum active render vertices accepted in one partition.</summary>
+    public int MaxActiveRenderVertices { get; }
+
     /// <summary>Initializes finite glTF operation limits.</summary>
     public GltfOperationProfile(
       int maxInputBytes = 32 * 1024 * 1024,
       int maxOutputBytes = 32 * 1024 * 1024,
       int maxMetadataBytes = 4 * 1024 * 1024,
-      int maxJsonDepth = 32)
+      int maxJsonDepth = 32,
+      int maxActiveRenderVertices = 65536)
     {
       MaxInputBytes = RequirePositive(maxInputBytes, nameof(maxInputBytes));
       MaxOutputBytes = RequirePositive(maxOutputBytes, nameof(maxOutputBytes));
       MaxMetadataBytes = RequirePositive(maxMetadataBytes, nameof(maxMetadataBytes));
       MaxJsonDepth = RequirePositive(maxJsonDepth, nameof(maxJsonDepth));
+      MaxActiveRenderVertices = maxActiveRenderVertices is > 0 and <= 65536
+        ? maxActiveRenderVertices
+        : throw new ArgumentOutOfRangeException(nameof(maxActiveRenderVertices));
     }
 
     private static int RequirePositive(int value, string parameterName)

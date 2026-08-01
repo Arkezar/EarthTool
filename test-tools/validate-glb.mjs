@@ -1,19 +1,23 @@
 import fs from "node:fs";
+import pathModule from "node:path";
 import validator from "gltf-validator";
 
 const path = process.argv[2];
 if (!path) {
-  console.error("Usage: node validate-glb.mjs <file.glb>");
+  console.error("Usage: node validate-glb.mjs <file.glb|file.gltf>");
   process.exit(2);
 }
 
+const format = pathModule.extname(path).toLowerCase() === ".glb" ? "glb" : "gltf";
 const report = await validator.validateBytes(
   new Uint8Array(fs.readFileSync(path)),
   {
     uri: path,
-    format: "glb",
+    format,
     maxIssues: 0,
-    writeTimestamp: false
+    writeTimestamp: false,
+    externalResourceFunction: async (uri) => new Uint8Array(
+      fs.readFileSync(pathModule.resolve(pathModule.dirname(path), decodeURIComponent(uri))))
   });
 
 const errors = report.issues.numErrors;
