@@ -11,6 +11,8 @@ namespace EarthTool.MSH.Internal
 
     Stream CreateTemporary(string temporaryPath);
 
+    Stream OpenTemporaryRead(string temporaryPath);
+
     void Commit(string temporaryPath, string destinationPath);
 
     bool TryDelete(string temporaryPath);
@@ -28,6 +30,11 @@ namespace EarthTool.MSH.Internal
     public Stream CreateTemporary(string temporaryPath)
     {
       return new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+    }
+
+    public Stream OpenTemporaryRead(string temporaryPath)
+    {
+      return new FileStream(temporaryPath, FileMode.Open, FileAccess.Read, FileShare.Read);
     }
 
     public void Commit(string temporaryPath, string destinationPath)

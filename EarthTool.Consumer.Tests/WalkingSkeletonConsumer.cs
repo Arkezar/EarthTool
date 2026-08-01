@@ -22,6 +22,10 @@ public static class WalkingSkeletonConsumer
       return read;
     }
 
+    _ = asset.CommonBaseHeader.AnimationLengths.A;
+    _ = asset.CommonBaseHeader.AttachmentTable.Count;
+    _ = asset.RootTrailingBytes.Count;
+
     var export = await interchange.ExportGlbAsync(asset, glb, cancellationToken: cancellationToken);
     if (export.Value is null)
     {

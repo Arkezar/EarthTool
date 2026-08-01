@@ -6,6 +6,8 @@ using EarthTool.MSH.Operations;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Numerics;
 using System.Threading;
 
@@ -22,105 +24,190 @@ namespace EarthTool.MSH.Internal
     }
   }
 
+  internal sealed class MshDecodeResult
+  {
+    internal StaticMeshAsset Asset { get; }
+    internal IReadOnlyList<OperationDiagnostic> Diagnostics { get; }
+
+    internal MshDecodeResult(StaticMeshAsset asset, IReadOnlyList<OperationDiagnostic> diagnostics)
+    {
+      Asset = asset;
+      Diagnostics = diagnostics;
+    }
+  }
+
   internal static class MshV1Decoder
   {
-    private const int ArchiveHeaderSize = 0x14;
+    private const uint ArchiveSignature = 0x00D0A1FF;
+    private const uint ArchiveTypeFlag = 0x10000000;
+    private const uint CreationGuidFlag = 0x20000000;
+    private const uint KnownDeclarationBits = 0x30FFFFFF;
     private const int BaseHeaderSize = 0x368;
-    private const int AttachmentOffset = 0x1D8;
-    private const int AttachmentCount = 49;
-    private const int AttachmentSize = 8;
-    private const int RecordOffset = 0x380;
-    private const int ExpectedLength = 0x45D;
+    private const int StaticRecordSize = 0xDD;
 
-    internal static StaticMeshAsset Decode(byte[] source, CancellationToken cancellationToken)
+    internal static MshDecodeResult Decode(
+      byte[] source,
+      MshOperationProfile profile,
+      CancellationToken cancellationToken)
     {
       cancellationToken.ThrowIfCancellationRequested();
-      if (source.Length != ExpectedLength)
-      {
-        throw Structural("$", 0, $"The one-triangle profile requires exactly {ExpectedLength} bytes.");
-      }
-
       var data = source.AsSpan();
-      var declaration = ReadUInt32(data, 0);
-      if (declaration != 0x20D0A1FF)
+      if (data.Length < sizeof(uint))
       {
-        throw Failure(MshDiagnosticCodes.InvalidFraming, 1000, "ArchiveFraming", 0,
-          "The one-triangle profile requires GUID-only framed MSH input.");
+        throw Failure(
+          MshDiagnosticCodes.InvalidFraming,
+          1000,
+          "ArchiveFraming.Declaration",
+          0,
+          "The archive framing declaration is truncated.");
       }
 
-      var creationGuid = new Guid(data.Slice(4, 16).ToArray());
-      var baseHeader = data.Slice(ArchiveHeaderSize, BaseHeaderSize);
+      var diagnostics = new List<OperationDiagnostic>();
+      var declaration = ReadUInt32(data, 0);
+      if ((declaration & 0x00FFFFFF) != ArchiveSignature)
+      {
+        throw Failure(
+          MshDiagnosticCodes.InvalidFraming,
+          1000,
+          "ArchiveFraming.Declaration",
+          0,
+          "The archive framing signature is invalid.");
+      }
+
+      var unknownDeclarationBits = declaration & ~KnownDeclarationBits;
+      if (unknownDeclarationBits != 0)
+      {
+        diagnostics.Add(Compatibility(
+          "ArchiveFraming.Declaration",
+          0,
+          "Unknown archive declaration bits were preserved.",
+          new Dictionary<string, string>
+          {
+            ["unknownBits"] = $"0x{unknownDeclarationBits:X8}"
+          }));
+      }
+
+      var cursor = sizeof(uint);
+      uint? archiveType = null;
+      if ((declaration & ArchiveTypeFlag) != 0)
+      {
+        Ensure(data, cursor, sizeof(uint), "ArchiveFraming.ArchiveType");
+        archiveType = ReadUInt32(data, cursor);
+        cursor += sizeof(uint);
+      }
+
+      Guid? creationGuid = null;
+      if ((declaration & CreationGuidFlag) != 0)
+      {
+        Ensure(data, cursor, 16, "ArchiveFraming.CreationGuid");
+        creationGuid = new Guid(data.Slice(cursor, 16).ToArray());
+        cursor += 16;
+      }
+
+      var baseOffset = cursor;
+      Ensure(data, baseOffset, BaseHeaderSize, "BaseHeader");
+      var baseHeader = data.Slice(baseOffset, BaseHeaderSize);
       if (!baseHeader.Slice(0, 4).SequenceEqual(new byte[] { (byte)'M', (byte)'E', (byte)'S', (byte)'H' }))
       {
-        throw Structural("BaseHeader.Magic", ArchiveHeaderSize, "Expected MESH.");
+        throw Structural("BaseHeader.Magic", baseOffset, "Expected MESH.");
       }
 
       var version = ReadUInt32(baseHeader, 4);
       if (version != 1)
       {
-        throw Failure(MshDiagnosticCodes.UnsupportedVersion, 1001, "BaseHeader.Version", ArchiveHeaderSize + 4,
+        throw Failure(
+          MshDiagnosticCodes.UnsupportedVersion,
+          1001,
+          "BaseHeader.Version",
+          baseOffset + 4,
           $"Unsupported MSH version {version}.");
       }
 
       var meshKind = ReadUInt32(baseHeader, 8);
+      if (meshKind == 1)
+      {
+        throw Unsupported("DynamicMesh", "BaseHeader.MeshKind", baseOffset + 8);
+      }
+
       if (meshKind != 0)
       {
-        throw Failure(MshDiagnosticCodes.UnsupportedMeshKind, 1002, "BaseHeader.MeshKind", ArchiveHeaderSize + 8,
-          "Dynamic MSH transport is outside the walking-skeleton profile.");
+        throw Failure(
+          MshDiagnosticCodes.UnsupportedMeshKind,
+          1002,
+          "BaseHeader.MeshKind",
+          baseOffset + 8,
+          $"Unsupported root mesh kind {meshKind}.");
       }
 
-      ValidateBaseHeader(baseHeader);
-      if (ReadUInt32(data, 0x37C) != 1)
+      if (archiveType.GetValueOrDefault() != 0)
       {
-        throw Unsupported("Hierarchy", "StoredTrailingHierarchyUnwindCount", 0x37C);
+        diagnostics.Add(Compatibility(
+          "ArchiveFraming.ArchiveType",
+          sizeof(uint),
+          "Archive type and root mesh kind select different payload shapes.",
+          new Dictionary<string, string>
+          {
+            ["archiveType"] = archiveType.GetValueOrDefault().ToString(CultureInfo.InvariantCulture),
+            ["meshKind"] = meshKind.ToString(CultureInfo.InvariantCulture)
+          }));
       }
 
+      cursor = baseOffset + BaseHeaderSize;
+      Ensure(data, cursor, sizeof(uint), "StoredTrailingHierarchyUnwindCount");
+      var storedTrailingUnwind = ReadUInt32(data, cursor);
+      if (storedTrailingUnwind != 1)
+      {
+        throw Unsupported("Hierarchy", "StoredTrailingHierarchyUnwindCount", cursor);
+      }
+
+      cursor += sizeof(uint);
       cancellationToken.ThrowIfCancellationRequested();
-      var renderObject = DecodeRenderObject(data);
-      return new StaticMeshAsset(
-        new MeshArchiveFraming(declaration, null, creationGuid),
+      var renderObject = DecodeRenderObject(data, cursor, out var payloadEnd);
+      var trailingLength = data.Length - payloadEnd;
+      if (trailingLength > profile.MaxRootTrailingBytes)
+      {
+        throw ResourceLimit(
+          "RootTrailingBytes",
+          payloadEnd,
+          trailingLength,
+          profile.MaxRootTrailingBytes);
+      }
+
+      var rootTrailingBytes = data.Slice(payloadEnd, trailingLength).ToArray();
+      if (trailingLength != 0)
+      {
+        diagnostics.Add(Compatibility(
+          "RootTrailingBytes",
+          payloadEnd,
+          "Opaque bytes after the complete root payload were preserved.",
+          new Dictionary<string, string>
+          {
+            ["length"] = trailingLength.ToString(CultureInfo.InvariantCulture)
+          }));
+      }
+
+      var asset = new StaticMeshAsset(
+        new MeshArchiveFraming(declaration, archiveType, creationGuid),
+        new CommonMeshBaseHeader(baseHeader.ToArray()),
+        rootTrailingBytes,
         new[] { renderObject },
         source);
+      return new MshDecodeResult(asset, CapDiagnostics(diagnostics, profile.MaxDiagnostics));
     }
 
-    private static void ValidateBaseHeader(ReadOnlySpan<byte> baseHeader)
+    private static StaticRenderObject DecodeRenderObject(
+      ReadOnlySpan<byte> data,
+      int recordOffset,
+      out int payloadEnd)
     {
-      for (var attachment = 0; attachment < AttachmentCount; attachment++)
+      Ensure(data, recordOffset, StaticRecordSize, "StaticRenderObjectSequence[0]");
+      if (ReadUInt32(data, recordOffset) != 3 || ReadUInt32(data, recordOffset + 4) != 1)
       {
-        var offset = AttachmentOffset + (attachment * AttachmentSize);
-        if (ReadInt16(baseHeader, offset) != short.MinValue
-          || ReadInt16(baseHeader, offset + 2) != short.MinValue
-          || ReadInt16(baseHeader, offset + 4) != short.MinValue
-          || baseHeader[offset + 6] != 0
-          || baseHeader[offset + 7] != 0)
-        {
-          throw Unsupported("Attachment", $"BaseHeader.Attachments[{attachment + 1}]", ArchiveHeaderSize + offset);
-        }
-      }
-
-      for (var offset = 12; offset < baseHeader.Length; offset++)
-      {
-        if (offset >= AttachmentOffset && offset < AttachmentOffset + (AttachmentCount * AttachmentSize))
-        {
-          continue;
-        }
-
-        if (baseHeader[offset] != 0)
-        {
-          throw Unsupported("BaseHeader", "BaseHeader", ArchiveHeaderSize + offset);
-        }
-      }
-    }
-
-    private static StaticRenderObject DecodeRenderObject(ReadOnlySpan<byte> data)
-    {
-      if (ReadUInt32(data, RecordOffset) != 3 || ReadUInt32(data, RecordOffset + 4) != 1)
-      {
-        throw Unsupported("Geometry", "StaticRenderObject.Vertices", RecordOffset);
+        throw Unsupported("Geometry", "StaticRenderObjectSequence[0].RenderVertices", recordOffset);
       }
 
       var vertices = new RenderVertex[3];
-      var vertexDataOffset = RecordOffset + 8;
+      var vertexDataOffset = recordOffset + 8;
       for (var lane = 0; lane < vertices.Length; lane++)
       {
         var laneFloatOffset = lane * sizeof(float);
@@ -142,7 +229,10 @@ namespace EarthTool.MSH.Internal
         if (!IsFinite(position) || !IsFinite(normal) || !IsFinite(textureCoordinate)
           || reserved != 0 || normalSharing != ushort.MaxValue || positionSharing != ushort.MaxValue)
         {
-          throw Unsupported("Geometry", $"StaticRenderObject.RenderVertices[{lane}]", vertexDataOffset);
+          throw Unsupported(
+            "Geometry",
+            $"StaticRenderObjectSequence[0].RenderVertices[{lane}]",
+            vertexDataOffset);
         }
 
         vertices[lane] = new RenderVertex(position, normal, textureCoordinate);
@@ -150,29 +240,31 @@ namespace EarthTool.MSH.Internal
 
       for (var offset = vertexDataOffset + 0x0C; offset < vertexDataOffset + 0xA0; offset++)
       {
-        var inActiveChannel = IsActiveVertexByte(offset - vertexDataOffset);
-        if (!inActiveChannel && data[offset] != 0)
+        if (!IsActiveVertexByte(offset - vertexDataOffset) && data[offset] != 0)
         {
-          throw Unsupported("VertexBlockPadding", "StaticRenderObject.VertexBlockPadding", offset);
+          throw Unsupported(
+            "VertexBlockPadding",
+            "StaticRenderObjectSequence[0].VertexBlockPadding",
+            offset);
         }
       }
 
       var cursor = vertexDataOffset + 0xA0;
       if (ReadUInt32(data, cursor) != 0)
       {
-        throw Unsupported("Hierarchy", "StaticRenderObject.ObjectFlags", cursor);
+        throw Unsupported("Hierarchy", "StaticRenderObjectSequence[0].ObjectFlags", cursor);
       }
 
       cursor += 4;
       if (ReadUInt32(data, cursor) != 0)
       {
-        throw Unsupported("Texture", "StaticRenderObject.Texture", cursor);
+        throw Unsupported("Texture", "StaticRenderObjectSequence[0].Texture", cursor);
       }
 
       cursor += 4;
       if (ReadUInt32(data, cursor) != 1)
       {
-        throw Unsupported("Geometry", "StaticRenderObject.Triangles", cursor);
+        throw Unsupported("Geometry", "StaticRenderObjectSequence[0].Triangles", cursor);
       }
 
       cursor += 4;
@@ -184,7 +276,7 @@ namespace EarthTool.MSH.Internal
       if (triangle.Vertex0 >= 3 || triangle.Vertex1 >= 3 || triangle.Vertex2 >= 3
         || triangle.TriangleRenderPassFlags != 1)
       {
-        throw Unsupported("Geometry", "StaticRenderObject.Triangles[0]", cursor);
+        throw Unsupported("Geometry", "StaticRenderObjectSequence[0].Triangles[0]", cursor);
       }
 
       cursor += 8;
@@ -192,22 +284,48 @@ namespace EarthTool.MSH.Internal
         || ReadUInt32(data, cursor + 4) != 0
         || ReadUInt32(data, cursor + 8) != 0)
       {
-        throw Unsupported("Animation", "StaticRenderObject.AnimationTracks", cursor);
+        throw Unsupported("Animation", "StaticRenderObjectSequence[0].AnimationTracks", cursor);
       }
 
       cursor += 12;
       if (ReadUInt32(data, cursor) != 0 || !data.Slice(cursor + 4, 13).SequenceEqual(new byte[13]))
       {
-        throw Unsupported("Transform", "StaticRenderObject.Transform", cursor);
+        throw Unsupported("Transform", "StaticRenderObjectSequence[0].Transform", cursor);
       }
 
       cursor += 17;
-      if (ReadUInt32(data, cursor) != 0 || cursor + 4 != data.Length)
+      if (ReadUInt32(data, cursor) != 0)
       {
-        throw Unsupported("Hierarchy", "StaticRenderObject.NextRecordMarker", cursor);
+        throw Unsupported("Hierarchy", "StaticRenderObjectSequence[0].NextRecordMarker", cursor);
       }
 
+      payloadEnd = cursor + sizeof(uint);
       return new StaticRenderObject(1, vertices, new[] { triangle });
+    }
+
+    private static IReadOnlyList<OperationDiagnostic> CapDiagnostics(
+      IReadOnlyList<OperationDiagnostic> diagnostics,
+      int maximum)
+    {
+      if (diagnostics.Count <= maximum)
+      {
+        return diagnostics;
+      }
+
+      var retainedDiagnosticCount = maximum - 1;
+      var suppressedDiagnosticCount = diagnostics.Count - retainedDiagnosticCount;
+      var retained = diagnostics.Take(retainedDiagnosticCount).ToList();
+      retained.Add(new OperationDiagnostic(
+        MshDiagnosticCodes.DiagnosticsTruncated,
+        1010,
+        DiagnosticSeverity.Warning,
+        "$",
+        "Additional diagnostics were suppressed by the operation profile.",
+        data: new Dictionary<string, string>
+        {
+          ["suppressed"] = suppressedDiagnosticCount.ToString(CultureInfo.InvariantCulture)
+        }));
+      return retained;
     }
 
     private static bool IsActiveVertexByte(int offset)
@@ -237,14 +355,17 @@ namespace EarthTool.MSH.Internal
       return !float.IsNaN(value) && !float.IsInfinity(value);
     }
 
+    private static void Ensure(ReadOnlySpan<byte> data, int offset, int length, string path)
+    {
+      if (offset < 0 || length < 0 || offset > data.Length - length)
+      {
+        throw Structural(path, Math.Min(offset, data.Length), "The serialized representation is truncated.");
+      }
+    }
+
     private static ushort ReadUInt16(ReadOnlySpan<byte> data, int offset)
     {
       return BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(offset, 2));
-    }
-
-    private static short ReadInt16(ReadOnlySpan<byte> data, int offset)
-    {
-      return BinaryPrimitives.ReadInt16LittleEndian(data.Slice(offset, 2));
     }
 
     private static uint ReadUInt32(ReadOnlySpan<byte> data, int offset)
@@ -262,6 +383,26 @@ namespace EarthTool.MSH.Internal
       return Failure(MshDiagnosticCodes.StructuralHazard, 1003, path, offset, message);
     }
 
+    private static MshContentException ResourceLimit(
+      string path,
+      long offset,
+      long actual,
+      long maximum)
+    {
+      return new MshContentException(new OperationDiagnostic(
+        MshDiagnosticCodes.ResourceLimitExceeded,
+        1004,
+        DiagnosticSeverity.Error,
+        path,
+        "The serialized representation exceeds the configured operation profile.",
+        offset,
+        new Dictionary<string, string>
+        {
+          ["actual"] = actual.ToString(CultureInfo.InvariantCulture),
+          ["maximum"] = maximum.ToString(CultureInfo.InvariantCulture)
+        }));
+    }
+
     private static MshContentException Unsupported(string domain, string path, long offset)
     {
       return new MshContentException(new OperationDiagnostic(
@@ -269,12 +410,33 @@ namespace EarthTool.MSH.Internal
         1005,
         DiagnosticSeverity.Error,
         path,
-        $"The {domain} domain is outside the one-triangle walking-skeleton profile.",
+        $"The {domain} domain is outside the current safe MSH slice.",
         offset,
         new Dictionary<string, string> { ["domain"] = domain }));
     }
 
-    private static MshContentException Failure(string code, int eventId, string path, long offset, string message)
+    private static OperationDiagnostic Compatibility(
+      string path,
+      long offset,
+      string message,
+      IReadOnlyDictionary<string, string> data)
+    {
+      return new OperationDiagnostic(
+        MshDiagnosticCodes.CompatibilityAnomaly,
+        1009,
+        DiagnosticSeverity.Warning,
+        path,
+        message,
+        offset,
+        data);
+    }
+
+    private static MshContentException Failure(
+      string code,
+      int eventId,
+      string path,
+      long offset,
+      string message)
     {
       return new MshContentException(new OperationDiagnostic(
         code,

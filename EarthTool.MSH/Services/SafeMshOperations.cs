@@ -4,6 +4,8 @@ using EarthTool.Common.Operations;
 using EarthTool.MSH.Assets;
 using EarthTool.MSH.Internal;
 using EarthTool.MSH.Operations;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,6 +17,20 @@ namespace EarthTool.MSH.Services
   /// <summary>Provides bounded, fail-closed MSH reading.</summary>
   public sealed class MshReader : IMshReader
   {
+    private readonly ILogger<MshReader> _logger;
+
+    /// <summary>Initializes a reader without operation logging.</summary>
+    public MshReader()
+      : this(NullLogger<MshReader>.Instance)
+    {
+    }
+
+    /// <summary>Initializes a reader that logs successful compatibility warnings.</summary>
+    public MshReader(ILogger<MshReader> logger)
+    {
+      _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
     /// <inheritdoc />
     public async Task<OperationResult<MeshAsset>> ReadAsync(
       Stream source,
@@ -36,7 +52,7 @@ namespace EarthTool.MSH.Services
         }
 
         using var owned = new MemoryStream();
-        var buffer = new byte[81920];
+        var buffer = new byte[(int)Math.Min(81920L, (long)profile.MaxInputBytes + 1)];
         while (true)
         {
           var read = await source.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
@@ -53,10 +69,15 @@ namespace EarthTool.MSH.Services
           owned.Write(buffer, 0, read);
         }
 
-        var asset = MshV1Decoder.Decode(owned.ToArray(), cancellationToken);
-        return new OperationResult<MeshAsset>(OperationStatus.Succeeded, asset);
+        var decoded = MshV1Decoder.Decode(owned.ToArray(), profile, cancellationToken);
+        LogWarnings(_logger, decoded.Diagnostics);
+
+        return new OperationResult<MeshAsset>(
+          OperationStatus.Succeeded,
+          decoded.Asset,
+          decoded.Diagnostics);
       }
-      catch (OperationCanceledException)
+      catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
       {
         return Cancelled<MeshAsset>();
       }
@@ -64,7 +85,7 @@ namespace EarthTool.MSH.Services
       {
         return Failed<MeshAsset>(ex.Diagnostic);
       }
-      catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+      catch (Exception ex) when (IsIoFailure(ex))
       {
         return Failed<MeshAsset>(IoFailure("$", ex));
       }
@@ -86,11 +107,11 @@ namespace EarthTool.MSH.Services
         using var source = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         return await ReadAsync(source, profile, cancellationToken).ConfigureAwait(false);
       }
-      catch (OperationCanceledException)
+      catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
       {
         return Cancelled<MeshAsset>();
       }
-      catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+      catch (Exception ex) when (IsIoFailure(ex))
       {
         return Failed<MeshAsset>(IoFailure("$", ex));
       }
@@ -118,7 +139,42 @@ namespace EarthTool.MSH.Services
         1007,
         DiagnosticSeverity.Error,
         path,
-        exception.Message);
+        Bound(exception.Message),
+        data: new Dictionary<string, string>
+        {
+          ["exceptionType"] = exception.GetType().FullName ?? exception.GetType().Name
+        });
+    }
+
+    internal static bool IsIoFailure(Exception exception)
+    {
+      return exception is IOException
+        || exception is UnauthorizedAccessException
+        || exception is NotSupportedException
+        || exception is ObjectDisposedException
+        || exception is OperationCanceledException;
+    }
+
+    internal static void LogWarnings(ILogger logger, IEnumerable<OperationDiagnostic> diagnostics)
+    {
+      foreach (var diagnostic in diagnostics)
+      {
+        if (diagnostic.Severity == DiagnosticSeverity.Warning)
+        {
+          logger.LogWarning(
+            new EventId(diagnostic.EventId, diagnostic.Code),
+            "{Code} at {Path}: {Message}",
+            diagnostic.Code,
+            diagnostic.Path,
+            diagnostic.Message);
+        }
+      }
+    }
+
+    private static string Bound(string message)
+    {
+      const int maximumLength = 512;
+      return message.Length <= maximumLength ? message : message.Substring(0, maximumLength);
     }
 
     internal static OperationResult<T> Failed<T>(OperationDiagnostic diagnostic)
@@ -147,6 +203,20 @@ namespace EarthTool.MSH.Services
   /// <summary>Validates immutable MSH assets independently of writing.</summary>
   public sealed class MshValidator : IMshValidator
   {
+    private readonly ILogger<MshValidator> _logger;
+
+    /// <summary>Initializes a validator without operation logging.</summary>
+    public MshValidator()
+      : this(NullLogger<MshValidator>.Instance)
+    {
+    }
+
+    /// <summary>Initializes a validator that logs successful compatibility warnings.</summary>
+    public MshValidator(ILogger<MshValidator> logger)
+    {
+      _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
     /// <inheritdoc />
     public Task<OperationResult> ValidateAsync(
       MeshAsset asset,
@@ -167,8 +237,7 @@ namespace EarthTool.MSH.Services
           return Task.FromResult(UnsupportedAsset());
         }
 
-        var bytes = staticAsset.GetSerializedRepresentation();
-        if (bytes.Length > profile.MaxOutputBytes)
+        if (staticAsset.SerializedLength > profile.MaxOutputBytes)
         {
           return Task.FromResult<OperationResult>(new OperationResult(
             OperationStatus.Failed,
@@ -183,10 +252,14 @@ namespace EarthTool.MSH.Services
             }));
         }
 
-        MshV1Decoder.Decode(bytes, cancellationToken);
-        return Task.FromResult<OperationResult>(new OperationResult(OperationStatus.Succeeded));
+        var bytes = staticAsset.GetSerializedRepresentation();
+        var decoded = MshV1Decoder.Decode(bytes, profile, cancellationToken);
+        MshReader.LogWarnings(_logger, decoded.Diagnostics);
+        return Task.FromResult<OperationResult>(new OperationResult(
+          OperationStatus.Succeeded,
+          decoded.Diagnostics));
       }
-      catch (OperationCanceledException)
+      catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
       {
         return Task.FromResult<OperationResult>(Cancelled());
       }
@@ -234,16 +307,29 @@ namespace EarthTool.MSH.Services
   public sealed class MshWriter : IMshWriter
   {
     private readonly ITransactionalFileSystem _fileSystem;
+    private readonly ILogger<MshWriter> _logger;
 
     /// <summary>Initializes a writer using the platform filesystem.</summary>
     public MshWriter()
-      : this(new TransactionalFileSystem())
+      : this(new TransactionalFileSystem(), NullLogger<MshWriter>.Instance)
+    {
+    }
+
+    /// <summary>Initializes a writer using the platform filesystem and operation logging.</summary>
+    public MshWriter(ILogger<MshWriter> logger)
+      : this(new TransactionalFileSystem(), logger)
     {
     }
 
     internal MshWriter(ITransactionalFileSystem fileSystem)
+      : this(fileSystem, NullLogger<MshWriter>.Instance)
+    {
+    }
+
+    internal MshWriter(ITransactionalFileSystem fileSystem, ILogger<MshWriter> logger)
     {
       _fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
+      _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <inheritdoc />
@@ -252,6 +338,21 @@ namespace EarthTool.MSH.Services
       Stream destination,
       MshOperationProfile? profile = null,
       CancellationToken cancellationToken = default)
+    {
+      var result = await WriteCoreAsync(asset, destination, profile, cancellationToken).ConfigureAwait(false);
+      if (result.Succeeded)
+      {
+        MshReader.LogWarnings(_logger, result.Diagnostics);
+      }
+
+      return result;
+    }
+
+    private static async Task<OperationResult> WriteCoreAsync(
+      MeshAsset asset,
+      Stream destination,
+      MshOperationProfile? profile,
+      CancellationToken cancellationToken)
     {
       if (asset is null)
       {
@@ -272,17 +373,17 @@ namespace EarthTool.MSH.Services
           return UnsupportedAsset();
         }
 
-        var bytes = staticAsset.GetSerializedRepresentation();
-        if (bytes.Length > profile.MaxOutputBytes)
+        if (staticAsset.SerializedLength > profile.MaxOutputBytes)
         {
           return Limit();
         }
 
-        MshV1Decoder.Decode(bytes, cancellationToken);
+        var bytes = staticAsset.GetSerializedRepresentation();
+        var decoded = MshV1Decoder.Decode(bytes, profile, cancellationToken);
         await destination.WriteAsync(bytes, 0, bytes.Length, cancellationToken).ConfigureAwait(false);
-        return new OperationResult(OperationStatus.Succeeded);
+        return new OperationResult(OperationStatus.Succeeded, decoded.Diagnostics);
       }
-      catch (OperationCanceledException)
+      catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
       {
         return MshValidator.Cancelled();
       }
@@ -290,7 +391,7 @@ namespace EarthTool.MSH.Services
       {
         return new OperationResult(OperationStatus.Failed, new[] { ex.Diagnostic });
       }
-      catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+      catch (Exception ex) when (MshReader.IsIoFailure(ex))
       {
         return new OperationResult(OperationStatus.Failed, new[] { MshReader.IoFailure("$", ex) });
       }
@@ -308,36 +409,72 @@ namespace EarthTool.MSH.Services
         throw new ArgumentNullException(nameof(destinationPath));
       }
 
-      var temporaryPath = _fileSystem.GetTemporaryPath(destinationPath);
+      if (asset is null)
+      {
+        throw new ArgumentNullException(nameof(asset));
+      }
+
+      profile ??= MshOperationProfile.Default;
+      var validation = await new MshValidator()
+        .ValidateAsync(asset, profile, cancellationToken)
+        .ConfigureAwait(false);
+      if (!validation.Succeeded)
+      {
+        return validation;
+      }
+
+      string? temporaryPath = null;
+      OperationResult? writeResult = null;
       try
       {
         cancellationToken.ThrowIfCancellationRequested();
+        temporaryPath = _fileSystem.GetTemporaryPath(destinationPath);
         using (var temporary = _fileSystem.CreateTemporary(temporaryPath))
         {
-          var result = await WriteAsync(asset, temporary, profile, cancellationToken).ConfigureAwait(false);
-          if (!result.Succeeded)
+          writeResult = await WriteCoreAsync(asset, temporary, profile, cancellationToken).ConfigureAwait(false);
+          if (!writeResult.Succeeded)
           {
-            return result;
+            return writeResult;
           }
 
           await temporary.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        using (var staged = _fileSystem.OpenTemporaryRead(temporaryPath))
+        {
+          var stagedProfile = new MshOperationProfile(
+            maxInputBytes: profile.MaxOutputBytes,
+            maxOutputBytes: profile.MaxOutputBytes,
+            maxDiagnostics: profile.MaxDiagnostics,
+            maxRootTrailingBytes: profile.MaxRootTrailingBytes);
+          var stagedValidation = await new MshReader()
+            .ReadAsync(staged, stagedProfile, cancellationToken)
+            .ConfigureAwait(false);
+          if (!stagedValidation.Succeeded)
+          {
+            return new OperationResult(stagedValidation.Status, stagedValidation.Diagnostics);
+          }
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
         _fileSystem.Commit(temporaryPath, destinationPath);
-        return new OperationResult(OperationStatus.Succeeded);
+        MshReader.LogWarnings(_logger, writeResult!.Diagnostics);
+        return writeResult;
       }
-      catch (OperationCanceledException)
+      catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
       {
         return MshValidator.Cancelled();
       }
-      catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+      catch (Exception ex) when (MshReader.IsIoFailure(ex))
       {
         return new OperationResult(OperationStatus.Failed, new[] { MshReader.IoFailure(destinationPath, ex) });
       }
       finally
       {
-        _fileSystem.TryDelete(temporaryPath);
+        if (temporaryPath is not null)
+        {
+          _fileSystem.TryDelete(temporaryPath);
+        }
       }
     }
 

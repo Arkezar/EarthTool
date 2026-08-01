@@ -31,7 +31,7 @@ public class SafeMshWalkingSkeletonTests
   }
 
   [Fact]
-  public async Task PublicReaderRejectsUnsupportedAttachmentDomainWithoutPartialAsset()
+  public async Task PublicReaderPreservesNoncanonicalAttachmentRepresentation()
   {
     var fixture = OneTriangleMshFixture.Create();
     fixture[0x14 + 0x1D8] = 0;
@@ -40,11 +40,21 @@ public class SafeMshWalkingSkeletonTests
 
     var result = await new MshReader().ReadAsync(source);
 
-    result.Status.Should().Be(OperationStatus.Failed);
-    result.Value.Should().BeNull();
-    var diagnostic = result.Diagnostics.Should().ContainSingle().Subject;
-    diagnostic.Code.Should().Be(MshDiagnosticCodes.UnsupportedDomain);
-    diagnostic.Data["domain"].Should().Be("Attachment");
+    result.Status.Should().Be(OperationStatus.Succeeded);
+    var asset = result.Value.Should().BeOfType<StaticMeshAsset>().Subject;
+    asset.CommonBaseHeader.AttachmentTable.Take(2).Should().Equal(0, 0);
+    await using var destination = new MemoryStream();
+    var write = await new MshWriter().WriteAsync(asset, destination);
+    write.Status.Should().Be(OperationStatus.Succeeded);
+    destination.ToArray().Should().Equal(fixture);
+    destination.Position = 0;
+    var roundTrip = await new MshReader().ReadAsync(destination);
+    var roundTripAsset = roundTrip.Value.Should().BeOfType<StaticMeshAsset>().Subject;
+    roundTripAsset.CommonBaseHeader.AttachmentTable.Take(2).Should().Equal(0, 0);
+    await using var secondDestination = new MemoryStream();
+    var secondWrite = await new MshWriter().WriteAsync(roundTripAsset, secondDestination);
+    secondWrite.Status.Should().Be(OperationStatus.Succeeded);
+    secondDestination.ToArray().Should().Equal(destination.ToArray());
   }
 
   [Fact]
@@ -149,6 +159,11 @@ public class SafeMshWalkingSkeletonTests
     public Stream CreateTemporary(string temporaryPath)
     {
       return new MemoryStream();
+    }
+
+    public Stream OpenTemporaryRead(string temporaryPath)
+    {
+      return new MemoryStream(OneTriangleMshFixture.Create());
     }
 
     public void Commit(string temporaryPath, string destinationPath)

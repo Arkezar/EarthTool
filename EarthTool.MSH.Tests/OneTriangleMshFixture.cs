@@ -8,20 +8,44 @@ internal static class OneTriangleMshFixture
 
   internal static byte[] Create()
   {
-    const int archiveHeaderSize = 0x14;
+    return Create(0x20D0A1FF, null, CreationGuid);
+  }
+
+  internal static byte[] Create(
+    uint declaration,
+    uint? archiveType,
+    Guid? creationGuid,
+    Action<byte[], int>? configureBaseHeader = null,
+    byte[]? rootTrailingBytes = null)
+  {
     const int baseHeaderSize = 0x368;
     const int staticRecordSize = 0xDD;
-    var data = new byte[archiveHeaderSize + baseHeaderSize + sizeof(uint) + staticRecordSize];
+    var archiveHeaderSize = sizeof(uint)
+      + (archiveType.HasValue ? sizeof(uint) : 0)
+      + (creationGuid.HasValue ? 16 : 0);
+    rootTrailingBytes ??= Array.Empty<byte>();
+    var data = new byte[
+      archiveHeaderSize + baseHeaderSize + sizeof(uint) + staticRecordSize + rootTrailingBytes.Length];
 
-    WriteUInt32(data, 0x00, 0x20D0A1FF);
-    CreationGuid.ToByteArray().CopyTo(data, 0x04);
+    WriteUInt32(data, 0x00, declaration);
+    var archiveCursor = sizeof(uint);
+    if (archiveType.HasValue)
+    {
+      WriteUInt32(data, archiveCursor, archiveType.Value);
+      archiveCursor += sizeof(uint);
+    }
 
-    const int baseOffset = archiveHeaderSize;
+    if (creationGuid.HasValue)
+    {
+      creationGuid.Value.ToByteArray().CopyTo(data, archiveCursor);
+    }
+
+    var baseOffset = archiveHeaderSize;
     "MESH"u8.CopyTo(data.AsSpan(baseOffset));
     WriteUInt32(data, baseOffset + 0x04, 1);
     WriteUInt32(data, baseOffset + 0x08, 0);
 
-    const int attachmentOffset = baseOffset + 0x1D8;
+    var attachmentOffset = baseOffset + 0x1D8;
     for (var attachment = 0; attachment < 49; attachment++)
     {
       var offset = attachmentOffset + (attachment * 8);
@@ -30,9 +54,11 @@ internal static class OneTriangleMshFixture
       WriteInt16(data, offset + 4, short.MinValue);
     }
 
-    WriteUInt32(data, 0x37C, 1);
+    configureBaseHeader?.Invoke(data, baseOffset);
 
-    const int recordOffset = 0x380;
+    WriteUInt32(data, baseOffset + baseHeaderSize, 1);
+
+    var recordOffset = baseOffset + baseHeaderSize + sizeof(uint);
     WriteUInt32(data, recordOffset, 3);
     WriteUInt32(data, recordOffset + 0x04, 1);
 
@@ -67,8 +93,33 @@ internal static class OneTriangleMshFixture
     data[cursor] = 0;
     cursor++;
     WriteUInt32(data, cursor, 0);
+    rootTrailingBytes.CopyTo(data, cursor + sizeof(uint));
 
     return data;
+  }
+
+  internal static void WriteDistinctCommonHeaderRegions(byte[] data, int baseOffset)
+  {
+    WriteUInt32(data, baseOffset + 0x0C, 0xA1B2C3D4);
+    WriteUInt32(data, baseOffset + 0x10, 0x01020304);
+    WriteUInt32(data, baseOffset + 0x14, 0x11121314);
+    Fill(data, baseOffset + 0x18, 0x30, 0x21);
+    Fill(data, baseOffset + 0x48, 0xC0, 0x31);
+    Fill(data, baseOffset + 0x108, 0x70, 0x41);
+    Fill(data, baseOffset + 0x178, 0x20, 0x51);
+    Fill(data, baseOffset + 0x198, 0x10, 0x61);
+    Fill(data, baseOffset + 0x1A8, 0x10, 0x71);
+    Fill(data, baseOffset + 0x1B8, 0x20, 0x81);
+    Fill(data, baseOffset + 0x1D8, 0x188, 0x91);
+    Fill(data, baseOffset + 0x360, 0x08, 0xA1);
+  }
+
+  private static void Fill(byte[] data, int offset, int length, byte seed)
+  {
+    for (var index = 0; index < length; index++)
+    {
+      data[offset + index] = unchecked((byte)(seed + index));
+    }
   }
 
   private static void WriteUInt32(byte[] data, int offset, uint value)

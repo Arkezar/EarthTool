@@ -30,6 +30,10 @@ namespace EarthTool.MSH.Operations
     public const string IoFailure = "ETM1007";
     /// <summary>MSH operation cancellation.</summary>
     public const string Cancelled = "ETM1008";
+    /// <summary>Safely preserved noncanonical serialized representation.</summary>
+    public const string CompatibilityAnomaly = "ETM1009";
+    /// <summary>Additional diagnostics were suppressed by the operation profile.</summary>
+    public const string DiagnosticsTruncated = "ETM1010";
   }
 
   /// <summary>Defines finite resource limits for one MSH operation.</summary>
@@ -44,18 +48,33 @@ namespace EarthTool.MSH.Operations
     /// <summary>Gets the maximum emitted output size in bytes.</summary>
     public int MaxOutputBytes { get; }
 
+    /// <summary>Gets the maximum retained operation diagnostics.</summary>
+    public int MaxDiagnostics { get; }
+
+    /// <summary>Gets the maximum accepted opaque root trailing-byte count.</summary>
+    public int MaxRootTrailingBytes { get; }
+
     /// <summary>Initializes finite MSH operation limits.</summary>
     public MshOperationProfile(
       int maxInputBytes = 16 * 1024 * 1024,
-      int maxOutputBytes = 16 * 1024 * 1024)
+      int maxOutputBytes = 16 * 1024 * 1024,
+      int maxDiagnostics = 128,
+      int maxRootTrailingBytes = 1024 * 1024)
     {
       MaxInputBytes = RequirePositive(maxInputBytes, nameof(maxInputBytes));
       MaxOutputBytes = RequirePositive(maxOutputBytes, nameof(maxOutputBytes));
+      MaxDiagnostics = RequirePositive(maxDiagnostics, nameof(maxDiagnostics));
+      MaxRootTrailingBytes = RequireNonNegative(maxRootTrailingBytes, nameof(maxRootTrailingBytes));
     }
 
     private static int RequirePositive(int value, string parameterName)
     {
       return value > 0 ? value : throw new ArgumentOutOfRangeException(parameterName);
+    }
+
+    private static int RequireNonNegative(int value, string parameterName)
+    {
+      return value >= 0 ? value : throw new ArgumentOutOfRangeException(parameterName);
     }
   }
 
