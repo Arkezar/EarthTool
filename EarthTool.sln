@@ -42,6 +42,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EarthTool.Common.GUI", "Ear
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EarthTool.TEX.GUI", "EarthTool.TEX.GUI\EarthTool.TEX.GUI.csproj", "{451235F7-0C1F-49ED-B83A-F6AF2000AB1A}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EarthTool.GLTF", "EarthTool.GLTF\EarthTool.GLTF.csproj", "{8173630A-DCFB-48E0-87BF-A9A3E7F0AC7C}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EarthTool.Consumer.Tests", "EarthTool.Consumer.Tests\EarthTool.Consumer.Tests.csproj", "{A127BDB7-C5A9-4C45-9D83-F048CCAF5501}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -112,6 +116,14 @@ Global
 		{451235F7-0C1F-49ED-B83A-F6AF2000AB1A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{451235F7-0C1F-49ED-B83A-F6AF2000AB1A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{451235F7-0C1F-49ED-B83A-F6AF2000AB1A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8173630A-DCFB-48E0-87BF-A9A3E7F0AC7C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8173630A-DCFB-48E0-87BF-A9A3E7F0AC7C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8173630A-DCFB-48E0-87BF-A9A3E7F0AC7C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8173630A-DCFB-48E0-87BF-A9A3E7F0AC7C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A127BDB7-C5A9-4C45-9D83-F048CCAF5501}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A127BDB7-C5A9-4C45-9D83-F048CCAF5501}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A127BDB7-C5A9-4C45-9D83-F048CCAF5501}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A127BDB7-C5A9-4C45-9D83-F048CCAF5501}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

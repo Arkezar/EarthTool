@@ -12,9 +12,15 @@ on:
       - "EarthTool.WD/**"
       - "EarthTool.MSH/**"
       - "EarthTool.MSH.Tests/**"
+      - "EarthTool.GLTF/**"
+      - "EarthTool.Consumer.Tests/**"
       - "EarthTool.DAE/**"
       - "EarthTool.PAR/**"
       - "EarthTool.TEX/**"
+      - "test-tools/**"
+      - "Directory.Build.props"
+      - "Directory.Packages.props"
+      - "EarthTool.sln"
       - ".github/workflows/ci-unified.yml"
   pull_request:
     branches: [main, master, dev]
@@ -27,9 +33,15 @@ on:
       - "EarthTool.WD/**"
       - "EarthTool.MSH/**"
       - "EarthTool.MSH.Tests/**"
+      - "EarthTool.GLTF/**"
+      - "EarthTool.Consumer.Tests/**"
       - "EarthTool.DAE/**"
       - "EarthTool.PAR/**"
       - "EarthTool.TEX/**"
+      - "test-tools/**"
+      - "Directory.Build.props"
+      - "Directory.Packages.props"
+      - "EarthTool.sln"
   workflow_dispatch:
 
 env:
@@ -79,10 +91,55 @@ jobs:
               - 'EarthTool.WD/**'
               - 'EarthTool.MSH/**'
               - 'EarthTool.MSH.Tests/**'
+              - 'EarthTool.GLTF/**'
+              - 'EarthTool.Consumer.Tests/**'
               - 'EarthTool.DAE/**'
               - 'EarthTool.PAR/**'
               - 'EarthTool.TEX/**'
               - 'EarthTool.Common/**'
+              - 'test-tools/**'
+              - 'Directory.Build.props'
+              - 'Directory.Packages.props'
+              - 'EarthTool.sln'
+
+  msh-gltf-contract:
+    name: MSH/glTF contract (${{ matrix.os }})
+    needs: detect-changes
+    runs-on: ${{ matrix.os }}
+    if: needs.detect-changes.outputs.libraries == 'true' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: test-tools/package-lock.json
+
+      - name: Install pinned Khronos validator
+        run: npm ci --prefix test-tools
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Build public consumer
+        run: dotnet build EarthTool.Consumer.Tests/EarthTool.Consumer.Tests.csproj --configuration Release --no-restore
+
+      - name: Run MSH/glTF contract tests
+        run: dotnet test EarthTool.MSH.Tests/EarthTool.MSH.Tests.csproj --configuration Release --no-restore
+        env:
+          EARTHTOOL_RUN_KHRONOS_VALIDATOR: "1"
 
   build-cli:
     name: Build CLI (${{ matrix.os }})

@@ -1,0 +1,48 @@
+public static class EarthTool.GLTF.GltfDiagnosticCodes
+  field System.String AssetLineageMismatch = "ETG2003"
+  field System.String Cancelled = "ETG1005"
+  field System.String DocumentMismatch = "ETG2004"
+  field System.String InvalidGlb = "ETG1000"
+  field System.String IoFailure = "ETG1004"
+  field System.String MalformedMetadata = "ETG2001"
+  field System.String MisplacedMetadata = "ETG2009"
+  field System.String MissingExpectedScope = "ETG2005"
+  field System.String MissingManifest = "ETG2000"
+  field System.String ResourceLimitExceeded = "ETG1001"
+  field System.String StaleNativeProjection = "ETG2008"
+  field System.String StrictValidationFailed = "ETG1003"
+  field System.String UnsupportedDomain = "ETG1002"
+  field System.String UnsupportedMetadataVersion = "ETG2002"
+public sealed class EarthTool.GLTF.GltfEditImportResult
+  property EarthTool.GLTF.NativeProjectionFingerprint AppliedFingerprint { get; }
+  property EarthTool.MSH.Assets.StaticMeshAsset Asset { get; }
+  property EarthTool.GLTF.InterchangeBaseline NextBaseline { get; }
+  property System.Collections.Generic.IReadOnlyList<System.String> RestoredSerializedRepresentationPaths { get; }
+public sealed class EarthTool.GLTF.GltfExportOptions
+  constructor GltfExportOptions(System.Guid? assetLineageId = null, System.Guid? documentId = null)
+  property System.Guid? AssetLineageId { get; }
+  property System.Guid? DocumentId { get; }
+public sealed class EarthTool.GLTF.GltfExportReceipt
+  property EarthTool.GLTF.InterchangeBaseline Baseline { get; }
+  property EarthTool.GLTF.NativeProjectionFingerprint Fingerprint { get; }
+public sealed class EarthTool.GLTF.GltfInterchange
+  constructor GltfInterchange()
+  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfExportReceipt>> ExportGlbAsync(EarthTool.MSH.Assets.StaticMeshAsset asset, System.IO.Stream destination, EarthTool.GLTF.GltfExportOptions? options = null, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
+  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfExportReceipt>> ExportGlbFileAsync(EarthTool.MSH.Assets.StaticMeshAsset asset, System.String destinationPath, EarthTool.GLTF.GltfExportOptions? options = null, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
+  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfEditImportResult>> ImportEditGlbAsync(System.IO.Stream source, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
+  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult> ValidateGlbAsync(System.IO.Stream source, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
+public sealed class EarthTool.GLTF.GltfOperationProfile
+  constructor GltfOperationProfile(System.Int32 maxInputBytes = 33554432, System.Int32 maxOutputBytes = 33554432, System.Int32 maxMetadataBytes = 4194304, System.Int32 maxJsonDepth = 32)
+  property EarthTool.GLTF.GltfOperationProfile Default { get; }
+  property System.Int32 MaxInputBytes { get; }
+  property System.Int32 MaxJsonDepth { get; }
+  property System.Int32 MaxMetadataBytes { get; }
+  property System.Int32 MaxOutputBytes { get; }
+public sealed class EarthTool.GLTF.InterchangeBaseline
+  constructor InterchangeBaseline(System.Guid assetLineageId, System.Guid documentId)
+  property System.Guid AssetLineageId { get; }
+  property System.Guid DocumentId { get; }
+public sealed class EarthTool.GLTF.NativeProjectionFingerprint
+  property System.String Name { get; }
+  property System.String Sha256 { get; }
+  property System.Int32 Version { get; }

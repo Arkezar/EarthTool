@@ -431,7 +431,7 @@ public class FeatureTests
 **Guidelines**:
 
 - Use `xUnit` test framework
-- Use `FluentAssertions` for assertions
+- Use `AwesomeAssertions` for assertions
 - Follow AAA pattern (Arrange-Act-Assert)
 - Test happy path, edge cases, and error conditions
 - Use descriptive test names

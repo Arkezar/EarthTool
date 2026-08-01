@@ -11,6 +11,7 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.10" />
+    <PackageVersion Include="SharpGLTF.Core" Version="1.0.6" />
   </ItemGroup>
   <ItemGroup Label="System Packages">
     <PackageVersion Include="System.ComponentModel" Version="4.3.0" />

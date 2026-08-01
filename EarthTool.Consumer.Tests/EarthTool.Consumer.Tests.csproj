@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\EarthTool.Common\EarthTool.Common.csproj" />
+    <ProjectReference Include="..\EarthTool.MSH\EarthTool.MSH.csproj" />
+    <ProjectReference Include="..\EarthTool.GLTF\EarthTool.GLTF.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

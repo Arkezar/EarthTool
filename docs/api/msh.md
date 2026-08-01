@@ -1,5 +1,19 @@
 # MSH API
 
+## Safe walking-skeleton operations
+
+`IMshReader`, `IMshValidator`, and `IMshWriter` provide the bounded,
+result-based API for the safe one-triangle production slice. The reader copies
+caller-owned input under a finite `MshOperationProfile`, returns an immutable
+`MeshAsset`, and produces no partial value on failure or cancellation.
+
+The currently supported branch is `StaticMeshAsset`, whose
+`StaticRenderObjectSequence`, vertices, and triangles are copied into read-only
+collections. Domains assigned to later slices fail with `ETM1005` rather than
+being silently dropped. `IMshWriter.WriteFileAsync` validates and stages a
+sibling temporary file before atomically replacing an existing destination.
+Stream overloads leave caller-owned streams open.
+
 `IMesh.BaseHeader` exposes the complete `0x368`-byte common MSH base header through `IMeshBaseHeader`. `MeshBaseHeader.SupportedVersion` is the only supported format version, and `MeshKind` distinguishes static geometry from dynamic effects.
 
 Static meshes expose a read-only `TrailingHierarchyUnwindCount`. It is derived from the final render record's source depth and is validated when a file is read. Each static `IModelPart` exposes its raw `NextRecordMarker`; readers preserve its value while writers canonicalize the record sequence to marker `1` for every nonfinal record and `0` for the final record.
