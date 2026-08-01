@@ -48,8 +48,14 @@ public sealed class EarthTool.MSH.Assets.CommonMeshBaseHeader
   property System.Collections.Generic.IReadOnlyList<System.Byte> StaticOmniLights { get; }
   property System.Collections.Generic.IReadOnlyList<System.Byte> StaticSpotLights { get; }
   property System.UInt32 Version { get; }
+public enum EarthTool.MSH.Assets.DynamicAlphaTiming : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
+  field EarthTool.MSH.Assets.DynamicAlphaTiming FramePhase = 0
+  field EarthTool.MSH.Assets.DynamicAlphaTiming LifetimeProgress = 1
+public enum EarthTool.MSH.Assets.DynamicEffectEvaluationContext : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
+  field EarthTool.MSH.Assets.DynamicEffectEvaluationContext AttachedParticle = 1
+  field EarthTool.MSH.Assets.DynamicEffectEvaluationContext Primary = 0
 public sealed class EarthTool.MSH.Assets.DynamicEffectExtension
-  property System.UInt32 AdditiveFlag { get; }
+  property System.Int32 AdditiveFlag { get; }
   property System.Int32 AlphaTimingMode { get; }
   property System.Numerics.Vector3 ChildEndTranslation { get; }
   property System.Numerics.Vector3 ChildStartTranslation { get; }
@@ -61,6 +67,7 @@ public sealed class EarthTool.MSH.Assets.DynamicEffectExtension
   property System.Int32 FirstSourceFrame { get; }
   property System.Int32 FrameCount { get; }
   property System.Int32 FramePeriodTicks { get; }
+  property EarthTool.MSH.Assets.DynamicAlphaTiming? KnownAlphaTiming { get; }
   property EarthTool.MSH.Assets.DynamicEffectType? KnownEffectType { get; }
   property EarthTool.MSH.Assets.DynamicLightType? KnownLightType { get; }
   property System.UInt32 LightType { get; }
@@ -77,8 +84,21 @@ public sealed class EarthTool.MSH.Assets.DynamicEffectExtension
   property System.Single StartModelScale { get; }
   property System.Numerics.Vector3 TerrainLightColor { get; }
   property System.Collections.Generic.IReadOnlyList<System.Byte> TexturePathBytes { get; }
+  property System.Boolean UsesAdditiveBlending { get; }
+  property System.Boolean UsesLifetimeProgressAlpha { get; }
   property System.Numerics.Vector3 VisibleEffectColor { get; }
   property System.Single VisibleTerrainLightGain { get; }
+public static class EarthTool.MSH.Assets.DynamicEffectSemantics
+  method System.Boolean TryEvaluateTerrainLightIntensity(EarthTool.MSH.Assets.DynamicLightType lightType, System.Int32 elapsedTicks, System.Int32 remainingTicks, System.Int32 durationTicks, System.UInt32? runtimeRandomSample, System.Single& intensity, EarthTool.MSH.Assets.DynamicSemanticFailure& failure)
+  method System.Boolean TryEvaluateTerrainLightIntensity(System.UInt32 lightType, System.Int32 elapsedTicks, System.Int32 remainingTicks, System.Int32 durationTicks, System.UInt32? runtimeRandomSample, System.Single& intensity, EarthTool.MSH.Assets.DynamicSemanticFailure& failure)
+  method System.Boolean TryEvaluateVisibleEffectColor(EarthTool.MSH.Assets.DynamicEffectExtension extension, EarthTool.MSH.Assets.DynamicEffectEvaluationContext context, System.Numerics.Vector3 sampledTerrainLightColor, System.Single outputColorScale, System.Numerics.Vector3& color, EarthTool.MSH.Assets.DynamicSemanticFailure& failure)
+  method System.Boolean TryInterpolateAlpha(EarthTool.MSH.Assets.DynamicEffectExtension extension, EarthTool.MSH.Assets.DynamicEffectEvaluationContext context, System.Single framePhase, System.Single lifetimeProgress, System.Single& alpha, EarthTool.MSH.Assets.DynamicSemanticFailure& failure)
+  method System.Boolean TryInterpolateChildTranslation(EarthTool.MSH.Assets.DynamicEffectExtension extension, System.Single parentPhase, System.Numerics.Vector3& translation, EarthTool.MSH.Assets.DynamicSemanticFailure& failure)
+  method System.Boolean TryInterpolateEffectRectangle(EarthTool.MSH.Assets.DynamicEffectExtension extension, EarthTool.MSH.Assets.DynamicEffectEvaluationContext context, System.Single phase, EarthTool.MSH.Assets.EffectRectangle& rectangle, EarthTool.MSH.Assets.DynamicSemanticFailure& failure)
+  method System.Boolean TryInterpolateModelScale(EarthTool.MSH.Assets.DynamicEffectExtension extension, System.Single phase, System.Single& modelScale, EarthTool.MSH.Assets.DynamicSemanticFailure& failure)
+  method System.Boolean TrySelectFrame(EarthTool.MSH.Assets.DynamicEffectExtension extension, EarthTool.MSH.Assets.DynamicEffectEvaluationContext context, System.Int32 totalLifetimeTicks, System.Int32 remainingLifetimeTicks, System.UInt32 globalTick, EarthTool.MSH.Assets.DynamicFrameSelection& selection, EarthTool.MSH.Assets.DynamicSemanticFailure& failure)
+  method System.Boolean TrySelectSphereFrame(System.Int32 totalLifetimeTicks, System.Int32 remainingLifetimeTicks, System.Int32& sourceFrame, EarthTool.MSH.Assets.DynamicSemanticFailure& failure)
+  method System.Boolean TrySelectTextureRegion(EarthTool.MSH.Assets.DynamicEffectExtension extension, EarthTool.MSH.Assets.DynamicEffectEvaluationContext context, EarthTool.MSH.Assets.DynamicFrameSelection frame, System.Single textureScale, EarthTool.MSH.Assets.DynamicTextureRegion& region, EarthTool.MSH.Assets.DynamicSemanticFailure& failure)
 public enum EarthTool.MSH.Assets.DynamicEffectType : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
   field EarthTool.MSH.Assets.DynamicEffectType ElectricalCannon = 11
   field EarthTool.MSH.Assets.DynamicEffectType Explosion = 1
@@ -95,6 +115,14 @@ public enum EarthTool.MSH.Assets.DynamicEffectType : System.IComparable, System.
   field EarthTool.MSH.Assets.DynamicEffectType Smoke = 13
   field EarthTool.MSH.Assets.DynamicEffectType Sphere = 10
   field EarthTool.MSH.Assets.DynamicEffectType Track = 2
+public struct EarthTool.MSH.Assets.DynamicFrameSelection : System.IEquatable<EarthTool.MSH.Assets.DynamicFrameSelection>
+  constructor DynamicFrameSelection(System.Int32 sourceFrame, System.Int32 frameIndex, System.Single phase)
+  property System.Int32 FrameIndex { get; }
+  property System.Single Phase { get; }
+  property System.Int32 SourceFrame { get; }
+  method System.Boolean Equals(EarthTool.MSH.Assets.DynamicFrameSelection other)
+  method System.Boolean Equals(System.Object? obj)
+  method System.Int32 GetHashCode()
 public enum EarthTool.MSH.Assets.DynamicLightType : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
   field EarthTool.MSH.Assets.DynamicLightType Constant = 0
   field EarthTool.MSH.Assets.DynamicLightType Pyramid = 1
@@ -109,8 +137,32 @@ public sealed class EarthTool.MSH.Assets.DynamicObject
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Assets.DynamicObject> Children { get; }
   property EarthTool.MSH.Assets.CommonMeshBaseHeader CommonBaseHeader { get; }
   property EarthTool.MSH.Assets.DynamicEffectExtension Extension { get; }
+public enum EarthTool.MSH.Assets.DynamicSemanticFailure : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
+  field EarthTool.MSH.Assets.DynamicSemanticFailure ArithmeticOverflow = 6
+  field EarthTool.MSH.Assets.DynamicSemanticFailure InapplicableEffect = 7
+  field EarthTool.MSH.Assets.DynamicSemanticFailure InvalidFrameDeclaration = 3
+  field EarthTool.MSH.Assets.DynamicSemanticFailure InvalidLifetime = 2
+  field EarthTool.MSH.Assets.DynamicSemanticFailure InvalidSpriteSheet = 4
+  field EarthTool.MSH.Assets.DynamicSemanticFailure NonFiniteInput = 1
+  field EarthTool.MSH.Assets.DynamicSemanticFailure None = 0
+  field EarthTool.MSH.Assets.DynamicSemanticFailure RandomSampleRequired = 5
+public struct EarthTool.MSH.Assets.DynamicTextureRegion : System.IEquatable<EarthTool.MSH.Assets.DynamicTextureRegion>
+  constructor DynamicTextureRegion(System.Int32 row, System.Int32 column, System.Single u0, System.Single v0, System.Single u1, System.Single v1)
+  property System.Int32 Column { get; }
+  property System.Int32 Row { get; }
+  property System.Single U0 { get; }
+  property System.Single U1 { get; }
+  property System.Single V0 { get; }
+  property System.Single V1 { get; }
+  method System.Boolean Equals(EarthTool.MSH.Assets.DynamicTextureRegion other)
+  method System.Boolean Equals(System.Object? obj)
+  method System.Int32 GetHashCode()
 public struct EarthTool.MSH.Assets.EffectRectangle : System.IEquatable<EarthTool.MSH.Assets.EffectRectangle>
   constructor EffectRectangle(System.Single x0, System.Single y1, System.Single x1, System.Single y0)
+  property System.Single Bottom { get; }
+  property System.Single Left { get; }
+  property System.Single Right { get; }
+  property System.Single Top { get; }
   property System.Single X0 { get; }
   property System.Single X1 { get; }
   property System.Single Y0 { get; }
@@ -186,11 +238,35 @@ public struct EarthTool.MSH.Assets.StaticTriangle : System.IEquatable<EarthTool.
   method System.Boolean Equals(EarthTool.MSH.Assets.StaticTriangle other)
   method System.Boolean Equals(System.Object? obj)
   method System.Int32 GetHashCode()
+public struct EarthTool.MSH.Authoring.CanonicalDynamicAlpha
+  constructor CanonicalDynamicAlpha(System.Single startAlpha, System.Single endAlpha, EarthTool.MSH.Assets.DynamicAlphaTiming timing)
+  property System.Single EndAlpha { get; }
+  property System.Single StartAlpha { get; }
+  property EarthTool.MSH.Assets.DynamicAlphaTiming Timing { get; }
+public struct EarthTool.MSH.Authoring.CanonicalDynamicEffectShape
+  constructor CanonicalDynamicEffectShape(EarthTool.MSH.Assets.EffectRectangle startEffectRectangle, EarthTool.MSH.Assets.EffectRectangle endEffectRectangle, System.Single effectDepthOffset)
+  property System.Single EffectDepthOffset { get; }
+  property EarthTool.MSH.Assets.EffectRectangle EndEffectRectangle { get; }
+  property EarthTool.MSH.Assets.EffectRectangle StartEffectRectangle { get; }
+public struct EarthTool.MSH.Authoring.CanonicalDynamicFrameSequence
+  constructor CanonicalDynamicFrameSequence(System.Int32 firstSourceFrame, System.Int32 frameCount, System.Int32 framePeriodTicks)
+  property System.Int32 FirstSourceFrame { get; }
+  property System.Int32 FrameCount { get; }
+  property System.Int32 FramePeriodTicks { get; }
 public sealed class EarthTool.MSH.Authoring.CanonicalDynamicObject
-  constructor CanonicalDynamicObject(EarthTool.MSH.Assets.DynamicEffectType effectType, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Authoring.CanonicalDynamicObject> Children { get; }
   property EarthTool.MSH.Assets.DynamicEffectType EffectType { get; }
   method EarthTool.MSH.Authoring.CanonicalDynamicObject AddChild(EarthTool.MSH.Authoring.CanonicalDynamicObject child)
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject SetChildTranslation(System.Numerics.Vector3 startTranslation, System.Numerics.Vector3 endTranslation)
+public struct EarthTool.MSH.Authoring.CanonicalDynamicSpriteSheet
+  constructor CanonicalDynamicSpriteSheet(EarthTool.MSH.Authoring.CanonicalDynamicFrameSequence frames, System.Int32 columnCount, System.Int32 rowCount)
+  property System.Int32 ColumnCount { get; }
+  property EarthTool.MSH.Authoring.CanonicalDynamicFrameSequence Frames { get; }
+  property System.Int32 RowCount { get; }
+public struct EarthTool.MSH.Authoring.CanonicalDynamicTerrainLight
+  constructor CanonicalDynamicTerrainLight(EarthTool.MSH.Assets.DynamicLightType lightType, System.Numerics.Vector3 color)
+  property System.Numerics.Vector3 Color { get; }
+  property EarthTool.MSH.Assets.DynamicLightType LightType { get; }
 public sealed class EarthTool.MSH.Authoring.CanonicalStaticVertex
   constructor CanonicalStaticVertex(System.Numerics.Vector3 position, System.Numerics.Vector3 normal, System.Numerics.Vector2 textureCoordinate)
   property System.Numerics.Vector3 Normal { get; }
@@ -204,6 +280,22 @@ public struct EarthTool.MSH.Authoring.CanonicalTriangle : System.IEquatable<Eart
   method System.Boolean Equals(EarthTool.MSH.Authoring.CanonicalTriangle other)
   method System.Boolean Equals(System.Object? obj)
   method System.Int32 GetHashCode()
+public static class EarthTool.MSH.Authoring.DynamicEffectRecipes
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject ElectricalCannon(EarthTool.MSH.Authoring.CanonicalDynamicSpriteSheet sprite, System.Single ribbonHalfWidth, System.String textureResourceKey, System.Numerics.Vector3 visibleEffectColor, EarthTool.MSH.Authoring.CanonicalDynamicAlpha alpha, System.Boolean additive, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject Explosion(EarthTool.MSH.Authoring.CanonicalDynamicSpriteSheet sprite, EarthTool.MSH.Authoring.CanonicalDynamicEffectShape shape, System.String textureResourceKey, System.Numerics.Vector3 visibleEffectColor, EarthTool.MSH.Authoring.CanonicalDynamicAlpha alpha, System.Boolean additive, EarthTool.MSH.Authoring.CanonicalDynamicTerrainLight terrainLight, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject FlatExplosion(EarthTool.MSH.Authoring.CanonicalDynamicSpriteSheet sprite, EarthTool.MSH.Authoring.CanonicalDynamicEffectShape shape, System.String textureResourceKey, System.Numerics.Vector3 visibleEffectColor, EarthTool.MSH.Authoring.CanonicalDynamicAlpha alpha, System.Boolean additive, EarthTool.MSH.Authoring.CanonicalDynamicTerrainLight terrainLight, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject Group(System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject Keelwater(EarthTool.MSH.Authoring.CanonicalDynamicSpriteSheet sprite, EarthTool.MSH.Authoring.CanonicalDynamicEffectShape shape, System.String textureResourceKey, System.Single startAlpha, System.Single endAlpha, System.Boolean additive, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject Laser(EarthTool.MSH.Authoring.CanonicalDynamicSpriteSheet sprite, System.Single ribbonHalfWidth, System.String textureResourceKey, System.Numerics.Vector3 visibleEffectColor, EarthTool.MSH.Authoring.CanonicalDynamicAlpha alpha, System.Boolean additive, EarthTool.MSH.Authoring.CanonicalDynamicTerrainLight terrainLight, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject LaserWall(EarthTool.MSH.Authoring.CanonicalDynamicSpriteSheet sprite, System.Single ribbonHalfWidth, System.String textureResourceKey, System.Numerics.Vector3 visibleEffectColor, EarthTool.MSH.Authoring.CanonicalDynamicAlpha alpha, System.Boolean additive, System.Numerics.Vector3 terrainLightColor, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject Lightning(EarthTool.MSH.Authoring.CanonicalDynamicSpriteSheet sprite, System.Single ribbonHalfWidth, System.String textureResourceKey, System.Numerics.Vector3 visibleEffectColor, EarthTool.MSH.Authoring.CanonicalDynamicAlpha alpha, System.Boolean additive, EarthTool.MSH.Authoring.CanonicalDynamicTerrainLight terrainLight, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject Line(EarthTool.MSH.Authoring.CanonicalDynamicSpriteSheet sprite, EarthTool.MSH.Authoring.CanonicalDynamicEffectShape shape, System.String textureResourceKey, System.Numerics.Vector3 visibleEffectColor, System.Single visibleTerrainLightGain, System.Single startAlpha, System.Single endAlpha, System.Boolean additive, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject MappedExplosion(EarthTool.MSH.Authoring.CanonicalDynamicFrameSequence frames, EarthTool.MSH.Assets.EffectRectangle startEffectRectangle, EarthTool.MSH.Assets.EffectRectangle endEffectRectangle, System.String textureResourceKey, System.Numerics.Vector3 visibleEffectColor, EarthTool.MSH.Authoring.CanonicalDynamicAlpha alpha, System.Boolean additive, EarthTool.MSH.Authoring.CanonicalDynamicTerrainLight terrainLight, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject ScalableObject(EarthTool.MSH.Authoring.CanonicalDynamicFrameSequence frames, System.String meshResourceKey, System.String textureResourceKey, System.Single startModelScale, System.Single endModelScale, System.Numerics.Vector3 visibleEffectColor, EarthTool.MSH.Authoring.CanonicalDynamicAlpha alpha, System.Boolean additive, EarthTool.MSH.Authoring.CanonicalDynamicTerrainLight terrainLight, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject Shockwave(EarthTool.MSH.Authoring.CanonicalDynamicSpriteSheet sprite, EarthTool.MSH.Authoring.CanonicalDynamicEffectShape shape, System.String textureResourceKey, System.Numerics.Vector3 visibleEffectColor, System.Single visibleTerrainLightGain, System.Single startAlpha, System.Single endAlpha, System.Boolean additive, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject Smoke(EarthTool.MSH.Authoring.CanonicalDynamicSpriteSheet sprite, EarthTool.MSH.Authoring.CanonicalDynamicEffectShape shape, System.String textureResourceKey, System.Numerics.Vector3 visibleEffectColor, System.Single visibleTerrainLightGain, EarthTool.MSH.Authoring.CanonicalDynamicAlpha alpha, System.Boolean additive, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject Sphere(System.String textureResourceKey, System.Numerics.Vector3 visibleEffectColor, System.Boolean additive, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject Track(EarthTool.MSH.Authoring.CanonicalDynamicFrameSequence frames, EarthTool.MSH.Assets.EffectRectangle startEffectRectangle, EarthTool.MSH.Assets.EffectRectangle endEffectRectangle, System.String textureResourceKey, EarthTool.MSH.Authoring.CanonicalDynamicAlpha alpha, System.Boolean additive, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
 public sealed class EarthTool.MSH.Authoring.DynamicMeshBuilder
   method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.DynamicMeshAsset> Build(EarthTool.MSH.Operations.MshOperationProfile? profile = null)
   method EarthTool.MSH.Authoring.DynamicMeshBuilder Create()

@@ -244,6 +244,7 @@ namespace EarthTool.MSH.Internal
         "RootDynamicObject",
         profile,
         cancellationToken,
+        diagnostics,
         ref objectCount,
         ref stringBytes,
         out var payloadEnd);
@@ -288,6 +289,7 @@ namespace EarthTool.MSH.Internal
       string path,
       MshOperationProfile profile,
       CancellationToken cancellationToken,
+      List<OperationDiagnostic> diagnostics,
       ref int objectCount,
       ref int stringBytes,
       out int payloadEnd)
@@ -344,6 +346,15 @@ namespace EarthTool.MSH.Internal
         path + ".Extension.TexturePathBytes",
         profile,
         ref stringBytes);
+      var extension = new DynamicEffectExtension(fixedExtension, meshName, texturePath);
+      AddDynamicCompatibilityDiagnostics(
+        data.Slice(objectOffset, BaseHeaderSize),
+        extension,
+        path,
+        objectOffset,
+        depth == 1,
+        profile,
+        diagnostics);
 
       var childrenPath = path + ".Children";
       Ensure(data, cursor, sizeof(uint), childrenPath);
@@ -385,6 +396,7 @@ namespace EarthTool.MSH.Internal
           childPath,
           profile,
           cancellationToken,
+          diagnostics,
           ref objectCount,
           ref stringBytes,
           out cursor);
@@ -393,8 +405,287 @@ namespace EarthTool.MSH.Internal
       payloadEnd = cursor;
       return new DynamicObject(
         new CommonMeshBaseHeader(data.Slice(objectOffset, BaseHeaderSize).ToArray()),
-        new DynamicEffectExtension(fixedExtension, meshName, texturePath),
+        extension,
         children);
+    }
+
+    private static void AddDynamicCompatibilityDiagnostics(
+      ReadOnlySpan<byte> commonHeader,
+      DynamicEffectExtension extension,
+      string path,
+      int objectOffset,
+      bool isRoot,
+      MshOperationProfile profile,
+      List<OperationDiagnostic> diagnostics)
+    {
+      var extensionOffset = objectOffset + BaseHeaderSize;
+      var canonicalHeader = MshCanonicalSerializer.CreateCanonicalCommonHeader(
+        1,
+        new AnimationClassBytes(),
+        Array.Empty<Authoring.CanonicalStaticVertex>());
+      if (!commonHeader.SequenceEqual(canonicalHeader))
+      {
+        AddCompatibilityBounded(diagnostics, profile, Compatibility(
+          path + ".CommonBaseHeader",
+          objectOffset,
+          "A noncanonical inherited dynamic base header was preserved.",
+          new Dictionary<string, string>()));
+      }
+
+      if (!extension.KnownEffectType.HasValue)
+      {
+        AddCompatibilityBounded(diagnostics, profile, Compatibility(
+          path + ".Extension.EffectType",
+          extensionOffset,
+          "An unrecognized dynamic effect value was preserved.",
+          new Dictionary<string, string>
+          {
+            ["actual"] = $"0x{extension.EffectType:X8}"
+          }));
+      }
+
+      if (!extension.KnownLightType.HasValue)
+      {
+        AddCompatibilityBounded(diagnostics, profile, Compatibility(
+          path + ".Extension.LightType",
+          extensionOffset + 4,
+          "An unrecognized dynamic light value was preserved.",
+          new Dictionary<string, string>
+          {
+            ["actual"] = $"0x{extension.LightType:X8}"
+          }));
+      }
+
+      if (extension.ReservedWord != 0)
+      {
+        AddCompatibilityBounded(diagnostics, profile, Compatibility(
+          path + ".Extension.ReservedWord",
+          extensionOffset + 0x4C,
+          "A nonzero reserved dynamic word was preserved.",
+          new Dictionary<string, string>
+          {
+            ["actual"] = $"0x{extension.ReservedWord:X8}",
+            ["expected"] = "0x00000000"
+          }));
+      }
+
+      if (extension.AdditiveFlag is not 0 and not 1)
+      {
+        AddCompatibilityBounded(diagnostics, profile, Compatibility(
+          path + ".Extension.AdditiveFlag",
+          extensionOffset + 0x50,
+          "A noncanonical additive representation was preserved.",
+          new Dictionary<string, string>
+          {
+            ["actual"] = extension.AdditiveFlag.ToString(CultureInfo.InvariantCulture)
+          }));
+      }
+
+      if (extension.AlphaTimingMode is not 0 and not 1)
+      {
+        AddCompatibilityBounded(diagnostics, profile, Compatibility(
+          path + ".Extension.AlphaTimingMode",
+          extensionOffset + 0x70,
+          "A noncanonical alpha timing representation was preserved.",
+          new Dictionary<string, string>
+          {
+            ["actual"] = extension.AlphaTimingMode.ToString(CultureInfo.InvariantCulture)
+          }));
+      }
+
+      if (HasUnsafeFrameDeclaration(extension))
+      {
+        AddCompatibilityBounded(diagnostics, profile, Compatibility(
+          path + ".Extension.Frames",
+          extensionOffset + 0x08,
+          "A dynamic frame declaration outside the safe semantic-helper domain was preserved.",
+          new Dictionary<string, string>()));
+      }
+
+      if (!HasCanonicalReciprocal(extension.SpriteSheetColumnCount, extension.ReciprocalColumnCount)
+        || !HasCanonicalReciprocal(extension.SpriteSheetRowCount, extension.ReciprocalRowCount))
+      {
+        AddCompatibilityBounded(diagnostics, profile, Compatibility(
+          path + ".Extension.SpriteSheet",
+          extensionOffset + 0x10,
+          "Independent sprite dimensions and reciprocal values disagree with canonical authoring.",
+          new Dictionary<string, string>()));
+      }
+
+      if (HasNonFiniteSemanticValue(extension))
+      {
+        AddCompatibilityBounded(diagnostics, profile, Compatibility(
+          path + ".Extension",
+          extensionOffset,
+          "A non-finite dynamic semantic representation was preserved.",
+          new Dictionary<string, string>()));
+      }
+
+      if (HasNondefaultInertRepresentation(extension))
+      {
+        AddCompatibilityBounded(diagnostics, profile, Compatibility(
+          path + ".Extension.InertRepresentations",
+          extensionOffset,
+          "Nondefault representations ignored by the selected effect were preserved.",
+          new Dictionary<string, string>()));
+      }
+
+      if (isRoot && (extension.ChildStartTranslation != Vector3.Zero
+        || extension.ChildEndTranslation != Vector3.Zero))
+      {
+        AddCompatibilityBounded(diagnostics, profile, Compatibility(
+          path + ".Extension.ChildTranslation",
+          extensionOffset + 0x84,
+          "A root child-translation representation that is not applied by the renderer was preserved.",
+          new Dictionary<string, string>()));
+      }
+    }
+
+    private static bool HasUnsafeFrameDeclaration(DynamicEffectExtension extension)
+    {
+      var allZero = extension.FirstSourceFrame == 0
+        && extension.FrameCount == 0
+        && extension.SpriteSheetColumnCount == 0
+        && extension.SpriteSheetRowCount == 0
+        && extension.FramePeriodTicks == 0;
+      return !allZero && (extension.FirstSourceFrame < 0
+        || extension.FrameCount <= 0
+        || extension.FramePeriodTicks < 0);
+    }
+
+    private static bool HasCanonicalReciprocal(int count, float reciprocal)
+    {
+      var expected = count == 0 ? 0 : 1f / count;
+      return BitConverter.SingleToInt32Bits(reciprocal) == BitConverter.SingleToInt32Bits(expected);
+    }
+
+    private static bool HasNonFiniteSemanticValue(DynamicEffectExtension extension)
+    {
+      return !IsFinite(extension.ReciprocalColumnCount)
+        || !IsFinite(extension.ReciprocalRowCount)
+        || !IsFinite(extension.StartEffectRectangle)
+        || !IsFinite(extension.EndEffectRectangle)
+        || !IsFinite(extension.EffectDepthOffset)
+        || !IsFinite(extension.RibbonHalfWidth)
+        || !IsFinite(extension.TerrainLightColor)
+        || !IsFinite(extension.VisibleEffectColor)
+        || !IsFinite(extension.VisibleTerrainLightGain)
+        || !IsFinite(extension.StartAlpha)
+        || !IsFinite(extension.EndAlpha)
+        || !IsFinite(extension.StartModelScale)
+        || !IsFinite(extension.EndModelScale)
+        || !IsFinite(extension.ChildStartTranslation)
+        || !IsFinite(extension.ChildEndTranslation);
+    }
+
+    private static bool HasNondefaultInertRepresentation(DynamicEffectExtension extension)
+    {
+      if (!extension.KnownEffectType.HasValue)
+      {
+        return false;
+      }
+
+      var effect = extension.KnownEffectType.Value;
+      var inertLightType = effect is DynamicEffectType.Group
+        or DynamicEffectType.Track
+        or DynamicEffectType.LaserWall
+        or DynamicEffectType.Shockwave
+        or DynamicEffectType.Line
+        or DynamicEffectType.Sphere
+        or DynamicEffectType.ElectricalCannon
+        or DynamicEffectType.Smoke
+        or DynamicEffectType.Keelwater;
+      var inertTerrainLightColor = effect is DynamicEffectType.Group
+        or DynamicEffectType.Track
+        or DynamicEffectType.Shockwave
+        or DynamicEffectType.Line
+        or DynamicEffectType.Sphere
+        or DynamicEffectType.ElectricalCannon
+        or DynamicEffectType.Smoke
+        or DynamicEffectType.Keelwater;
+      var inertSprite = effect is DynamicEffectType.Group or DynamicEffectType.Sphere;
+      var inertAtlas = effect is DynamicEffectType.Group
+        or DynamicEffectType.Track
+        or DynamicEffectType.ScalableObject
+        or DynamicEffectType.MappedExplosion
+        or DynamicEffectType.Sphere;
+      var inertRectangles = effect is DynamicEffectType.Group
+        or DynamicEffectType.ScalableObject
+        or DynamicEffectType.Laser
+        or DynamicEffectType.LaserWall
+        or DynamicEffectType.Sphere
+        or DynamicEffectType.ElectricalCannon
+        or DynamicEffectType.Lightning;
+      var inertDepth = inertRectangles
+        || effect is DynamicEffectType.Track or DynamicEffectType.MappedExplosion;
+      var inertRibbon = effect is not DynamicEffectType.Laser
+        and not DynamicEffectType.LaserWall
+        and not DynamicEffectType.ElectricalCannon
+        and not DynamicEffectType.Lightning;
+      var inertVisibleColor = effect is DynamicEffectType.Group
+        or DynamicEffectType.Track
+        or DynamicEffectType.Keelwater;
+      var inertVisibleGain = effect is not DynamicEffectType.Shockwave
+        and not DynamicEffectType.Line
+        and not DynamicEffectType.Smoke;
+      var inertAlphaEndpoints = effect is DynamicEffectType.Group or DynamicEffectType.Sphere;
+      var inertAlphaTiming = effect is DynamicEffectType.Group
+        or DynamicEffectType.Shockwave
+        or DynamicEffectType.Line
+        or DynamicEffectType.Sphere
+        or DynamicEffectType.Keelwater;
+      var inertScale = effect != DynamicEffectType.ScalableObject;
+      var inertMesh = effect != DynamicEffectType.ScalableObject;
+      var defaultRectangle = new EffectRectangle(-0.25f, 0.25f, 0.25f, -0.25f);
+
+      return (inertLightType && extension.LightType != 0)
+        || (inertTerrainLightColor && extension.TerrainLightColor != Vector3.Zero)
+        || (inertSprite && (extension.FirstSourceFrame != 0
+          || extension.FrameCount != 0
+          || extension.FramePeriodTicks != 0))
+        || (inertAtlas && (extension.SpriteSheetColumnCount != 0
+          || extension.SpriteSheetRowCount != 0
+          || extension.ReciprocalColumnCount != 0
+          || extension.ReciprocalRowCount != 0))
+        || (inertRectangles && (!extension.StartEffectRectangle.Equals(defaultRectangle)
+          || !extension.EndEffectRectangle.Equals(defaultRectangle)))
+        || (inertDepth && extension.EffectDepthOffset != 0.25f)
+        || (inertRibbon && extension.RibbonHalfWidth != 0.25f)
+        || (inertVisibleColor && extension.VisibleEffectColor != Vector3.One)
+        || (inertVisibleGain && extension.VisibleTerrainLightGain != 1f)
+        || (inertAlphaTiming && extension.AlphaTimingMode != 0)
+        || (inertAlphaEndpoints && (extension.StartAlpha != 1f
+          || extension.EndAlpha != 1f))
+        || (inertScale && (extension.StartModelScale != 0 || extension.EndModelScale != 0))
+        || (inertMesh && extension.MeshNameBytes.Count != 0)
+        || (effect == DynamicEffectType.Group && (extension.AdditiveFlag != 0
+          || extension.TexturePathBytes.Count != 0));
+    }
+
+    private static bool IsFinite(EffectRectangle value)
+    {
+      return IsFinite(value.X0) && IsFinite(value.Y1) && IsFinite(value.X1) && IsFinite(value.Y0);
+    }
+
+    private static void AddCompatibilityBounded(
+      List<OperationDiagnostic> diagnostics,
+      MshOperationProfile profile,
+      OperationDiagnostic diagnostic)
+    {
+      if (diagnostics.Count < profile.MaxDiagnostics)
+      {
+        diagnostics.Add(diagnostic);
+      }
+      else if (diagnostics.Count == profile.MaxDiagnostics
+        && diagnostics[^1].Code != MshDiagnosticCodes.DiagnosticsTruncated)
+      {
+        diagnostics[^1] = new OperationDiagnostic(
+          MshDiagnosticCodes.DiagnosticsTruncated,
+          1010,
+          DiagnosticSeverity.Warning,
+          "$",
+          "Additional diagnostics were suppressed by the operation profile.");
+      }
     }
 
     private static byte[] ReadDynamicBytes(

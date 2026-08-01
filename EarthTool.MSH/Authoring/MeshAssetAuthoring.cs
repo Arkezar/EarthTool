@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Numerics;
+using System.Text;
 using System.Threading;
 
 namespace EarthTool.MSH.Authoring
@@ -195,18 +196,20 @@ namespace EarthTool.MSH.Authoring
   {
     private readonly List<CanonicalDynamicObject> _children;
 
+    internal CanonicalDynamicRecipe Recipe { get; }
+
     /// <summary>Gets the recognized effect to author.</summary>
     public DynamicEffectType EffectType { get; }
 
     /// <summary>Gets the ordered draft children.</summary>
     public IReadOnlyList<CanonicalDynamicObject> Children => _children.AsReadOnly();
 
-    /// <summary>Initializes a canonical dynamic object and copies its initial child sequence.</summary>
-    public CanonicalDynamicObject(
-      DynamicEffectType effectType,
-      IEnumerable<CanonicalDynamicObject>? children = null)
+    internal CanonicalDynamicObject(
+      CanonicalDynamicRecipe recipe,
+      IEnumerable<CanonicalDynamicObject>? children)
     {
-      EffectType = effectType;
+      Recipe = recipe ?? throw new ArgumentNullException(nameof(recipe));
+      EffectType = recipe.EffectType;
       _children = children?.ToList() ?? new List<CanonicalDynamicObject>();
       if (_children.Any(child => child is null))
       {
@@ -220,6 +223,16 @@ namespace EarthTool.MSH.Authoring
       _children.Add(child ?? throw new ArgumentNullException(nameof(child)));
       return this;
     }
+
+    /// <summary>Authors the translation applied by this object's parent phase.</summary>
+    public CanonicalDynamicObject SetChildTranslation(
+      Vector3 startTranslation,
+      Vector3 endTranslation)
+    {
+      Recipe.ChildStartTranslation = startTranslation;
+      Recipe.ChildEndTranslation = endTranslation;
+      return this;
+    }
   }
 
   /// <summary>Builds canonical dynamic object trees.</summary>
@@ -227,7 +240,7 @@ namespace EarthTool.MSH.Authoring
   {
     private readonly Guid _creationGuid;
     private readonly MeshAssetLineageId _lineageId;
-    private CanonicalDynamicObject _root = new CanonicalDynamicObject(DynamicEffectType.Group);
+    private CanonicalDynamicObject _root = DynamicEffectRecipes.Group();
 
     private DynamicMeshBuilder(Guid creationGuid, MeshAssetLineageId lineageId)
     {
@@ -258,20 +271,38 @@ namespace EarthTool.MSH.Authoring
     public MshBuildResult<DynamicMeshAsset> Build(MshOperationProfile? profile = null)
     {
       profile ??= MshOperationProfile.Default;
-      var failure = AuthoringValidation.ValidateDynamic(_root, profile, out var objectCount);
+      var failure = AuthoringValidation.ValidateDynamic(
+        _root,
+        profile,
+        out var validationDiagnostics);
       if (failure is not null)
       {
-        return new MshBuildResult<DynamicMeshAsset>(false, null, new[] { failure });
+        return new MshBuildResult<DynamicMeshAsset>(
+          false,
+          null,
+          validationDiagnostics.Concat(new[] { failure }));
       }
 
-      var outputLength = checked(0x18 + (objectCount * MshCanonicalSerializer.DynamicRecordSize));
+      int dynamicLength;
+      int outputLength;
+      try
+      {
+        dynamicLength = MshCanonicalSerializer.GetDynamicSerializedLength(_root);
+        outputLength = checked(0x18 + dynamicLength);
+      }
+      catch (OverflowException)
+      {
+        return new MshBuildResult<DynamicMeshAsset>(false, null,
+          new[] { AuthoringValidation.ResourceLimit(long.MaxValue, profile.MaxOutputBytes) });
+      }
+
       if (outputLength > profile.MaxOutputBytes)
       {
         return new MshBuildResult<DynamicMeshAsset>(false, null,
           new[] { AuthoringValidation.ResourceLimit(outputLength, profile.MaxOutputBytes) });
       }
 
-      var bytes = MshCanonicalSerializer.CreateDynamic(_creationGuid, _root, objectCount);
+      var bytes = MshCanonicalSerializer.CreateDynamic(_creationGuid, _root, dynamicLength);
       var decoded = MshV1Decoder.Decode(
         bytes,
         profile,
@@ -281,7 +312,7 @@ namespace EarthTool.MSH.Authoring
       return new MshBuildResult<DynamicMeshAsset>(
         true,
         (DynamicMeshAsset)decoded.Asset,
-        decoded.Diagnostics);
+        validationDiagnostics.Concat(decoded.Diagnostics));
     }
   }
 
@@ -565,11 +596,36 @@ namespace EarthTool.MSH.Authoring
     internal static OperationDiagnostic? ValidateDynamic(
       CanonicalDynamicObject root,
       MshOperationProfile profile,
-      out int objectCount)
+      out IReadOnlyList<OperationDiagnostic> diagnostics)
     {
-      var visited = new HashSet<CanonicalDynamicObject>();
-      objectCount = 0;
-      return ValidateDynamicObject(root, "RootDynamicObject", 1, profile, visited, ref objectCount);
+      var ancestors = new HashSet<CanonicalDynamicObject>();
+      var seen = new HashSet<CanonicalDynamicObject>();
+      var warnings = new List<OperationDiagnostic>();
+      var objectCount = 0;
+      var stringBytes = 0;
+      var failure = ValidateDynamicObject(
+        root,
+        "RootDynamicObject",
+        1,
+        profile,
+        ancestors,
+        seen,
+        warnings,
+        ref objectCount,
+        ref stringBytes);
+      if (warnings.Count > profile.MaxDiagnostics)
+      {
+        warnings.RemoveRange(profile.MaxDiagnostics - 1, warnings.Count - profile.MaxDiagnostics + 1);
+        warnings.Add(new OperationDiagnostic(
+          MshDiagnosticCodes.DiagnosticsTruncated,
+          1010,
+          DiagnosticSeverity.Warning,
+          "$",
+          "Additional diagnostics were suppressed by the operation profile."));
+      }
+
+      diagnostics = warnings.AsReadOnly();
+      return failure;
     }
 
     internal static OperationDiagnostic? ValidateStatic(
@@ -664,12 +720,25 @@ namespace EarthTool.MSH.Authoring
       string path,
       int depth,
       MshOperationProfile profile,
-      HashSet<CanonicalDynamicObject> visited,
-      ref int objectCount)
+      HashSet<CanonicalDynamicObject> ancestors,
+      HashSet<CanonicalDynamicObject> seen,
+      List<OperationDiagnostic> diagnostics,
+      ref int objectCount,
+      ref int stringBytes)
     {
-      if (!visited.Add(current))
+      if (!ancestors.Add(current))
       {
-        return Invalid(path, "A canonical dynamic tree cannot contain cycles or reused object instances.");
+        return Invalid(path, "A canonical dynamic tree cannot contain ancestor or self cycles.");
+      }
+
+      if (!seen.Add(current))
+      {
+        diagnostics.Add(new OperationDiagnostic(
+          MshDiagnosticCodes.CompatibilityAnomaly,
+          1009,
+          DiagnosticSeverity.Warning,
+          path,
+          "A reused draft instance will be serialized as an independent dynamic object."));
       }
 
       if (!Enum.IsDefined(typeof(DynamicEffectType), current.EffectType))
@@ -696,6 +765,12 @@ namespace EarthTool.MSH.Authoring
           path + ".Children");
       }
 
+      var recipeFailure = ValidateDynamicRecipe(current, path, depth == 1, profile, ref stringBytes);
+      if (recipeFailure is not null)
+      {
+        return recipeFailure;
+      }
+
       for (var index = 0; index < current.Children.Count; index++)
       {
         var failure = ValidateDynamicObject(
@@ -703,15 +778,176 @@ namespace EarthTool.MSH.Authoring
           path + ".Children[" + index.ToString(System.Globalization.CultureInfo.InvariantCulture) + "]",
           depth + 1,
           profile,
-          visited,
-          ref objectCount);
+          ancestors,
+          seen,
+          diagnostics,
+          ref objectCount,
+          ref stringBytes);
         if (failure is not null)
         {
           return failure;
         }
       }
 
+      ancestors.Remove(current);
       return null;
+    }
+
+    private static OperationDiagnostic? ValidateDynamicRecipe(
+      CanonicalDynamicObject current,
+      string path,
+      bool isRoot,
+      MshOperationProfile profile,
+      ref int stringBytes)
+    {
+      var recipe = current.Recipe;
+      if (!Enum.IsDefined(typeof(DynamicLightType), recipe.LightType))
+      {
+        return Invalid(path + ".Extension.LightType", "Canonical authoring requires a recognized light type.");
+      }
+
+      if (!Enum.IsDefined(typeof(DynamicAlphaTiming), recipe.AlphaTiming))
+      {
+        return Invalid(path + ".Extension.AlphaTimingMode", "Canonical authoring requires a recognized alpha timing mode.");
+      }
+
+      if (!IsFinite(recipe.StartEffectRectangle) || !IsFinite(recipe.EndEffectRectangle)
+        || !IsFinite(recipe.EffectDepthOffset)
+        || !IsFinite(recipe.RibbonHalfWidth)
+        || !IsFinite(recipe.TerrainLightColor)
+        || !IsFinite(recipe.VisibleEffectColor)
+        || !IsFinite(recipe.VisibleTerrainLightGain)
+        || !IsFinite(recipe.StartAlpha)
+        || !IsFinite(recipe.EndAlpha)
+        || !IsFinite(recipe.StartModelScale)
+        || !IsFinite(recipe.EndModelScale)
+        || !IsFinite(recipe.ChildStartTranslation)
+        || !IsFinite(recipe.ChildEndTranslation))
+      {
+        return Invalid(path + ".Extension", "Canonical dynamic numeric inputs must be finite.");
+      }
+
+      if (isRoot && (recipe.ChildStartTranslation != Vector3.Zero
+        || recipe.ChildEndTranslation != Vector3.Zero))
+      {
+        return Invalid(path + ".Extension.ChildTranslation",
+          "A canonical root dynamic object cannot apply its own child translation.");
+      }
+
+      var usesFrames = recipe.EffectType is not DynamicEffectType.Group and not DynamicEffectType.Sphere;
+      if (usesFrames
+        && (recipe.FirstSourceFrame < 0 || recipe.FrameCount <= 0 || recipe.FramePeriodTicks < 0))
+      {
+        return Invalid(path + ".Extension.Frames", "Canonical frame values are outside the supported domain.");
+      }
+
+      var usesSpriteSheet = recipe.EffectType is DynamicEffectType.Explosion
+        or DynamicEffectType.FlatExplosion
+        or DynamicEffectType.Laser
+        or DynamicEffectType.LaserWall
+        or DynamicEffectType.Shockwave
+        or DynamicEffectType.Line
+        or DynamicEffectType.ElectricalCannon
+        or DynamicEffectType.Lightning
+        or DynamicEffectType.Smoke
+        or DynamicEffectType.Keelwater;
+      if (usesSpriteSheet)
+      {
+        if (recipe.SpriteSheetColumnCount <= 0 || recipe.SpriteSheetRowCount <= 0)
+        {
+          return Invalid(path + ".Extension.SpriteSheet", "Canonical sprite-sheet dimensions must be positive.");
+        }
+
+        try
+        {
+          if (checked(recipe.FirstSourceFrame + recipe.FrameCount)
+            > checked(recipe.SpriteSheetColumnCount * recipe.SpriteSheetRowCount))
+          {
+            return Invalid(path + ".Extension.SpriteSheet", "Canonical frames must fit in the sprite sheet.");
+          }
+        }
+        catch (OverflowException)
+        {
+          return Invalid(path + ".Extension.SpriteSheet", "Canonical sprite-sheet bounds overflow.");
+        }
+      }
+
+      if ((recipe.EffectType is DynamicEffectType.Laser
+          or DynamicEffectType.LaserWall
+          or DynamicEffectType.ElectricalCannon
+          or DynamicEffectType.Lightning)
+        && recipe.RibbonHalfWidth == 0)
+      {
+        return Invalid(path + ".Extension.RibbonHalfWidth",
+          "Canonical ribbon half-width must be nonzero and retains its sign.");
+      }
+
+      if (recipe.EffectType == DynamicEffectType.ScalableObject
+        && string.IsNullOrEmpty(recipe.MeshResourceKey))
+      {
+        return Invalid(path + ".Extension.MeshNameBytes", "ScalableObject requires a mesh resource key.");
+      }
+
+      if (recipe.EffectType != DynamicEffectType.Group
+        && string.IsNullOrEmpty(recipe.TextureResourceKey))
+      {
+        return Invalid(path + ".Extension.TexturePathBytes", "The selected effect requires a texture resource key.");
+      }
+
+      if (!string.IsNullOrEmpty(recipe.TextureResourceKey)
+        && !IsCanonicalTextureResourceKey(recipe.TextureResourceKey))
+      {
+        return Invalid(path + ".Extension.TexturePathBytes", "Texture resource keys must use safe Textures\\...\\*.tex spelling.");
+      }
+
+      try
+      {
+        var meshBytes = MshCanonicalSerializer.EncodeDynamicString(recipe.MeshResourceKey).Length;
+        var textureBytes = MshCanonicalSerializer.EncodeDynamicString(recipe.TextureResourceKey).Length;
+        stringBytes = checked(stringBytes + meshBytes + textureBytes);
+      }
+      catch (EncoderFallbackException)
+      {
+        return Invalid(path + ".Extension", "Dynamic resource keys must be representable as ISO-8859-2 bytes.");
+      }
+      catch (OverflowException)
+      {
+        return ResourceLimit(long.MaxValue, profile.MaxDynamicStringBytes, path + ".Extension");
+      }
+
+      return stringBytes > profile.MaxDynamicStringBytes
+        ? ResourceLimit(stringBytes, profile.MaxDynamicStringBytes, path + ".Extension")
+        : null;
+    }
+
+    private static bool IsCanonicalTextureResourceKey(string value)
+    {
+      if (!value.StartsWith("Textures\\", StringComparison.OrdinalIgnoreCase)
+        || !value.EndsWith(".tex", StringComparison.OrdinalIgnoreCase)
+        || value.Contains('/')
+        || value.Contains(':')
+        || value.Contains('?')
+        || value.Contains('#')
+        || value.Any(character => char.IsControl(character) || character is '*' or '"' or '<' or '>' or '|'))
+      {
+        return false;
+      }
+
+      var segments = value.Split('\\');
+      return segments.Length >= 2
+        && segments[^1].Length > 4
+        && segments.All(segment => segment.Length > 0
+          && segment is not "." and not ".."
+          && !segment.EndsWith(" ", StringComparison.Ordinal)
+          && !segment.EndsWith(".", StringComparison.Ordinal));
+    }
+
+    private static bool IsFinite(EffectRectangle value)
+    {
+      return IsFinite(value.X0)
+        && IsFinite(value.Y1)
+        && IsFinite(value.X1)
+        && IsFinite(value.Y0);
     }
 
     private static OperationDiagnostic ResourceLimit(long actual, int maximum, string path)

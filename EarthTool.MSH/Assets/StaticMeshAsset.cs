@@ -456,6 +456,15 @@ namespace EarthTool.MSH.Assets
     Random = 3
   }
 
+  /// <summary>Names canonical alpha interpolation timing modes.</summary>
+  public enum DynamicAlphaTiming
+  {
+    /// <summary>Interpolate alpha with the selected frame phase.</summary>
+    FramePhase = 0,
+    /// <summary>Interpolate alpha with lifetime progress.</summary>
+    LifetimeProgress = 1
+  }
+
   /// <summary>Preserves one four-lane dynamic-effect rectangle.</summary>
   public readonly struct EffectRectangle : IEquatable<EffectRectangle>
   {
@@ -467,6 +476,14 @@ namespace EarthTool.MSH.Assets
     public float X1 { get; }
     /// <summary>Gets the second Y lane.</summary>
     public float Y0 { get; }
+    /// <summary>Gets the semantic left lane without sorting.</summary>
+    public float Left => X0;
+    /// <summary>Gets the semantic top lane without sorting.</summary>
+    public float Top => Y1;
+    /// <summary>Gets the semantic right lane without sorting.</summary>
+    public float Right => X1;
+    /// <summary>Gets the semantic bottom lane without sorting.</summary>
+    public float Bottom => Y0;
 
     /// <summary>Initializes an exact effect rectangle.</summary>
     public EffectRectangle(float x0, float y1, float x1, float y0)
@@ -535,7 +552,9 @@ namespace EarthTool.MSH.Assets
     /// <summary>Gets the preserved reserved dynamic word.</summary>
     public uint ReservedWord { get; }
     /// <summary>Gets the exact additive-flag representation.</summary>
-    public uint AdditiveFlag { get; }
+    public int AdditiveFlag { get; }
+    /// <summary>Gets whether the exact additive representation selects additive blending.</summary>
+    public bool UsesAdditiveBlending => AdditiveFlag != 0;
     /// <summary>Gets the terrain-light RGB values.</summary>
     public Vector3 TerrainLightColor { get; }
     /// <summary>Gets the visible effect RGB values.</summary>
@@ -544,6 +563,10 @@ namespace EarthTool.MSH.Assets
     public float VisibleTerrainLightGain { get; }
     /// <summary>Gets the exact alpha timing mode.</summary>
     public int AlphaTimingMode { get; }
+    /// <summary>Gets the canonical alpha timing value, or null for another exact nonzero representation.</summary>
+    public DynamicAlphaTiming? KnownAlphaTiming { get; }
+    /// <summary>Gets whether alpha interpolation uses lifetime progress.</summary>
+    public bool UsesLifetimeProgressAlpha => AlphaTimingMode != 0;
     /// <summary>Gets the end alpha.</summary>
     public float EndAlpha { get; }
     /// <summary>Gets the start alpha.</summary>
@@ -595,11 +618,16 @@ namespace EarthTool.MSH.Assets
       EffectDepthOffset = ReadSingle(data, 0x44);
       RibbonHalfWidth = ReadSingle(data, 0x48);
       ReservedWord = ReadUInt32(data, 0x4C);
-      AdditiveFlag = ReadUInt32(data, 0x50);
+      AdditiveFlag = ReadInt32(data, 0x50);
       TerrainLightColor = ReadVector3(data, 0x54, invertY: false);
       VisibleEffectColor = ReadVector3(data, 0x60, invertY: false);
       VisibleTerrainLightGain = ReadSingle(data, 0x6C);
       AlphaTimingMode = ReadInt32(data, 0x70);
+      KnownAlphaTiming = AlphaTimingMode == 0
+        ? DynamicAlphaTiming.FramePhase
+        : AlphaTimingMode == 1
+          ? DynamicAlphaTiming.LifetimeProgress
+          : null;
       EndAlpha = ReadSingle(data, 0x74);
       StartAlpha = ReadSingle(data, 0x78);
       EndModelScale = ReadSingle(data, 0x7C);

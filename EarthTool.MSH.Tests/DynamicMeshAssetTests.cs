@@ -50,11 +50,13 @@ public class DynamicMeshAssetTests
     asset.RootDynamicObject.Extension.EffectDepthOffset.Should().Be(-1.25f);
     asset.RootDynamicObject.Extension.RibbonHalfWidth.Should().Be(-2.5f);
     asset.RootDynamicObject.Extension.ReservedWord.Should().Be(0xAABBCC01);
-    asset.RootDynamicObject.Extension.AdditiveFlag.Should().Be(0x80000001);
+    asset.RootDynamicObject.Extension.AdditiveFlag.Should().Be(unchecked((int)0x80000001));
+    asset.RootDynamicObject.Extension.UsesAdditiveBlending.Should().BeTrue();
     AssertVector(asset.RootDynamicObject.Extension.TerrainLightColor, new Vector3(1.1f, 1.2f, 1.3f));
     AssertVector(asset.RootDynamicObject.Extension.VisibleEffectColor, new Vector3(2.1f, 2.2f, 2.3f));
     asset.RootDynamicObject.Extension.VisibleTerrainLightGain.Should().BeApproximately(3.1f, 0.000001f);
     asset.RootDynamicObject.Extension.AlphaTimingMode.Should().Be(-8);
+    asset.RootDynamicObject.Extension.KnownAlphaTiming.Should().BeNull();
     asset.RootDynamicObject.Extension.EndAlpha.Should().BeApproximately(0.21f, 0.000001f);
     asset.RootDynamicObject.Extension.StartAlpha.Should().BeApproximately(0.81f, 0.000001f);
     asset.RootDynamicObject.Extension.EndModelScale.Should().BeApproximately(2.1f, 0.000001f);
@@ -91,7 +93,61 @@ public class DynamicMeshAssetTests
     build.TryGetValue(out var asset).Should().BeTrue();
     asset!.RootDynamicObject.Extension.EffectType.Should().Be(uint.MaxValue);
     asset.RootDynamicObject.Extension.KnownEffectType.Should().BeNull();
+    build.Diagnostics.Should().Contain(diagnostic =>
+      diagnostic.Code == MshDiagnosticCodes.CompatibilityAnomaly
+      && diagnostic.Path == "RootDynamicObject.Extension.EffectType");
+    build.Diagnostics.Should().Contain(diagnostic =>
+      diagnostic.Code == MshDiagnosticCodes.CompatibilityAnomaly
+      && diagnostic.Path == "RootDynamicObject.Extension.LightType");
+    build.Diagnostics.Should().Contain(diagnostic =>
+      diagnostic.Code == MshDiagnosticCodes.CompatibilityAnomaly
+      && diagnostic.Path == "RootDynamicObject.Extension.ReservedWord");
+    build.Diagnostics.Should().Contain(diagnostic =>
+      diagnostic.Code == MshDiagnosticCodes.CompatibilityAnomaly
+      && diagnostic.Path == "RootDynamicObject.Extension.AdditiveFlag");
+    build.Diagnostics.Should().Contain(diagnostic =>
+      diagnostic.Code == MshDiagnosticCodes.CompatibilityAnomaly
+      && diagnostic.Path == "RootDynamicObject.Extension.AlphaTimingMode");
     (await WriteAsync(asset)).Should().Equal(fixture);
+  }
+
+  [Fact]
+  public async Task LoadedUnsafeFrameValuesFailSemanticEvaluationWithoutChangingTheirBytes()
+  {
+    var fixture = CreateFixture(CreateDynamicRecord(1, 7));
+    await using var source = new MemoryStream(fixture);
+    var read = await new MshReader().ReadAsync(source);
+    var asset = read.Value.Should().BeOfType<DynamicMeshAsset>().Subject;
+
+    DynamicEffectSemantics.TrySelectFrame(
+      asset.RootDynamicObject.Extension,
+      DynamicEffectEvaluationContext.Primary,
+      10,
+      5,
+      3,
+      out _,
+      out var failure).Should().BeFalse();
+
+    failure.Should().Be(DynamicSemanticFailure.InvalidFrameDeclaration);
+    (await WriteAsync(asset)).Should().Equal(fixture);
+  }
+
+  [Fact]
+  public async Task ExpertGroupPreservesAndDiagnosesCanonicalValuedInertRepresentations()
+  {
+    var canonical = DynamicMeshBuilder.Create(CreationGuid, LineageId).Build();
+    canonical.TryGetValue(out var canonicalAsset).Should().BeTrue();
+    var fixture = await WriteAsync(canonicalAsset!);
+    WriteUInt32(fixture, 0x18 + 0x3B8, 1);
+    WriteInt32(fixture, 0x18 + 0x3D8, 1);
+
+    var build = MshExpert.CreateDynamic(fixture, LineageId);
+
+    build.TryGetValue(out var asset).Should().BeTrue();
+    build.Diagnostics.Should().Contain(diagnostic =>
+      diagnostic.Code == MshDiagnosticCodes.CompatibilityAnomaly
+      && diagnostic.Path == "RootDynamicObject.Extension.InertRepresentations");
+    (await WriteAsync(asset!)).Should().Equal(fixture);
   }
 
   [Fact]
@@ -172,18 +228,18 @@ public class DynamicMeshAssetTests
   }
 
   [Fact]
-  public void CanonicalDynamicBuilderRejectsCyclesAndReusedInstancesWithoutPartialAsset()
+  public void CanonicalDynamicBuilderRejectsCyclesAndCopiesReusedInstances()
   {
-    var cycle = new CanonicalDynamicObject(DynamicEffectType.Group);
+    var cycle = DynamicEffectRecipes.Group();
     cycle.AddChild(cycle);
     var cycleBuild = DynamicMeshBuilder.Create(CreationGuid, LineageId).SetRoot(cycle).Build();
-    var indirectRoot = new CanonicalDynamicObject(DynamicEffectType.Group);
-    var indirectChild = new CanonicalDynamicObject(DynamicEffectType.Explosion);
+    var indirectRoot = DynamicEffectRecipes.Group();
+    var indirectChild = DynamicEffectRecipes.Group();
     indirectRoot.AddChild(indirectChild);
     indirectChild.AddChild(indirectRoot);
     var indirectBuild = DynamicMeshBuilder.Create(CreationGuid, LineageId).SetRoot(indirectRoot).Build();
-    var shared = new CanonicalDynamicObject(DynamicEffectType.Smoke);
-    var reusedRoot = new CanonicalDynamicObject(DynamicEffectType.Group, [shared, shared]);
+    var shared = CreateRecipe(DynamicEffectType.Smoke);
+    var reusedRoot = DynamicEffectRecipes.Group([shared, shared]);
     var reusedBuild = DynamicMeshBuilder.Create(CreationGuid, LineageId).SetRoot(reusedRoot).Build();
 
     cycleBuild.TryGetValue(out _).Should().BeFalse();
@@ -192,9 +248,11 @@ public class DynamicMeshAssetTests
     indirectBuild.TryGetValue(out _).Should().BeFalse();
     indirectBuild.Diagnostics.Should().ContainSingle().Subject.Code
       .Should().Be(MshDiagnosticCodes.InvalidAuthoringInput);
-    reusedBuild.TryGetValue(out _).Should().BeFalse();
+    reusedBuild.TryGetValue(out var reusedAsset).Should().BeTrue();
     reusedBuild.Diagnostics.Should().ContainSingle().Subject.Code
-      .Should().Be(MshDiagnosticCodes.InvalidAuthoringInput);
+      .Should().Be(MshDiagnosticCodes.CompatibilityAnomaly);
+    reusedAsset!.RootDynamicObject.Children.Select(child => child.Extension.KnownEffectType)
+      .Should().Equal(DynamicEffectType.Smoke, DynamicEffectType.Smoke);
   }
 
   [Fact]
@@ -202,22 +260,59 @@ public class DynamicMeshAssetTests
   {
     var sourceChildren = new List<CanonicalDynamicObject>
     {
-      new(DynamicEffectType.Explosion),
-      new(DynamicEffectType.Smoke)
+      CreateRecipe(DynamicEffectType.Explosion),
+      CreateRecipe(DynamicEffectType.Smoke)
     };
-    var root = new CanonicalDynamicObject(DynamicEffectType.Lightning, sourceChildren);
+    var root = DynamicEffectRecipes.Group(sourceChildren);
     var build = DynamicMeshBuilder.Create(CreationGuid, LineageId).SetRoot(root).Build();
 
     sourceChildren.Clear();
-    root.AddChild(new CanonicalDynamicObject(DynamicEffectType.Keelwater));
+    root.AddChild(CreateRecipe(DynamicEffectType.Keelwater));
 
     build.TryGetValue(out var asset).Should().BeTrue();
-    asset!.RootDynamicObject.Extension.KnownEffectType.Should().Be(DynamicEffectType.Lightning);
+    asset!.RootDynamicObject.Extension.KnownEffectType.Should().Be(DynamicEffectType.Group);
     asset.RootDynamicObject.Children.Select(child => child.Extension.KnownEffectType)
       .Should().Equal(DynamicEffectType.Explosion, DynamicEffectType.Smoke);
     var first = await WriteAsync(asset);
     var second = await WriteAsync(asset);
     first.Should().Equal(second);
+  }
+
+  [Fact]
+  public void ReusedInstanceDiagnosticsRespectTheConfiguredCap()
+  {
+    var shared = CreateRecipe(DynamicEffectType.Smoke);
+    var root = DynamicEffectRecipes.Group([shared, shared, shared]);
+
+    var build = DynamicMeshBuilder.Create(CreationGuid, LineageId)
+      .SetRoot(root)
+      .Build(new MshOperationProfile(maxDiagnostics: 1));
+
+    build.TryGetValue(out _).Should().BeTrue();
+    build.Diagnostics.Should().ContainSingle().Subject.Code.Should().Be(MshDiagnosticCodes.DiagnosticsTruncated);
+  }
+
+  [Fact]
+  public async Task SemanticTextureRegionRejectsOverflowingFinalCoordinates()
+  {
+    var record = CreateDynamicRecord(1, 1);
+    WriteInt32(record, 0x378, 2);
+    WriteSingle(record, 0x384, 2e38f);
+    WriteSingle(record, 0x388, 1);
+    await using var source = new MemoryStream(CreateFixture(record));
+    var read = await new MshReader().ReadAsync(source);
+    var extension = read.Value.Should().BeOfType<DynamicMeshAsset>()
+      .Subject.RootDynamicObject.Extension;
+
+    var frame = new DynamicFrameSelection(1, 1, 0.5f);
+    DynamicEffectSemantics.TrySelectTextureRegion(
+      extension,
+      DynamicEffectEvaluationContext.Primary,
+      frame,
+      1,
+      out _,
+      out var failure).Should().BeFalse();
+    failure.Should().Be(DynamicSemanticFailure.NonFiniteInput);
   }
 
   [Fact]
@@ -293,6 +388,28 @@ public class DynamicMeshAssetTests
     var validation = await new MshValidator().ValidateAsync(asset);
     validation.Status.Should().Be(OperationStatus.Succeeded);
     return (asset, await WriteAsync(asset));
+  }
+
+  private static CanonicalDynamicObject CreateRecipe(DynamicEffectType effectType)
+  {
+    var frames = new CanonicalDynamicFrameSequence(0, 1, 0);
+    var sprite = new CanonicalDynamicSpriteSheet(frames, 1, 1);
+    var shape = new CanonicalDynamicEffectShape(
+      new EffectRectangle(-0.25f, 0.25f, 0.25f, -0.25f),
+      new EffectRectangle(-0.25f, 0.25f, 0.25f, -0.25f),
+      0.25f);
+    var alpha = new CanonicalDynamicAlpha(1, 1, DynamicAlphaTiming.FramePhase);
+    return effectType switch
+    {
+      DynamicEffectType.Explosion => DynamicEffectRecipes.Explosion(
+        sprite, shape, "Textures\\effect.tex", Vector3.One, alpha, false,
+        new CanonicalDynamicTerrainLight(DynamicLightType.Constant, Vector3.Zero)),
+      DynamicEffectType.Smoke => DynamicEffectRecipes.Smoke(
+        sprite, shape, "Textures\\effect.tex", Vector3.One, 1, alpha, false),
+      DynamicEffectType.Keelwater => DynamicEffectRecipes.Keelwater(
+        sprite, shape, "Textures\\effect.tex", 1, 1, false),
+      _ => throw new ArgumentOutOfRangeException(nameof(effectType))
+    };
   }
 
   private static async Task<byte[]> WriteAsync(MeshAsset asset)

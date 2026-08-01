@@ -7,6 +7,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Text;
 
 namespace EarthTool.MSH.Internal
 {
@@ -15,6 +16,7 @@ namespace EarthTool.MSH.Internal
     internal const int BaseHeaderSize = 0x368;
     internal const int StaticRecordSize = 0xDD;
     internal const int DynamicRecordSize = 0x410;
+    private static readonly Encoding _dynamicStringEncoding = CreateDynamicStringEncoding();
 
     internal static byte[] CreateStatic(
       Guid creationGuid,
@@ -43,15 +45,33 @@ namespace EarthTool.MSH.Internal
     internal static byte[] CreateDynamic(
       Guid creationGuid,
       CanonicalDynamicObject root,
-      int objectCount)
+      int serializedLength)
     {
       var framing = new MeshArchiveFraming(0x30D0A1FF, 1, creationGuid);
       var archiveHeader = CreateArchiveHeader(framing);
-      var result = new byte[archiveHeader.Length + (objectCount * DynamicRecordSize)];
+      var result = new byte[archiveHeader.Length + serializedLength];
       archiveHeader.CopyTo(result, 0);
       var cursor = archiveHeader.Length;
       WriteCanonicalDynamicRecord(result, ref cursor, root);
       return result;
+    }
+
+    internal static int GetDynamicSerializedLength(CanonicalDynamicObject root)
+    {
+      var meshNameLength = EncodeDynamicString(root.Recipe.MeshResourceKey).Length;
+      var texturePathLength = EncodeDynamicString(root.Recipe.TextureResourceKey).Length;
+      var length = checked(DynamicRecordSize + meshNameLength + texturePathLength);
+      foreach (var child in root.Children)
+      {
+        length = checked(length + GetDynamicSerializedLength(child));
+      }
+
+      return length;
+    }
+
+    internal static byte[] EncodeDynamicString(string value)
+    {
+      return _dynamicStringEncoding.GetBytes(value);
     }
 
     internal static byte[] CreateCanonicalDynamicRecord()
@@ -83,10 +103,49 @@ namespace EarthTool.MSH.Internal
     {
       var recordOffset = cursor;
       var record = CreateCanonicalDynamicRecord();
-      WriteUInt32(record, 0x368, (uint)source.EffectType);
-      WriteUInt32(record, 0x40C, checked((uint)source.Children.Count));
-      record.CopyTo(destination, recordOffset);
-      cursor += record.Length;
+      var recipe = source.Recipe;
+      WriteUInt32(record, 0x368, (uint)recipe.EffectType);
+      WriteUInt32(record, 0x36C, (uint)recipe.LightType);
+      WriteInt32(record, 0x370, recipe.FirstSourceFrame);
+      WriteInt32(record, 0x374, recipe.FrameCount);
+      WriteInt32(record, 0x378, recipe.SpriteSheetColumnCount);
+      WriteInt32(record, 0x37C, recipe.SpriteSheetRowCount);
+      WriteInt32(record, 0x380, recipe.FramePeriodTicks);
+      WriteSingle(record, 0x384, recipe.SpriteSheetColumnCount == 0
+        ? 0
+        : 1f / recipe.SpriteSheetColumnCount);
+      WriteSingle(record, 0x388, recipe.SpriteSheetRowCount == 0
+        ? 0
+        : 1f / recipe.SpriteSheetRowCount);
+      WriteRectangle(record, 0x38C, recipe.StartEffectRectangle);
+      WriteRectangle(record, 0x39C, recipe.EndEffectRectangle);
+      WriteSingle(record, 0x3AC, recipe.EffectDepthOffset);
+      WriteSingle(record, 0x3B0, recipe.RibbonHalfWidth);
+      WriteUInt32(record, 0x3B8, recipe.Additive ? 1u : 0u);
+      WriteVector3(record, 0x3BC, recipe.TerrainLightColor, invertY: false);
+      WriteVector3(record, 0x3C8, recipe.VisibleEffectColor, invertY: false);
+      WriteSingle(record, 0x3D4, recipe.VisibleTerrainLightGain);
+      WriteInt32(record, 0x3D8, (int)recipe.AlphaTiming);
+      WriteSingle(record, 0x3DC, recipe.EndAlpha);
+      WriteSingle(record, 0x3E0, recipe.StartAlpha);
+      WriteSingle(record, 0x3E4, recipe.EndModelScale);
+      WriteSingle(record, 0x3E8, recipe.StartModelScale);
+      WriteVector3(record, 0x3EC, recipe.ChildStartTranslation, invertY: true);
+      WriteVector3(record, 0x3F8, recipe.ChildEndTranslation, invertY: true);
+      record.AsSpan(0, 0x404).CopyTo(destination.AsSpan(recordOffset));
+      cursor += 0x404;
+      var meshName = EncodeDynamicString(recipe.MeshResourceKey);
+      var texturePath = EncodeDynamicString(recipe.TextureResourceKey);
+      WriteUInt32(destination, cursor, checked((uint)meshName.Length));
+      cursor += sizeof(uint);
+      meshName.CopyTo(destination, cursor);
+      cursor += meshName.Length;
+      WriteUInt32(destination, cursor, checked((uint)texturePath.Length));
+      cursor += sizeof(uint);
+      texturePath.CopyTo(destination, cursor);
+      cursor += texturePath.Length;
+      WriteUInt32(destination, cursor, checked((uint)source.Children.Count));
+      cursor += sizeof(uint);
       foreach (var child in source.Children)
       {
         WriteCanonicalDynamicRecord(destination, ref cursor, child);
@@ -263,6 +322,21 @@ namespace EarthTool.MSH.Internal
       WriteSingle(data, offset + 12, -0.25f);
     }
 
+    private static void WriteRectangle(byte[] data, int offset, EffectRectangle rectangle)
+    {
+      WriteSingle(data, offset, rectangle.X0);
+      WriteSingle(data, offset + 4, rectangle.Y1);
+      WriteSingle(data, offset + 8, rectangle.X1);
+      WriteSingle(data, offset + 12, rectangle.Y0);
+    }
+
+    private static void WriteVector3(byte[] data, int offset, Vector3 value, bool invertY)
+    {
+      WriteSingle(data, offset, value.X);
+      WriteSingle(data, offset + 4, invertY && value.Y != 0 ? -value.Y : value.Y);
+      WriteSingle(data, offset + 8, value.Z);
+    }
+
     private static void WriteAnimationClassBytes(byte[] data, int offset, AnimationClassBytes value)
     {
       WriteUInt32(data, offset,
@@ -284,6 +358,11 @@ namespace EarthTool.MSH.Internal
       BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(offset), value);
     }
 
+    private static void WriteInt32(byte[] data, int offset, int value)
+    {
+      BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(offset), value);
+    }
+
     private static void WriteUInt64(byte[] data, int offset, ulong value)
     {
       BinaryPrimitives.WriteUInt64LittleEndian(data.AsSpan(offset), value);
@@ -292,6 +371,12 @@ namespace EarthTool.MSH.Internal
     private static void WriteSingle(byte[] data, int offset, float value)
     {
       WriteUInt32(data, offset, unchecked((uint)BitConverter.SingleToInt32Bits(value)));
+    }
+
+    private static Encoding CreateDynamicStringEncoding()
+    {
+      Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+      return Encoding.GetEncoding(28592, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
     }
   }
 
