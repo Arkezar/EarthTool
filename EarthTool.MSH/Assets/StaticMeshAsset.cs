@@ -1,5 +1,6 @@
 ﻿#nullable enable
 
+using EarthTool.MSH.Authoring;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -7,6 +8,125 @@ using System.Numerics;
 
 namespace EarthTool.MSH.Assets
 {
+  /// <summary>Identifies the closed payload branch of a mesh asset.</summary>
+  public enum MeshAssetKind
+  {
+    /// <summary>Static geometry payload.</summary>
+    Static = 0,
+    /// <summary>Dynamic effect payload.</summary>
+    Dynamic = 1
+  }
+
+  /// <summary>Identifies how an immutable mesh snapshot was constructed.</summary>
+  public enum MeshAssetOrigin
+  {
+    /// <summary>Accepted from serialized MSH input.</summary>
+    Loaded = 0,
+    /// <summary>Created through a canonical semantic builder.</summary>
+    Canonical = 1,
+    /// <summary>Created through the exact serialized expert boundary.</summary>
+    Expert = 2
+  }
+
+  /// <summary>Scopes nonserialized object identities to one mesh lineage.</summary>
+  public readonly struct MeshAssetLineageId : IEquatable<MeshAssetLineageId>
+  {
+    /// <summary>Gets the lineage UUID.</summary>
+    public Guid Value { get; }
+
+    /// <summary>Initializes a lineage identity.</summary>
+    public MeshAssetLineageId(Guid value)
+    {
+      Value = value;
+    }
+
+    /// <inheritdoc />
+    public bool Equals(MeshAssetLineageId other)
+    {
+      return Value.Equals(other.Value);
+    }
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj)
+    {
+      return obj is MeshAssetLineageId other && Equals(other);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+      return Value.GetHashCode();
+    }
+  }
+
+  /// <summary>Identifies one static render object within an asset lineage.</summary>
+  public readonly struct StaticRenderObjectId : IEquatable<StaticRenderObjectId>
+  {
+    /// <summary>Gets the owning lineage.</summary>
+    public MeshAssetLineageId Lineage { get; }
+    /// <summary>Gets the lineage-local value.</summary>
+    public int Value { get; }
+
+    /// <summary>Initializes a static render-object identity.</summary>
+    public StaticRenderObjectId(MeshAssetLineageId lineage, int value)
+    {
+      Lineage = lineage;
+      Value = value;
+    }
+
+    /// <inheritdoc />
+    public bool Equals(StaticRenderObjectId other)
+    {
+      return Lineage.Equals(other.Lineage) && Value == other.Value;
+    }
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj)
+    {
+      return obj is StaticRenderObjectId other && Equals(other);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+      return (Lineage, Value).GetHashCode();
+    }
+  }
+
+  /// <summary>Identifies one source object within an asset lineage.</summary>
+  public readonly struct SourceObjectId : IEquatable<SourceObjectId>
+  {
+    /// <summary>Gets the owning lineage.</summary>
+    public MeshAssetLineageId Lineage { get; }
+    /// <summary>Gets the lineage-local value.</summary>
+    public int Value { get; }
+
+    /// <summary>Initializes a source-object identity.</summary>
+    public SourceObjectId(MeshAssetLineageId lineage, int value)
+    {
+      Lineage = lineage;
+      Value = value;
+    }
+
+    /// <inheritdoc />
+    public bool Equals(SourceObjectId other)
+    {
+      return Lineage.Equals(other.Lineage) && Value == other.Value;
+    }
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj)
+    {
+      return obj is SourceObjectId other && Equals(other);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+      return (Lineage, Value).GetHashCode();
+    }
+  }
+
   /// <summary>Preserves the independently serialized top-level MSH framing declaration.</summary>
   public sealed class MeshArchiveFraming
   {
@@ -30,6 +150,17 @@ namespace EarthTool.MSH.Assets
   /// <summary>Defines the closed immutable root for safely accepted MSH assets.</summary>
   public abstract class MeshAsset
   {
+    private readonly byte[] _serializedRepresentation;
+
+    /// <summary>Gets the lineage that scopes nonserialized object identities.</summary>
+    public MeshAssetLineageId LineageId { get; }
+
+    /// <summary>Gets how this snapshot was constructed.</summary>
+    public MeshAssetOrigin Origin { get; }
+
+    /// <summary>Gets the closed payload branch.</summary>
+    public abstract MeshAssetKind Kind { get; }
+
     /// <summary>Gets the preserved archive framing.</summary>
     public MeshArchiveFraming ArchiveFraming { get; }
 
@@ -40,14 +171,35 @@ namespace EarthTool.MSH.Assets
     public IReadOnlyList<byte> RootTrailingBytes { get; }
 
     internal MeshAsset(
+      MeshAssetLineageId lineageId,
       MeshArchiveFraming archiveFraming,
       CommonMeshBaseHeader commonBaseHeader,
-      byte[] rootTrailingBytes)
+      byte[] rootTrailingBytes,
+      MeshAssetOrigin origin,
+      byte[] serializedRepresentation)
     {
+      LineageId = lineageId;
       ArchiveFraming = archiveFraming;
       CommonBaseHeader = commonBaseHeader;
       RootTrailingBytes = Array.AsReadOnly((byte[])rootTrailingBytes.Clone());
+      Origin = origin;
+      _serializedRepresentation = (byte[])serializedRepresentation.Clone();
     }
+
+    /// <summary>Matches the closed asset branch without a concrete cast.</summary>
+    public abstract TResult Match<TResult>(
+      Func<StaticMeshAsset, TResult> onStatic,
+      Func<DynamicMeshAsset, TResult> onDynamic);
+
+    /// <summary>Visits the closed asset branch without a concrete cast.</summary>
+    public abstract void Match(Action<StaticMeshAsset> onStatic, Action<DynamicMeshAsset> onDynamic);
+
+    internal byte[] GetSerializedRepresentation()
+    {
+      return (byte[])_serializedRepresentation.Clone();
+    }
+
+    internal int SerializedLength => _serializedRepresentation.Length;
   }
 
   /// <summary>Preserves the four reverse-packed animation-class bytes.</summary>
@@ -164,37 +316,80 @@ namespace EarthTool.MSH.Assets
   /// <summary>Represents an immutable static MSH asset.</summary>
   public sealed class StaticMeshAsset : MeshAsset
   {
-    private readonly byte[] _serializedRepresentation;
+    /// <inheritdoc />
+    public override MeshAssetKind Kind => MeshAssetKind.Static;
+
+    /// <summary>Gets the root source-object identity for the current supported static slice.</summary>
+    public SourceObjectId RootSourceObjectId { get; }
 
     /// <summary>Gets the authoritative static render-object sequence.</summary>
     public IReadOnlyList<StaticRenderObject> StaticRenderObjectSequence { get; }
 
     internal StaticMeshAsset(
+      MeshAssetLineageId lineageId,
       MeshArchiveFraming archiveFraming,
       CommonMeshBaseHeader commonBaseHeader,
       byte[] rootTrailingBytes,
       IEnumerable<StaticRenderObject> staticRenderObjectSequence,
-      byte[] serializedRepresentation)
-      : base(archiveFraming, commonBaseHeader, rootTrailingBytes)
+      byte[] serializedRepresentation,
+      MeshAssetOrigin origin,
+      SourceObjectId rootSourceObjectId)
+      : base(lineageId, archiveFraming, commonBaseHeader, rootTrailingBytes, origin, serializedRepresentation)
     {
       StaticRenderObjectSequence = Array.AsReadOnly(
         new List<StaticRenderObject>(staticRenderObjectSequence).ToArray());
-      _serializedRepresentation = (byte[])serializedRepresentation.Clone();
+      RootSourceObjectId = rootSourceObjectId;
     }
 
-    internal byte[] GetSerializedRepresentation()
+    /// <summary>Starts a one-shot edit session for this snapshot.</summary>
+    public StaticMeshEditSession Edit()
     {
-      return (byte[])_serializedRepresentation.Clone();
+      return new StaticMeshEditSession(this);
     }
 
-    internal int SerializedLength => _serializedRepresentation.Length;
+    /// <inheritdoc />
+    public override TResult Match<TResult>(
+      Func<StaticMeshAsset, TResult> onStatic,
+      Func<DynamicMeshAsset, TResult> onDynamic)
+    {
+      if (onStatic is null)
+      {
+        throw new ArgumentNullException(nameof(onStatic));
+      }
+
+      if (onDynamic is null)
+      {
+        throw new ArgumentNullException(nameof(onDynamic));
+      }
+
+      return onStatic(this);
+    }
+
+    /// <inheritdoc />
+    public override void Match(Action<StaticMeshAsset> onStatic, Action<DynamicMeshAsset> onDynamic)
+    {
+      if (onStatic is null)
+      {
+        throw new ArgumentNullException(nameof(onStatic));
+      }
+
+      if (onDynamic is null)
+      {
+        throw new ArgumentNullException(nameof(onDynamic));
+      }
+
+      onStatic(this);
+    }
   }
 
   /// <summary>Represents one immutable static render object.</summary>
   public sealed class StaticRenderObject
   {
+    /// <summary>Gets the lineage-scoped render-object identity.</summary>
+    public StaticRenderObjectId Id { get; }
+
     /// <summary>Gets the lineage-local render-object identity.</summary>
-    public int LocalId { get; }
+    public int LocalId => Id.Value;
 
     /// <summary>Gets the ordered active render vertices.</summary>
     public IReadOnlyList<RenderVertex> RenderVertices { get; }
@@ -203,13 +398,82 @@ namespace EarthTool.MSH.Assets
     public IReadOnlyList<StaticTriangle> Triangles { get; }
 
     internal StaticRenderObject(
-      int localId,
+      StaticRenderObjectId id,
       IEnumerable<RenderVertex> renderVertices,
       IEnumerable<StaticTriangle> triangles)
     {
-      LocalId = localId;
+      Id = id;
       RenderVertices = Array.AsReadOnly(new List<RenderVertex>(renderVertices).ToArray());
       Triangles = Array.AsReadOnly(new List<StaticTriangle>(triangles).ToArray());
+    }
+  }
+
+  /// <summary>Represents the currently supported immutable dynamic root.</summary>
+  public sealed class DynamicObject
+  {
+    /// <summary>Gets the ordered child objects.</summary>
+    public IReadOnlyList<DynamicObject> Children { get; }
+
+    internal DynamicObject(IEnumerable<DynamicObject> children)
+    {
+      Children = Array.AsReadOnly(new List<DynamicObject>(children).ToArray());
+    }
+  }
+
+  /// <summary>Represents an immutable dynamic MSH asset.</summary>
+  public sealed class DynamicMeshAsset : MeshAsset
+  {
+    /// <inheritdoc />
+    public override MeshAssetKind Kind => MeshAssetKind.Dynamic;
+
+    /// <summary>Gets the root dynamic object.</summary>
+    public DynamicObject RootDynamicObject { get; }
+
+    internal DynamicMeshAsset(
+      MeshAssetLineageId lineageId,
+      MeshArchiveFraming archiveFraming,
+      CommonMeshBaseHeader commonBaseHeader,
+      DynamicObject rootDynamicObject,
+      byte[] rootTrailingBytes,
+      byte[] serializedRepresentation,
+      MeshAssetOrigin origin)
+      : base(lineageId, archiveFraming, commonBaseHeader, rootTrailingBytes, origin, serializedRepresentation)
+    {
+      RootDynamicObject = rootDynamicObject;
+    }
+
+    /// <inheritdoc />
+    public override TResult Match<TResult>(
+      Func<StaticMeshAsset, TResult> onStatic,
+      Func<DynamicMeshAsset, TResult> onDynamic)
+    {
+      if (onDynamic is null)
+      {
+        throw new ArgumentNullException(nameof(onDynamic));
+      }
+
+      if (onStatic is null)
+      {
+        throw new ArgumentNullException(nameof(onStatic));
+      }
+
+      return onDynamic(this);
+    }
+
+    /// <inheritdoc />
+    public override void Match(Action<StaticMeshAsset> onStatic, Action<DynamicMeshAsset> onDynamic)
+    {
+      if (onDynamic is null)
+      {
+        throw new ArgumentNullException(nameof(onDynamic));
+      }
+
+      if (onStatic is null)
+      {
+        throw new ArgumentNullException(nameof(onStatic));
+      }
+
+      onDynamic(this);
     }
   }
 

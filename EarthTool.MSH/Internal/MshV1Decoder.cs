@@ -26,10 +26,10 @@ namespace EarthTool.MSH.Internal
 
   internal sealed class MshDecodeResult
   {
-    internal StaticMeshAsset Asset { get; }
+    internal MeshAsset Asset { get; }
     internal IReadOnlyList<OperationDiagnostic> Diagnostics { get; }
 
-    internal MshDecodeResult(StaticMeshAsset asset, IReadOnlyList<OperationDiagnostic> diagnostics)
+    internal MshDecodeResult(MeshAsset asset, IReadOnlyList<OperationDiagnostic> diagnostics)
     {
       Asset = asset;
       Diagnostics = diagnostics;
@@ -48,7 +48,11 @@ namespace EarthTool.MSH.Internal
     internal static MshDecodeResult Decode(
       byte[] source,
       MshOperationProfile profile,
-      CancellationToken cancellationToken)
+      CancellationToken cancellationToken,
+      MeshAssetLineageId? lineageId = null,
+      MeshAssetOrigin origin = MeshAssetOrigin.Loaded,
+      int staticRenderObjectLocalId = 1,
+      int rootSourceObjectLocalId = 1)
     {
       cancellationToken.ThrowIfCancellationRequested();
       var data = source.AsSpan();
@@ -124,12 +128,7 @@ namespace EarthTool.MSH.Internal
       }
 
       var meshKind = ReadUInt32(baseHeader, 8);
-      if (meshKind == 1)
-      {
-        throw Unsupported("DynamicMesh", "BaseHeader.MeshKind", baseOffset + 8);
-      }
-
-      if (meshKind != 0)
+      if (meshKind > 1)
       {
         throw Failure(
           MshDiagnosticCodes.UnsupportedMeshKind,
@@ -139,7 +138,9 @@ namespace EarthTool.MSH.Internal
           $"Unsupported root mesh kind {meshKind}.");
       }
 
-      if (archiveType.GetValueOrDefault() != 0)
+      var archiveSelectsDynamic = archiveType.GetValueOrDefault() != 0;
+      var meshKindIsDynamic = meshKind == 1;
+      if (archiveSelectsDynamic != meshKindIsDynamic)
       {
         diagnostics.Add(Compatibility(
           "ArchiveFraming.ArchiveType",
@@ -152,6 +153,24 @@ namespace EarthTool.MSH.Internal
           }));
       }
 
+      var assetLineageId = lineageId ?? new MeshAssetLineageId(Guid.NewGuid());
+      if (meshKindIsDynamic)
+      {
+        return DecodeDynamic(
+          source,
+          data,
+          profile,
+          cancellationToken,
+          diagnostics,
+          declaration,
+          archiveType,
+          creationGuid,
+          baseOffset,
+          baseHeader,
+          assetLineageId,
+          origin);
+      }
+
       cursor = baseOffset + BaseHeaderSize;
       Ensure(data, cursor, sizeof(uint), "StoredTrailingHierarchyUnwindCount");
       var storedTrailingUnwind = ReadUInt32(data, cursor);
@@ -162,7 +181,11 @@ namespace EarthTool.MSH.Internal
 
       cursor += sizeof(uint);
       cancellationToken.ThrowIfCancellationRequested();
-      var renderObject = DecodeRenderObject(data, cursor, out var payloadEnd);
+      var renderObject = DecodeRenderObject(
+        data,
+        cursor,
+        new StaticRenderObjectId(assetLineageId, staticRenderObjectLocalId),
+        out var payloadEnd);
       var trailingLength = data.Length - payloadEnd;
       if (trailingLength > profile.MaxRootTrailingBytes)
       {
@@ -187,17 +210,84 @@ namespace EarthTool.MSH.Internal
       }
 
       var asset = new StaticMeshAsset(
+        assetLineageId,
         new MeshArchiveFraming(declaration, archiveType, creationGuid),
         new CommonMeshBaseHeader(baseHeader.ToArray()),
         rootTrailingBytes,
         new[] { renderObject },
-        source);
+        source,
+        origin,
+        new SourceObjectId(assetLineageId, rootSourceObjectLocalId));
+      return new MshDecodeResult(asset, CapDiagnostics(diagnostics, profile.MaxDiagnostics));
+    }
+
+    private static MshDecodeResult DecodeDynamic(
+      byte[] source,
+      ReadOnlySpan<byte> data,
+      MshOperationProfile profile,
+      CancellationToken cancellationToken,
+      List<OperationDiagnostic> diagnostics,
+      uint declaration,
+      uint? archiveType,
+      Guid? creationGuid,
+      int baseOffset,
+      ReadOnlySpan<byte> baseHeader,
+      MeshAssetLineageId lineageId,
+      MeshAssetOrigin origin)
+    {
+      Ensure(data, baseOffset, MshCanonicalSerializer.DynamicRecordSize, "DynamicObject");
+      var childCountOffset = baseOffset + 0x40C;
+      if (ReadUInt32(data, childCountOffset) != 0)
+      {
+        throw Unsupported("DynamicChildren", "DynamicObject.Children", childCountOffset);
+      }
+
+      var canonicalRecord = MshCanonicalSerializer.CreateCanonicalDynamicRecord();
+      if (!data.Slice(baseOffset, canonicalRecord.Length).SequenceEqual(canonicalRecord))
+      {
+        throw Unsupported("DynamicObject", "DynamicObject", baseOffset);
+      }
+
+      cancellationToken.ThrowIfCancellationRequested();
+      var payloadEnd = baseOffset + canonicalRecord.Length;
+      var trailingLength = data.Length - payloadEnd;
+      if (trailingLength > profile.MaxRootTrailingBytes)
+      {
+        throw ResourceLimit(
+          "RootTrailingBytes",
+          payloadEnd,
+          trailingLength,
+          profile.MaxRootTrailingBytes);
+      }
+
+      var rootTrailingBytes = data.Slice(payloadEnd, trailingLength).ToArray();
+      if (trailingLength != 0)
+      {
+        diagnostics.Add(Compatibility(
+          "RootTrailingBytes",
+          payloadEnd,
+          "Opaque bytes after the complete root payload were preserved.",
+          new Dictionary<string, string>
+          {
+            ["length"] = trailingLength.ToString(CultureInfo.InvariantCulture)
+          }));
+      }
+
+      var asset = new DynamicMeshAsset(
+        lineageId,
+        new MeshArchiveFraming(declaration, archiveType, creationGuid),
+        new CommonMeshBaseHeader(baseHeader.ToArray()),
+        new DynamicObject(Array.Empty<DynamicObject>()),
+        rootTrailingBytes,
+        source,
+        origin);
       return new MshDecodeResult(asset, CapDiagnostics(diagnostics, profile.MaxDiagnostics));
     }
 
     private static StaticRenderObject DecodeRenderObject(
       ReadOnlySpan<byte> data,
       int recordOffset,
+      StaticRenderObjectId id,
       out int payloadEnd)
     {
       Ensure(data, recordOffset, StaticRecordSize, "StaticRenderObjectSequence[0]");
@@ -274,7 +364,8 @@ namespace EarthTool.MSH.Internal
         ReadUInt16(data, cursor + 4),
         ReadUInt16(data, cursor + 6));
       if (triangle.Vertex0 >= 3 || triangle.Vertex1 >= 3 || triangle.Vertex2 >= 3
-        || triangle.TriangleRenderPassFlags != 1)
+        || (triangle.TriangleRenderPassFlags & 1) == 0
+        || (triangle.TriangleRenderPassFlags & ~3) != 0)
       {
         throw Unsupported("Geometry", "StaticRenderObjectSequence[0].Triangles[0]", cursor);
       }
@@ -300,7 +391,7 @@ namespace EarthTool.MSH.Internal
       }
 
       payloadEnd = cursor + sizeof(uint);
-      return new StaticRenderObject(1, vertices, new[] { triangle });
+      return new StaticRenderObject(id, vertices, new[] { triangle });
     }
 
     private static IReadOnlyList<OperationDiagnostic> CapDiagnostics(

@@ -1,18 +1,62 @@
 # MSH API
 
-## Safe walking-skeleton operations
+## Immutable assets and authoring
+
+`MeshAsset` is a closed immutable hierarchy with `StaticMeshAsset` and
+`DynamicMeshAsset` branches. `Match` handles both branches without concrete
+casts. Every accepted asset receives a `MeshAssetLineageId`; static render and
+source object identities are scoped to that lineage and are not serialized in
+MSH bytes.
+
+`StaticMeshBuilder` authors the current canonical one-render-object geometry
+slice. It derives static archive framing, a persistent creation GUID, the
+historical one-cell footprint, horizontal extents, zero-filled vertex padding,
+triangle render-pass flags, and canonically absent attachments. All finite and
+fixed-point conversions are checked. `DynamicMeshBuilder` authors the current
+childless Group slice with dynamic framing and the observed zero/absent common
+header profile. Broader static sequences and dynamic effects remain fail-closed
+until their dedicated slices.
+
+Expected authoring failures return `MshBuildResult<T>` diagnostics without a
+partial asset. Complete exact construction is isolated in
+`EarthTool.MSH.Expert.MshExpert`; it still passes through the bounded structural
+decoder and cannot bypass unsupported-domain checks.
+
+`StaticMeshAsset.Edit()` starts a one-shot edit session. `Commit` returns a new
+immutable snapshot, operation diagnostics, and a `PreservationReport` whose
+field paths are classified as retained, regenerated, invalidated, or
+canonicalized. Retained objects keep lineage-scoped identities; removing and
+adding a render object allocates a new identity. Source collections are copied
+at builder and edit boundaries.
+
+```csharp
+var build = StaticMeshBuilder.Create(creationGuid, lineageId)
+  .SetRenderObject(vertices, triangles)
+  .Build();
+
+if (build.TryGetValue(out var asset))
+{
+  var edit = asset.Edit()
+    .ReplaceGeometry(asset.StaticRenderObjectSequence[0].Id, editedVertices, editedTriangles)
+    .Commit();
+}
+
+var exact = MshExpert.CreateStatic(serializedMsh, lineageId);
+```
+
+## Safe operations
 
 `IMshReader`, `IMshValidator`, and `IMshWriter` provide the bounded,
 result-based API for the safe one-triangle production slice. The reader copies
 caller-owned input under a finite `MshOperationProfile`, returns an immutable
 `MeshAsset`, and produces no partial value on failure or cancellation.
 
-The currently supported branch is `StaticMeshAsset`, whose
-`StaticRenderObjectSequence`, vertices, and triangles are copied into read-only
-collections. Domains assigned to later slices fail with `ETM1005` rather than
-being silently dropped. `IMshWriter.WriteFileAsync` validates and stages a
-sibling temporary file before atomically replacing an existing destination.
-Stream overloads leave caller-owned streams open.
+The supported branches are the one-render-object `StaticMeshAsset` and the
+childless Group `DynamicMeshAsset`. Their ordered collections are copied into
+read-only snapshots. Domains assigned to later slices fail with `ETM1005`
+rather than being silently dropped. `IMshWriter.WriteFileAsync` validates and
+stages a sibling temporary file before atomically replacing an existing
+destination. Stream overloads leave caller-owned streams open.
 
 `IMesh.BaseHeader` exposes the complete `0x368`-byte common MSH base header through `IMeshBaseHeader`. `MeshBaseHeader.SupportedVersion` is the only supported format version, and `MeshKind` distinguishes static geometry from dynamic effects.
 

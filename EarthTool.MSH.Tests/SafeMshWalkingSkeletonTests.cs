@@ -131,7 +131,10 @@ public class SafeMshWalkingSkeletonTests
     var types = typeof(OperationResult).Assembly.ExportedTypes
       .Where(type => type.Namespace == "EarthTool.Common.Operations")
       .Concat(typeof(MeshAsset).Assembly.ExportedTypes
-        .Where(type => type.Namespace is "EarthTool.MSH.Assets" or "EarthTool.MSH.Operations"))
+        .Where(type => type.Namespace is "EarthTool.MSH.Assets"
+          or "EarthTool.MSH.Authoring"
+          or "EarthTool.MSH.Expert"
+          or "EarthTool.MSH.Operations"))
       .Concat(new[] { typeof(MshReader), typeof(MshValidator), typeof(MshWriter) });
 
     PublicApiApproval.Verify("msh", types);

@@ -232,12 +232,7 @@ namespace EarthTool.MSH.Services
       try
       {
         cancellationToken.ThrowIfCancellationRequested();
-        if (asset is not StaticMeshAsset staticAsset)
-        {
-          return Task.FromResult(UnsupportedAsset());
-        }
-
-        if (staticAsset.SerializedLength > profile.MaxOutputBytes)
+        if (asset.SerializedLength > profile.MaxOutputBytes)
         {
           return Task.FromResult<OperationResult>(new OperationResult(
             OperationStatus.Failed,
@@ -252,7 +247,7 @@ namespace EarthTool.MSH.Services
             }));
         }
 
-        var bytes = staticAsset.GetSerializedRepresentation();
+        var bytes = asset.GetSerializedRepresentation();
         var decoded = MshV1Decoder.Decode(bytes, profile, cancellationToken);
         MshReader.LogWarnings(_logger, decoded.Diagnostics);
         return Task.FromResult<OperationResult>(new OperationResult(
@@ -269,22 +264,6 @@ namespace EarthTool.MSH.Services
           OperationStatus.Failed,
           new[] { ex.Diagnostic }));
       }
-    }
-
-    private static OperationResult UnsupportedAsset()
-    {
-      return new OperationResult(
-        OperationStatus.Failed,
-        new[]
-        {
-          new OperationDiagnostic(
-            MshDiagnosticCodes.UnsupportedDomain,
-            1005,
-            DiagnosticSeverity.Error,
-            "$",
-            "Only the static one-triangle asset is supported by this slice.",
-            data: new Dictionary<string, string> { ["domain"] = "MeshKind" })
-        });
     }
 
     internal static OperationResult Cancelled()
@@ -368,17 +347,12 @@ namespace EarthTool.MSH.Services
       try
       {
         cancellationToken.ThrowIfCancellationRequested();
-        if (asset is not StaticMeshAsset staticAsset)
-        {
-          return UnsupportedAsset();
-        }
-
-        if (staticAsset.SerializedLength > profile.MaxOutputBytes)
+        if (asset.SerializedLength > profile.MaxOutputBytes)
         {
           return Limit();
         }
 
-        var bytes = staticAsset.GetSerializedRepresentation();
+        var bytes = asset.GetSerializedRepresentation();
         var decoded = MshV1Decoder.Decode(bytes, profile, cancellationToken);
         await destination.WriteAsync(bytes, 0, bytes.Length, cancellationToken).ConfigureAwait(false);
         return new OperationResult(OperationStatus.Succeeded, decoded.Diagnostics);
@@ -476,21 +450,6 @@ namespace EarthTool.MSH.Services
           _fileSystem.TryDelete(temporaryPath);
         }
       }
-    }
-
-    private static OperationResult UnsupportedAsset()
-    {
-      return new OperationResult(
-        OperationStatus.Failed,
-        new[]
-        {
-          new OperationDiagnostic(
-            MshDiagnosticCodes.UnsupportedDomain,
-            1005,
-            DiagnosticSeverity.Error,
-            "$",
-            "Only the static one-triangle asset is supported by this slice.")
-        });
     }
 
     private static OperationResult Limit()
