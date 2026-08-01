@@ -58,17 +58,39 @@ namespace EarthTool.MSH.Operations
     /// <summary>Gets the maximum accepted opaque root trailing-byte count.</summary>
     public int MaxRootTrailingBytes { get; }
 
+    /// <summary>Gets the maximum dynamic-object nesting depth, including the root.</summary>
+    public int MaxDynamicDepth { get; }
+
+    /// <summary>Gets the maximum total dynamic-object count.</summary>
+    public int MaxDynamicObjects { get; }
+
+    /// <summary>Gets the maximum direct child count of one dynamic object.</summary>
+    public int MaxDynamicChildrenPerObject { get; }
+
+    /// <summary>Gets the maximum total dynamic string bytes.</summary>
+    public int MaxDynamicStringBytes { get; }
+
     /// <summary>Initializes finite MSH operation limits.</summary>
     public MshOperationProfile(
       int maxInputBytes = 16 * 1024 * 1024,
       int maxOutputBytes = 16 * 1024 * 1024,
       int maxDiagnostics = 128,
-      int maxRootTrailingBytes = 1024 * 1024)
+      int maxRootTrailingBytes = 1024 * 1024,
+      int maxDynamicDepth = 64,
+      int maxDynamicObjects = 4096,
+      int maxDynamicChildrenPerObject = 1024,
+      int maxDynamicStringBytes = 1024 * 1024)
     {
       MaxInputBytes = RequirePositive(maxInputBytes, nameof(maxInputBytes));
       MaxOutputBytes = RequirePositive(maxOutputBytes, nameof(maxOutputBytes));
       MaxDiagnostics = RequirePositive(maxDiagnostics, nameof(maxDiagnostics));
       MaxRootTrailingBytes = RequireNonNegative(maxRootTrailingBytes, nameof(maxRootTrailingBytes));
+      MaxDynamicDepth = RequirePositive(maxDynamicDepth, nameof(maxDynamicDepth));
+      MaxDynamicObjects = RequirePositive(maxDynamicObjects, nameof(maxDynamicObjects));
+      MaxDynamicChildrenPerObject = RequireNonNegative(
+        maxDynamicChildrenPerObject,
+        nameof(maxDynamicChildrenPerObject));
+      MaxDynamicStringBytes = RequireNonNegative(maxDynamicStringBytes, nameof(maxDynamicStringBytes));
     }
 
     private static int RequirePositive(int value, string parameterName)

@@ -420,7 +420,11 @@ namespace EarthTool.MSH.Services
             maxInputBytes: profile.MaxOutputBytes,
             maxOutputBytes: profile.MaxOutputBytes,
             maxDiagnostics: profile.MaxDiagnostics,
-            maxRootTrailingBytes: profile.MaxRootTrailingBytes);
+            maxRootTrailingBytes: profile.MaxRootTrailingBytes,
+            maxDynamicDepth: profile.MaxDynamicDepth,
+            maxDynamicObjects: profile.MaxDynamicObjects,
+            maxDynamicChildrenPerObject: profile.MaxDynamicChildrenPerObject,
+            maxDynamicStringBytes: profile.MaxDynamicStringBytes);
           var stagedValidation = await new MshReader()
             .ReadAsync(staged, stagedProfile, cancellationToken)
             .ConfigureAwait(false);

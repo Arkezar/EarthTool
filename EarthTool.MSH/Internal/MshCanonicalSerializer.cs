@@ -40,14 +40,17 @@ namespace EarthTool.MSH.Internal
         source.RootTrailingBytes.ToArray());
     }
 
-    internal static byte[] CreateDynamic(Guid creationGuid)
+    internal static byte[] CreateDynamic(
+      Guid creationGuid,
+      CanonicalDynamicObject root,
+      int objectCount)
     {
       var framing = new MeshArchiveFraming(0x30D0A1FF, 1, creationGuid);
       var archiveHeader = CreateArchiveHeader(framing);
-      var record = CreateCanonicalDynamicRecord();
-      var result = new byte[archiveHeader.Length + record.Length];
+      var result = new byte[archiveHeader.Length + (objectCount * DynamicRecordSize)];
       archiveHeader.CopyTo(result, 0);
-      record.CopyTo(result, archiveHeader.Length);
+      var cursor = archiveHeader.Length;
+      WriteCanonicalDynamicRecord(result, ref cursor, root);
       return result;
     }
 
@@ -71,6 +74,23 @@ namespace EarthTool.MSH.Internal
       WriteSingle(record, 0x3DC, 1f);
       WriteSingle(record, 0x3E0, 1f);
       return record;
+    }
+
+    private static void WriteCanonicalDynamicRecord(
+      byte[] destination,
+      ref int cursor,
+      CanonicalDynamicObject source)
+    {
+      var recordOffset = cursor;
+      var record = CreateCanonicalDynamicRecord();
+      WriteUInt32(record, 0x368, (uint)source.EffectType);
+      WriteUInt32(record, 0x40C, checked((uint)source.Children.Count));
+      record.CopyTo(destination, recordOffset);
+      cursor += record.Length;
+      foreach (var child in source.Children)
+      {
+        WriteCanonicalDynamicRecord(destination, ref cursor, child);
+      }
     }
 
     internal static byte[] CreateCanonicalCommonHeader(

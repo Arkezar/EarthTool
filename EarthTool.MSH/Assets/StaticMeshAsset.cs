@@ -408,14 +408,257 @@ namespace EarthTool.MSH.Assets
     }
   }
 
-  /// <summary>Represents the currently supported immutable dynamic root.</summary>
+  /// <summary>Names recognized dynamic-effect values without hiding unrecognized serialized values.</summary>
+  public enum DynamicEffectType
+  {
+    /// <summary>Child-container effect.</summary>
+    Group = 0,
+    /// <summary>Explosion effect.</summary>
+    Explosion = 1,
+    /// <summary>Track effect.</summary>
+    Track = 2,
+    /// <summary>Scalable-object effect.</summary>
+    ScalableObject = 3,
+    /// <summary>Mapped explosion effect.</summary>
+    MappedExplosion = 4,
+    /// <summary>Flat explosion effect.</summary>
+    FlatExplosion = 5,
+    /// <summary>Laser effect.</summary>
+    Laser = 6,
+    /// <summary>Laser-wall effect.</summary>
+    LaserWall = 7,
+    /// <summary>Shockwave effect.</summary>
+    Shockwave = 8,
+    /// <summary>Line effect.</summary>
+    Line = 9,
+    /// <summary>Sphere effect.</summary>
+    Sphere = 10,
+    /// <summary>Electrical-cannon effect.</summary>
+    ElectricalCannon = 11,
+    /// <summary>Lightning effect.</summary>
+    Lightning = 12,
+    /// <summary>Smoke effect.</summary>
+    Smoke = 13,
+    /// <summary>Keelwater effect.</summary>
+    Keelwater = 14
+  }
+
+  /// <summary>Names recognized dynamic terrain-light values.</summary>
+  public enum DynamicLightType
+  {
+    /// <summary>Constant intensity.</summary>
+    Constant = 0,
+    /// <summary>Pyramid intensity profile.</summary>
+    Pyramid = 1,
+    /// <summary>Trapezium intensity profile.</summary>
+    Trapezium = 2,
+    /// <summary>Random intensity profile.</summary>
+    Random = 3
+  }
+
+  /// <summary>Preserves one four-lane dynamic-effect rectangle.</summary>
+  public readonly struct EffectRectangle : IEquatable<EffectRectangle>
+  {
+    /// <summary>Gets the first X lane.</summary>
+    public float X0 { get; }
+    /// <summary>Gets the first Y lane.</summary>
+    public float Y1 { get; }
+    /// <summary>Gets the second X lane.</summary>
+    public float X1 { get; }
+    /// <summary>Gets the second Y lane.</summary>
+    public float Y0 { get; }
+
+    /// <summary>Initializes an exact effect rectangle.</summary>
+    public EffectRectangle(float x0, float y1, float x1, float y0)
+    {
+      X0 = x0;
+      Y1 = y1;
+      X1 = x1;
+      Y0 = y0;
+    }
+
+    /// <inheritdoc />
+    public bool Equals(EffectRectangle other)
+    {
+      return X0.Equals(other.X0)
+        && Y1.Equals(other.Y1)
+        && X1.Equals(other.X1)
+        && Y0.Equals(other.Y0);
+    }
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj)
+    {
+      return obj is EffectRectangle other && Equals(other);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+      return (X0, Y1, X1, Y0).GetHashCode();
+    }
+  }
+
+  /// <summary>Preserves one complete fixed and variable dynamic-effect extension.</summary>
+  public sealed class DynamicEffectExtension
+  {
+    /// <summary>Gets the exact serialized effect value.</summary>
+    public uint EffectType { get; }
+    /// <summary>Gets the recognized effect view, or null for an unrecognized value.</summary>
+    public DynamicEffectType? KnownEffectType { get; }
+    /// <summary>Gets the exact serialized light value.</summary>
+    public uint LightType { get; }
+    /// <summary>Gets the recognized light view, or null for an unrecognized value.</summary>
+    public DynamicLightType? KnownLightType { get; }
+    /// <summary>Gets the first source frame.</summary>
+    public int FirstSourceFrame { get; }
+    /// <summary>Gets the exact signed frame-count representation.</summary>
+    public int FrameCount { get; }
+    /// <summary>Gets the sprite-sheet column count.</summary>
+    public int SpriteSheetColumnCount { get; }
+    /// <summary>Gets the sprite-sheet row count.</summary>
+    public int SpriteSheetRowCount { get; }
+    /// <summary>Gets the frame period in simulation ticks.</summary>
+    public int FramePeriodTicks { get; }
+    /// <summary>Gets the serialized reciprocal column count.</summary>
+    public float ReciprocalColumnCount { get; }
+    /// <summary>Gets the serialized reciprocal row count.</summary>
+    public float ReciprocalRowCount { get; }
+    /// <summary>Gets the start effect rectangle.</summary>
+    public EffectRectangle StartEffectRectangle { get; }
+    /// <summary>Gets the end effect rectangle.</summary>
+    public EffectRectangle EndEffectRectangle { get; }
+    /// <summary>Gets the effect depth offset.</summary>
+    public float EffectDepthOffset { get; }
+    /// <summary>Gets the signed ribbon half-width.</summary>
+    public float RibbonHalfWidth { get; }
+    /// <summary>Gets the preserved reserved dynamic word.</summary>
+    public uint ReservedWord { get; }
+    /// <summary>Gets the exact additive-flag representation.</summary>
+    public uint AdditiveFlag { get; }
+    /// <summary>Gets the terrain-light RGB values.</summary>
+    public Vector3 TerrainLightColor { get; }
+    /// <summary>Gets the visible effect RGB values.</summary>
+    public Vector3 VisibleEffectColor { get; }
+    /// <summary>Gets the visible terrain-light gain.</summary>
+    public float VisibleTerrainLightGain { get; }
+    /// <summary>Gets the exact alpha timing mode.</summary>
+    public int AlphaTimingMode { get; }
+    /// <summary>Gets the end alpha.</summary>
+    public float EndAlpha { get; }
+    /// <summary>Gets the start alpha.</summary>
+    public float StartAlpha { get; }
+    /// <summary>Gets the end model scale.</summary>
+    public float EndModelScale { get; }
+    /// <summary>Gets the start model scale.</summary>
+    public float StartModelScale { get; }
+    /// <summary>Gets the child start translation in MSH coordinates.</summary>
+    public Vector3 ChildStartTranslation { get; }
+    /// <summary>Gets the child end translation in MSH coordinates.</summary>
+    public Vector3 ChildEndTranslation { get; }
+    /// <summary>Gets the exact mesh-name bytes.</summary>
+    public IReadOnlyList<byte> MeshNameBytes { get; }
+    /// <summary>Gets the exact texture-path bytes.</summary>
+    public IReadOnlyList<byte> TexturePathBytes { get; }
+    /// <summary>Gets the exact fixed 0x9C-byte extension representation.</summary>
+    public IReadOnlyList<byte> SerializedRepresentation { get; }
+
+    internal DynamicEffectExtension(
+      byte[] serializedRepresentation,
+      byte[] meshNameBytes,
+      byte[] texturePathBytes)
+    {
+      if (serializedRepresentation.Length != 0x9C)
+      {
+        throw new ArgumentException("A fixed dynamic extension must contain exactly 0x9C bytes.",
+          nameof(serializedRepresentation));
+      }
+
+      var data = serializedRepresentation.AsSpan();
+      EffectType = ReadUInt32(data, 0x00);
+      KnownEffectType = EffectType <= (uint)DynamicEffectType.Keelwater
+        ? (DynamicEffectType)EffectType
+        : null;
+      LightType = ReadUInt32(data, 0x04);
+      KnownLightType = LightType <= (uint)DynamicLightType.Random
+        ? (DynamicLightType)LightType
+        : null;
+      FirstSourceFrame = ReadInt32(data, 0x08);
+      FrameCount = ReadInt32(data, 0x0C);
+      SpriteSheetColumnCount = ReadInt32(data, 0x10);
+      SpriteSheetRowCount = ReadInt32(data, 0x14);
+      FramePeriodTicks = ReadInt32(data, 0x18);
+      ReciprocalColumnCount = ReadSingle(data, 0x1C);
+      ReciprocalRowCount = ReadSingle(data, 0x20);
+      StartEffectRectangle = ReadRectangle(data, 0x24);
+      EndEffectRectangle = ReadRectangle(data, 0x34);
+      EffectDepthOffset = ReadSingle(data, 0x44);
+      RibbonHalfWidth = ReadSingle(data, 0x48);
+      ReservedWord = ReadUInt32(data, 0x4C);
+      AdditiveFlag = ReadUInt32(data, 0x50);
+      TerrainLightColor = ReadVector3(data, 0x54, invertY: false);
+      VisibleEffectColor = ReadVector3(data, 0x60, invertY: false);
+      VisibleTerrainLightGain = ReadSingle(data, 0x6C);
+      AlphaTimingMode = ReadInt32(data, 0x70);
+      EndAlpha = ReadSingle(data, 0x74);
+      StartAlpha = ReadSingle(data, 0x78);
+      EndModelScale = ReadSingle(data, 0x7C);
+      StartModelScale = ReadSingle(data, 0x80);
+      ChildStartTranslation = ReadVector3(data, 0x84, invertY: true);
+      ChildEndTranslation = ReadVector3(data, 0x90, invertY: true);
+      MeshNameBytes = Array.AsReadOnly((byte[])meshNameBytes.Clone());
+      TexturePathBytes = Array.AsReadOnly((byte[])texturePathBytes.Clone());
+      SerializedRepresentation = Array.AsReadOnly((byte[])serializedRepresentation.Clone());
+    }
+
+    private static EffectRectangle ReadRectangle(ReadOnlySpan<byte> data, int offset)
+    {
+      return new EffectRectangle(
+        ReadSingle(data, offset),
+        ReadSingle(data, offset + 4),
+        ReadSingle(data, offset + 8),
+        ReadSingle(data, offset + 12));
+    }
+
+    private static Vector3 ReadVector3(ReadOnlySpan<byte> data, int offset, bool invertY)
+    {
+      var y = ReadSingle(data, offset + 4);
+      return new Vector3(ReadSingle(data, offset), invertY ? -y : y, ReadSingle(data, offset + 8));
+    }
+
+    private static uint ReadUInt32(ReadOnlySpan<byte> data, int offset)
+    {
+      return BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(offset, 4));
+    }
+
+    private static int ReadInt32(ReadOnlySpan<byte> data, int offset)
+    {
+      return BinaryPrimitives.ReadInt32LittleEndian(data.Slice(offset, 4));
+    }
+
+    private static float ReadSingle(ReadOnlySpan<byte> data, int offset)
+    {
+      return BitConverter.Int32BitsToSingle(ReadInt32(data, offset));
+    }
+  }
+
+  /// <summary>Represents one immutable complete dynamic object.</summary>
   public sealed class DynamicObject
   {
+    /// <summary>Gets the exact inherited common base header.</summary>
+    public CommonMeshBaseHeader CommonBaseHeader { get; }
+    /// <summary>Gets the complete dynamic-effect extension.</summary>
+    public DynamicEffectExtension Extension { get; }
     /// <summary>Gets the ordered child objects.</summary>
     public IReadOnlyList<DynamicObject> Children { get; }
 
-    internal DynamicObject(IEnumerable<DynamicObject> children)
+    internal DynamicObject(
+      CommonMeshBaseHeader commonBaseHeader,
+      DynamicEffectExtension extension,
+      IEnumerable<DynamicObject> children)
     {
+      CommonBaseHeader = commonBaseHeader;
+      Extension = extension;
       Children = Array.AsReadOnly(new List<DynamicObject>(children).ToArray());
     }
   }

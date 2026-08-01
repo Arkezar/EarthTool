@@ -48,6 +48,58 @@ public sealed class EarthTool.MSH.Assets.CommonMeshBaseHeader
   property System.Collections.Generic.IReadOnlyList<System.Byte> StaticOmniLights { get; }
   property System.Collections.Generic.IReadOnlyList<System.Byte> StaticSpotLights { get; }
   property System.UInt32 Version { get; }
+public sealed class EarthTool.MSH.Assets.DynamicEffectExtension
+  property System.UInt32 AdditiveFlag { get; }
+  property System.Int32 AlphaTimingMode { get; }
+  property System.Numerics.Vector3 ChildEndTranslation { get; }
+  property System.Numerics.Vector3 ChildStartTranslation { get; }
+  property System.Single EffectDepthOffset { get; }
+  property System.UInt32 EffectType { get; }
+  property System.Single EndAlpha { get; }
+  property EarthTool.MSH.Assets.EffectRectangle EndEffectRectangle { get; }
+  property System.Single EndModelScale { get; }
+  property System.Int32 FirstSourceFrame { get; }
+  property System.Int32 FrameCount { get; }
+  property System.Int32 FramePeriodTicks { get; }
+  property EarthTool.MSH.Assets.DynamicEffectType? KnownEffectType { get; }
+  property EarthTool.MSH.Assets.DynamicLightType? KnownLightType { get; }
+  property System.UInt32 LightType { get; }
+  property System.Collections.Generic.IReadOnlyList<System.Byte> MeshNameBytes { get; }
+  property System.Single ReciprocalColumnCount { get; }
+  property System.Single ReciprocalRowCount { get; }
+  property System.UInt32 ReservedWord { get; }
+  property System.Single RibbonHalfWidth { get; }
+  property System.Collections.Generic.IReadOnlyList<System.Byte> SerializedRepresentation { get; }
+  property System.Int32 SpriteSheetColumnCount { get; }
+  property System.Int32 SpriteSheetRowCount { get; }
+  property System.Single StartAlpha { get; }
+  property EarthTool.MSH.Assets.EffectRectangle StartEffectRectangle { get; }
+  property System.Single StartModelScale { get; }
+  property System.Numerics.Vector3 TerrainLightColor { get; }
+  property System.Collections.Generic.IReadOnlyList<System.Byte> TexturePathBytes { get; }
+  property System.Numerics.Vector3 VisibleEffectColor { get; }
+  property System.Single VisibleTerrainLightGain { get; }
+public enum EarthTool.MSH.Assets.DynamicEffectType : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
+  field EarthTool.MSH.Assets.DynamicEffectType ElectricalCannon = 11
+  field EarthTool.MSH.Assets.DynamicEffectType Explosion = 1
+  field EarthTool.MSH.Assets.DynamicEffectType FlatExplosion = 5
+  field EarthTool.MSH.Assets.DynamicEffectType Group = 0
+  field EarthTool.MSH.Assets.DynamicEffectType Keelwater = 14
+  field EarthTool.MSH.Assets.DynamicEffectType Laser = 6
+  field EarthTool.MSH.Assets.DynamicEffectType LaserWall = 7
+  field EarthTool.MSH.Assets.DynamicEffectType Lightning = 12
+  field EarthTool.MSH.Assets.DynamicEffectType Line = 9
+  field EarthTool.MSH.Assets.DynamicEffectType MappedExplosion = 4
+  field EarthTool.MSH.Assets.DynamicEffectType ScalableObject = 3
+  field EarthTool.MSH.Assets.DynamicEffectType Shockwave = 8
+  field EarthTool.MSH.Assets.DynamicEffectType Smoke = 13
+  field EarthTool.MSH.Assets.DynamicEffectType Sphere = 10
+  field EarthTool.MSH.Assets.DynamicEffectType Track = 2
+public enum EarthTool.MSH.Assets.DynamicLightType : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
+  field EarthTool.MSH.Assets.DynamicLightType Constant = 0
+  field EarthTool.MSH.Assets.DynamicLightType Pyramid = 1
+  field EarthTool.MSH.Assets.DynamicLightType Random = 3
+  field EarthTool.MSH.Assets.DynamicLightType Trapezium = 2
 public sealed class EarthTool.MSH.Assets.DynamicMeshAsset : EarthTool.MSH.Assets.MeshAsset
   property EarthTool.MSH.Assets.MeshAssetKind Kind { get; }
   property EarthTool.MSH.Assets.DynamicObject RootDynamicObject { get; }
@@ -55,6 +107,17 @@ public sealed class EarthTool.MSH.Assets.DynamicMeshAsset : EarthTool.MSH.Assets
   method System.Void Match(System.Action<EarthTool.MSH.Assets.StaticMeshAsset> onStatic, System.Action<EarthTool.MSH.Assets.DynamicMeshAsset> onDynamic)
 public sealed class EarthTool.MSH.Assets.DynamicObject
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Assets.DynamicObject> Children { get; }
+  property EarthTool.MSH.Assets.CommonMeshBaseHeader CommonBaseHeader { get; }
+  property EarthTool.MSH.Assets.DynamicEffectExtension Extension { get; }
+public struct EarthTool.MSH.Assets.EffectRectangle : System.IEquatable<EarthTool.MSH.Assets.EffectRectangle>
+  constructor EffectRectangle(System.Single x0, System.Single y1, System.Single x1, System.Single y0)
+  property System.Single X0 { get; }
+  property System.Single X1 { get; }
+  property System.Single Y0 { get; }
+  property System.Single Y1 { get; }
+  method System.Boolean Equals(EarthTool.MSH.Assets.EffectRectangle other)
+  method System.Boolean Equals(System.Object? obj)
+  method System.Int32 GetHashCode()
 public sealed class EarthTool.MSH.Assets.MeshArchiveFraming
   property System.UInt32? ArchiveType { get; }
   property System.Guid? CreationGuid { get; }
@@ -123,6 +186,11 @@ public struct EarthTool.MSH.Assets.StaticTriangle : System.IEquatable<EarthTool.
   method System.Boolean Equals(EarthTool.MSH.Assets.StaticTriangle other)
   method System.Boolean Equals(System.Object? obj)
   method System.Int32 GetHashCode()
+public sealed class EarthTool.MSH.Authoring.CanonicalDynamicObject
+  constructor CanonicalDynamicObject(EarthTool.MSH.Assets.DynamicEffectType effectType, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalDynamicObject>? children = null)
+  property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Authoring.CanonicalDynamicObject> Children { get; }
+  property EarthTool.MSH.Assets.DynamicEffectType EffectType { get; }
+  method EarthTool.MSH.Authoring.CanonicalDynamicObject AddChild(EarthTool.MSH.Authoring.CanonicalDynamicObject child)
 public sealed class EarthTool.MSH.Authoring.CanonicalStaticVertex
   constructor CanonicalStaticVertex(System.Numerics.Vector3 position, System.Numerics.Vector3 normal, System.Numerics.Vector2 textureCoordinate)
   property System.Numerics.Vector3 Normal { get; }
@@ -140,6 +208,7 @@ public sealed class EarthTool.MSH.Authoring.DynamicMeshBuilder
   method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.DynamicMeshAsset> Build(EarthTool.MSH.Operations.MshOperationProfile? profile = null)
   method EarthTool.MSH.Authoring.DynamicMeshBuilder Create()
   method EarthTool.MSH.Authoring.DynamicMeshBuilder Create(System.Guid creationGuid, EarthTool.MSH.Assets.MeshAssetLineageId lineageId)
+  method EarthTool.MSH.Authoring.DynamicMeshBuilder SetRoot(EarthTool.MSH.Authoring.CanonicalDynamicObject root)
 public sealed class EarthTool.MSH.Authoring.MshBuildResult<T> where T : class
   property System.Collections.Generic.IReadOnlyList<EarthTool.Common.Operations.OperationDiagnostic> Diagnostics { get; }
   property System.Boolean IsSuccess { get; }
@@ -198,9 +267,13 @@ public static class EarthTool.MSH.Operations.MshDiagnosticCodes
   field System.String UnsupportedVersion = "ETM1001"
   field System.String ValidationFailed = "ETM1006"
 public sealed class EarthTool.MSH.Operations.MshOperationProfile
-  constructor MshOperationProfile(System.Int32 maxInputBytes = 16777216, System.Int32 maxOutputBytes = 16777216, System.Int32 maxDiagnostics = 128, System.Int32 maxRootTrailingBytes = 1048576)
+  constructor MshOperationProfile(System.Int32 maxInputBytes = 16777216, System.Int32 maxOutputBytes = 16777216, System.Int32 maxDiagnostics = 128, System.Int32 maxRootTrailingBytes = 1048576, System.Int32 maxDynamicDepth = 64, System.Int32 maxDynamicObjects = 4096, System.Int32 maxDynamicChildrenPerObject = 1024, System.Int32 maxDynamicStringBytes = 1048576)
   property EarthTool.MSH.Operations.MshOperationProfile Default { get; }
   property System.Int32 MaxDiagnostics { get; }
+  property System.Int32 MaxDynamicChildrenPerObject { get; }
+  property System.Int32 MaxDynamicDepth { get; }
+  property System.Int32 MaxDynamicObjects { get; }
+  property System.Int32 MaxDynamicStringBytes { get; }
   property System.Int32 MaxInputBytes { get; }
   property System.Int32 MaxOutputBytes { get; }
   property System.Int32 MaxRootTrailingBytes { get; }

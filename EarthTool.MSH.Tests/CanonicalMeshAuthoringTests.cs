@@ -136,7 +136,7 @@ public class CanonicalMeshAuthoringTests
   }
 
   [Fact]
-  public async Task ExpertConstructionCannotBypassUnsupportedDynamicRecordDomains()
+  public async Task ExpertConstructionCannotBypassMalformedDynamicChildren()
   {
     var dynamic = DynamicMeshBuilder.Create(CreationGuid, LineageId).Build();
     dynamic.TryGetValue(out var asset).Should().BeTrue();
@@ -146,7 +146,7 @@ public class CanonicalMeshAuthoringTests
     var build = MshExpert.CreateDynamic(bytes, LineageId);
 
     build.TryGetValue(out _).Should().BeFalse();
-    build.Diagnostics.Should().ContainSingle().Subject.Code.Should().Be(MshDiagnosticCodes.UnsupportedDomain);
+    build.Diagnostics.Should().ContainSingle().Subject.Code.Should().Be(MshDiagnosticCodes.StructuralHazard);
   }
 
   [Fact]

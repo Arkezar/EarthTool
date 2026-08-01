@@ -12,15 +12,18 @@ MSH bytes.
 slice. It derives static archive framing, a persistent creation GUID, the
 historical one-cell footprint, horizontal extents, zero-filled vertex padding,
 triangle render-pass flags, and canonically absent attachments. All finite and
-fixed-point conversions are checked. `DynamicMeshBuilder` authors the current
-childless Group slice with dynamic framing and the observed zero/absent common
-header profile. Broader static sequences and dynamic effects remain fail-closed
-until their dedicated slices.
+fixed-point conversions are checked. `DynamicMeshBuilder` authors ordered trees
+of recognized `DynamicEffectType` values with dynamic framing and the observed
+zero/absent common-header profile. `CanonicalDynamicObject` copies constructor
+collections, and build rejects cycles, reused instances, excessive depth,
+excessive children, and excessive total object counts before serialization.
 
 Expected authoring failures return `MshBuildResult<T>` diagnostics without a
 partial asset. Complete exact construction is isolated in
 `EarthTool.MSH.Expert.MshExpert`; it still passes through the bounded structural
-decoder and cannot bypass unsupported-domain checks.
+decoder. Expert dynamic construction can preserve unrecognized numeric effect
+and light values, exact extension fields, exact string bytes, and ordered nested
+objects without weakening structural checks.
 
 `StaticMeshAsset.Edit()` starts a one-shot edit session. `Commit` returns a new
 immutable snapshot, operation diagnostics, and a `PreservationReport` whose
@@ -41,22 +44,39 @@ if (build.TryGetValue(out var asset))
     .Commit();
 }
 
-var exact = MshExpert.CreateStatic(serializedMsh, lineageId);
+var dynamicRoot = new CanonicalDynamicObject(
+  DynamicEffectType.Group,
+  [new CanonicalDynamicObject(DynamicEffectType.Smoke)]);
+var dynamicBuild = DynamicMeshBuilder.Create(creationGuid, lineageId)
+  .SetRoot(dynamicRoot)
+  .Build();
+
+var exact = MshExpert.CreateDynamic(serializedMsh, lineageId);
 ```
 
 ## Safe operations
 
 `IMshReader`, `IMshValidator`, and `IMshWriter` provide the bounded,
-result-based API for the safe one-triangle production slice. The reader copies
+result-based API for the safe MSH production slice. The reader copies
 caller-owned input under a finite `MshOperationProfile`, returns an immutable
 `MeshAsset`, and produces no partial value on failure or cancellation.
 
-The supported branches are the one-render-object `StaticMeshAsset` and the
-childless Group `DynamicMeshAsset`. Their ordered collections are copied into
-read-only snapshots. Domains assigned to later slices fail with `ETM1005`
-rather than being silently dropped. `IMshWriter.WriteFileAsync` validates and
-stages a sibling temporary file before atomically replacing an existing
-destination. Stream overloads leave caller-owned streams open.
+The supported branches are the one-render-object `StaticMeshAsset` and complete
+ordered `DynamicMeshAsset` trees. Every `DynamicObject` owns its inherited
+`CommonMeshBaseHeader`, complete `DynamicEffectExtension`, and immutable ordered
+children. `DynamicEffectExtension.EffectType` and `LightType` retain exact
+numeric values; nullable known-value views name recognized values without
+collapsing unrecognized ones. Its exact fixed extension, mesh-name bytes, and
+texture-path bytes remain independently available. Dynamic child records begin
+at bare `MESH` headers and never carry archive framing.
+
+`MshOperationProfile` bounds total input and output, trailing bytes, dynamic
+depth, total dynamic objects, children per object, total dynamic string bytes,
+and retained diagnostics. Limits are checked before child or string
+materialization. Domains assigned to later slices fail with `ETM1005` rather
+than being silently dropped. `IMshWriter.WriteFileAsync` validates and stages a
+sibling temporary file before atomically replacing an existing destination.
+Stream overloads leave caller-owned streams open.
 
 `IMesh.BaseHeader` exposes the complete `0x368`-byte common MSH base header through `IMeshBaseHeader`. `MeshBaseHeader.SupportedVersion` is the only supported format version, and `MeshKind` distinguishes static geometry from dynamic effects.
 
@@ -141,12 +161,19 @@ quantize to the three-coordinate absence sentinel, EarthTool moves only the
 attachment X coordinate by one fixed-point unit so the light remains active;
 the full-precision light position remains exact.
 
-## Dynamic light vectors
+## Dynamic objects
 
-`IDynamicPart.LightVector` and `ColorRgb` expose their serialized three-float
-vectors as `Vector3`. `ColorParameter` preserves the separate fourth color
-float. These fields use their complete 12-byte, 12-byte, and 4-byte widths and
-do not pass through packed or 8-bit color representations.
+`DynamicEffectExtension.TerrainLightColor` and `VisibleEffectColor` expose their
+serialized three-float vectors as `Vector3`.
+`VisibleTerrainLightGain` preserves the separate fourth visible-color value.
+The start and end effect rectangles, frame declarations, reciprocals, signed
+ribbon half-width, reserved word, raw additive flag, alpha values, scales, and
+child translations are exposed independently. Child translation Y is converted
+between serialized and MSH coordinates; the exact `SerializedRepresentation`
+remains available for binary authority and round trips.
+
+Dynamic glTF transport is not part of this API. The glTF facade continues to
+accept only `StaticMeshAsset`.
 
 ## Footprints and horizontal extents
 

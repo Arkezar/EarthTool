@@ -44,6 +44,8 @@ namespace EarthTool.MSH.Internal
     private const uint KnownDeclarationBits = 0x30FFFFFF;
     private const int BaseHeaderSize = 0x368;
     private const int StaticRecordSize = 0xDD;
+    private const int DynamicFixedSize = 0x404;
+    private const int MinimumDynamicRecordSize = 0x410;
 
     internal static MshDecodeResult Decode(
       byte[] source,
@@ -166,7 +168,6 @@ namespace EarthTool.MSH.Internal
           archiveType,
           creationGuid,
           baseOffset,
-          baseHeader,
           assetLineageId,
           origin);
       }
@@ -231,25 +232,21 @@ namespace EarthTool.MSH.Internal
       uint? archiveType,
       Guid? creationGuid,
       int baseOffset,
-      ReadOnlySpan<byte> baseHeader,
       MeshAssetLineageId lineageId,
       MeshAssetOrigin origin)
     {
-      Ensure(data, baseOffset, MshCanonicalSerializer.DynamicRecordSize, "DynamicObject");
-      var childCountOffset = baseOffset + 0x40C;
-      if (ReadUInt32(data, childCountOffset) != 0)
-      {
-        throw Unsupported("DynamicChildren", "DynamicObject.Children", childCountOffset);
-      }
-
-      var canonicalRecord = MshCanonicalSerializer.CreateCanonicalDynamicRecord();
-      if (!data.Slice(baseOffset, canonicalRecord.Length).SequenceEqual(canonicalRecord))
-      {
-        throw Unsupported("DynamicObject", "DynamicObject", baseOffset);
-      }
-
-      cancellationToken.ThrowIfCancellationRequested();
-      var payloadEnd = baseOffset + canonicalRecord.Length;
+      var objectCount = 0;
+      var stringBytes = 0;
+      var rootDynamicObject = DecodeDynamicObject(
+        data,
+        baseOffset,
+        1,
+        "RootDynamicObject",
+        profile,
+        cancellationToken,
+        ref objectCount,
+        ref stringBytes,
+        out var payloadEnd);
       var trailingLength = data.Length - payloadEnd;
       if (trailingLength > profile.MaxRootTrailingBytes)
       {
@@ -276,12 +273,157 @@ namespace EarthTool.MSH.Internal
       var asset = new DynamicMeshAsset(
         lineageId,
         new MeshArchiveFraming(declaration, archiveType, creationGuid),
-        new CommonMeshBaseHeader(baseHeader.ToArray()),
-        new DynamicObject(Array.Empty<DynamicObject>()),
+        rootDynamicObject.CommonBaseHeader,
+        rootDynamicObject,
         rootTrailingBytes,
         source,
         origin);
       return new MshDecodeResult(asset, CapDiagnostics(diagnostics, profile.MaxDiagnostics));
+    }
+
+    private static DynamicObject DecodeDynamicObject(
+      ReadOnlySpan<byte> data,
+      int objectOffset,
+      int depth,
+      string path,
+      MshOperationProfile profile,
+      CancellationToken cancellationToken,
+      ref int objectCount,
+      ref int stringBytes,
+      out int payloadEnd)
+    {
+      cancellationToken.ThrowIfCancellationRequested();
+      if (depth > profile.MaxDynamicDepth)
+      {
+        throw ResourceLimit(path, objectOffset, depth, profile.MaxDynamicDepth);
+      }
+
+      objectCount++;
+      if (objectCount > profile.MaxDynamicObjects)
+      {
+        throw ResourceLimit(path, objectOffset, objectCount, profile.MaxDynamicObjects);
+      }
+
+      var headerPath = path + ".CommonBaseHeader";
+      Ensure(data, objectOffset, BaseHeaderSize, headerPath);
+      if (!data.Slice(objectOffset, 4).SequenceEqual(new byte[] { (byte)'M', (byte)'E', (byte)'S', (byte)'H' }))
+      {
+        throw Structural(headerPath + ".Magic", objectOffset, "Expected MESH.");
+      }
+
+      var version = ReadUInt32(data, objectOffset + 4);
+      if (version != 1)
+      {
+        throw Structural(
+          headerPath + ".Version",
+          objectOffset + 4,
+          "A dynamic child must use MSH version 1.");
+      }
+
+      var meshKind = ReadUInt32(data, objectOffset + 8);
+      if (meshKind != 1)
+      {
+        throw Structural(
+          headerPath + ".MeshKind",
+          objectOffset + 8,
+          "A declared dynamic child must have dynamic mesh kind.");
+      }
+
+      Ensure(data, objectOffset, DynamicFixedSize, path + ".Extension");
+      var fixedExtension = data.Slice(objectOffset + BaseHeaderSize, 0x9C).ToArray();
+      var cursor = objectOffset + DynamicFixedSize;
+      var meshName = ReadDynamicBytes(
+        data,
+        ref cursor,
+        path + ".Extension.MeshNameBytes",
+        profile,
+        ref stringBytes);
+      var texturePath = ReadDynamicBytes(
+        data,
+        ref cursor,
+        path + ".Extension.TexturePathBytes",
+        profile,
+        ref stringBytes);
+
+      var childrenPath = path + ".Children";
+      Ensure(data, cursor, sizeof(uint), childrenPath);
+      var childCount = ReadUInt32(data, cursor);
+      var childCountOffset = cursor;
+      cursor += sizeof(uint);
+      if (childCount > profile.MaxDynamicChildrenPerObject)
+      {
+        throw ResourceLimit(childrenPath, childCountOffset, childCount, profile.MaxDynamicChildrenPerObject);
+      }
+
+      var remainingObjectCount = profile.MaxDynamicObjects - objectCount;
+      if (childCount > remainingObjectCount)
+      {
+        throw ResourceLimit(
+          childrenPath,
+          childCountOffset,
+          (long)objectCount + childCount,
+          profile.MaxDynamicObjects);
+      }
+
+      var minimumChildBytes = (long)childCount * MinimumDynamicRecordSize;
+      if (minimumChildBytes > data.Length - cursor)
+      {
+        throw Structural(
+          childCount == 0 ? childrenPath : childrenPath + "[0]",
+          cursor,
+          "The declared dynamic children do not fit in the serialized representation.");
+      }
+
+      var children = new DynamicObject[(int)childCount];
+      for (var index = 0; index < children.Length; index++)
+      {
+        var childPath = childrenPath + "[" + index.ToString(CultureInfo.InvariantCulture) + "]";
+        children[index] = DecodeDynamicObject(
+          data,
+          cursor,
+          depth + 1,
+          childPath,
+          profile,
+          cancellationToken,
+          ref objectCount,
+          ref stringBytes,
+          out cursor);
+      }
+
+      payloadEnd = cursor;
+      return new DynamicObject(
+        new CommonMeshBaseHeader(data.Slice(objectOffset, BaseHeaderSize).ToArray()),
+        new DynamicEffectExtension(fixedExtension, meshName, texturePath),
+        children);
+    }
+
+    private static byte[] ReadDynamicBytes(
+      ReadOnlySpan<byte> data,
+      ref int cursor,
+      string path,
+      MshOperationProfile profile,
+      ref int stringBytes)
+    {
+      Ensure(data, cursor, sizeof(uint), path);
+      var lengthOffset = cursor;
+      var length = ReadUInt32(data, cursor);
+      cursor += sizeof(uint);
+      var remainingStringBytes = profile.MaxDynamicStringBytes - stringBytes;
+      if (length > remainingStringBytes)
+      {
+        throw ResourceLimit(path, lengthOffset, (long)stringBytes + length, profile.MaxDynamicStringBytes);
+      }
+
+      if (length > int.MaxValue)
+      {
+        throw ResourceLimit(path, lengthOffset, length, profile.MaxDynamicStringBytes);
+      }
+
+      Ensure(data, cursor, (int)length, path);
+      var result = data.Slice(cursor, (int)length).ToArray();
+      cursor += (int)length;
+      stringBytes += (int)length;
+      return result;
     }
 
     private static StaticRenderObject DecodeRenderObject(

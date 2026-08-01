@@ -190,11 +190,44 @@ namespace EarthTool.MSH.Authoring
     }
   }
 
-  /// <summary>Builds the childless Group supported by the current dynamic authoring slice.</summary>
+  /// <summary>Describes one canonical dynamic object before it is accepted into an immutable asset.</summary>
+  public sealed class CanonicalDynamicObject
+  {
+    private readonly List<CanonicalDynamicObject> _children;
+
+    /// <summary>Gets the recognized effect to author.</summary>
+    public DynamicEffectType EffectType { get; }
+
+    /// <summary>Gets the ordered draft children.</summary>
+    public IReadOnlyList<CanonicalDynamicObject> Children => _children.AsReadOnly();
+
+    /// <summary>Initializes a canonical dynamic object and copies its initial child sequence.</summary>
+    public CanonicalDynamicObject(
+      DynamicEffectType effectType,
+      IEnumerable<CanonicalDynamicObject>? children = null)
+    {
+      EffectType = effectType;
+      _children = children?.ToList() ?? new List<CanonicalDynamicObject>();
+      if (_children.Any(child => child is null))
+      {
+        throw new ArgumentException("Dynamic child collections cannot contain null values.", nameof(children));
+      }
+    }
+
+    /// <summary>Adds one ordered draft child.</summary>
+    public CanonicalDynamicObject AddChild(CanonicalDynamicObject child)
+    {
+      _children.Add(child ?? throw new ArgumentNullException(nameof(child)));
+      return this;
+    }
+  }
+
+  /// <summary>Builds canonical dynamic object trees.</summary>
   public sealed class DynamicMeshBuilder
   {
     private readonly Guid _creationGuid;
     private readonly MeshAssetLineageId _lineageId;
+    private CanonicalDynamicObject _root = new CanonicalDynamicObject(DynamicEffectType.Group);
 
     private DynamicMeshBuilder(Guid creationGuid, MeshAssetLineageId lineageId)
     {
@@ -214,17 +247,31 @@ namespace EarthTool.MSH.Authoring
       return new DynamicMeshBuilder(creationGuid, lineageId);
     }
 
-    /// <summary>Builds one immutable canonical childless Group snapshot.</summary>
+    /// <summary>Sets the complete canonical root dynamic object.</summary>
+    public DynamicMeshBuilder SetRoot(CanonicalDynamicObject root)
+    {
+      _root = root ?? throw new ArgumentNullException(nameof(root));
+      return this;
+    }
+
+    /// <summary>Builds one immutable canonical dynamic snapshot.</summary>
     public MshBuildResult<DynamicMeshAsset> Build(MshOperationProfile? profile = null)
     {
       profile ??= MshOperationProfile.Default;
-      var bytes = MshCanonicalSerializer.CreateDynamic(_creationGuid);
-      if (bytes.Length > profile.MaxOutputBytes)
+      var failure = AuthoringValidation.ValidateDynamic(_root, profile, out var objectCount);
+      if (failure is not null)
       {
-        return new MshBuildResult<DynamicMeshAsset>(false, null,
-          new[] { AuthoringValidation.ResourceLimit(bytes.Length, profile.MaxOutputBytes) });
+        return new MshBuildResult<DynamicMeshAsset>(false, null, new[] { failure });
       }
 
+      var outputLength = checked(0x18 + (objectCount * MshCanonicalSerializer.DynamicRecordSize));
+      if (outputLength > profile.MaxOutputBytes)
+      {
+        return new MshBuildResult<DynamicMeshAsset>(false, null,
+          new[] { AuthoringValidation.ResourceLimit(outputLength, profile.MaxOutputBytes) });
+      }
+
+      var bytes = MshCanonicalSerializer.CreateDynamic(_creationGuid, _root, objectCount);
       var decoded = MshV1Decoder.Decode(
         bytes,
         profile,
@@ -515,6 +562,16 @@ namespace EarthTool.MSH.Authoring
 
   internal static class AuthoringValidation
   {
+    internal static OperationDiagnostic? ValidateDynamic(
+      CanonicalDynamicObject root,
+      MshOperationProfile profile,
+      out int objectCount)
+    {
+      var visited = new HashSet<CanonicalDynamicObject>();
+      objectCount = 0;
+      return ValidateDynamicObject(root, "RootDynamicObject", 1, profile, visited, ref objectCount);
+    }
+
     internal static OperationDiagnostic? ValidateStatic(
       IReadOnlyList<CanonicalStaticVertex>? vertices,
       IReadOnlyList<CanonicalTriangle>? triangles)
@@ -595,12 +652,89 @@ namespace EarthTool.MSH.Authoring
 
     internal static OperationDiagnostic ResourceLimit(long actual, int maximum)
     {
+      return CreateResourceLimit(
+        "$",
+        "The serialized representation exceeds the configured operation profile.",
+        actual,
+        maximum);
+    }
+
+    private static OperationDiagnostic? ValidateDynamicObject(
+      CanonicalDynamicObject current,
+      string path,
+      int depth,
+      MshOperationProfile profile,
+      HashSet<CanonicalDynamicObject> visited,
+      ref int objectCount)
+    {
+      if (!visited.Add(current))
+      {
+        return Invalid(path, "A canonical dynamic tree cannot contain cycles or reused object instances.");
+      }
+
+      if (!Enum.IsDefined(typeof(DynamicEffectType), current.EffectType))
+      {
+        return Invalid(path + ".EffectType", "Canonical authoring requires a recognized dynamic effect.");
+      }
+
+      if (depth > profile.MaxDynamicDepth)
+      {
+        return ResourceLimit(depth, profile.MaxDynamicDepth, path);
+      }
+
+      objectCount++;
+      if (objectCount > profile.MaxDynamicObjects)
+      {
+        return ResourceLimit(objectCount, profile.MaxDynamicObjects, path);
+      }
+
+      if (current.Children.Count > profile.MaxDynamicChildrenPerObject)
+      {
+        return ResourceLimit(
+          current.Children.Count,
+          profile.MaxDynamicChildrenPerObject,
+          path + ".Children");
+      }
+
+      for (var index = 0; index < current.Children.Count; index++)
+      {
+        var failure = ValidateDynamicObject(
+          current.Children[index],
+          path + ".Children[" + index.ToString(System.Globalization.CultureInfo.InvariantCulture) + "]",
+          depth + 1,
+          profile,
+          visited,
+          ref objectCount);
+        if (failure is not null)
+        {
+          return failure;
+        }
+      }
+
+      return null;
+    }
+
+    private static OperationDiagnostic ResourceLimit(long actual, int maximum, string path)
+    {
+      return CreateResourceLimit(
+        path,
+        "The canonical dynamic tree exceeds the configured operation profile.",
+        actual,
+        maximum);
+    }
+
+    private static OperationDiagnostic CreateResourceLimit(
+      string path,
+      string message,
+      long actual,
+      int maximum)
+    {
       return new OperationDiagnostic(
         MshDiagnosticCodes.ResourceLimitExceeded,
         1004,
         DiagnosticSeverity.Error,
-        "$",
-        "The serialized representation exceeds the configured operation profile.",
+        path,
+        message,
         data: new Dictionary<string, string>
         {
           ["actual"] = actual.ToString(System.Globalization.CultureInfo.InvariantCulture),
