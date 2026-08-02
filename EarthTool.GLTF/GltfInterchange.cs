@@ -7,9 +7,11 @@ using EarthTool.MSH.Authoring;
 using EarthTool.MSH.Operations;
 using SharpGLTF.Validation;
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -63,6 +65,8 @@ namespace EarthTool.GLTF
           options.AssetLineageId ?? Guid.NewGuid(),
           options.DocumentId ?? Guid.NewGuid());
         var animationDiagnostics = CreateAnimationDiagnostics(asset, baseline);
+        var projectionDiagnostics = animationDiagnostics
+          .Concat(CreateCannonRenderPositionDiagnostics(asset)).ToArray();
         var metadataLength = GlbDocument.GetMaximumMetadataByteCount(asset, baseline);
         if (metadataLength > profile.MaxMetadataBytes)
         {
@@ -98,12 +102,12 @@ namespace EarthTool.GLTF
         var glb = previewResult.Previews.Count == 0
           ? withoutPreviews
           : GlbDocument.Create(asset, baseline, previewResult.Previews, out fingerprint);
-        var exportDiagnostics = previewResult.Diagnostics.Concat(animationDiagnostics).ToArray();
+        var exportDiagnostics = previewResult.Diagnostics.Concat(projectionDiagnostics).ToArray();
         if (glb.Length > profile.MaxOutputBytes)
         {
           glb = withoutPreviews;
           exportDiagnostics = WithoutEmittedPreviewDiagnostics(previewResult.Diagnostics)
-            .Concat(animationDiagnostics).ToArray();
+            .Concat(projectionDiagnostics).ToArray();
         }
 
         GlbDocument.Validate(glb, profile);
@@ -205,6 +209,8 @@ namespace EarthTool.GLTF
           options.AssetLineageId ?? Guid.NewGuid(),
           options.DocumentId ?? Guid.NewGuid());
         var animationDiagnostics = CreateAnimationDiagnostics(asset, baseline);
+        var projectionDiagnostics = animationDiagnostics
+          .Concat(CreateCannonRenderPositionDiagnostics(asset)).ToArray();
         var metadataLength = GlbDocument.GetMaximumMetadataByteCount(asset, baseline);
         if (metadataLength > profile.MaxMetadataBytes)
         {
@@ -244,12 +250,12 @@ namespace EarthTool.GLTF
         var outputLength = checked(package.Json.Length
           + package.Binary.Length
           + package.ImageSidecars.Values.Sum(bytes => bytes.Length));
-        var exportDiagnostics = previewResult.Diagnostics.Concat(animationDiagnostics).ToArray();
+        var exportDiagnostics = previewResult.Diagnostics.Concat(projectionDiagnostics).ToArray();
         if (outputLength > profile.MaxOutputBytes)
         {
           package = withoutPreviews;
           exportDiagnostics = WithoutEmittedPreviewDiagnostics(previewResult.Diagnostics)
-            .Concat(animationDiagnostics).ToArray();
+            .Concat(projectionDiagnostics).ToArray();
         }
 
         ValidateGeometryProfile(
@@ -764,6 +770,7 @@ namespace EarthTool.GLTF
       var edit = asset.Edit();
       ApplyNewModelPivots(draft, asset.RootSourceObject, edit);
       ApplyNewModelAnimations(animations, draft, asset.RootSourceObject, edit);
+      ApplyNewModelBaseHeaderArtistObjects(parsed, edit);
       var committed = edit.Commit(new MshOperationProfile(
         maxOutputBytes: profile.MaxOutputBytes,
         maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
@@ -843,6 +850,15 @@ namespace EarthTool.GLTF
       var effectiveTransform = node.LocalTransform * inheritedLinearTransform;
       if (!node.MeshIndex.HasValue)
       {
+        if (GlbDocument.TryParseAttachmentHelperName(node.Name, out _)
+          || GlbDocument.TryParseCannonRenderPositionHelperName(node.Name, out _))
+        {
+          if (node.Children.Count != 0)
+          {
+            throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+          }
+          return Array.Empty<NewModelSourceDraft>();
+        }
         var collapsed = node.Children
           .SelectMany(child => CreateNewModelSources(
             child,
@@ -906,6 +922,50 @@ namespace EarthTool.GLTF
           pivot,
           children)
       };
+    }
+
+    private static void ApplyNewModelBaseHeaderArtistObjects(
+      ParsedGlb parsed,
+      StaticMeshEditSession edit)
+    {
+      var nodes = parsed.Nodes.Select(node => (node, (MetadataEnvelope?)null)).ToArray();
+      var transforms = CreateArtistObjectTransforms(parsed.RootNodeIndex, nodes);
+      var attachments = new Dictionary<int, int>();
+      var cannons = new Dictionary<int, int>();
+      for (var index = 0; index < parsed.Nodes.Count; index++)
+      {
+        var node = parsed.Nodes[index];
+        if (node.MeshIndex.HasValue)
+        {
+          continue;
+        }
+        if (GlbDocument.TryParseAttachmentHelperName(node.Name, out var physicalNumber))
+        {
+          if (!attachments.TryAdd(physicalNumber, index))
+          {
+            throw ArtistObjectConflict("A physical attachment target is occupied more than once.");
+          }
+        }
+        else if (GlbDocument.TryParseCannonRenderPositionHelperName(node.Name, out physicalNumber))
+        {
+          if (!cannons.TryAdd(physicalNumber, index))
+          {
+            throw ArtistObjectConflict("A cannon render-position target is occupied more than once.");
+          }
+        }
+      }
+      foreach (var attachment in attachments)
+      {
+        edit.ReplaceAttachmentRecord(
+          attachment.Key,
+          CreateAttachmentRecord(transforms[attachment.Value], 0x80));
+      }
+      foreach (var cannon in cannons)
+      {
+        edit.ReplaceCannonRenderPosition(
+          cannon.Key,
+          CreateCannonRenderPositionRecord(transforms[cannon.Value].Translation));
+      }
     }
 
     private static CanonicalStaticVertex TransformNewModelVertex(
@@ -1358,6 +1418,12 @@ namespace EarthTool.GLTF
         })
         .ToArray();
       var edit = asset.Edit();
+      ReconcileBaseHeaderArtistObjects(
+        parsed,
+        nodes.Select(node => (node.Parsed, node.Metadata)).ToArray(),
+        asset,
+        expectedBaseline,
+        edit);
       var hierarchy = ReconcileHierarchy(
         parsed,
         nodes.Select(node => (node.Parsed, node.Metadata)).ToArray(),
@@ -1370,7 +1436,10 @@ namespace EarthTool.GLTF
         var animationReplacements = ValidateAnimationProjection(
           parsed,
           manifest,
-          nodes.Select(node => node.Metadata).ToArray(),
+          nodes.Where(node => node.Metadata?.ScopeKind == "object"
+              && node.Metadata.AttachmentRecord is null
+              && node.Metadata.CannonRenderPosition is null)
+            .Select(node => node.Metadata).ToArray(),
           asset,
           expectedBaseline,
           profile.MaxOutputBytes);
@@ -1502,7 +1571,6 @@ namespace EarthTool.GLTF
       var restoredPaths = new[]
       {
         "ArchiveFraming",
-        "BaseHeader",
         "CommonBaseHeader.AnimationLengths",
         "CommonBaseHeader.AnimationFrameIndices"
       }.Concat(restoredRecordIndices.Select(index => $"StaticRenderObjectSequence[{index}]"))
@@ -1512,7 +1580,13 @@ namespace EarthTool.GLTF
           $"StaticRenderObjectSequence[{index}].AnimationTracks.ScaleFrames",
           $"StaticRenderObjectSequence[{index}].AnimationTracks.TranslationFrames",
           $"StaticRenderObjectSequence[{index}].AnimationTracks.Matrices"
-        }));
+        }))
+        .Concat(Enumerable.Range(1, 49)
+          .Select(number => $"CommonBaseHeader.AttachmentTable[{number}]")
+          .Where(path => !changedRecordPaths.Contains(path, StringComparer.Ordinal)))
+        .Concat(Enumerable.Range(1, 4)
+          .Select(number => $"CommonBaseHeader.CannonRenderPositions[{number}]")
+          .Where(path => !changedRecordPaths.Contains(path, StringComparer.Ordinal)));
       return new OperationResult<GltfEditImportResult>(
         OperationStatus.Succeeded,
         new GltfEditImportResult(
@@ -2187,6 +2261,398 @@ namespace EarthTool.GLTF
       }
     }
 
+    private static void ReconcileBaseHeaderArtistObjects(
+      ParsedGlb parsed,
+      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
+      StaticMeshAsset asset,
+      InterchangeBaseline expected,
+      StaticMeshEditSession edit)
+    {
+      var transforms = CreateArtistObjectTransforms(parsed.RootNodeIndex, nodes);
+      var attachmentCandidates = new Dictionary<int, List<int>>();
+      var cannonCandidates = new Dictionary<int, List<int>>();
+      for (var nodeIndex = 0; nodeIndex < nodes.Count; nodeIndex++)
+      {
+        var node = nodes[nodeIndex];
+        int physicalNumber;
+        if (node.Metadata?.AttachmentRecord is not null)
+        {
+          physicalNumber = ValidateAttachmentMetadata(node.Metadata, asset, expected);
+          AddArtistCandidate(attachmentCandidates, physicalNumber, nodeIndex);
+        }
+        else if (node.Metadata?.CannonRenderPosition is not null)
+        {
+          physicalNumber = ValidateCannonRenderPositionMetadata(node.Metadata, asset, expected);
+          AddArtistCandidate(cannonCandidates, physicalNumber, nodeIndex);
+        }
+        else if (node.Metadata is null
+          && !node.Parsed.MeshIndex.HasValue
+          && GlbDocument.TryParseAttachmentHelperName(node.Parsed.Name, out physicalNumber))
+        {
+          AddArtistCandidate(attachmentCandidates, physicalNumber, nodeIndex);
+        }
+        else if (node.Metadata is null
+          && !node.Parsed.MeshIndex.HasValue
+          && GlbDocument.TryParseCannonRenderPositionHelperName(node.Parsed.Name, out physicalNumber))
+        {
+          AddArtistCandidate(cannonCandidates, physicalNumber, nodeIndex);
+        }
+      }
+
+      if (attachmentCandidates.Values.Any(candidates => candidates.Count != 1)
+        || cannonCandidates.Values.Any(candidates => candidates.Count != 1))
+      {
+        throw ArtistObjectConflict("A physical helper target is occupied by more than one artist object.");
+      }
+      foreach (var candidate in attachmentCandidates.Concat(cannonCandidates))
+      {
+        var node = nodes[candidate.Value[0]].Parsed;
+        if (node.MeshIndex.HasValue || node.Children.Count != 0 || !transforms.ContainsKey(candidate.Value[0]))
+        {
+          throw new UnsupportedGltfDomainException("AttachmentOrCannonArtistObject");
+        }
+      }
+
+      var attachmentTable = asset.CommonBaseHeader.AttachmentTable.ToArray();
+      for (var physicalNumber = 1; physicalNumber <= 49; physicalNumber++)
+      {
+        if (physicalNumber is >= 13 and <= 20)
+        {
+          continue;
+        }
+        var sourceRecord = attachmentTable.AsSpan((physicalNumber - 1) * 8, 8).ToArray();
+        var sourceActive = BinaryPrimitives.ReadInt16LittleEndian(sourceRecord) != short.MinValue;
+        if (!attachmentCandidates.TryGetValue(physicalNumber, out var candidates))
+        {
+          if (sourceActive)
+          {
+            edit.ReplaceAttachmentRecord(physicalNumber, CreateAbsentAttachmentRecord());
+          }
+          continue;
+        }
+
+        var nodeIndex = candidates[0];
+        var metadata = nodes[nodeIndex].Metadata;
+        if (metadata is not null
+          && metadata.LocalId != physicalNumber
+          && sourceActive)
+        {
+          throw ArtistObjectConflict("An attachment cannot be rebound to an occupied physical target.");
+        }
+        var extra = metadata is null ? (byte)0x80 : metadata.AttachmentRecord![7];
+        var replacement = CreateAttachmentRecord(transforms[nodeIndex], extra);
+        if (metadata is null || !replacement.SequenceEqual(sourceRecord))
+        {
+          edit.ReplaceAttachmentRecord(physicalNumber, replacement);
+        }
+      }
+
+      var cannonRecords = asset.CommonBaseHeader.CannonRenderPositions.ToArray();
+      for (var physicalNumber = 1; physicalNumber <= 4; physicalNumber++)
+      {
+        if (!cannonCandidates.TryGetValue(physicalNumber, out var candidates))
+        {
+          throw ArtistObjectConflict("Every cannon render-position artist object must remain present.");
+        }
+        var sourceRecord = cannonRecords.AsSpan((physicalNumber - 1) * 12, 12).ToArray();
+        var translation = transforms[candidates[0]].Translation;
+        var sourcePreview = new Vector3(
+          GlbDocument.ReadFinitePreview(sourceRecord, 0),
+          GlbDocument.ReadFinitePreview(sourceRecord, 8),
+          GlbDocument.ReadFinitePreview(sourceRecord, 4));
+        if (translation != sourcePreview)
+        {
+          edit.ReplaceCannonRenderPosition(
+            physicalNumber,
+            CreateCannonRenderPositionRecord(translation));
+        }
+      }
+    }
+
+    private static int ValidateAttachmentMetadata(
+      MetadataEnvelope metadata,
+      StaticMeshAsset asset,
+      InterchangeBaseline expected)
+    {
+      var physicalNumber = metadata.AttachmentPhysicalNumber;
+      if (metadata.AssetLineageId != expected.AssetLineageId
+        || metadata.DocumentId != expected.DocumentId
+        || metadata.ScopeKind != "object"
+        || metadata.LocalId is < 1 or > 49
+        || metadata.LocalId is >= 13 and <= 20
+        || physicalNumber is null or < 1 or > 49
+        || physicalNumber is >= 13 and <= 20
+        || metadata.AttachmentRecord?.Count != 8
+        || metadata.FingerprintName != "attachment.pose"
+        || metadata.FingerprintVersion != 1
+        || !HasNoUnrelatedArtistObjectMetadata(metadata))
+      {
+        throw new MalformedMetadataException("The attachment metadata envelope is malformed.");
+      }
+      var sourceRecord = asset.CommonBaseHeader.AttachmentTable
+        .Skip((metadata.LocalId - 1) * 8).Take(8);
+      if (!sourceRecord.SequenceEqual(metadata.AttachmentRecord)
+        || metadata.Fingerprint != GlbDocument.CreateAttachmentPoseFingerprint(
+          expected,
+          metadata.LocalId,
+          sourceRecord.ToArray())
+        || BinaryPrimitives.ReadInt16LittleEndian(metadata.AttachmentRecord.ToArray()) == short.MinValue)
+      {
+        throw new MalformedMetadataException("The attachment metadata does not match its source record.");
+      }
+      return physicalNumber.Value;
+    }
+
+    private static int ValidateCannonRenderPositionMetadata(
+      MetadataEnvelope metadata,
+      StaticMeshAsset asset,
+      InterchangeBaseline expected)
+    {
+      var physicalNumber = metadata.CannonRenderPositionNumber;
+      if (metadata.AssetLineageId != expected.AssetLineageId
+        || metadata.DocumentId != expected.DocumentId
+        || metadata.ScopeKind != "object"
+        || metadata.LocalId is < 1 or > 4
+        || metadata.LocalId != physicalNumber
+        || physicalNumber is null or < 1 or > 4
+        || metadata.CannonRenderPosition?.Count != 12
+        || metadata.FingerprintName != "cannonRenderPosition.position"
+        || metadata.FingerprintVersion != 1
+        || !HasNoUnrelatedArtistObjectMetadata(metadata))
+      {
+        throw new MalformedMetadataException("The cannon render-position metadata envelope is malformed.");
+      }
+      var sourceRecord = asset.CommonBaseHeader.CannonRenderPositions
+        .Skip((metadata.LocalId - 1) * 12).Take(12);
+      if (!sourceRecord.SequenceEqual(metadata.CannonRenderPosition)
+        || metadata.Fingerprint != GlbDocument.CreateCannonRenderPositionFingerprint(
+          expected,
+          metadata.LocalId,
+          sourceRecord.ToArray()))
+      {
+        throw new MalformedMetadataException(
+          "The cannon render-position metadata does not match its source record.");
+      }
+      return physicalNumber.Value;
+    }
+
+    private static bool HasNoUnrelatedArtistObjectMetadata(MetadataEnvelope metadata)
+    {
+      return metadata.SourceMsh is null
+        && metadata.Partitions.Count == 0
+        && metadata.StaticRenderObjectLocalIds.Count == 0
+        && metadata.SourceObjectLocalIds.Count == 0
+        && metadata.StaticRenderObjectInventory.Count == 0
+        && metadata.SourceObjectInventory.Count == 0
+        && metadata.NextStaticRenderObjectLocalId is null
+        && metadata.NextSourceObjectLocalId is null
+        && metadata.TextureBinding is null
+        && metadata.AnimationLengths is null
+        && metadata.AnimationFrameIndices is null
+        && metadata.AnimationClasses.Count == 0
+        && metadata.AnimationProjection is null;
+    }
+
+    private static void AddArtistCandidate(
+      IDictionary<int, List<int>> candidates,
+      int physicalNumber,
+      int nodeIndex)
+    {
+      if (!candidates.TryGetValue(physicalNumber, out var nodes))
+      {
+        nodes = new List<int>();
+        candidates.Add(physicalNumber, nodes);
+      }
+      nodes.Add(nodeIndex);
+    }
+
+    private static MetadataIdentityException ArtistObjectConflict(string message)
+    {
+      return new MetadataIdentityException(
+        GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
+        2012,
+        message);
+    }
+
+    private static IReadOnlyDictionary<int, Matrix4x4> CreateArtistObjectTransforms(
+      int rootNodeIndex,
+      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes)
+    {
+      var result = new Dictionary<int, Matrix4x4>();
+      AddArtistObjectTransforms(rootNodeIndex, Matrix4x4.Identity, nodes, result);
+      return result;
+    }
+
+    private static void AddArtistObjectTransforms(
+      int nodeIndex,
+      Matrix4x4 inheritedTransform,
+      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
+      IDictionary<int, Matrix4x4> result)
+    {
+      var node = nodes[nodeIndex];
+      var effective = node.Parsed.LocalTransform * inheritedTransform;
+      var isArtistObject = node.Metadata?.AttachmentRecord is not null
+        || node.Metadata?.CannonRenderPosition is not null
+        || node.Metadata is null
+          && (GlbDocument.TryParseAttachmentHelperName(node.Parsed.Name, out _)
+            || GlbDocument.TryParseCannonRenderPositionHelperName(node.Parsed.Name, out _));
+      if (isArtistObject)
+      {
+        result.Add(nodeIndex, effective);
+        return;
+      }
+      var childInherited = node.Parsed.MeshIndex.HasValue ? Matrix4x4.Identity : effective;
+      foreach (var child in node.Parsed.Children)
+      {
+        AddArtistObjectTransforms(child, childInherited, nodes, result);
+      }
+    }
+
+    private static byte[] CreateAttachmentRecord(Matrix4x4 transform, byte extra)
+    {
+      if (!Matrix4x4.Decompose(transform, out var scale, out var rotation, out var translation)
+        || !IsFinite(scale)
+        || !IsFinite(translation)
+        || !IsFinite(rotation))
+      {
+        throw new UnsupportedGltfDomainException("AttachmentPose");
+      }
+      var reconstructed = Matrix4x4.CreateScale(scale)
+        * Matrix4x4.CreateFromQuaternion(rotation)
+        * Matrix4x4.CreateTranslation(translation);
+      if (!NearlyEqual(transform, reconstructed, 1e-4f))
+      {
+        throw new UnsupportedGltfDomainException("AttachmentPose");
+      }
+
+      var direction = Vector3.TransformNormal(-Vector3.UnitZ, Matrix4x4.CreateFromQuaternion(rotation));
+      if (!IsFinite(direction) || direction.LengthSquared() == 0)
+      {
+        throw new UnsupportedGltfDomainException("AttachmentPose");
+      }
+      direction = Vector3.Normalize(direction);
+      const float halfHeadingStep = MathF.PI / 256;
+      var up = Vector3.TransformNormal(Vector3.UnitY, Matrix4x4.CreateFromQuaternion(rotation));
+      if (MathF.Abs(direction.Y) > MathF.Sin(halfHeadingStep) + 1e-5f
+        || !IsFinite(up)
+        || Vector3.Dot(Vector3.Normalize(up), Vector3.UnitY) < MathF.Cos(halfHeadingStep) - 1e-5f)
+      {
+        throw new UnsupportedGltfDomainException("AttachmentPose");
+      }
+      var horizontal = new Vector2(direction.X, direction.Z);
+      if (horizontal.LengthSquared() == 0)
+      {
+        throw new UnsupportedGltfDomainException("AttachmentPose");
+      }
+      horizontal = Vector2.Normalize(horizontal);
+      var angle = MathF.Atan2(-horizontal.Y, horizontal.X);
+      if (angle < 0)
+      {
+        angle += MathF.PI * 2;
+      }
+      var heading = unchecked((byte)((int)MathF.Floor((angle * 256 / (MathF.PI * 2)) + 0.5f) & 0xFF));
+      var reconstructedDirection = new Vector2(
+        MathF.Cos(heading * MathF.PI * 2 / 256),
+        -MathF.Sin(heading * MathF.PI * 2 / 256));
+      var error = MathF.Acos(Math.Clamp(Vector2.Dot(horizontal, reconstructedDirection), -1, 1));
+      var reconstructedRotation = Quaternion.CreateFromAxisAngle(
+        Vector3.UnitY,
+        (heading * MathF.PI * 2 / 256) - (MathF.PI / 2));
+      var rotationError = 2 * MathF.Acos(Math.Clamp(
+        MathF.Abs(Quaternion.Dot(Quaternion.Normalize(rotation), reconstructedRotation)),
+        -1,
+        1));
+      if (error > halfHeadingStep + 1e-5f
+        || rotationError > halfHeadingStep + 1e-5f)
+      {
+        throw new UnsupportedGltfDomainException("AttachmentPose");
+      }
+
+      var record = new byte[8];
+      BinaryPrimitives.WriteInt16LittleEndian(record, QuantizeAttachmentCoordinate(translation.X, true));
+      BinaryPrimitives.WriteInt16LittleEndian(
+        record.AsSpan(2),
+        QuantizeAttachmentCoordinate(translation.Z, false));
+      BinaryPrimitives.WriteInt16LittleEndian(
+        record.AsSpan(4),
+        QuantizeAttachmentCoordinate(translation.Y, false));
+      record[6] = heading;
+      record[7] = extra;
+      return record;
+    }
+
+    private static short QuantizeAttachmentCoordinate(float value, bool rejectsSentinel)
+    {
+      var scaled = Math.Truncate(value * 256d);
+      if (!double.IsFinite(scaled) || scaled < short.MinValue || scaled > short.MaxValue)
+      {
+        throw new UnsupportedGltfDomainException("AttachmentPose");
+      }
+      var result = (short)scaled;
+      if (rejectsSentinel && result == short.MinValue)
+      {
+        throw new UnsupportedGltfDomainException("AttachmentPose");
+      }
+      return result;
+    }
+
+    private static byte[] CreateAbsentAttachmentRecord()
+    {
+      var record = new byte[8];
+      BinaryPrimitives.WriteInt16LittleEndian(record, short.MinValue);
+      BinaryPrimitives.WriteInt16LittleEndian(record.AsSpan(2), short.MinValue);
+      BinaryPrimitives.WriteInt16LittleEndian(record.AsSpan(4), short.MinValue);
+      return record;
+    }
+
+    private static byte[] CreateCannonRenderPositionRecord(Vector3 translation)
+    {
+      if (!IsFinite(translation))
+      {
+        throw new UnsupportedGltfDomainException("CannonRenderPosition");
+      }
+      var result = new byte[12];
+      WriteSingle(result, 0, translation.X);
+      WriteSingle(result, 4, translation.Z);
+      WriteSingle(result, 8, translation.Y);
+      return result;
+    }
+
+    private static void WriteSingle(byte[] destination, int offset, float value)
+    {
+      BinaryPrimitives.WriteInt32LittleEndian(
+        destination.AsSpan(offset),
+        BitConverter.SingleToInt32Bits(value == 0 ? 0 : value));
+    }
+
+    private static bool IsFinite(Quaternion value)
+    {
+      return float.IsFinite(value.X)
+        && float.IsFinite(value.Y)
+        && float.IsFinite(value.Z)
+        && float.IsFinite(value.W);
+    }
+
+    private static bool NearlyEqual(Matrix4x4 left, Matrix4x4 right, float tolerance)
+    {
+      return MathF.Abs(left.M11 - right.M11) <= tolerance
+        && MathF.Abs(left.M12 - right.M12) <= tolerance
+        && MathF.Abs(left.M13 - right.M13) <= tolerance
+        && MathF.Abs(left.M14 - right.M14) <= tolerance
+        && MathF.Abs(left.M21 - right.M21) <= tolerance
+        && MathF.Abs(left.M22 - right.M22) <= tolerance
+        && MathF.Abs(left.M23 - right.M23) <= tolerance
+        && MathF.Abs(left.M24 - right.M24) <= tolerance
+        && MathF.Abs(left.M31 - right.M31) <= tolerance
+        && MathF.Abs(left.M32 - right.M32) <= tolerance
+        && MathF.Abs(left.M33 - right.M33) <= tolerance
+        && MathF.Abs(left.M34 - right.M34) <= tolerance
+        && MathF.Abs(left.M41 - right.M41) <= tolerance
+        && MathF.Abs(left.M42 - right.M42) <= tolerance
+        && MathF.Abs(left.M43 - right.M43) <= tolerance
+        && MathF.Abs(left.M44 - right.M44) <= tolerance;
+    }
+
     private static StaticHierarchyPlan ReconcileHierarchy(
       ParsedGlb parsed,
       IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
@@ -2198,7 +2664,13 @@ namespace EarthTool.GLTF
       var sources = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
         .ToDictionary(source => source.Id.Value);
       if (nodes.Any(node => !node.Parsed.MeshIndex.HasValue
-        && (node.Metadata is not null || node.Parsed.Children.Count == 0)))
+        && (node.Metadata is not null
+            && node.Metadata.AttachmentRecord is null
+            && node.Metadata.CannonRenderPosition is null
+          || node.Metadata is null
+            && node.Parsed.Children.Count == 0
+            && !GlbDocument.TryParseAttachmentHelperName(node.Parsed.Name, out _)
+            && !GlbDocument.TryParseCannonRenderPositionHelperName(node.Parsed.Name, out _))))
       {
         throw new MalformedMetadataException("The object scope set does not match the source hierarchy.");
       }
@@ -2686,6 +3158,44 @@ namespace EarthTool.GLTF
             "The source animation cannot be represented exactly as native glTF TRS and remains metadata-only.",
             data: metadataOnlyData));
         }
+      }
+      return diagnostics.AsReadOnly();
+    }
+
+    private static IReadOnlyList<OperationDiagnostic> CreateCannonRenderPositionDiagnostics(
+      StaticMeshAsset asset)
+    {
+      var records = asset.CommonBaseHeader.CannonRenderPositions.ToArray();
+      var diagnostics = new List<OperationDiagnostic>();
+      for (var physicalNumber = 1; physicalNumber <= 4; physicalNumber++)
+      {
+        var record = records.AsSpan((physicalNumber - 1) * 12, 12);
+        var substituted = new List<int>();
+        for (var component = 0; component < 3; component++)
+        {
+          var value = BitConverter.Int32BitsToSingle(
+            BinaryPrimitives.ReadInt32LittleEndian(record.Slice(component * 4, 4)));
+          if (!float.IsFinite(value))
+          {
+            substituted.Add(component);
+          }
+        }
+        if (substituted.Count == 0)
+        {
+          continue;
+        }
+        diagnostics.Add(new OperationDiagnostic(
+          GltfDiagnosticCodes.CannonRenderPositionPreviewSubstituted,
+          1116,
+          DiagnosticSeverity.Warning,
+          $"CommonBaseHeader.CannonRenderPositions[{physicalNumber}]",
+          "Non-finite cannon render-position components use zero in the native preview.",
+          data: new Dictionary<string, string>
+          {
+            ["physicalNumber"] = physicalNumber.ToString(
+              System.Globalization.CultureInfo.InvariantCulture),
+            ["components"] = string.Join(",", substituted)
+          }));
       }
       return diagnostics.AsReadOnly();
     }

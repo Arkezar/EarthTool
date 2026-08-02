@@ -5,6 +5,7 @@ using EarthTool.MSH.Assets;
 using EarthTool.MSH.Internal;
 using EarthTool.MSH.Operations;
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -506,6 +507,8 @@ namespace EarthTool.MSH.Authoring
     private readonly Dictionary<StaticRenderObjectId, byte[]> _replacementTexturePathBytes = new();
     private readonly Dictionary<StaticRenderObjectId, StaticAnimationReplacement>
       _replacementAnimations = new();
+    private readonly Dictionary<int, byte[]> _replacementAttachmentRecords = new();
+    private readonly Dictionary<int, byte[]> _replacementCannonRenderPositions = new();
     private readonly HashSet<StaticRenderObjectId> _removedRenderObjects = new();
     private readonly HashSet<SourceObjectId> _allocatedSourceObjects = new();
     private readonly List<StaticRenderObjectAddition> _additions = new();
@@ -687,6 +690,46 @@ namespace EarthTool.MSH.Authoring
       return this;
     }
 
+    internal StaticMeshEditSession ReplaceAttachmentRecord(
+      int physicalNumber,
+      IEnumerable<byte> record)
+    {
+      EnsureOpen();
+      if (physicalNumber is < 1 or > 49)
+      {
+        throw new ArgumentOutOfRangeException(nameof(physicalNumber));
+      }
+      var bytes = record?.ToArray() ?? throw new ArgumentNullException(nameof(record));
+      if (bytes.Length != 8)
+      {
+        throw new ArgumentException("An attachment record must contain exactly 8 bytes.", nameof(record));
+      }
+
+      _replacementAttachmentRecords[physicalNumber] = bytes;
+      return this;
+    }
+
+    internal StaticMeshEditSession ReplaceCannonRenderPosition(
+      int physicalNumber,
+      IEnumerable<byte> record)
+    {
+      EnsureOpen();
+      if (physicalNumber is < 1 or > 4)
+      {
+        throw new ArgumentOutOfRangeException(nameof(physicalNumber));
+      }
+      var bytes = record?.ToArray() ?? throw new ArgumentNullException(nameof(record));
+      if (bytes.Length != 12)
+      {
+        throw new ArgumentException(
+          "A cannon render-position record must contain exactly 12 bytes.",
+          nameof(record));
+      }
+
+      _replacementCannonRenderPositions[physicalNumber] = bytes;
+      return this;
+    }
+
     /// <summary>Sets or explicitly clears one game-authoritative TEX resource binding.</summary>
     public StaticMeshEditSession SetTextureResourceBinding(
       StaticRenderObjectId renderObject,
@@ -819,6 +862,8 @@ namespace EarthTool.MSH.Authoring
         && _replacementPivots.Count == 0
         && _replacementTexturePathBytes.Count == 0
         && _replacementAnimations.Count == 0
+        && _replacementAttachmentRecords.Count == 0
+        && _replacementCannonRenderPositions.Count == 0
         && !_replacementAnimationLengths.HasValue
         && _removedRenderObjects.Count == 0
         && _additions.Count == 0
@@ -840,7 +885,9 @@ namespace EarthTool.MSH.Authoring
           _replacementTexturePathBytes,
           _editedRootSourceObject is not null,
           _replacementAnimations,
-          _replacementAnimationLengths);
+          _replacementAnimationLengths,
+          _replacementAttachmentRecords,
+          _replacementCannonRenderPositions);
       if (bytes.Length > profile.MaxOutputBytes)
       {
         return new MshEditResult<StaticMeshAsset>(
@@ -900,6 +947,29 @@ namespace EarthTool.MSH.Authoring
       {
         changes.Add(Change("CommonBaseHeader.AnimationLengths",
           PreservationDisposition.Regenerated, "AnimationEdit"));
+      }
+      foreach (var physicalNumber in _replacementAttachmentRecords.Keys.OrderBy(value => value))
+      {
+        var sourceRecord = _source.CommonBaseHeader.AttachmentTable
+          .Skip((physicalNumber - 1) * 8).Take(8).ToArray();
+        var replacement = _replacementAttachmentRecords[physicalNumber];
+        var sourceActive = BinaryPrimitives.ReadInt16LittleEndian(sourceRecord) != short.MinValue;
+        var replacementActive = BinaryPrimitives.ReadInt16LittleEndian(replacement) != short.MinValue;
+        changes.Add(Change(
+          $"CommonBaseHeader.AttachmentTable[{physicalNumber}]",
+          sourceActive == replacementActive
+            ? PreservationDisposition.Regenerated
+            : PreservationDisposition.Canonicalized,
+          sourceActive == replacementActive
+            ? "AttachmentEdit"
+            : replacementActive ? "AttachmentAddition" : "AttachmentDeletion"));
+      }
+      foreach (var physicalNumber in _replacementCannonRenderPositions.Keys.OrderBy(value => value))
+      {
+        changes.Add(Change(
+          $"CommonBaseHeader.CannonRenderPositions[{physicalNumber}]",
+          PreservationDisposition.Regenerated,
+          "CannonRenderPositionEdit"));
       }
       if (_editedRootSourceObject is not null)
       {

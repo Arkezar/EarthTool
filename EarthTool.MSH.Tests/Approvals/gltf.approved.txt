@@ -5,6 +5,7 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String AnimationMetadataOnly = "ETG1014"
   field System.String AssetLineageMismatch = "ETG2003"
   field System.String Cancelled = "ETG1005"
+  field System.String CannonRenderPositionPreviewSubstituted = "ETG1016"
   field System.String DocumentMismatch = "ETG2004"
   field System.String InvalidGeometry = "ETG1006"
   field System.String InvalidGlb = "ETG1000"

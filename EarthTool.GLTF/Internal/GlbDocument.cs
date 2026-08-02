@@ -97,6 +97,8 @@ namespace EarthTool.GLTF.Internal
 
   internal sealed class ParsedGltfNode
   {
+    internal string? Name { get; }
+
     internal string? Metadata { get; }
 
     internal int? MeshIndex { get; }
@@ -106,11 +108,13 @@ namespace EarthTool.GLTF.Internal
     internal Matrix4x4 LocalTransform { get; }
 
     internal ParsedGltfNode(
+      string? name,
       string? metadata,
       int? meshIndex,
       IReadOnlyList<int> children,
       Matrix4x4 localTransform)
     {
+      Name = name;
       Metadata = metadata;
       MeshIndex = meshIndex;
       Children = children;
@@ -435,6 +439,14 @@ namespace EarthTool.GLTF.Internal
 
     internal MetadataAnimationProjection? AnimationProjection { get; }
 
+    internal int? AttachmentPhysicalNumber { get; }
+
+    internal IReadOnlyList<byte>? AttachmentRecord { get; }
+
+    internal int? CannonRenderPositionNumber { get; }
+
+    internal IReadOnlyList<byte>? CannonRenderPosition { get; }
+
     internal MetadataEnvelope(
       Guid assetLineageId,
       Guid documentId,
@@ -455,7 +467,11 @@ namespace EarthTool.GLTF.Internal
       AnimationClassBytes? animationLengths,
       AnimationClassBytes? animationFrameIndices,
       IReadOnlyList<MetadataAnimationClass> animationClasses,
-      MetadataAnimationProjection? animationProjection)
+      MetadataAnimationProjection? animationProjection,
+      int? attachmentPhysicalNumber,
+      IReadOnlyList<byte>? attachmentRecord,
+      int? cannonRenderPositionNumber,
+      IReadOnlyList<byte>? cannonRenderPosition)
     {
       AssetLineageId = assetLineageId;
       DocumentId = documentId;
@@ -477,6 +493,10 @@ namespace EarthTool.GLTF.Internal
       AnimationFrameIndices = animationFrameIndices;
       AnimationClasses = animationClasses;
       AnimationProjection = animationProjection;
+      AttachmentPhysicalNumber = attachmentPhysicalNumber;
+      AttachmentRecord = attachmentRecord;
+      CannonRenderPositionNumber = cannonRenderPositionNumber;
+      CannonRenderPosition = cannonRenderPosition;
     }
   }
 
@@ -522,6 +542,16 @@ namespace EarthTool.GLTF.Internal
           animationProjection: animations.Objects.SingleOrDefault(item =>
             item.SourceObjectLocalId == source.Id.Value));
         maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(metadata));
+      }
+      foreach (var attachment in ProjectAttachments(asset))
+      {
+        maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(
+          CreateAttachmentMetadata(baseline, attachment)));
+      }
+      foreach (var cannon in ProjectCannonRenderPositions(asset))
+      {
+        maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(
+          CreateCannonRenderPositionMetadata(baseline, cannon)));
       }
       return maximum;
     }
@@ -591,7 +621,7 @@ namespace EarthTool.GLTF.Internal
         asset,
         animations);
       var json = CreateJson(
-        asset.RootSourceObject,
+        asset,
         layouts,
         binary.Length,
         baseline,
@@ -739,6 +769,7 @@ namespace EarthTool.GLTF.Internal
           ? childArray.EnumerateArray().Select(child => child.GetInt32()).ToArray()
           : Array.Empty<int>();
         nodes.Add(new ParsedGltfNode(
+          node.TryGetProperty("name", out var name) ? name.GetString() : null,
           TryGetMetadata(node),
           node.TryGetProperty("mesh", out var mesh) ? mesh.GetInt32() : null,
           Array.AsReadOnly(children),
@@ -951,7 +982,19 @@ namespace EarthTool.GLTF.Internal
           animationLengths,
           animationFrameIndices,
           animationClasses.AsReadOnly(),
-          animationProjection);
+          animationProjection,
+          root.TryGetProperty("attachment", out var attachment)
+            ? attachment.GetProperty("physicalNumber").GetInt32()
+            : null,
+          root.TryGetProperty("attachment", out attachment)
+            ? ReadBase64(attachment, "record")
+            : null,
+          root.TryGetProperty("cannonRenderPosition", out var cannonRenderPosition)
+            ? cannonRenderPosition.GetProperty("physicalNumber").GetInt32()
+            : null,
+          root.TryGetProperty("cannonRenderPosition", out cannonRenderPosition)
+            ? ReadBase64(cannonRenderPosition, "record")
+            : null);
       }
       catch (UnsupportedMetadataVersionException)
       {
@@ -1163,7 +1206,7 @@ namespace EarthTool.GLTF.Internal
     }
 
     private static byte[] CreateJson(
-      StaticSourceObject rootSourceObject,
+      StaticMeshAsset asset,
       IReadOnlyDictionary<StaticRenderObjectId, PartitionLayout> layouts,
       int binaryLength,
       InterchangeBaseline baseline,
@@ -1173,7 +1216,10 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyList<AnimationLayout> animationLayouts,
       string? bufferFileName)
     {
+      var rootSourceObject = asset.RootSourceObject;
       var sources = StaticSourceObjectTraversal.Flatten(rootSourceObject).ToArray();
+      var attachments = ProjectAttachments(asset);
+      var cannonRenderPositions = ProjectCannonRenderPositions(asset);
       var nodeIndices = sources
         .Select((source, index) => new { source.Id, Index = index })
         .ToDictionary(item => item.Id, item => item.Index);
@@ -1245,12 +1291,21 @@ namespace EarthTool.GLTF.Internal
             writer.WriteNumberValue(translation.Z);
             writer.WriteEndArray();
           }
-          if (source.Children.Count > 0)
+          var isRoot = source.Id.Equals(rootSourceObject.Id);
+          if (source.Children.Count > 0 || isRoot && (attachments.Count > 0 || cannonRenderPositions.Count > 0))
           {
             writer.WriteStartArray("children");
             foreach (var child in source.Children)
             {
               writer.WriteNumberValue(nodeIndices[child.Id]);
+            }
+            if (isRoot)
+            {
+              var helperIndex = sources.Length;
+              for (var index = 0; index < attachments.Count + cannonRenderPositions.Count; index++)
+              {
+                writer.WriteNumberValue(helperIndex + index);
+              }
             }
 
             writer.WriteEndArray();
@@ -1264,6 +1319,22 @@ namespace EarthTool.GLTF.Internal
             null,
             animationProjection: animations.Objects.SingleOrDefault(item =>
               item.SourceObjectLocalId == source.Id.Value)));
+          writer.WriteEndObject();
+        }
+        foreach (var attachment in attachments)
+        {
+          writer.WriteStartObject();
+          writer.WriteString("name", GetAttachmentHelperName(attachment.PhysicalNumber));
+          WriteTransform(writer, attachment.Translation, attachment.Rotation);
+          WriteExtras(writer, CreateAttachmentMetadata(baseline, attachment));
+          writer.WriteEndObject();
+        }
+        foreach (var cannon in cannonRenderPositions)
+        {
+          writer.WriteStartObject();
+          writer.WriteString("name", $"ET_CannonRenderPosition_{cannon.PhysicalNumber}");
+          WriteTransform(writer, cannon.Translation, Quaternion.Identity);
+          WriteExtras(writer, CreateCannonRenderPositionMetadata(baseline, cannon));
           writer.WriteEndObject();
         }
 
@@ -1491,6 +1562,27 @@ namespace EarthTool.GLTF.Internal
       writer.WriteStartObject("extras");
       writer.WriteString("earthtool", metadata);
       writer.WriteEndObject();
+    }
+
+    private static void WriteTransform(Utf8JsonWriter writer, Vector3 translation, Quaternion rotation)
+    {
+      if (translation != Vector3.Zero)
+      {
+        writer.WriteStartArray("translation");
+        writer.WriteNumberValue(translation.X);
+        writer.WriteNumberValue(translation.Y);
+        writer.WriteNumberValue(translation.Z);
+        writer.WriteEndArray();
+      }
+      if (rotation != Quaternion.Identity)
+      {
+        writer.WriteStartArray("rotation");
+        writer.WriteNumberValue(rotation.X);
+        writer.WriteNumberValue(rotation.Y);
+        writer.WriteNumberValue(rotation.Z);
+        writer.WriteNumberValue(rotation.W);
+        writer.WriteEndArray();
+      }
     }
 
     private static void WriteBufferView(Utf8JsonWriter writer, int offset, int length, int? target)
@@ -1840,6 +1932,144 @@ namespace EarthTool.GLTF.Internal
       return Encoding.UTF8.GetString(stream.ToArray());
     }
 
+    private static string CreateAttachmentMetadata(
+      InterchangeBaseline baseline,
+      ProjectedAttachment attachment)
+    {
+      using var stream = new MemoryStream();
+      using (var writer = new Utf8JsonWriter(stream))
+      {
+        WriteMetadataHeader(writer, baseline, "object", attachment.PhysicalNumber);
+        writer.WriteStartObject("nativeProjection");
+        writer.WriteString("name", "attachment.pose");
+        writer.WriteNumber("version", 1);
+        writer.WriteString("sha256", CreateAttachmentPoseFingerprint(
+          baseline,
+          attachment.PhysicalNumber,
+          attachment.Record));
+        writer.WriteEndObject();
+        writer.WriteStartObject("attachment");
+        writer.WriteNumber("physicalNumber", attachment.PhysicalNumber);
+        writer.WriteString("record", Convert.ToBase64String(attachment.Record));
+        writer.WriteEndObject();
+        writer.WriteEndObject();
+      }
+      return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static string CreateCannonRenderPositionMetadata(
+      InterchangeBaseline baseline,
+      ProjectedCannonRenderPosition cannon)
+    {
+      using var stream = new MemoryStream();
+      using (var writer = new Utf8JsonWriter(stream))
+      {
+        WriteMetadataHeader(writer, baseline, "object", cannon.PhysicalNumber);
+        writer.WriteStartObject("nativeProjection");
+        writer.WriteString("name", "cannonRenderPosition.position");
+        writer.WriteNumber("version", 1);
+        writer.WriteString("sha256", CreateCannonRenderPositionFingerprint(
+          baseline,
+          cannon.PhysicalNumber,
+          cannon.Record));
+        writer.WriteEndObject();
+        writer.WriteStartObject("cannonRenderPosition");
+        writer.WriteNumber("physicalNumber", cannon.PhysicalNumber);
+        writer.WriteString("record", Convert.ToBase64String(cannon.Record));
+        writer.WriteEndObject();
+        writer.WriteEndObject();
+      }
+      return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    internal static string CreateAttachmentPoseFingerprint(
+      InterchangeBaseline baseline,
+      int physicalNumber,
+      IReadOnlyList<byte> record)
+    {
+      var bytes = record.ToArray();
+      using var preimage = new MemoryStream();
+      using (var writer = new BinaryWriter(preimage, Encoding.UTF8, true))
+      {
+        WriteFingerprintHeader(writer, baseline, "attachment.pose", "object", physicalNumber);
+        writer.Write(physicalNumber);
+        writer.Write(BinaryPrimitives.ReadInt16LittleEndian(bytes));
+        writer.Write(BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)));
+        writer.Write(BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4)));
+        writer.Write(bytes[6]);
+      }
+      return Hash(preimage.ToArray());
+    }
+
+    internal static string CreateCannonRenderPositionFingerprint(
+      InterchangeBaseline baseline,
+      int physicalNumber,
+      IReadOnlyList<byte> record)
+    {
+      var bytes = record.ToArray();
+      using var preimage = new MemoryStream();
+      using (var writer = new BinaryWriter(preimage, Encoding.UTF8, true))
+      {
+        WriteFingerprintHeader(
+          writer,
+          baseline,
+          "cannonRenderPosition.position",
+          "object",
+          physicalNumber);
+        writer.Write(physicalNumber);
+        WriteCanonicalFloat(writer, ReadFinitePreview(bytes, 0));
+        WriteCanonicalFloat(writer, ReadFinitePreview(bytes, 8));
+        WriteCanonicalFloat(writer, ReadFinitePreview(bytes, 4));
+      }
+      return Hash(preimage.ToArray());
+    }
+
+    private static void WriteFingerprintHeader(
+      BinaryWriter writer,
+      InterchangeBaseline baseline,
+      string projection,
+      string scopeKind,
+      int localId)
+    {
+      WriteFingerprintString(writer, "earthtool.msh.gltf");
+      writer.Write(1);
+      WriteFingerprintString(writer, projection);
+      writer.Write(1);
+      writer.Write(baseline.AssetLineageId.ToByteArray());
+      writer.Write(baseline.DocumentId.ToByteArray());
+      WriteFingerprintString(writer, scopeKind);
+      writer.Write(localId);
+    }
+
+    private static void WriteFingerprintString(BinaryWriter writer, string value)
+    {
+      var bytes = Encoding.UTF8.GetBytes(value);
+      writer.Write(bytes.Length);
+      writer.Write(bytes);
+    }
+
+    private static void WriteCanonicalFloat(BinaryWriter writer, float value)
+    {
+      writer.Write(value == 0 ? 0 : value);
+    }
+
+    private static void WriteMetadataHeader(
+      Utf8JsonWriter writer,
+      InterchangeBaseline baseline,
+      string scopeKind,
+      int localId)
+    {
+      writer.WriteStartObject();
+      writer.WriteString("format", "earthtool.msh.gltf");
+      writer.WriteNumber("version", 1);
+      writer.WriteString("assetLineage", baseline.AssetLineageId);
+      writer.WriteString("document", baseline.DocumentId);
+      writer.WriteStartObject("scope");
+      writer.WriteString("kind", scopeKind);
+      writer.WriteNumber("localId", localId);
+      writer.WriteEndObject();
+    }
+
     private static void ValidateSupportedGraph(
       JsonElement root,
       GltfOperationProfile profile,
@@ -2107,9 +2337,7 @@ namespace EarthTool.GLTF.Internal
         if (pbr.ValueKind != JsonValueKind.Object
           || pbr.EnumerateObject().Any(property => !allowedPbrProperties.Contains(property.Name))
           || pbr.TryGetProperty("metallicFactor", out var metallic)
-            && metallic.GetSingle() != 0
-          || pbr.TryGetProperty("roughnessFactor", out var roughness)
-            && roughness.GetSingle() != 1)
+            && metallic.GetSingle() != 0)
         {
           throw new UnsupportedGltfDomainException("materials");
         }
@@ -2194,6 +2422,153 @@ namespace EarthTool.GLTF.Internal
     internal static Vector3 ProjectToGltf(Vector3 value)
     {
       return new Vector3(value.X, value.Z, -value.Y);
+    }
+
+    private static IReadOnlyList<ProjectedAttachment> ProjectAttachments(StaticMeshAsset asset)
+    {
+      var table = asset.CommonBaseHeader.AttachmentTable.ToArray();
+      var result = new List<ProjectedAttachment>();
+      for (var physicalNumber = 1; physicalNumber <= 49; physicalNumber++)
+      {
+        if (physicalNumber is >= 13 and <= 20)
+        {
+          continue;
+        }
+        var offset = (physicalNumber - 1) * 8;
+        var record = table.AsSpan(offset, 8).ToArray();
+        var x = BinaryPrimitives.ReadInt16LittleEndian(record);
+        if (x == short.MinValue)
+        {
+          continue;
+        }
+        var storedNegativeY = BinaryPrimitives.ReadInt16LittleEndian(record.AsSpan(2));
+        var z = BinaryPrimitives.ReadInt16LittleEndian(record.AsSpan(4));
+        var headingRadians = record[6] * (MathF.PI * 2 / 256f);
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, headingRadians - (MathF.PI / 2));
+        if (rotation.W < 0)
+        {
+          rotation = new Quaternion(-rotation.X, -rotation.Y, -rotation.Z, -rotation.W);
+        }
+        result.Add(new ProjectedAttachment(
+          physicalNumber,
+          record,
+          new Vector3(x / 256f, z / 256f, storedNegativeY / 256f),
+          rotation));
+      }
+      return result.AsReadOnly();
+    }
+
+    private static IReadOnlyList<ProjectedCannonRenderPosition> ProjectCannonRenderPositions(
+      StaticMeshAsset asset)
+    {
+      var records = asset.CommonBaseHeader.CannonRenderPositions.ToArray();
+      var result = new ProjectedCannonRenderPosition[4];
+      for (var physicalNumber = 1; physicalNumber <= 4; physicalNumber++)
+      {
+        var record = records.AsSpan((physicalNumber - 1) * 12, 12).ToArray();
+        var x = ReadFinitePreview(record, 0);
+        var storedNegativeY = ReadFinitePreview(record, 4);
+        var z = ReadFinitePreview(record, 8);
+        result[physicalNumber - 1] = new ProjectedCannonRenderPosition(
+          physicalNumber,
+          record,
+          new Vector3(x, z, storedNegativeY));
+      }
+      return Array.AsReadOnly(result);
+    }
+
+    internal static float ReadFinitePreview(byte[] record, int offset)
+    {
+      var value = BitConverter.Int32BitsToSingle(
+        BinaryPrimitives.ReadInt32LittleEndian(record.AsSpan(offset)));
+      return float.IsFinite(value) ? value : 0;
+    }
+
+    internal static string GetAttachmentHelperName(int physicalNumber)
+    {
+      var (range, localNumber) = physicalNumber switch
+      {
+        <= 4 => ("Cannon", physicalNumber),
+        <= 8 => ("Marker", physicalNumber - 4),
+        <= 12 => ("SS", physicalNumber - 8),
+        <= 16 => ("SpotLight", physicalNumber - 12),
+        <= 20 => ("OmniLight", physicalNumber - 16),
+        <= 24 => ("Transport", physicalNumber - 20),
+        <= 28 => ("HT", physicalNumber - 24),
+        <= 32 => ("SmokeEffect", physicalNumber - 28),
+        <= 36 => ("WT", physicalNumber - 32),
+        <= 38 => ("CH", physicalNumber - 36),
+        <= 40 => ("ST", physicalNumber - 38),
+        <= 42 => ("SE", physicalNumber - 40),
+        <= 44 => ("SK", physicalNumber - 42),
+        45 => ("ChildAlignment", 1),
+        46 => ("Center", 1),
+        47 => ("Production", 1),
+        48 => ("Movement", 1),
+        _ => ("Landing", 1)
+      };
+      return $"ET_Attachment_{physicalNumber:00}_{range}_{localNumber}";
+    }
+
+    internal static bool TryParseAttachmentHelperName(string? name, out int physicalNumber)
+    {
+      for (physicalNumber = 1; physicalNumber <= 49; physicalNumber++)
+      {
+        if (physicalNumber is not (>= 13 and <= 20)
+          && string.Equals(name, GetAttachmentHelperName(physicalNumber), StringComparison.Ordinal))
+        {
+          return true;
+        }
+      }
+      physicalNumber = 0;
+      return false;
+    }
+
+    internal static bool TryParseCannonRenderPositionHelperName(string? name, out int physicalNumber)
+    {
+      for (physicalNumber = 1; physicalNumber <= 4; physicalNumber++)
+      {
+        if (string.Equals(name, $"ET_CannonRenderPosition_{physicalNumber}", StringComparison.Ordinal))
+        {
+          return true;
+        }
+      }
+      physicalNumber = 0;
+      return false;
+    }
+
+    private sealed class ProjectedAttachment
+    {
+      internal int PhysicalNumber { get; }
+      internal byte[] Record { get; }
+      internal Vector3 Translation { get; }
+      internal Quaternion Rotation { get; }
+
+      internal ProjectedAttachment(
+        int physicalNumber,
+        byte[] record,
+        Vector3 translation,
+        Quaternion rotation)
+      {
+        PhysicalNumber = physicalNumber;
+        Record = record;
+        Translation = translation;
+        Rotation = rotation;
+      }
+    }
+
+    private sealed class ProjectedCannonRenderPosition
+    {
+      internal int PhysicalNumber { get; }
+      internal byte[] Record { get; }
+      internal Vector3 Translation { get; }
+
+      internal ProjectedCannonRenderPosition(int physicalNumber, byte[] record, Vector3 translation)
+      {
+        PhysicalNumber = physicalNumber;
+        Record = record;
+        Translation = translation;
+      }
     }
 
     internal sealed class ProjectedPartition

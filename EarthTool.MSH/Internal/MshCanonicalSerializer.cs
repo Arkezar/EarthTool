@@ -57,7 +57,9 @@ namespace EarthTool.MSH.Internal
       IReadOnlyDictionary<StaticRenderObjectId, byte[]>? texturePathBytes = null,
       bool canonicalizeNextRecordMarkers = false,
       IReadOnlyDictionary<StaticRenderObjectId, StaticAnimationReplacement>? animations = null,
-      AnimationClassBytes? animationLengths = null)
+      AnimationClassBytes? animationLengths = null,
+      IReadOnlyDictionary<int, byte[]>? attachmentRecords = null,
+      IReadOnlyDictionary<int, byte[]>? cannonRenderPositions = null)
     {
       var archiveHeader = CreateArchiveHeader(source.ArchiveFraming);
       var removed = new HashSet<StaticRenderObjectId>(
@@ -67,6 +69,8 @@ namespace EarthTool.MSH.Internal
       pivots ??= new Dictionary<StaticRenderObjectId, Vector3>();
       texturePathBytes ??= new Dictionary<StaticRenderObjectId, byte[]>();
       animations ??= new Dictionary<StaticRenderObjectId, StaticAnimationReplacement>();
+      attachmentRecords ??= new Dictionary<int, byte[]>();
+      cannonRenderPositions ??= new Dictionary<int, byte[]>();
       var sourceRecords = source.StaticRenderObjectSequence.ToDictionary(record => record.Id);
       var addedRecords = additions.ToDictionary(addition => addition.Id);
       var finalRecordSources = new Dictionary<StaticRenderObjectId, SourceObjectId>();
@@ -144,6 +148,14 @@ namespace EarthTool.MSH.Internal
       if (animationLengths.HasValue)
       {
         WriteAnimationClassBytes(commonHeader, 0x10, animationLengths.Value);
+      }
+      foreach (var replacement in attachmentRecords)
+      {
+        replacement.Value.CopyTo(commonHeader, 0x1D8 + ((replacement.Key - 1) * 8));
+      }
+      foreach (var replacement in cannonRenderPositions)
+      {
+        replacement.Value.CopyTo(commonHeader, 0x018 + ((replacement.Key - 1) * 12));
       }
       commonHeader.CopyTo(result, archiveHeader.Length);
       var cursor = archiveHeader.Length + BaseHeaderSize;
