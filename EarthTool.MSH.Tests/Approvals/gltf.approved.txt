@@ -277,6 +277,8 @@ public enum EarthTool.GLTF.GltfStaticObjectRoles : System.IComparable, System.IC
   field EarthTool.GLTF.GltfStaticObjectRoles None = 0
   field EarthTool.GLTF.GltfStaticObjectRoles Rotor = 4
   field EarthTool.GLTF.GltfStaticObjectRoles ViewerFaced = 1
+public static class EarthTool.GLTF.HostExtensions
+  method Microsoft.Extensions.DependencyInjection.IServiceCollection AddGltfServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services)
 public sealed class EarthTool.GLTF.InterchangeBaseline
   constructor InterchangeBaseline(System.Guid assetLineageId, System.Guid documentId)
   property System.Guid AssetLineageId { get; }

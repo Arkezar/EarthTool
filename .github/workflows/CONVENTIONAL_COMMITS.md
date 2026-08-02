@@ -36,7 +36,6 @@ Scopes help organize changes by component:
 | `gui` | GUI application | `fix(gui): correct theme switching` |
 | `wd` | WD archive handling | `perf(wd): improve decompression speed` |
 | `msh` | MSH mesh format | `feat(msh): support animation data` |
-| `dae` | DAE/COLLADA format | `fix(dae): handle materials correctly` |
 | `par` | PAR parameters | `feat(par): add new entity types` |
 | `tex` | TEX textures | `fix(tex): correct DXT compression` |
 | `common` | Shared code | `refactor(common): extract base reader` |

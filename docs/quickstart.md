@@ -185,16 +185,17 @@ done
 EarthTool.CLI wd create TextureMod.wd -i ./modified_textures -r
 ```
 
-### Task 3: Export Models for Viewing
+### Task 3: Export Models For Blender
 
 ```bash
-# Extract and convert MSH to DAE
+# Extract MSH assets and export GLB packages
 EarthTool.CLI wd extract archive.wd --filter "*.msh" -o ./models
 for file in ./models/*.msh; do
-  EarthTool.CLI msh "$file" -o "${file%.msh}.dae"
+  EarthTool.CLI msh export "$file"
 done
 
-# Now open .dae files in Blender or other 3D software
+# Open the resulting .glb files in Blender 4.5 LTS or later.
+# After editing, use `msh import edit` with the baseline identities.
 ```
 
 ### Task 4: Backup Game Files
@@ -342,7 +343,9 @@ EarthTool.CLI wd info archive.wd
 | `wd add <archive> <files>` | Add files |
 | `wd remove <archive>` | Remove files |
 | `wd info <archive>` | Show details |
-| `msh <file>` | Convert MSH to DAE |
+| `msh export <file>` | Export static MSH to GLB or glTF |
+| `msh import edit <file>` | Import an edit into an expected interchange lineage |
+| `msh import new <file>` | Author canonical MSH from metadata-free glTF |
 | `tex <file>` | Convert TEX to PNG |
 | `par convert <file>` | Convert PAR to JSON |
 

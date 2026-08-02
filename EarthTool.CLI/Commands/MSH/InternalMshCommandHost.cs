@@ -1,7 +1,5 @@
 ﻿#nullable enable
 
-using EarthTool.GLTF;
-using EarthTool.MSH;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Spectre.Console.Cli;
@@ -42,29 +40,14 @@ internal static class InternalMshCommandHost
     var hostBuilder = Host.CreateDefaultBuilder()
       .ConfigureServices(services =>
       {
-        services
-          .AddMshServices()
-          .AddSingleton<GltfInterchange>()
-          .AddSingleton<GltfImportPlanSerializer>()
-          .AddSingleton<GltfCliReportSerializer>()
-          .AddSingleton<ICliReportFileSystem, CliReportFileSystem>()
-          .AddSingleton(new CliOutput(output ?? Console.Out))
-          .AddSingleton<GltfCommandExecutor>();
+        services.AddMshCliServices(output ?? Console.Out);
         configureServices?.Invoke(services);
       });
     var app = new CommandApp(new CommandTypeRegistrar(hostBuilder));
     app.Configure(config =>
     {
       config.SetApplicationName("earthtool");
-      config.AddBranch("msh", msh =>
-      {
-        msh.AddCommand<ExportGltfCommand>("export");
-        msh.AddBranch("import", import =>
-        {
-          import.AddCommand<ImportEditGltfCommand>("edit");
-          import.AddCommand<ImportNewGltfCommand>("new");
-        });
-      });
+      MshCommandComposition.AddCommands(config);
     });
 
     var status = await app.RunAsync(args, cancellationToken).ConfigureAwait(false);

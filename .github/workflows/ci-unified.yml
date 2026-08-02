@@ -15,7 +15,6 @@ on:
       - "EarthTool.MSH.Tests/**"
       - "EarthTool.GLTF/**"
       - "EarthTool.Consumer.Tests/**"
-      - "EarthTool.DAE/**"
       - "EarthTool.PAR/**"
       - "EarthTool.TEX/**"
       - "test-tools/**"
@@ -37,7 +36,6 @@ on:
       - "EarthTool.MSH.Tests/**"
       - "EarthTool.GLTF/**"
       - "EarthTool.Consumer.Tests/**"
-      - "EarthTool.DAE/**"
       - "EarthTool.PAR/**"
       - "EarthTool.TEX/**"
       - "test-tools/**"
@@ -76,7 +74,6 @@ jobs:
               - 'EarthTool.MSH/**'
               - 'EarthTool.MSH.Tests/**'
               - 'EarthTool.GLTF/**'
-              - 'EarthTool.DAE/**'
               - 'EarthTool.PAR/**'
               - 'EarthTool.TEX/**'
             gui:
@@ -96,8 +93,8 @@ jobs:
               - 'EarthTool.MSH/**'
               - 'EarthTool.MSH.Tests/**'
               - 'EarthTool.GLTF/**'
+              - 'EarthTool.CLI.Tests/**'
               - 'EarthTool.Consumer.Tests/**'
-              - 'EarthTool.DAE/**'
               - 'EarthTool.PAR/**'
               - 'EarthTool.TEX/**'
               - 'EarthTool.Common/**'
@@ -140,10 +137,29 @@ jobs:
       - name: Build public consumer
         run: dotnet build EarthTool.Consumer.Tests/EarthTool.Consumer.Tests.csproj --configuration Release --no-restore
 
+      - name: Verify expected test discovery
+        shell: bash
+        run: |
+          MSH_TESTS=$(dotnet test EarthTool.MSH.Tests/EarthTool.MSH.Tests.csproj --configuration Release --no-restore --list-tests | grep -c '^    ')
+          CLI_TESTS=$(dotnet test EarthTool.CLI.Tests/EarthTool.CLI.Tests.csproj --configuration Release --no-restore --list-tests | grep -c '^    ')
+          test "$MSH_TESTS" -eq 337
+          test "$CLI_TESTS" -eq 24
+
       - name: Run MSH/glTF contract tests
         run: dotnet test EarthTool.MSH.Tests/EarthTool.MSH.Tests.csproj --configuration Release --no-restore
         env:
           EARTHTOOL_RUN_KHRONOS_VALIDATOR: "1"
+
+      - name: Run published CLI acceptance tests
+        run: dotnet test EarthTool.CLI.Tests/EarthTool.CLI.Tests.csproj --configuration Release --no-restore
+
+      - name: Reject unapproved snapshots
+        shell: bash
+        run: |
+          if find EarthTool.MSH.Tests EarthTool.CLI.Tests -name '*.received.*' -print -quit | grep -q .; then
+            find EarthTool.MSH.Tests EarthTool.CLI.Tests -name '*.received.*' -print
+            exit 1
+          fi
 
   build-cli:
     name: Build CLI (${{ matrix.os }})

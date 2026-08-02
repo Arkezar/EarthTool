@@ -1,7 +1,6 @@
 ﻿using EarthTool.CLI.Commands;
+using EarthTool.CLI.Commands.MSH;
 using EarthTool.Common;
-using EarthTool.DAE;
-using EarthTool.MSH;
 using EarthTool.PAR;
 using EarthTool.TEX;
 using EarthTool.WD;
@@ -9,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using Spectre.Console.Cli;
+using System;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -16,7 +16,7 @@ namespace EarthTool.CLI
 {
   class Program
   {
-    public static Task Main(string[] args)
+    public static async Task<int> Main(string[] args)
     {
       Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
       var hostBuilder = CreateHostBuilder(args);
@@ -46,9 +46,7 @@ namespace EarthTool.CLI
 #endif
         });
 
-        // Other format converters
-        config.AddCommand<Commands.MSH.ConvertCommand>("msh");
-        config.AddCommand<Commands.DAE.ConvertCommand>("dae");
+        MshCommandComposition.AddCommands(config);
         config.AddCommand<Commands.TEX.ConvertCommand>("tex");
 
         // PAR commands
@@ -61,12 +59,19 @@ namespace EarthTool.CLI
             .WithDescription("Display detailed information about an item by name");
         });
 
-        config.SetExceptionHandler((ex, _) =>
+        config.Settings.CancellationExitCode = CliExitCode.Cancellation;
+        config.Settings.ExceptionHandler = (ex, _) =>
         {
           AnsiConsole.WriteException(ex, ExceptionFormats.ShortenEverything);
-        });
+          return ex is CommandParseException or CommandRuntimeException
+            ? CliExitCode.Usage
+            : CliExitCode.Failure;
+        };
       });
-      return app.RunAsync(args);
+      var status = await app.RunAsync(args).ConfigureAwait(false);
+      return status is CliExitCode.Success or CliExitCode.Failure or CliExitCode.Usage or CliExitCode.Cancellation
+        ? status
+        : CliExitCode.Usage;
     }
 
     private static IHostBuilder CreateHostBuilder(string[] args)
@@ -79,8 +84,7 @@ namespace EarthTool.CLI
         })
         .ConfigureServices(builder => builder
           .AddCommonServices()
-          .AddDaeServices()
-          .AddMshServices()
+          .AddMshCliServices(Console.Out)
           .AddParServices()
           .AddTexServices()
           .AddWdServices());

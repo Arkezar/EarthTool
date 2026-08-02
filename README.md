@@ -10,7 +10,8 @@ A comprehensive suite of tools for working with Earth 2150 game data files.
 
 - **WD Archives** - Extract, create, and modify WD archive files
 - **TEX Textures** - Convert TEX format to PNG and other image formats
-- **MSH Models** - Read and convert MSH 3D models to COLLADA (DAE) format
+- **MSH Models** - Safely read, validate, write, and author framed MSH assets
+- **glTF Interchange** - Export static MSH to GLB or glTF and import Blender edits
 - **PAR Parameters** - Parse and edit game parameter files
 - **GUI Applications** - User-friendly graphical interfaces for archive and parameter management
 
@@ -86,11 +87,15 @@ dotnet publish -c Release
 - **EarthTool.WD** - WD archive format support
 - **EarthTool.TEX** - TEX texture format support
 - **EarthTool.MSH** - MSH 3D model format support
-- **EarthTool.DAE** - COLLADA export functionality
+- **EarthTool.GLTF** - GLB and glTF artist interchange
 - **EarthTool.PAR** - Parameter file support
 - **EarthTool.CLI** - Command-line interface
 - **EarthTool.WD.GUI** - Archive manager GUI (Avalonia UI)
 - **EarthTool.PAR.GUI** - Parameter editor GUI (Avalonia UI)
+
+The current MSH CLI is `msh export`, `msh import edit`, and `msh import new`.
+Users of the removed COLLADA workflow should read the
+[migration guide](docs/migration-collada-to-gltf.md).
 
 ## Testing
 

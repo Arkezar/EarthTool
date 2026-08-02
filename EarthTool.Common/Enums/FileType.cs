@@ -55,8 +55,11 @@ namespace EarthTool.Common.Enums
     [Description("Sound wave file")]
     WAV,
 
-    [Description("Collada mesh file")]
-    DAE,
+    [Description("Binary glTF mesh package")]
+    GLB,
+
+    [Description("Separate glTF mesh package")]
+    GLTF,
 
     [Description("Generic JSON file")]
     JSON

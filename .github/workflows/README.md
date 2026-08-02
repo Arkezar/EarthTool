@@ -178,7 +178,6 @@ git commit -m "chore(deps): bump Avalonia to 11.0.6"
 - `gui`: GUI-specific changes
 - `wd`: WD archive functionality
 - `msh`: MSH mesh functionality
-- `dae`: DAE/COLLADA functionality
 - `par`: PAR parameter functionality
 - `tex`: TEX texture functionality
 - `common`: Shared/common code

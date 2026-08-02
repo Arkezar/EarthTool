@@ -1,0 +1,40 @@
+# earthtool --help
+USAGE:
+    earthtool [OPTIONS] <COMMAND>
+
+OPTIONS:
+    -h, --help    Prints help information
+
+COMMANDS:
+    wd                     WD archive management commands
+    msh                    MSH and glTF interchange commands
+    tex <InputFilePath>
+    par                    PAR parameter file commands
+
+# earthtool msh --help
+DESCRIPTION:
+MSH and glTF interchange commands
+
+USAGE:
+    earthtool msh [OPTIONS] <COMMAND>
+
+OPTIONS:
+    -h, --help    Prints help information
+
+COMMANDS:
+    export <INPUT>    Export static MSH assets to GLB or separate glTF
+    import            Import glTF into MSH
+
+# earthtool msh import --help
+DESCRIPTION:
+Import glTF into MSH
+
+USAGE:
+    earthtool msh import [OPTIONS] <COMMAND>
+
+OPTIONS:
+    -h, --help    Prints help information
+
+COMMANDS:
+    edit <INPUT>    Import an edit into an expected interchange lineage
+    new <INPUT>     Author canonical MSH assets from metadata-free glTF

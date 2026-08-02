@@ -96,6 +96,16 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: test-tools/package-lock.json
+
+      - name: Install pinned Khronos validator
+        run: npm ci --prefix test-tools
+
       - name: Cache NuGet packages
         uses: actions/cache@v5
         with:
@@ -113,6 +123,8 @@ jobs:
       - name: Run tests
         run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
         continue-on-error: false
+        env:
+          EARTHTOOL_RUN_KHRONOS_VALIDATOR: "1"
 
       - name: Test Report
         uses: dorny/test-reporter@v1
@@ -140,6 +152,20 @@ jobs:
             -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} \
             -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} \
             -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
+
+      - name: Verify published MSH command tree
+        if: matrix.project == 'cli'
+        shell: bash
+        run: |
+          CLI="./publish/${{ matrix.runtime }}/EarthTool.CLI"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then CLI="${CLI}.exe"; fi
+          "$CLI" msh --help > msh-help.txt
+          "$CLI" msh import --help > msh-import-help.txt
+          grep -q "export <INPUT>" msh-help.txt
+          grep -q "import" msh-help.txt
+          grep -q "edit <INPUT>" msh-import-help.txt
+          grep -q "new <INPUT>" msh-import-help.txt
+          if "$CLI" --help | grep -q "dae <InputFilePath>"; then exit 1; fi
 
       - name: Create artifact archive
         shell: bash
@@ -648,7 +674,7 @@ jobs:
           
           echo "### 🌟 Common Features" >> CHANGELOG.md
           echo "- 🗂️ Work with WD archives (extract, create, modify)" >> CHANGELOG.md
-          echo "- 🎨 Convert between MSH and DAE (COLLADA) 3D model formats" >> CHANGELOG.md
+          echo "- Export MSH to GLB or glTF and import Blender edits transactionally" >> CHANGELOG.md
           echo "- ⚙️ Process PAR parameter files" >> CHANGELOG.md
           echo "- 🖼️ Handle TEX texture files" >> CHANGELOG.md
           echo "- 📊 View file metadata and statistics" >> CHANGELOG.md
