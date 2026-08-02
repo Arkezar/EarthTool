@@ -732,8 +732,8 @@ namespace EarthTool.GLTF
             .Where(node => node.MeshIndex.HasValue)
             .SelectMany(node => parsed.Meshes[node.MeshIndex!.Value].Primitives)
             .Select(primitive => (
-              primitive.Vertices.Count,
-              primitive.Triangles.Count)));
+               primitive.Vertices.Count,
+               primitive.Triangles.Count)));
       }
       catch (OverflowException)
       {
@@ -744,12 +744,9 @@ namespace EarthTool.GLTF
         throw new ResourceLimitException(serializedLength, profile.MaxOutputBytes);
       }
 
+      var animations = CreateNewModelAnimations(parsed, serializedLength, profile.MaxOutputBytes);
       ValidateNewModelMaterialBindings(parsed, options);
-      if (parsed.Animations.Count > 0)
-      {
-        throw new UnsupportedGltfDomainException("animations");
-      }
-      var draft = CreateNewModelSourceTree(parsed, options);
+      var draft = CreateNewModelSourceTree(parsed, options, animations.AnimatedSourceNodes);
       var lineage = new MeshAssetLineageId(Guid.NewGuid());
       var build = StaticMeshBuilder.Create(Guid.NewGuid(), lineage)
         .SetRootSourceObject(draft.Source)
@@ -766,6 +763,7 @@ namespace EarthTool.GLTF
 
       var edit = asset.Edit();
       ApplyNewModelPivots(draft, asset.RootSourceObject, edit);
+      ApplyNewModelAnimations(animations, draft, asset.RootSourceObject, edit);
       var committed = edit.Commit(new MshOperationProfile(
         maxOutputBytes: profile.MaxOutputBytes,
         maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
@@ -817,13 +815,15 @@ namespace EarthTool.GLTF
 
     private static NewModelSourceDraft CreateNewModelSourceTree(
       ParsedGlb parsed,
-      GltfNewModelImportOptions options)
+      GltfNewModelImportOptions options,
+      ISet<int> animatedSourceNodes)
     {
       var roots = CreateNewModelSources(
         parsed.RootNodeIndex,
         System.Numerics.Matrix4x4.Identity,
         parsed,
-        options);
+        options,
+        animatedSourceNodes);
       if (roots.Count != 1)
       {
         throw new UnsupportedGltfDomainException("SceneMembership");
@@ -836,14 +836,20 @@ namespace EarthTool.GLTF
       int nodeIndex,
       System.Numerics.Matrix4x4 inheritedLinearTransform,
       ParsedGlb parsed,
-      GltfNewModelImportOptions options)
+      GltfNewModelImportOptions options,
+      ISet<int> animatedSourceNodes)
     {
       var node = parsed.Nodes[nodeIndex];
       var effectiveTransform = node.LocalTransform * inheritedLinearTransform;
       if (!node.MeshIndex.HasValue)
       {
         var collapsed = node.Children
-          .SelectMany(child => CreateNewModelSources(child, effectiveTransform, parsed, options))
+          .SelectMany(child => CreateNewModelSources(
+            child,
+            effectiveTransform,
+            parsed,
+            options,
+            animatedSourceNodes))
           .ToArray();
         if (collapsed.Length == 0)
         {
@@ -855,18 +861,21 @@ namespace EarthTool.GLTF
       var translation = effectiveTransform.Translation;
       var linearTransform = effectiveTransform;
       linearTransform.Translation = System.Numerics.Vector3.Zero;
-      if (!System.Numerics.Matrix4x4.Invert(linearTransform, out var inverse))
+      var authoredLinearTransform = animatedSourceNodes.Contains(nodeIndex)
+        ? System.Numerics.Matrix4x4.Identity
+        : linearTransform;
+      if (!System.Numerics.Matrix4x4.Invert(authoredLinearTransform, out var inverse))
       {
         throw new UnsupportedGltfDomainException("TransformOrHierarchy");
       }
 
       var normalTransform = System.Numerics.Matrix4x4.Transpose(inverse);
-      var reverseWinding = linearTransform.GetDeterminant() < 0;
+      var reverseWinding = authoredLinearTransform.GetDeterminant() < 0;
       var mesh = parsed.Meshes[node.MeshIndex.Value];
       var renderObjects = mesh.Primitives.Select(primitive => new CanonicalStaticRenderObject(
         primitive.Vertices.Select(vertex => TransformNewModelVertex(
           vertex,
-          linearTransform,
+          authoredLinearTransform,
           normalTransform)),
         primitive.Triangles.Select(triangle => reverseWinding
           ? new CanonicalTriangle(triangle.Vertex0, triangle.Vertex2, triangle.Vertex1)
@@ -879,12 +888,20 @@ namespace EarthTool.GLTF
           : null))
         .ToArray();
       var children = node.Children
-        .SelectMany(child => CreateNewModelSources(child, linearTransform, parsed, options))
+        .SelectMany(child => CreateNewModelSources(
+          child,
+          animatedSourceNodes.Contains(nodeIndex)
+            ? System.Numerics.Matrix4x4.Identity
+            : linearTransform,
+          parsed,
+          options,
+          animatedSourceNodes))
         .ToArray();
       var pivot = new System.Numerics.Vector3(translation.X, -translation.Z, translation.Y);
       return new[]
       {
         new NewModelSourceDraft(
+          nodeIndex,
           new CanonicalStaticSourceObject(renderObjects, children.Select(child => child.Source)),
           pivot,
           children)
@@ -933,6 +950,207 @@ namespace EarthTool.GLTF
       }
     }
 
+    private static NewModelAnimationSet CreateNewModelAnimations(
+      ParsedGlb parsed,
+      long serializedLength,
+      int maximumOutputLength)
+    {
+      if (parsed.Animations.Count == 0)
+      {
+        return new NewModelAnimationSet(default, Array.Empty<NewModelAnimationTrack>());
+      }
+      if (parsed.Animations.GroupBy(animation => animation.Name, StringComparer.Ordinal)
+        .Any(group => group.Key is null || group.Count() != 1))
+      {
+        throw new UnsupportedGltfDomainException("animations");
+      }
+
+      var lengths = new byte[4];
+      var tracks = new List<NewModelAnimationTrack>();
+      var animatedSourceNodes = new HashSet<int>();
+      foreach (var animation in parsed.Animations)
+      {
+        var classIndex = animation.Name switch
+        {
+          "EarthTool A" => 0,
+          "EarthTool B" => 1,
+          "EarthTool C" => 2,
+          "EarthTool D" => 3,
+          _ => throw new UnsupportedGltfDomainException("animations")
+        };
+        var endFrameValue = animation.EndTime * 24d;
+        var endFrame = (int)Math.Round(endFrameValue);
+        if (Math.Abs(endFrameValue - endFrame) > 1e-5 || endFrame is < 0 or >= byte.MaxValue)
+        {
+          throw new UnsupportedGltfDomainException("animations");
+        }
+        var frameCount = endFrame + 1;
+        lengths[classIndex] = checked((byte)frameCount);
+        var animatedObjects = animation.Objects.ToDictionary(item => item.NodeIndex);
+        var consumedTargets = new HashSet<int>();
+        var paths = new List<(int NodeIndex, IReadOnlyList<int> Path)>();
+        CollectNewModelAnimationPaths(
+          parsed.RootNodeIndex,
+          Array.Empty<int>(),
+          parsed,
+          animatedObjects.Keys.ToHashSet(),
+          consumedTargets,
+          paths);
+        if (!consumedTargets.OrderBy(value => value)
+          .SequenceEqual(animatedObjects.Keys.OrderBy(value => value)))
+        {
+          throw new UnsupportedGltfDomainException("animations");
+        }
+        serializedLength = checked(serializedLength
+          + ((long)paths.Count * frameCount * (12 + 12 + 64)));
+        if (serializedLength > maximumOutputLength)
+        {
+          throw new ResourceLimitException(serializedLength, maximumOutputLength);
+        }
+        var sampledByNode = animatedObjects.ToDictionary(
+          item => item.Key,
+          item => item.Value.SampleFrames(frameCount));
+        foreach (var path in paths)
+        {
+          tracks.Add(new NewModelAnimationTrack(
+            path.NodeIndex,
+            classIndex,
+            ComposeNewModelAnimationFrames(path.Path, parsed, sampledByNode, frameCount)));
+        }
+      }
+
+      foreach (var track in tracks)
+      {
+        if (!animatedSourceNodes.Add(track.NodeIndex))
+        {
+          throw new UnsupportedGltfDomainException("animations");
+        }
+      }
+      return new NewModelAnimationSet(
+        new AnimationClassBytes(lengths[0], lengths[1], lengths[2], lengths[3]),
+        tracks.AsReadOnly());
+    }
+
+    private static void CollectNewModelAnimationPaths(
+      int nodeIndex,
+      IReadOnlyList<int> collapsedPath,
+      ParsedGlb parsed,
+      ISet<int> animatedNodes,
+      ISet<int> consumedTargets,
+      ICollection<(int NodeIndex, IReadOnlyList<int> Path)> paths)
+    {
+      var path = collapsedPath.Concat(new[] { nodeIndex }).ToArray();
+      var node = parsed.Nodes[nodeIndex];
+      if (node.MeshIndex.HasValue)
+      {
+        var targets = path.Where(animatedNodes.Contains).ToArray();
+        if (targets.Length > 0)
+        {
+          foreach (var target in targets)
+          {
+            consumedTargets.Add(target);
+          }
+          paths.Add((nodeIndex, Array.AsReadOnly(path)));
+        }
+        foreach (var child in node.Children)
+        {
+          CollectNewModelAnimationPaths(
+            child,
+            Array.Empty<int>(),
+            parsed,
+            animatedNodes,
+            consumedTargets,
+            paths);
+        }
+        return;
+      }
+
+      foreach (var child in node.Children)
+      {
+        CollectNewModelAnimationPaths(
+          child,
+          path,
+          parsed,
+          animatedNodes,
+          consumedTargets,
+          paths);
+      }
+    }
+
+    private static IReadOnlyList<ProjectedAnimationFrame> ComposeNewModelAnimationFrames(
+      IReadOnlyList<int> path,
+      ParsedGlb parsed,
+      IReadOnlyDictionary<int, IReadOnlyList<ProjectedAnimationFrame>> sampledByNode,
+      int frameCount)
+    {
+      var frames = new ProjectedAnimationFrame[frameCount];
+      for (var frame = 0; frame < frameCount; frame++)
+      {
+        var effective = System.Numerics.Matrix4x4.Identity;
+        foreach (var nodeIndex in path)
+        {
+          var local = sampledByNode.TryGetValue(nodeIndex, out var samples)
+            ? ToMatrix(samples[frame])
+            : parsed.Nodes[nodeIndex].LocalTransform;
+          effective = local * effective;
+        }
+        try
+        {
+          frames[frame] = StaticAnimationProjection.Canonicalize(effective);
+        }
+        catch (InvalidDataException)
+        {
+          throw new UnsupportedGltfDomainException("animations");
+        }
+      }
+      return Array.AsReadOnly(frames);
+    }
+
+    private static System.Numerics.Matrix4x4 ToMatrix(ProjectedAnimationFrame frame)
+    {
+      return System.Numerics.Matrix4x4.CreateScale(frame.Scale)
+        * System.Numerics.Matrix4x4.CreateFromQuaternion(frame.Rotation)
+        * System.Numerics.Matrix4x4.CreateTranslation(frame.Translation);
+    }
+
+    private static void ApplyNewModelAnimations(
+      NewModelAnimationSet animations,
+      NewModelSourceDraft draft,
+      StaticSourceObject rootSourceObject,
+      StaticMeshEditSession edit)
+    {
+      if (animations.Tracks.Count == 0)
+      {
+        return;
+      }
+
+      var sources = new Dictionary<int, StaticSourceObject>();
+      AddNewModelSources(draft, rootSourceObject, sources);
+      foreach (var animation in animations.Tracks)
+      {
+        var tracks = StaticAnimationProjection.CreateCanonicalTracks(animation.Frames);
+        edit.ReplaceAnimation(
+          sources[animation.NodeIndex].StaticRenderObjectIds[0],
+          tracks.ScaleFrames,
+          tracks.TranslationFrames,
+          tracks.Matrices,
+          checked((uint)animation.ClassIndex));
+      }
+      edit.ReplaceAnimationLengths(animations.Lengths);
+    }
+
+    private static void AddNewModelSources(
+      NewModelSourceDraft draft,
+      StaticSourceObject source,
+      IDictionary<int, StaticSourceObject> result)
+    {
+      result.Add(draft.NodeIndex, source);
+      for (var index = 0; index < draft.Children.Count; index++)
+      {
+        AddNewModelSources(draft.Children[index], source.Children[index], result);
+      }
+    }
+
     private static PreservationReport CreateNewModelPreservationReport()
     {
       return new PreservationReport(new[]
@@ -947,6 +1165,10 @@ namespace EarthTool.GLTF
         Canonicalized("CommonBaseHeader.StaticLights"),
         Canonicalized("CommonBaseHeader.HorizontalExtents"),
         Canonicalized("StaticRenderObjectSequence"),
+        Canonicalized("StaticRenderObjectSequence[*].AnimationClassValue"),
+        Canonicalized("StaticRenderObjectSequence[*].AnimationTracks.ScaleFrames"),
+        Canonicalized("StaticRenderObjectSequence[*].AnimationTracks.TranslationFrames"),
+        Canonicalized("StaticRenderObjectSequence[*].AnimationTracks.Matrices"),
         Canonicalized("StaticRenderObjectSequence[*].TexturePathBytes"),
         Canonicalized("RootSourceObject"),
         Canonicalized("RootTrailingBytes")
@@ -972,8 +1194,47 @@ namespace EarthTool.GLTF
         diagnostic.Data);
     }
 
+    private sealed class NewModelAnimationSet
+    {
+      internal AnimationClassBytes Lengths { get; }
+
+      internal IReadOnlyList<NewModelAnimationTrack> Tracks { get; }
+
+      internal ISet<int> AnimatedSourceNodes { get; }
+
+      internal NewModelAnimationSet(
+        AnimationClassBytes lengths,
+        IReadOnlyList<NewModelAnimationTrack> tracks)
+      {
+        Lengths = lengths;
+        Tracks = tracks;
+        AnimatedSourceNodes = new HashSet<int>(tracks.Select(track => track.NodeIndex));
+      }
+    }
+
+    private sealed class NewModelAnimationTrack
+    {
+      internal int NodeIndex { get; }
+
+      internal int ClassIndex { get; }
+
+      internal IReadOnlyList<ProjectedAnimationFrame> Frames { get; }
+
+      internal NewModelAnimationTrack(
+        int nodeIndex,
+        int classIndex,
+        IReadOnlyList<ProjectedAnimationFrame> frames)
+      {
+        NodeIndex = nodeIndex;
+        ClassIndex = classIndex;
+        Frames = frames;
+      }
+    }
+
     private sealed class NewModelSourceDraft
     {
+      internal int NodeIndex { get; }
+
       internal CanonicalStaticSourceObject Source { get; }
 
       internal System.Numerics.Vector3 Pivot { get; }
@@ -981,10 +1242,12 @@ namespace EarthTool.GLTF
       internal IReadOnlyList<NewModelSourceDraft> Children { get; }
 
       internal NewModelSourceDraft(
+        int nodeIndex,
         CanonicalStaticSourceObject source,
         System.Numerics.Vector3 pivot,
         IReadOnlyList<NewModelSourceDraft> children)
       {
+        NodeIndex = nodeIndex;
         Source = source;
         Pivot = pivot;
         Children = children;
@@ -1104,12 +1367,25 @@ namespace EarthTool.GLTF
         edit);
       try
       {
-        ValidateAnimationProjection(
+        var animationReplacements = ValidateAnimationProjection(
           parsed,
           manifest,
           nodes.Select(node => node.Metadata).ToArray(),
           asset,
-          expectedBaseline);
+          expectedBaseline,
+          profile.MaxOutputBytes);
+        var sourcesByLocalId = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
+          .ToDictionary(source => source.Id.Value);
+        foreach (var replacement in animationReplacements)
+        {
+          var tracks = StaticAnimationProjection.CreateCanonicalTracks(replacement.Frames);
+          edit.ReplaceAnimation(
+            sourcesByLocalId[replacement.SourceObjectLocalId].StaticRenderObjectIds[0],
+            tracks.ScaleFrames,
+            tracks.TranslationFrames,
+            tracks.Matrices,
+            replacement.AnimationClassValue);
+        }
       }
       catch (StaleNativeProjectionException ex)
       {
@@ -1197,7 +1473,10 @@ namespace EarthTool.GLTF
       var partitions = partitionMatches.Select(match => match.Partition)
         .Concat(hierarchy.AddedPartitions).ToArray();
       var fingerprint = StaticGeometryFingerprint.Create(expectedBaseline, partitions);
-      var committed = edit.Commit();
+      var committed = edit.Commit(new MshOperationProfile(
+        maxOutputBytes: profile.MaxOutputBytes,
+        maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
+        maxStaticHierarchyDepth: profile.MaxHierarchyDepth));
       if (!committed.TryGetValue(out var reconciled))
       {
         var message = string.Join("; ", committed.Diagnostics.Select(diagnostic => diagnostic.Message));
@@ -1437,13 +1716,19 @@ namespace EarthTool.GLTF
 
     }
 
-    private static void ValidateAnimationProjection(
+    private static IReadOnlyList<AnimationReplacement> ValidateAnimationProjection(
       ParsedGlb parsed,
       MetadataEnvelope manifest,
       IReadOnlyList<MetadataEnvelope?> nodes,
       StaticMeshAsset asset,
-      InterchangeBaseline baseline)
+      InterchangeBaseline baseline,
+      int maximumOutputLength)
     {
+      long estimatedOutputLength = asset.SerializedLength;
+      if (estimatedOutputLength > maximumOutputLength)
+      {
+        throw new ResourceLimitException(estimatedOutputLength, maximumOutputLength);
+      }
       var expected = StaticAnimationProjection.Create(asset, baseline);
       if (!manifest.AnimationLengths.HasValue
         || !manifest.AnimationLengths.Value.Equals(asset.CommonBaseHeader.AnimationLengths)
@@ -1515,6 +1800,8 @@ namespace EarthTool.GLTF
       }
 
       var matchedClasses = new HashSet<int>();
+      var matchedObjects = new HashSet<int>();
+      var replacements = new List<AnimationReplacement>();
       foreach (var clip in parsed.Animations)
       {
         if (clip.Objects.Count == 0)
@@ -1522,7 +1809,6 @@ namespace EarthTool.GLTF
           throw new StaleNativeProjectionException("A native animation clip has no participating objects.");
         }
         int? classIndex = null;
-        var projectedObjects = new List<ProjectedAnimationObject>();
         foreach (var item in clip.Objects)
         {
           var sourcePair = retainedNodeBySource.SingleOrDefault(pair => pair.Value == item.NodeIndex);
@@ -1538,27 +1824,39 @@ namespace EarthTool.GLTF
             throw new StaleNativeProjectionException("One native clip combines different animation classes.");
           }
           classIndex = expectedObject.ClassIndex;
+          if (!matchedObjects.Add(sourcePair.Key))
+          {
+            throw new StaleNativeProjectionException(
+              "One object/class animation maps to multiple native clips.");
+          }
+          var frameCount = expectedObject.DeclaredLength == 0 ? 1 : expectedObject.DeclaredLength;
+          if (item.EndTime > ((frameCount - 1) / 24f) + 1e-6f)
+          {
+            throw new StaleNativeProjectionException(
+              "A native animation extends beyond its guarded class declaration.");
+          }
+          var frames = item.SampleFrames(frameCount);
           var fingerprint = AnimationProjectionFingerprint.CreateObject(
             baseline,
             sourcePair.Key,
             expectedObject.ClassIndex,
             expectedObject.DeclaredLength,
-            item.Frames);
+            frames);
           if (!string.Equals(fingerprint, expectedObject.Fingerprint, StringComparison.Ordinal))
           {
-            throw new StaleNativeProjectionException(
-              "A native animation sample no longer matches its object/class preservation guard.");
+            estimatedOutputLength = GetAnimationReplacementLength(
+              estimatedOutputLength,
+              expectedObject.SourceTracks,
+              frames.Count);
+            if (estimatedOutputLength > maximumOutputLength)
+            {
+              throw new ResourceLimitException(estimatedOutputLength, maximumOutputLength);
+            }
+            replacements.Add(new AnimationReplacement(
+              sourcePair.Key,
+              expectedObject.AnimationClassValue,
+              frames));
           }
-          projectedObjects.Add(new ProjectedAnimationObject(
-            sourcePair.Key,
-            expectedObject.AnimationClassValue,
-            expectedObject.ClassIndex,
-            expectedObject.DeclaredLength,
-            item.Frames,
-            null,
-            fingerprint,
-            true,
-            expectedObject.SourceTracks));
         }
 
         var resolvedClass = classIndex!.Value;
@@ -1566,26 +1864,53 @@ namespace EarthTool.GLTF
         {
           throw new StaleNativeProjectionException("One animation class maps to multiple native clips.");
         }
-        var expectedParticipants = expected.Objects.Where(item =>
-            item.ClassIndex == resolvedClass
-            && item.IsNative
-            && retainedNodeBySource.ContainsKey(item.SourceObjectLocalId))
-          .Select(item => item.SourceObjectLocalId)
-          .OrderBy(value => value);
-        if (!projectedObjects.Select(item => item.SourceObjectLocalId).OrderBy(value => value)
-          .SequenceEqual(expectedParticipants))
-        {
-          throw new StaleNativeProjectionException(
-            "A native animation clip does not contain its expected participating objects.");
-        }
       }
 
-      var expectedClasses = expected.Objects.Where(item =>
-          item.IsNative && retainedNodeBySource.ContainsKey(item.SourceObjectLocalId))
-        .Select(item => item.ClassIndex).Distinct().OrderBy(value => value);
-      if (!matchedClasses.OrderBy(value => value).SequenceEqual(expectedClasses))
+      foreach (var deleted in expected.Objects.Where(item =>
+        item.IsNative
+        && retainedNodeBySource.ContainsKey(item.SourceObjectLocalId)
+        && !matchedObjects.Contains(item.SourceObjectLocalId)))
       {
-        throw new StaleNativeProjectionException("The expected native animation class set is incomplete.");
+        estimatedOutputLength = GetAnimationReplacementLength(
+          estimatedOutputLength,
+          deleted.SourceTracks,
+          0);
+        replacements.Add(new AnimationReplacement(
+          deleted.SourceObjectLocalId,
+          deleted.AnimationClassValue,
+          Array.Empty<ProjectedAnimationFrame>()));
+      }
+      return replacements.AsReadOnly();
+    }
+
+    private static long GetAnimationReplacementLength(
+      long currentLength,
+      StaticAnimationTracks source,
+      int frameCount)
+    {
+      var sourceLength = checked(
+        (source.ScaleFrames.Count * 12L)
+        + (source.TranslationFrames.Count * 12L)
+        + (source.Matrices.Count * 64L));
+      return checked(currentLength - sourceLength + (frameCount * 88L));
+    }
+
+    private sealed class AnimationReplacement
+    {
+      internal int SourceObjectLocalId { get; }
+
+      internal uint AnimationClassValue { get; }
+
+      internal IReadOnlyList<ProjectedAnimationFrame> Frames { get; }
+
+      internal AnimationReplacement(
+        int sourceObjectLocalId,
+        uint animationClassValue,
+        IReadOnlyList<ProjectedAnimationFrame> frames)
+      {
+        SourceObjectLocalId = sourceObjectLocalId;
+        AnimationClassValue = animationClassValue;
+        Frames = frames;
       }
     }
 

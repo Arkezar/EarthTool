@@ -55,7 +55,9 @@ namespace EarthTool.MSH.Internal
       IReadOnlyList<StaticRenderObjectId>? explicitSequence = null,
       IReadOnlyDictionary<StaticRenderObjectId, Vector3>? pivots = null,
       IReadOnlyDictionary<StaticRenderObjectId, byte[]>? texturePathBytes = null,
-      bool canonicalizeNextRecordMarkers = false)
+      bool canonicalizeNextRecordMarkers = false,
+      IReadOnlyDictionary<StaticRenderObjectId, StaticAnimationReplacement>? animations = null,
+      AnimationClassBytes? animationLengths = null)
     {
       var archiveHeader = CreateArchiveHeader(source.ArchiveFraming);
       var removed = new HashSet<StaticRenderObjectId>(
@@ -64,6 +66,7 @@ namespace EarthTool.MSH.Internal
       rootSourceObject ??= source.RootSourceObject;
       pivots ??= new Dictionary<StaticRenderObjectId, Vector3>();
       texturePathBytes ??= new Dictionary<StaticRenderObjectId, byte[]>();
+      animations ??= new Dictionary<StaticRenderObjectId, StaticAnimationReplacement>();
       var sourceRecords = source.StaticRenderObjectSequence.ToDictionary(record => record.Id);
       var addedRecords = additions.ToDictionary(addition => addition.Id);
       var finalRecordSources = new Dictionary<StaticRenderObjectId, SourceObjectId>();
@@ -80,6 +83,9 @@ namespace EarthTool.MSH.Internal
           var hasReplacementTexturePath = texturePathBytes.TryGetValue(
             record.Id,
             out var replacementTexturePath);
+          var hasReplacementAnimation = animations.TryGetValue(
+            record.Id,
+            out var replacementAnimation);
           recordList.Add(new RewrittenStaticRecord(
             vertices.TryGetValue(record.Id, out var replacementVertices)
               ? RewriteStaticRecord(
@@ -89,12 +95,15 @@ namespace EarthTool.MSH.Internal
                 pivot,
                 hasReplacementTexturePath
                   ? replacementTexturePath
-                  : record.TexturePathBytes)
+                  : record.TexturePathBytes,
+                hasReplacementAnimation ? replacementAnimation!.Tracks : record.AnimationTracks,
+                hasReplacementAnimation ? replacementAnimation!.ClassValue : record.AnimationClassValue)
               : RewriteStaticRecordRepresentations(
                 record,
                 pivot,
                 pivots.ContainsKey(record.Id),
-                hasReplacementTexturePath ? replacementTexturePath : null),
+                hasReplacementTexturePath ? replacementTexturePath : null,
+                hasReplacementAnimation ? replacementAnimation : null),
             finalRecordSources[id]));
           continue;
         }
@@ -131,7 +140,12 @@ namespace EarthTool.MSH.Internal
         + records.Sum(record => record.Bytes.Length) + source.RootTrailingBytes.Count;
       var result = new byte[length];
       archiveHeader.CopyTo(result, 0);
-      source.CommonBaseHeader.SerializedRepresentation.CopyTo(result, archiveHeader.Length);
+      var commonHeader = source.CommonBaseHeader.SerializedRepresentation.ToArray();
+      if (animationLengths.HasValue)
+      {
+        WriteAnimationClassBytes(commonHeader, 0x10, animationLengths.Value);
+      }
+      commonHeader.CopyTo(result, archiveHeader.Length);
       var cursor = archiveHeader.Length + BaseHeaderSize;
       WriteUInt32(result, cursor, trailingHierarchyUnwindCount);
       cursor += sizeof(uint);
@@ -386,10 +400,11 @@ namespace EarthTool.MSH.Internal
       IReadOnlyList<CanonicalStaticVertex> vertices,
       IReadOnlyList<CanonicalTriangle> triangles,
       Vector3 pivot,
-      IReadOnlyList<byte> texturePathBytes)
+      IReadOnlyList<byte> texturePathBytes,
+      StaticAnimationTracks tracks,
+      uint animationClassValue)
     {
       var blockCount = (vertices.Count + 3) / 4;
-      var tracks = source.AnimationTracks;
       var length = checked(53 + blockCount * 0xA0 + texturePathBytes.Count
         + triangles.Count * 8
         + tracks.ScaleFrames.Count * 12
@@ -433,36 +448,14 @@ namespace EarthTool.MSH.Internal
         cursor += 8;
       }
 
-      WriteUInt32(data, cursor, checked((uint)tracks.ScaleFrames.Count));
-      cursor += 4;
-      foreach (var frame in tracks.ScaleFrames)
-      {
-        WriteVector3(data, cursor, frame, invertY: false);
-        cursor += 12;
-      }
-
-      WriteUInt32(data, cursor, checked((uint)tracks.TranslationFrames.Count));
-      cursor += 4;
-      foreach (var frame in tracks.TranslationFrames)
-      {
-        WriteVector3(data, cursor, frame, invertY: true);
-        cursor += 12;
-      }
-
-      WriteUInt32(data, cursor, checked((uint)tracks.Matrices.Count));
-      cursor += 4;
-      foreach (var matrix in tracks.Matrices)
-      {
-        WriteMatrix(data, cursor, matrix);
-        cursor += 64;
-      }
-
-      WriteUInt32(data, cursor, source.AnimationClassValue);
-      cursor += 4;
-      WriteVector3(data, cursor, pivot, invertY: true);
-      cursor += 12;
-      data[cursor++] = source.BarrelMaximumAngle;
-      WriteUInt32(data, cursor, source.NextRecordMarker);
+      WriteStaticAnimationTail(
+        data,
+        ref cursor,
+        tracks,
+        animationClassValue,
+        pivot,
+        source.BarrelMaximumAngle,
+        source.NextRecordMarker);
       return data;
     }
 
@@ -470,16 +463,98 @@ namespace EarthTool.MSH.Internal
       StaticRenderObject source,
       Vector3 pivot,
       bool replacePivot,
-      IReadOnlyList<byte>? texturePathBytes)
+      IReadOnlyList<byte>? texturePathBytes,
+      StaticAnimationReplacement? animation)
     {
       var data = texturePathBytes is null
         ? source.GetSerializedRepresentation()
         : RewriteStaticTexturePath(source, texturePathBytes);
+      if (animation is not null)
+      {
+        return RewriteStaticAnimation(
+          source,
+          data,
+          animation.Tracks,
+          animation.ClassValue,
+          pivot);
+      }
       if (replacePivot)
       {
         WriteVector3(data, data.Length - StaticRecordPivotOffsetFromEnd, pivot, invertY: true);
       }
       return data;
+    }
+
+    private static byte[] RewriteStaticAnimation(
+      StaticRenderObject source,
+      byte[] record,
+      StaticAnimationTracks tracks,
+      uint animationClassValue,
+      Vector3 pivot)
+    {
+      var objectFlagsOffset = GetObjectFlagsOffset(record);
+      var textureLength = checked((int)ReadUInt32(record, objectFlagsOffset + sizeof(uint)));
+      var triangleCountOffset = checked(objectFlagsOffset + (2 * sizeof(uint)) + textureLength);
+      var triangleCount = checked((int)ReadUInt32(record, triangleCountOffset));
+      var animationOffset = checked(triangleCountOffset + sizeof(uint) + (triangleCount * 8));
+      var result = new byte[checked(animationOffset
+        + (3 * sizeof(uint))
+        + (tracks.ScaleFrames.Count * 12)
+        + (tracks.TranslationFrames.Count * 12)
+        + (tracks.Matrices.Count * 64)
+        + sizeof(uint)
+        + 12
+        + sizeof(byte)
+        + sizeof(uint))];
+      record.AsSpan(0, animationOffset).CopyTo(result);
+      var cursor = animationOffset;
+      WriteStaticAnimationTail(
+        result,
+        ref cursor,
+        tracks,
+        animationClassValue,
+        pivot,
+        source.BarrelMaximumAngle,
+        source.NextRecordMarker);
+      return result;
+    }
+
+    private static void WriteStaticAnimationTail(
+      byte[] data,
+      ref int cursor,
+      StaticAnimationTracks tracks,
+      uint animationClassValue,
+      Vector3 pivot,
+      byte barrelMaximumAngle,
+      uint nextRecordMarker)
+    {
+      WriteUInt32(data, cursor, checked((uint)tracks.ScaleFrames.Count));
+      cursor += sizeof(uint);
+      foreach (var frame in tracks.ScaleFrames)
+      {
+        WriteVector3(data, cursor, frame, invertY: false);
+        cursor += 12;
+      }
+      WriteUInt32(data, cursor, checked((uint)tracks.TranslationFrames.Count));
+      cursor += sizeof(uint);
+      foreach (var frame in tracks.TranslationFrames)
+      {
+        WriteVector3(data, cursor, frame, invertY: true);
+        cursor += 12;
+      }
+      WriteUInt32(data, cursor, checked((uint)tracks.Matrices.Count));
+      cursor += sizeof(uint);
+      foreach (var matrix in tracks.Matrices)
+      {
+        WriteMatrix(data, cursor, matrix);
+        cursor += 64;
+      }
+      WriteUInt32(data, cursor, animationClassValue);
+      cursor += sizeof(uint);
+      WriteVector3(data, cursor, pivot, invertY: true);
+      cursor += 12;
+      data[cursor++] = barrelMaximumAngle;
+      WriteUInt32(data, cursor, nextRecordMarker);
     }
 
     private static byte[] RewriteStaticTexturePath(

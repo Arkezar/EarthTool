@@ -169,6 +169,8 @@ namespace EarthTool.GLTF.Internal
 
     internal IReadOnlyList<ParsedGltfAnimationObject> Objects { get; }
 
+    internal float EndTime => Objects.Max(item => item.EndTime);
+
     internal ParsedGltfAnimation(string? name, IReadOnlyList<ParsedGltfAnimationObject> objects)
     {
       Name = name;
@@ -180,12 +182,135 @@ namespace EarthTool.GLTF.Internal
   {
     internal int NodeIndex { get; }
 
-    internal IReadOnlyList<ProjectedAnimationFrame> Frames { get; }
+    private readonly ParsedGltfAnimationChannel _translation;
+    private readonly ParsedGltfAnimationChannel _rotation;
+    private readonly ParsedGltfAnimationChannel _scale;
 
-    internal ParsedGltfAnimationObject(int nodeIndex, IReadOnlyList<ProjectedAnimationFrame> frames)
+    internal float EndTime => Math.Max(
+      _translation.EndTime,
+      Math.Max(_rotation.EndTime, _scale.EndTime));
+
+    internal ParsedGltfAnimationObject(
+      int nodeIndex,
+      ParsedGltfAnimationChannel translation,
+      ParsedGltfAnimationChannel rotation,
+      ParsedGltfAnimationChannel scale)
     {
       NodeIndex = nodeIndex;
-      Frames = frames;
+      _translation = translation;
+      _rotation = rotation;
+      _scale = scale;
+    }
+
+    internal IReadOnlyList<ProjectedAnimationFrame> SampleFrames(int frameCount)
+    {
+      var frames = new ProjectedAnimationFrame[frameCount];
+      for (var frame = 0; frame < frameCount; frame++)
+      {
+        var time = frame / 24f;
+        var translation = _translation.Sample(time);
+        var rotation = _rotation.Sample(time);
+        var scale = _scale.Sample(time);
+        frames[frame] = StaticAnimationProjection.Canonicalize(
+          new Vector3(translation[0], translation[1], translation[2]),
+          new Quaternion(rotation[0], rotation[1], rotation[2], rotation[3]),
+          new Vector3(scale[0], scale[1], scale[2]));
+      }
+      return Array.AsReadOnly(frames);
+    }
+  }
+
+  internal sealed class ParsedGltfAnimationChannel
+  {
+    private readonly float[] _times;
+    private readonly float[] _values;
+    private readonly int _dimensions;
+    private readonly string _interpolation;
+
+    internal float EndTime => _times[_times.Length - 1];
+
+    internal ParsedGltfAnimationChannel(
+      float[] times,
+      float[] values,
+      int dimensions,
+      string interpolation)
+    {
+      _times = times;
+      _values = values;
+      _dimensions = dimensions;
+      _interpolation = interpolation;
+    }
+
+    internal float[] Sample(float time)
+    {
+      if (time <= _times[0])
+      {
+        return ReadValue(0);
+      }
+      if (time >= _times[_times.Length - 1])
+      {
+        return ReadValue(_times.Length - 1);
+      }
+
+      var right = Array.BinarySearch(_times, time);
+      if (right >= 0)
+      {
+        return ReadValue(right);
+      }
+      right = ~right;
+      var left = right - 1;
+      if (_interpolation == "STEP")
+      {
+        return ReadValue(left);
+      }
+
+      var duration = _times[right] - _times[left];
+      var amount = (time - _times[left]) / duration;
+      if (_interpolation == "CUBICSPLINE")
+      {
+        return SampleCubic(left, right, duration, amount);
+      }
+      if (_dimensions == 4)
+      {
+        var first = ReadValue(left);
+        var second = ReadValue(right);
+        var rotation = Quaternion.Slerp(
+          new Quaternion(first[0], first[1], first[2], first[3]),
+          new Quaternion(second[0], second[1], second[2], second[3]),
+          amount);
+        return new[] { rotation.X, rotation.Y, rotation.Z, rotation.W };
+      }
+
+      var from = ReadValue(left);
+      var to = ReadValue(right);
+      return from.Zip(to, (first, second) => first + ((second - first) * amount)).ToArray();
+    }
+
+    private float[] ReadValue(int key)
+    {
+      var valueIndex = _interpolation == "CUBICSPLINE" ? (key * 3) + 1 : key;
+      return _values.Skip(valueIndex * _dimensions).Take(_dimensions).ToArray();
+    }
+
+    private float[] SampleCubic(int left, int right, float duration, float amount)
+    {
+      var p0 = ReadValue(left);
+      var p1 = ReadValue(right);
+      var m0Offset = ((left * 3) + 2) * _dimensions;
+      var m1Offset = (right * 3) * _dimensions;
+      var amountSquared = amount * amount;
+      var amountCubed = amountSquared * amount;
+      var result = new float[_dimensions];
+      for (var component = 0; component < result.Length; component++)
+      {
+        var m0 = _values[m0Offset + component] * duration;
+        var m1 = _values[m1Offset + component] * duration;
+        result[component] = ((2 * amountCubed) - (3 * amountSquared) + 1) * p0[component]
+          + (amountCubed - (2 * amountSquared) + amount) * m0
+          + ((-2 * amountCubed) + (3 * amountSquared)) * p1[component]
+          + (amountCubed - amountSquared) * m1;
+      }
+      return result;
     }
   }
 
@@ -2333,8 +2458,10 @@ namespace EarthTool.GLTF.Internal
             throw new UnsupportedGltfDomainException("animations");
           }
           var sampler = samplers[samplerIndex];
-          if (sampler.TryGetProperty("interpolation", out var interpolation)
-            && interpolation.GetString() != "LINEAR")
+          var interpolation = sampler.TryGetProperty("interpolation", out var interpolationValue)
+            ? interpolationValue.GetString()
+            : "LINEAR";
+          if (interpolation is not ("LINEAR" or "STEP" or "CUBICSPLINE"))
           {
             throw new UnsupportedGltfDomainException("animations");
           }
@@ -2344,20 +2471,22 @@ namespace EarthTool.GLTF.Internal
             sampler.GetProperty("input").GetInt32(),
             1,
             "SCALAR");
-          if (times.Length > byte.MaxValue
-            || times.Select((time, frame) => Math.Abs(time - (frame / 24f)) <= 1e-6f)
-              .Any(valid => !valid))
+          if (times[0] < 0
+            || times.Zip(times.Skip(1), (left, right) => left < right).Any(valid => !valid))
           {
             throw new UnsupportedGltfDomainException("animations");
           }
           if (!builders.TryGetValue(nodeIndex, out var builder))
           {
-            builder = new ParsedAnimationBuilder(nodeIndex);
+            builder = new ParsedAnimationBuilder(
+              nodeIndex,
+              ReadNodeTransform(root.GetProperty("nodes")[nodeIndex]));
             builders.Add(nodeIndex, builder);
           }
           builder.Add(
             path,
             times,
+            interpolation!,
             ReadFloatAccessor(
               root,
               binary,
@@ -2380,33 +2509,44 @@ namespace EarthTool.GLTF.Internal
     private sealed class ParsedAnimationBuilder
     {
       private readonly int _nodeIndex;
-      private float[]? _times;
-      private float[]? _translations;
-      private float[]? _rotations;
-      private float[]? _scales;
+      private ParsedGltfAnimationChannel? _translationChannel;
+      private ParsedGltfAnimationChannel? _rotationChannel;
+      private ParsedGltfAnimationChannel? _scaleChannel;
+      private readonly ProjectedAnimationFrame _rest;
 
-      internal ParsedAnimationBuilder(int nodeIndex)
+      internal ParsedAnimationBuilder(int nodeIndex, Matrix4x4 localTransform)
       {
         _nodeIndex = nodeIndex;
-      }
-
-      internal void Add(string? path, float[] times, float[] values)
-      {
-        if (_times is not null && !_times.SequenceEqual(times))
+        try
+        {
+          _rest = StaticAnimationProjection.Canonicalize(localTransform);
+        }
+        catch (InvalidDataException)
         {
           throw new UnsupportedGltfDomainException("animations");
         }
-        _times ??= times;
+      }
+
+      internal void Add(string? path, float[] times, string interpolation, float[] values)
+      {
+        var dimensions = path == "rotation" ? 4 : 3;
+        var expectedLength = checked(times.Length * dimensions
+          * (interpolation == "CUBICSPLINE" ? 3 : 1));
+        if (values.Length != expectedLength)
+        {
+          throw new UnsupportedGltfDomainException("animations");
+        }
+        var channel = new ParsedGltfAnimationChannel(times, values, dimensions, interpolation);
         switch (path)
         {
-          case "translation" when _translations is null:
-            _translations = values;
+          case "translation" when _translationChannel is null:
+            _translationChannel = channel;
             break;
-          case "rotation" when _rotations is null:
-            _rotations = values;
+          case "rotation" when _rotationChannel is null:
+            _rotationChannel = channel;
             break;
-          case "scale" when _scales is null:
-            _scales = values;
+          case "scale" when _scaleChannel is null:
+            _scaleChannel = channel;
             break;
           default:
             throw new UnsupportedGltfDomainException("animations");
@@ -2415,35 +2555,29 @@ namespace EarthTool.GLTF.Internal
 
       internal ParsedGltfAnimationObject Build()
       {
-        if (_times is null
-          || _translations is null
-          || _rotations is null
-          || _scales is null
-          || _translations.Length != _times.Length * 3
-          || _rotations.Length != _times.Length * 4
-          || _scales.Length != _times.Length * 3)
-        {
-          throw new UnsupportedGltfDomainException("animations");
-        }
-        var frames = new ProjectedAnimationFrame[_times.Length];
-        for (var frame = 0; frame < frames.Length; frame++)
-        {
-          frames[frame] = StaticAnimationProjection.Canonicalize(
-            new Vector3(
-              _translations[frame * 3],
-              _translations[frame * 3 + 1],
-              _translations[frame * 3 + 2]),
-            new Quaternion(
-              _rotations[frame * 4],
-              _rotations[frame * 4 + 1],
-              _rotations[frame * 4 + 2],
-              _rotations[frame * 4 + 3]),
-            new Vector3(
-              _scales[frame * 3],
-              _scales[frame * 3 + 1],
-              _scales[frame * 3 + 2]));
-        }
-        return new ParsedGltfAnimationObject(_nodeIndex, Array.AsReadOnly(frames));
+        return new ParsedGltfAnimationObject(
+          _nodeIndex,
+          _translationChannel ?? Constant(_rest.Translation),
+          _rotationChannel ?? Constant(_rest.Rotation),
+          _scaleChannel ?? Constant(_rest.Scale));
+      }
+
+      private static ParsedGltfAnimationChannel Constant(Vector3 value)
+      {
+        return new ParsedGltfAnimationChannel(
+          new[] { 0f },
+          new[] { value.X, value.Y, value.Z },
+          3,
+          "STEP");
+      }
+
+      private static ParsedGltfAnimationChannel Constant(Quaternion value)
+      {
+        return new ParsedGltfAnimationChannel(
+          new[] { 0f },
+          new[] { value.X, value.Y, value.Z, value.W },
+          4,
+          "STEP");
       }
     }
 

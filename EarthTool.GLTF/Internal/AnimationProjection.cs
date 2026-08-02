@@ -204,6 +204,28 @@ namespace EarthTool.GLTF.Internal
         NormalizeZero(scale));
     }
 
+    internal static ProjectedAnimationFrame Canonicalize(Matrix4x4 transform)
+    {
+      if (!IsFinite(transform)
+        || transform.M14 != 0
+        || transform.M24 != 0
+        || transform.M34 != 0
+        || transform.M44 != 1
+        || !Matrix4x4.Decompose(transform, out var scale, out var rotation, out var translation))
+      {
+        throw new InvalidDataException("Animation transform is not finite decomposable affine TRS.");
+      }
+      var candidate = Canonicalize(translation, rotation, scale);
+      var recomposed = Matrix4x4.CreateScale(candidate.Scale)
+        * Matrix4x4.CreateFromQuaternion(candidate.Rotation)
+        * Matrix4x4.CreateTranslation(candidate.Translation);
+      if (!ApproximatelyEqual(transform, recomposed))
+      {
+        throw new InvalidDataException("Animation transform contains unsupported matrix components.");
+      }
+      return candidate;
+    }
+
     internal static byte[] SerializeScaleFrames(StaticAnimationTracks tracks)
     {
       return SerializeVectors(tracks.ScaleFrames, false);
@@ -228,6 +250,34 @@ namespace EarthTool.GLTF.Internal
         }
       }
       return stream.ToArray();
+    }
+
+    internal static StaticAnimationTracks CreateCanonicalTracks(
+      IReadOnlyList<ProjectedAnimationFrame> frames)
+    {
+      var scales = new Vector3[frames.Count];
+      var translations = new Vector3[frames.Count];
+      var matrices = new Matrix4x4[frames.Count];
+      for (var index = 0; index < frames.Count; index++)
+      {
+        var frame = frames[index];
+        var gltfTransform = Matrix4x4.CreateScale(frame.Scale)
+          * Matrix4x4.CreateFromQuaternion(frame.Rotation)
+          * Matrix4x4.CreateTranslation(frame.Translation);
+        var mshTransform = MshToGltfBasis * gltfTransform * GltfToMshBasis;
+        if (!Matrix4x4.Decompose(
+          mshTransform,
+          out var scale,
+          out var rotation,
+          out var translation))
+        {
+          throw new InvalidDataException("Animation TRS cannot be converted to canonical MSH tracks.");
+        }
+        scales[index] = NormalizeZero(scale);
+        translations[index] = NormalizeZero(translation);
+        matrices[index] = Matrix4x4.CreateFromQuaternion(Canonicalize(Quaternion.Normalize(rotation)));
+      }
+      return new StaticAnimationTracks(scales, translations, matrices);
     }
 
     private static byte[] SerializeVectors(IReadOnlyList<Vector3> values, bool invertY)
@@ -266,35 +316,15 @@ namespace EarthTool.GLTF.Internal
         * matrix
         * Matrix4x4.CreateTranslation(translation);
       var gltfTransform = GltfToMshBasis * mshTransform * MshToGltfBasis;
-      if (!IsFinite(gltfTransform)
-        || gltfTransform.M14 != 0
-        || gltfTransform.M24 != 0
-        || gltfTransform.M34 != 0
-        || gltfTransform.M44 != 1
-        || !Matrix4x4.Decompose(gltfTransform, out var gltfScale, out var rotation, out var gltfTranslation))
-      {
-        return false;
-      }
-
-      ProjectedAnimationFrame candidate;
       try
       {
-        candidate = Canonicalize(gltfTranslation, rotation, gltfScale);
+        projected = Canonicalize(gltfTransform);
+        return true;
       }
       catch (InvalidDataException)
       {
         return false;
       }
-      var recomposed = Matrix4x4.CreateScale(candidate.Scale)
-        * Matrix4x4.CreateFromQuaternion(candidate.Rotation)
-        * Matrix4x4.CreateTranslation(candidate.Translation);
-      if (!ApproximatelyEqual(gltfTransform, recomposed))
-      {
-        return false;
-      }
-
-      projected = candidate;
-      return true;
     }
 
     private static byte GetLength(AnimationClassBytes lengths, int classIndex)

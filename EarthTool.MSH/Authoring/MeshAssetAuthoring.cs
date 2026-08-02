@@ -483,6 +483,19 @@ namespace EarthTool.MSH.Authoring
     }
   }
 
+  internal sealed class StaticAnimationReplacement
+  {
+    internal StaticAnimationTracks Tracks { get; }
+
+    internal uint ClassValue { get; }
+
+    internal StaticAnimationReplacement(StaticAnimationTracks tracks, uint classValue)
+    {
+      Tracks = tracks;
+      ClassValue = classValue;
+    }
+  }
+
   /// <summary>Accumulates one atomic set of static edits and commits at most once.</summary>
   public sealed class StaticMeshEditSession
   {
@@ -491,6 +504,8 @@ namespace EarthTool.MSH.Authoring
     private readonly Dictionary<StaticRenderObjectId, CanonicalStaticVertex[]> _replacementVertices = new();
     private readonly Dictionary<StaticRenderObjectId, Vector3> _replacementPivots = new();
     private readonly Dictionary<StaticRenderObjectId, byte[]> _replacementTexturePathBytes = new();
+    private readonly Dictionary<StaticRenderObjectId, StaticAnimationReplacement>
+      _replacementAnimations = new();
     private readonly HashSet<StaticRenderObjectId> _removedRenderObjects = new();
     private readonly HashSet<SourceObjectId> _allocatedSourceObjects = new();
     private readonly List<StaticRenderObjectAddition> _additions = new();
@@ -505,6 +520,7 @@ namespace EarthTool.MSH.Authoring
     private bool _replacementAdded;
     private int? _nextLocalId;
     private int? _nextSourceObjectLocalId;
+    private AnimationClassBytes? _replacementAnimationLengths;
 
     internal StaticMeshEditSession(StaticMeshAsset source)
     {
@@ -649,6 +665,28 @@ namespace EarthTool.MSH.Authoring
       return this;
     }
 
+    internal StaticMeshEditSession ReplaceAnimation(
+      StaticRenderObjectId renderObject,
+      IEnumerable<Vector3> scaleFrames,
+      IEnumerable<Vector3> translationFrames,
+      IEnumerable<Matrix4x4> matrices,
+      uint animationClassValue)
+    {
+      EnsureOpen();
+      EnsureSourceId(renderObject);
+      _replacementAnimations[renderObject] = new StaticAnimationReplacement(
+        new StaticAnimationTracks(scaleFrames, translationFrames, matrices),
+        animationClassValue);
+      return this;
+    }
+
+    internal StaticMeshEditSession ReplaceAnimationLengths(AnimationClassBytes animationLengths)
+    {
+      EnsureOpen();
+      _replacementAnimationLengths = animationLengths;
+      return this;
+    }
+
     /// <summary>Sets or explicitly clears one game-authoritative TEX resource binding.</summary>
     public StaticMeshEditSession SetTextureResourceBinding(
       StaticRenderObjectId renderObject,
@@ -780,6 +818,8 @@ namespace EarthTool.MSH.Authoring
       var bytes = _replacementVertices.Count == 0
         && _replacementPivots.Count == 0
         && _replacementTexturePathBytes.Count == 0
+        && _replacementAnimations.Count == 0
+        && !_replacementAnimationLengths.HasValue
         && _removedRenderObjects.Count == 0
         && _additions.Count == 0
         && _editedRootSourceObject is null
@@ -798,7 +838,9 @@ namespace EarthTool.MSH.Authoring
           _editedSequence,
           _replacementPivots,
           _replacementTexturePathBytes,
-          _editedRootSourceObject is not null);
+          _editedRootSourceObject is not null,
+          _replacementAnimations,
+          _replacementAnimationLengths);
       if (bytes.Length > profile.MaxOutputBytes)
       {
         return new MshEditResult<StaticMeshAsset>(
@@ -854,6 +896,11 @@ namespace EarthTool.MSH.Authoring
         Change("CommonBaseHeader", PreservationDisposition.Retained, "IndependentRepresentation"),
         Change("RootSourceObjectId", PreservationDisposition.Retained, "RetainedSourceObject")
       };
+      if (_replacementAnimationLengths.HasValue)
+      {
+        changes.Add(Change("CommonBaseHeader.AnimationLengths",
+          PreservationDisposition.Regenerated, "AnimationEdit"));
+      }
       if (_editedRootSourceObject is not null)
       {
         changes.Add(Change("StaticRenderObjectSequence", PreservationDisposition.Regenerated,
@@ -906,6 +953,15 @@ namespace EarthTool.MSH.Authoring
           {
             changes.Add(Change($"StaticRenderObjectSequence[{index}].TexturePathBytes",
               PreservationDisposition.Retained, "MaterialBindingReaffirmed"));
+          }
+          if (_replacementAnimations.ContainsKey(record.Id))
+          {
+            changes.Add(Change($"StaticRenderObjectSequence[{index}].AnimationTracks.ScaleFrames",
+              PreservationDisposition.Regenerated, "AnimationEdit"));
+            changes.Add(Change($"StaticRenderObjectSequence[{index}].AnimationTracks.TranslationFrames",
+              PreservationDisposition.Regenerated, "AnimationEdit"));
+            changes.Add(Change($"StaticRenderObjectSequence[{index}].AnimationTracks.Matrices",
+              PreservationDisposition.Regenerated, "AnimationEdit"));
           }
         }
 

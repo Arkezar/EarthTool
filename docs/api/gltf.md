@@ -48,9 +48,16 @@ Animation guards bind the class, declaration, participating object, and dense
 binary32 TRS values rather than clip names, array order, accessor layout, or
 quaternion sign. Unchanged edit import restores exact independent scale,
 translation, and matrix tracks, including constant tracks and retained tails.
-An edited native sample fails with `ETG2008` until animation reconciliation is
-explicitly requested. A finite affine frame that cannot be decomposed and
-recomposed within the binary32 tolerance remains metadata-only for that one
+Edited `LINEAR`, `STEP`, and `CUBICSPLINE` channels are evaluated on the guarded
+integer-frame grid and regenerate dense canonical scale, translation, and pure
+rotation-matrix tracks only for the affected object/class. Sparse and subframe
+keys are sampled rather than inferred or preserved as MSH key intent; cubic
+tangents and source interpolation are not retained. Deleting a native clip
+clears only its participating tracks while keeping the independent class and
+header declarations. Ambiguous class ownership, duplicate clips, targets that
+do not match an editable metadata scope, and samples beyond a guarded class
+declaration fail with `ETG2008`. A finite affine frame that cannot be decomposed
+and recomposed within the binary32 tolerance remains metadata-only for that one
 object/class and reports `ETG1014`; other objects and classes still export.
 
 `ImportEditGlbAsync` and `ImportEditGltfFileAsync` require the expected lineage
@@ -87,6 +94,18 @@ with `ETG2012`.
 A successful import retains the asset lineage and rotates the document
 identity. `GltfEditImportResult.Preservation` reports retained, regenerated,
 invalidated, and canonicalized MSH paths.
+
+New-model import admits animation only through unique `EarthTool A` through
+`EarthTool D` names. One mesh object may participate in at most one class. Each
+clip must end on an integer 24 FPS frame from index `0` through `254`; EarthTool
+samples that complete range into canonical dense tracks and rejects frame index
+`255` or later. This conversion does not infer sparse MSH keys, TCB state,
+source interpolation, cubic tangents, or unsupported matrix components. Native
+rest TRS supplies unanimated paths without being baked into geometry a second
+time. Animation on a collapsed transform-only parent is accumulated onto its
+mesh descendants; an accumulated transform that cannot be represented as pure
+TRS is rejected. Generated animation bytes participate in output-limit checks
+before dense sample arrays or MSH output are materialized.
 
 `ValidateGlbAsync` and `ValidateGltfFileAsync` validate packages without
 materializing MSH output. All import and validation operations enforce finite
