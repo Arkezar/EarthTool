@@ -5,6 +5,7 @@ using EarthTool.MSH.Assets;
 using EarthTool.MSH.Authoring;
 using EarthTool.MSH.Operations;
 using EarthTool.MSH.Services;
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
@@ -16,6 +17,7 @@ internal static class OfficialCorpusQualification
 {
   private const string CorpusEnvironmentVariable = "EARTHTOOL_OFFICIAL_MSH_CORPUS";
   private const string EventEnvironmentVariable = "EARTHTOOL_OFFICIAL_MSH_EVIDENCE_EVENT";
+  private const string ProgressEnvironmentVariable = "EARTHTOOL_OFFICIAL_MSH_PROGRESS_EVENT";
 
   internal static async Task RunAsync()
   {
@@ -33,7 +35,9 @@ internal static class OfficialCorpusQualification
 
   internal static async Task RunAsync(string corpusRoot, string eventPath)
   {
-    var runner = new Runner(corpusRoot);
+    var runner = new Runner(
+      corpusRoot,
+      Environment.GetEnvironmentVariable(ProgressEnvironmentVariable));
     await runner.RunAsync();
     await runner.WriteSummaryAsync(eventPath);
 
@@ -211,6 +215,7 @@ internal static class OfficialCorpusQualification
   private sealed class Runner
   {
     private readonly string _corpusRoot;
+    private readonly string? _progressPath;
     private readonly MshOperationProfile _mshProfile = MshOperationProfile.Default;
     private readonly GltfOperationProfile _gltfProfile = GltfOperationProfile.Default;
     private readonly MshReader _reader = new();
@@ -233,26 +238,58 @@ internal static class OfficialCorpusQualification
     private int _assetCount;
     private int _staticCount;
     private int _dynamicCount;
+    private int _discoveredMshFiles;
+    private int _excludedNonFramedOrUnsupported;
+    private int _excludedByProfile;
 
     internal int FailureCount => _failures.Values.Sum();
     internal IEnumerable<string> FailureCategories => _failures.Keys.Order(StringComparer.Ordinal);
     internal string FailureSummary => string.Join(", ", FailureCategories)
       + _khronos.DescribeIssues();
 
-    internal Runner(string corpusRoot)
+    internal Runner(string corpusRoot, string? progressPath)
     {
       _corpusRoot = corpusRoot;
+      _progressPath = progressPath;
     }
 
     internal async Task RunAsync()
     {
-      var files = Directory.EnumerateFiles(_corpusRoot, "*", SearchOption.AllDirectories)
-        .OrderBy(file => file, StringComparer.Ordinal)
-        .ToArray();
+      string[] files;
+      try
+      {
+        var discovered = Directory.EnumerateFiles(_corpusRoot, "*", SearchOption.AllDirectories)
+          .Where(file => string.Equals(Path.GetExtension(file), ".msh", StringComparison.OrdinalIgnoreCase))
+          .OrderBy(file => file, StringComparer.Ordinal)
+          .ToArray();
+        _discoveredMshFiles = discovered.Length;
+        files = discovered.Where(file =>
+        {
+          if (new FileInfo(file).Length > _mshProfile.MaxInputBytes)
+          {
+            _excludedByProfile++;
+            return false;
+          }
+          if (!IsFramedVersionOne(file))
+          {
+            _excludedNonFramedOrUnsupported++;
+            return false;
+          }
+          return true;
+        }).ToArray();
+      }
+      catch
+      {
+        Fail("corpus-discovery-failure");
+        await WriteProgressAsync(0);
+        return;
+      }
       _assetCount = files.Length;
+      await WriteProgressAsync(0);
       if (_assetCount == 0)
       {
         Fail("empty-corpus");
+        await WriteProgressAsync(0);
         return;
       }
 
@@ -266,6 +303,7 @@ internal static class OfficialCorpusQualification
         for (var index = 0; index < files.Length; index++)
         {
           await QualifyAssetAsync(files[index], index, temporaryRoot, khronos);
+          await WriteProgressAsync(index + 1);
         }
       }
       finally
@@ -279,6 +317,7 @@ internal static class OfficialCorpusQualification
           Fail("cleanup-failure");
         }
       }
+      await WriteProgressAsync(_assetCount);
     }
 
     internal async Task WriteSummaryAsync(string eventPath)
@@ -291,6 +330,9 @@ internal static class OfficialCorpusQualification
         {
           fingerprintAlgorithm = "sha256-content-multiset-v1",
           fingerprint = ComputeCorpusFingerprint(_contentFingerprints),
+          discoveredMshFiles = _discoveredMshFiles,
+          excludedNonFramedOrUnsupported = _excludedNonFramedOrUnsupported,
+          excludedByProfile = _excludedByProfile,
           assets = _assetCount,
           staticAssets = _staticCount,
           dynamicAssets = _dynamicCount,
@@ -353,6 +395,24 @@ internal static class OfficialCorpusQualification
       await File.WriteAllTextAsync(
         eventPath,
         JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true }) + "\n");
+    }
+
+    private async Task WriteProgressAsync(int completed)
+    {
+      if (string.IsNullOrWhiteSpace(_progressPath))
+      {
+        return;
+      }
+      await File.WriteAllTextAsync(
+        _progressPath,
+        JsonSerializer.Serialize(new
+        {
+          completed,
+          total = _assetCount,
+          staticAssets = _staticCount,
+          dynamicAssets = _dynamicCount,
+          failures = FailureCount
+        }));
     }
 
     private async Task QualifyAssetAsync(
@@ -502,7 +562,8 @@ internal static class OfficialCorpusQualification
       {
         var options = new GltfExportOptions(
           CreateVersion4Guid(sourceDigest, "lineage"),
-          CreateVersion4Guid(sourceDigest, "document"));
+          CreateVersion4Guid(sourceDigest, "document"),
+          [_corpusRoot]);
         await QualifyGlbAsync(asset, canonicalBytes, options, directory, khronos);
         await QualifySeparateGltfAsync(asset, canonicalBytes, options, directory, khronos);
         await QualifyCliPackageAsync("glb", canonicalBytes, directory, khronos);
@@ -691,7 +752,11 @@ internal static class OfficialCorpusQualification
       Begin(exportStage);
       Begin(sharpValidationStage);
       Begin(importStage);
-      var result = await OfficialCorpusCliOracle.RunAsync(canonicalBytes, package, directory);
+      var result = await OfficialCorpusCliOracle.RunAsync(
+        canonicalBytes,
+        package,
+        directory,
+        _corpusRoot);
       _cliPackageBytes += result.PackageBytes;
       _cliImportedMshBytes += result.ImportedMshBytes;
       AddDiagnostics(exportStage, result.ExportDiagnostics);
@@ -757,6 +822,41 @@ internal static class OfficialCorpusQualification
       bytes[7] = (byte)((bytes[7] & 0x0F) | 0x40);
       bytes[8] = (byte)((bytes[8] & 0x3F) | 0x80);
       return new Guid(bytes);
+    }
+
+    private static bool IsFramedVersionOne(string file)
+    {
+      Span<byte> prefix = stackalloc byte[36];
+      using var stream = File.OpenRead(file);
+      var length = 0;
+      while (length < prefix.Length)
+      {
+        var read = stream.Read(prefix.Slice(length));
+        if (read == 0)
+        {
+          break;
+        }
+        length += read;
+      }
+      if (length < sizeof(uint))
+      {
+        return false;
+      }
+      var declaration = BinaryPrimitives.ReadUInt32LittleEndian(prefix);
+      if ((declaration & 0x00FFFFFF) != 0x00D0A1FF)
+      {
+        return false;
+      }
+      var baseOffset = sizeof(uint)
+        + ((declaration & 0x10000000) != 0 ? sizeof(uint) : 0)
+        + ((declaration & 0x20000000) != 0 ? 16 : 0);
+      if (length < baseOffset + 12
+        || !prefix.Slice(baseOffset, 4).SequenceEqual("MESH"u8))
+      {
+        return false;
+      }
+      return BinaryPrimitives.ReadUInt32LittleEndian(prefix.Slice(baseOffset + 4, 4)) == 1
+        && BinaryPrimitives.ReadUInt32LittleEndian(prefix.Slice(baseOffset + 8, 4)) <= 1;
     }
 
     private void FailBlockedBinaryStages(string? after = null)

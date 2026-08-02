@@ -10,7 +10,8 @@ internal static class OfficialCorpusCliOracle
   internal static async Task<CliOracleResult> RunAsync(
     byte[] canonicalMsh,
     string package,
-    string workingDirectory)
+    string workingDirectory,
+    string textureRoot)
   {
     var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../.."));
     var directory = Path.Combine(workingDirectory, "cli-" + package);
@@ -28,6 +29,7 @@ internal static class OfficialCorpusCliOracle
       var export = await RunProcessAsync(root, [
         "msh", "export", inputPath,
         "--format", package == "glb" ? "Glb" : "Gltf",
+        "--tex-root", textureRoot,
         "--output", exportDirectory,
         "--report", exportReport
       ]);

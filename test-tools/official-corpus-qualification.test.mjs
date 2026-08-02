@@ -1,10 +1,12 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
   assertPrivacySafe,
   buildEvidence,
+  renderProgress,
   run,
+  shouldReportProgress,
   validateQualificationSummary
 } from "./official-corpus-qualification.mjs";
 
@@ -21,6 +23,9 @@ function passingSummary() {
     corpus: {
       fingerprintAlgorithm: "sha256-content-multiset-v1",
       fingerprint,
+      discoveredMshFiles: 3,
+      excludedNonFramedOrUnsupported: 0,
+      excludedByProfile: 0,
       assets: 3,
       staticAssets: 2,
       dynamicAssets: 1,
@@ -84,8 +89,19 @@ function profile() {
   return {
     format: "earthtool.official-msh-corpus-profile",
     version: 1,
-    corpus: { assets: 3, staticAssets: 2, dynamicAssets: 1 },
-    diagnostics: []
+    corpus: {
+      fingerprint,
+      discoveredMshFiles: 3,
+      excludedNonFramedOrUnsupported: 0,
+      excludedByProfile: 0,
+      assets: 3,
+      staticAssets: 2,
+      dynamicAssets: 1
+    },
+    diagnostics: [],
+    validators: {
+      khronos: { infos: 0, hints: 0, codes: [] }
+    }
   };
 }
 
@@ -95,6 +111,15 @@ test("qualification summary requires every oracle with exact aggregate counts", 
   assert.equal(validateQualificationSummary(summary, profile()), summary);
 
   summary.operations = summary.operations.filter(item => item.stage !== "gltf.unchanged-import");
+  assert.throws(
+    () => validateQualificationSummary(summary, profile()),
+    error => error.category === "oracle-inventory");
+});
+
+test("qualification summary rejects duplicate oracle stages", () => {
+  const summary = passingSummary();
+  summary.operations.push({ ...summary.operations[0] });
+
   assert.throws(
     () => validateQualificationSummary(summary, profile()),
     error => error.category === "oracle-inventory");
@@ -118,6 +143,44 @@ test("qualification summary rejects operation failures and validator issues", ()
   assert.throws(
     () => validateQualificationSummary(validatorIssue, profile()),
     error => error.category === "validator-issue");
+});
+
+test("qualification summary requires an exact profile fingerprint", () => {
+  const missingFingerprint = profile();
+  delete missingFingerprint.corpus.fingerprint;
+  assert.throws(
+    () => validateQualificationSummary(passingSummary(), missingFingerprint),
+    error => error.category === "corpus-mismatch");
+
+  const changedFingerprint = profile();
+  changedFingerprint.corpus.fingerprint = "b".repeat(64);
+  assert.throws(
+    () => validateQualificationSummary(passingSummary(), changedFingerprint),
+    error => error.category === "corpus-mismatch");
+});
+
+test("qualification summary rejects lower-severity validator drift", () => {
+  const summary = passingSummary();
+  summary.validators.khronos.infos = 1;
+  summary.validators.khronos.codes = [{ code: "INFORMATION", count: 1 }];
+
+  assert.throws(
+    () => validateQualificationSummary(summary, profile()),
+    error => error.category === "validator-drift");
+});
+
+test("qualification summary requires explicit diagnostic and validator histograms", () => {
+  const missingDiagnostics = profile();
+  delete missingDiagnostics.diagnostics;
+  assert.throws(
+    () => validateQualificationSummary(passingSummary(), missingDiagnostics),
+    error => error.category === "evidence-contract");
+
+  const missingCodes = profile();
+  delete missingCodes.validators.khronos.codes;
+  assert.throws(
+    () => validateQualificationSummary(passingSummary(), missingCodes),
+    error => error.category === "validator-drift");
 });
 
 test("qualification summary rejects every error and aggregate diagnostic drift", () => {
@@ -211,4 +274,25 @@ test("qualification subprocesses terminate at their configured deadline", async 
     { timeoutMs: 10 });
 
   assert.equal(result.timedOut, true);
+});
+
+test("progress rendering contains only aggregate counts", () => {
+  assert.equal(
+    renderProgress({
+      completed: 575,
+      total: 1151,
+      staticAssets: 500,
+      dynamicAssets: 75,
+      failures: 0
+    }, 10),
+    "Official MSH corpus [#####-----] 49% 575/1151 static=500 dynamic=75 failures=0");
+});
+
+test("non-TTY progress reports aggregate milestones and completion", () => {
+  assert.equal(shouldReportProgress({ completed: 99, total: 1151 }, 0, false), false);
+  assert.equal(shouldReportProgress({ completed: 100, total: 1151 }, 0, false), true);
+  assert.equal(shouldReportProgress({ completed: 199, total: 1151 }, 100, false), false);
+  assert.equal(shouldReportProgress({ completed: 1151, total: 1151 }, 1100, false), true);
+  assert.equal(shouldReportProgress({ completed: 1, total: 1151 }, 0, true), true);
+  assert.equal(shouldReportProgress({ completed: 99, total: 1151 }, 0, false, true), true);
 });

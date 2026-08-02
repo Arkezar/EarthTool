@@ -3608,7 +3608,7 @@ namespace EarthTool.GLTF.Internal
           baseline,
           light.LocalId,
           "staticLight.direction",
-          writer => WriteCanonicalDirection(writer, Vector3.Transform(-Vector3.UnitZ, light.Rotation))),
+          writer => WriteCanonicalDirection(writer, RoundTripStaticLightDirection(light.Rotation))),
         ["staticLight.cones"] = CreateStaticLightFingerprint(
           baseline,
           light.LocalId,
@@ -3648,6 +3648,13 @@ namespace EarthTool.GLTF.Internal
       WriteStaticLightGuardFloat(writer, value.X);
       WriteStaticLightGuardFloat(writer, value.Y);
       WriteStaticLightGuardFloat(writer, value.Z);
+    }
+
+    private static Vector3 RoundTripStaticLightDirection(Quaternion rotation)
+    {
+      var transform = Matrix4x4.CreateFromQuaternion(Quaternion.Normalize(rotation));
+      Matrix4x4.Decompose(transform, out _, out var roundTrippedRotation, out _);
+      return Vector3.Transform(-Vector3.UnitZ, roundTrippedRotation);
     }
 
     private static void WriteStaticLightGuardFloat(BinaryWriter writer, float value)

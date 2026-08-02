@@ -43,7 +43,8 @@ policies, import/export options, ownership domains, test counts, and outcomes.
 
 ## Official MSH corpus
 
-The official corpus gate reads a private asset-only directory outside the checkout and
+The official corpus gate discovers `.msh` assets case-insensitively beneath a
+private extraction directory outside the checkout and
 emits only versioned aggregate evidence. The corpus, temporary glTF packages,
 TRX output, operation messages, paths, names, and TEX resource keys are never
 uploaded or copied into the repository.

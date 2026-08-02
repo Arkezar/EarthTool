@@ -156,7 +156,10 @@ namespace EarthTool.GLTF.Internal
             source.Id.Value,
             classIndex,
             declaredLength,
-            frames);
+            frames.Select(frame => Canonicalize(
+              frame.Translation,
+              frame.Rotation,
+              frame.Scale)).ToArray());
         objects.Add(new ProjectedAnimationObject(
           source.Id.Value,
           record.AnimationClassValue,

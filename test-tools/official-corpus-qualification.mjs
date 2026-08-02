@@ -1,4 +1,4 @@
-import { readFile, readdir, mkdir, rm, writeFile } from "node:fs/promises";
+﻿import { readFile, readdir, mkdir, rm, writeFile } from "node:fs/promises";
 import { platform as hostPlatform, release as osRelease } from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -68,6 +68,12 @@ function canonicalDiagnostics(diagnostics) {
       || left.severity.localeCompare(right.severity));
 }
 
+function canonicalValidatorCodes(codes) {
+  return [...codes]
+    .map(item => ({ code: item.code, count: item.count }))
+    .sort((left, right) => left.code.localeCompare(right.code));
+}
+
 export function validateQualificationSummary(summary, profile) {
   if (summary?.format !== "earthtool.official-msh-corpus-event" || summary.version !== 1) {
     fail("event-contract");
@@ -80,11 +86,20 @@ export function validateQualificationSummary(summary, profile) {
     || corpus.fingerprintAlgorithm !== "sha256-content-multiset-v1"
     || !Number.isSafeInteger(corpus.assets)
     || corpus.assets <= 0
+    || !Number.isSafeInteger(corpus.discoveredMshFiles)
+    || !Number.isSafeInteger(corpus.excludedNonFramedOrUnsupported)
+    || !Number.isSafeInteger(corpus.excludedByProfile)
+    || corpus.assets + corpus.excludedNonFramedOrUnsupported + corpus.excludedByProfile
+      !== corpus.discoveredMshFiles
     || corpus.staticAssets + corpus.dynamicAssets !== corpus.assets
     || corpus.assets !== profile.corpus?.assets
     || corpus.staticAssets !== profile.corpus?.staticAssets
     || corpus.dynamicAssets !== profile.corpus?.dynamicAssets
-    || (profile.corpus.fingerprint && corpus.fingerprint !== profile.corpus.fingerprint)) {
+    || corpus.discoveredMshFiles !== profile.corpus?.discoveredMshFiles
+    || corpus.excludedNonFramedOrUnsupported !== profile.corpus?.excludedNonFramedOrUnsupported
+    || corpus.excludedByProfile !== profile.corpus?.excludedByProfile
+    || !/^[a-f0-9]{64}$/.test(profile.corpus?.fingerprint ?? "")
+    || corpus.fingerprint !== profile.corpus.fingerprint) {
     fail("corpus-mismatch");
   }
   if (!summary.bytes
@@ -97,12 +112,16 @@ export function validateQualificationSummary(summary, profile) {
     fail("evidence-contract");
   }
 
-  const operations = new Map((summary.operations ?? []).map(item => [item.stage, item]));
+  if (!Array.isArray(summary.operations)) {
+    fail("oracle-inventory");
+  }
+  const operations = new Map(summary.operations.map(item => [item.stage, item]));
   const expectedStages = new Map([
     ...binaryStages.map(stage => [stage, corpus.assets]),
     ...staticStages.map(stage => [stage, corpus.staticAssets])
   ]);
-  if (operations.size !== expectedStages.size) {
+  if (summary.operations.length !== expectedStages.size
+    || operations.size !== summary.operations.length) {
     fail("oracle-inventory");
   }
   for (const [stage, expected] of expectedStages) {
@@ -118,7 +137,10 @@ export function validateQualificationSummary(summary, profile) {
     fail("oracle-failure");
   }
 
-  const diagnostics = canonicalDiagnostics(summary.diagnostics ?? []);
+  if (!Array.isArray(summary.diagnostics) || !Array.isArray(profile.diagnostics)) {
+    fail("evidence-contract");
+  }
+  const diagnostics = canonicalDiagnostics(summary.diagnostics);
   if (diagnostics.some(item => item.severity === "Error")) {
     fail("operation-diagnostic");
   }
@@ -133,6 +155,16 @@ export function validateQualificationSummary(summary, profile) {
     || khronos.errors !== 0
     || khronos.warnings !== 0) {
     fail("validator-issue");
+  }
+  const expectedKhronos = profile.validators?.khronos;
+  if (!expectedKhronos
+    || !Array.isArray(khronos.codes)
+    || !Array.isArray(expectedKhronos.codes)
+    || khronos.infos !== expectedKhronos.infos
+    || khronos.hints !== expectedKhronos.hints
+    || JSON.stringify(canonicalValidatorCodes(khronos.codes ?? []))
+      !== JSON.stringify(canonicalValidatorCodes(expectedKhronos.codes ?? []))) {
+    fail("validator-drift");
   }
   return summary;
 }
@@ -214,6 +246,62 @@ export function assertPrivacySafe(evidence, forbiddenValues = []) {
     }
   }
   visit(evidence);
+}
+
+export function renderProgress(progress, width = 30) {
+  const ratio = progress.total === 0 ? 0 : Math.min(1, progress.completed / progress.total);
+  const filled = Math.round(ratio * width);
+  const percent = Math.floor(ratio * 100);
+  return `Official MSH corpus [${"#".repeat(filled)}${"-".repeat(width - filled)}] `
+    + `${percent}% ${progress.completed}/${progress.total} `
+    + `static=${progress.staticAssets} dynamic=${progress.dynamicAssets} failures=${progress.failures}`;
+}
+
+export function shouldReportProgress(progress, lastReported, isTTY, force = false) {
+  return force
+    || isTTY
+    || progress.completed === progress.total
+    || progress.completed - lastReported >= 100;
+}
+
+function watchProgress(filePath) {
+  let lastObserved = -1;
+  let lastReported = 0;
+  let lastLength = 0;
+  let polling;
+  function poll(force = false) {
+    if (polling) {
+      return polling;
+    }
+    polling = (async () => {
+      try {
+        const progress = await readJson(filePath);
+        if (progress.completed === lastObserved
+          && !(force && progress.completed !== lastReported)) {
+          return;
+        }
+        const line = renderProgress(progress);
+        if (shouldReportProgress(progress, lastReported, process.stdout.isTTY, force)) {
+          process.stdout.write(process.stdout.isTTY ? `\r${line.padEnd(lastLength)}` : line + "\n");
+          lastLength = Math.max(lastLength, line.length);
+          lastReported = progress.completed;
+        }
+        lastObserved = progress.completed;
+      } catch {
+        // The producer may be between file replacement operations.
+      }
+    })().finally(() => polling = null);
+    return polling;
+  }
+  const timer = setInterval(poll, 500);
+  return async () => {
+    clearInterval(timer);
+    await poll();
+    await poll(true);
+    if (process.stdout.isTTY && lastObserved >= 0) {
+      process.stdout.write("\n");
+    }
+  };
 }
 
 export function run(executable, arguments_, options = {}) {
@@ -321,6 +409,7 @@ async function main() {
     ?? path.join(root, "artifacts", "official-msh-corpus-qualification.json"));
   const resultsDirectory = path.join(root, "artifacts", "official-corpus-results");
   const eventsPath = path.join(resultsDirectory, "aggregate-event.json");
+  const progressPath = path.join(resultsDirectory, "aggregate-progress.json");
   const trxPath = path.join(resultsDirectory, "official-corpus.trx");
   let profile;
   let summary;
@@ -350,23 +439,30 @@ async function main() {
     if (!dotnetVersion || !earthToolCommit || !sharpGltfVersion) {
       fail("tool-provenance");
     }
-    const testResult = await run("dotnet", [
-      "test",
-      "EarthTool.MSH.Tests/EarthTool.MSH.Tests.csproj",
-      "--configuration", "Release",
-      "--no-build",
-      "--filter", "Category=OfficialCorpusQualification",
-      "--results-directory", resultsDirectory,
-      "--logger", `trx;LogFileName=${path.basename(trxPath)}`
-    ], {
-      cwd: root,
-      timeoutMs: 2 * 60 * 60 * 1000,
-      env: {
-        ...process.env,
-        EARTHTOOL_OFFICIAL_MSH_CORPUS: corpus,
-        EARTHTOOL_OFFICIAL_MSH_EVIDENCE_EVENT: eventsPath
-      }
-    });
+    const stopProgress = watchProgress(progressPath);
+    let testResult;
+    try {
+      testResult = await run("dotnet", [
+        "test",
+        "EarthTool.MSH.Tests/EarthTool.MSH.Tests.csproj",
+        "--configuration", "Release",
+        "--no-build",
+        "--filter", "Category=OfficialCorpusQualification",
+        "--results-directory", resultsDirectory,
+        "--logger", `trx;LogFileName=${path.basename(trxPath)}`
+      ], {
+        cwd: root,
+        timeoutMs: 2 * 60 * 60 * 1000,
+        env: {
+          ...process.env,
+          EARTHTOOL_OFFICIAL_MSH_CORPUS: corpus,
+          EARTHTOOL_OFFICIAL_MSH_EVIDENCE_EVENT: eventsPath,
+          EARTHTOOL_OFFICIAL_MSH_PROGRESS_EVENT: progressPath
+        }
+      });
+    } finally {
+      await stopProgress();
+    }
     summary = await readJson(eventsPath);
     validateQualificationSummary(summary, profile);
     readTestCount(await readFile(trxPath, "utf8"));
