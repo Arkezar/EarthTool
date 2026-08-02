@@ -46,6 +46,10 @@ namespace EarthTool.GLTF
     public const string AnimationClassUnrecognized = "ETG1015";
     /// <summary>A non-finite cannon render-position component uses a finite native preview.</summary>
     public const string CannonRenderPositionPreviewSubstituted = "ETG1016";
+    /// <summary>An anomalous static-light field uses a finite native preview.</summary>
+    public const string StaticLightPreviewSubstituted = "ETG1017";
+    /// <summary>An untagged noncanonical punctual light remains scene-only artist lighting.</summary>
+    public const string SceneLightIgnored = "ETG1018";
     /// <summary>Required EarthTool manifest metadata is absent.</summary>
     public const string MissingManifest = "ETG2000";
     /// <summary>EarthTool metadata is malformed.</summary>

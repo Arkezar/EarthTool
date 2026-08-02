@@ -66,7 +66,8 @@ namespace EarthTool.GLTF
           options.DocumentId ?? Guid.NewGuid());
         var animationDiagnostics = CreateAnimationDiagnostics(asset, baseline);
         var projectionDiagnostics = animationDiagnostics
-          .Concat(CreateCannonRenderPositionDiagnostics(asset)).ToArray();
+          .Concat(CreateCannonRenderPositionDiagnostics(asset))
+          .Concat(CreateStaticLightDiagnostics(asset)).ToArray();
         var metadataLength = GlbDocument.GetMaximumMetadataByteCount(asset, baseline);
         if (metadataLength > profile.MaxMetadataBytes)
         {
@@ -210,7 +211,8 @@ namespace EarthTool.GLTF
           options.DocumentId ?? Guid.NewGuid());
         var animationDiagnostics = CreateAnimationDiagnostics(asset, baseline);
         var projectionDiagnostics = animationDiagnostics
-          .Concat(CreateCannonRenderPositionDiagnostics(asset)).ToArray();
+          .Concat(CreateCannonRenderPositionDiagnostics(asset))
+          .Concat(CreateStaticLightDiagnostics(asset)).ToArray();
         var metadataLength = GlbDocument.GetMaximumMetadataByteCount(asset, baseline);
         if (metadataLength > profile.MaxMetadataBytes)
         {
@@ -721,6 +723,7 @@ namespace EarthTool.GLTF
       GltfNewModelImportOptions options)
     {
       cancellationToken.ThrowIfCancellationRequested();
+      var sceneLightDiagnostics = CreateIgnoredSceneLightDiagnostics(parsed);
       if (parsed.HasReservedMetadata)
       {
         return Failed<GltfNewModelImportResult>(Diagnostic(
@@ -785,7 +788,8 @@ namespace EarthTool.GLTF
       var baseline = new InterchangeBaseline(lineage.Value, Guid.NewGuid());
       return new OperationResult<GltfNewModelImportResult>(
         OperationStatus.Succeeded,
-        new GltfNewModelImportResult(authored, baseline, CreateNewModelPreservationReport()));
+        new GltfNewModelImportResult(authored, baseline, CreateNewModelPreservationReport()),
+        sceneLightDiagnostics.Concat(committed.Diagnostics));
     }
 
     private static void ValidateNewModelMaterialBindings(
@@ -851,7 +855,8 @@ namespace EarthTool.GLTF
       if (!node.MeshIndex.HasValue)
       {
         if (GlbDocument.TryParseAttachmentHelperName(node.Name, out _)
-          || GlbDocument.TryParseCannonRenderPositionHelperName(node.Name, out _))
+          || GlbDocument.TryParseCannonRenderPositionHelperName(node.Name, out _)
+          || node.LightIndex.HasValue)
         {
           if (node.Children.Count != 0)
           {
@@ -932,6 +937,7 @@ namespace EarthTool.GLTF
       var transforms = CreateArtistObjectTransforms(parsed.RootNodeIndex, nodes);
       var attachments = new Dictionary<int, int>();
       var cannons = new Dictionary<int, int>();
+      var lights = new Dictionary<(string Type, int Number), int>();
       for (var index = 0; index < parsed.Nodes.Count; index++)
       {
         var node = parsed.Nodes[index];
@@ -953,6 +959,16 @@ namespace EarthTool.GLTF
             throw ArtistObjectConflict("A cannon render-position target is occupied more than once.");
           }
         }
+        else if (node.LightIndex.HasValue
+          && GlbDocument.TryParseStaticLightHelperName(node.Name, out var type, out physicalNumber))
+        {
+          if (!lights.TryAdd((type, physicalNumber), index))
+          {
+            throw ArtistObjectConflict(
+              "A static-light target is occupied more than once.",
+              $"nodes[{index}]");
+          }
+        }
       }
       foreach (var attachment in attachments)
       {
@@ -965,6 +981,50 @@ namespace EarthTool.GLTF
         edit.ReplaceCannonRenderPosition(
           cannon.Key,
           CreateCannonRenderPositionRecord(transforms[cannon.Value].Translation));
+      }
+      var usedLightDefinitions = new HashSet<int>();
+      foreach (var item in lights)
+      {
+        var node = parsed.Nodes[item.Value];
+        if (node.LightIndex is null
+          || node.LightIndex.Value < 0
+          || node.LightIndex.Value >= parsed.Lights.Count
+          || parsed.Lights[node.LightIndex.Value].Type != item.Key.Type)
+        {
+          throw new UnsupportedGltfDomainException(
+            "StaticLights",
+            $"nodes[{item.Value}].extensions.KHR_lights_punctual");
+        }
+        if (!usedLightDefinitions.Add(node.LightIndex.Value))
+        {
+          throw ArtistObjectConflict(
+            "A new-model static-light definition cannot be shared.",
+            $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}]");
+        }
+        if (GlbDocument.TryParseStaticLightHelperName(
+            parsed.Lights[node.LightIndex.Value].Name,
+            out var definitionType,
+            out var definitionNumber)
+          && (definitionType != item.Key.Type || definitionNumber != item.Key.Number))
+        {
+          throw new StaticLightMetadataException(
+            $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}].name",
+            "The canonical static-light instance and definition names contradict each other.");
+        }
+        var attachmentNumber = item.Key.Type == "spot" ? item.Key.Number + 12 : item.Key.Number + 16;
+        edit.ReplaceAttachmentRecord(
+          attachmentNumber,
+          CreateStaticLightAttachmentRecord(
+            transforms[item.Value].Translation,
+            $"nodes[{item.Value}].translation"));
+        edit.ReplaceStaticLightRecord(
+          ToStaticLightRecordKind(item.Key.Type),
+          item.Key.Number,
+          CreateConvertedStaticLightRecord(
+            parsed.Lights[node.LightIndex.Value],
+            transforms[item.Value],
+            $"nodes[{item.Value}]"),
+          new[] { "NewStaticLight" });
       }
     }
 
@@ -1320,6 +1380,7 @@ namespace EarthTool.GLTF
       GltfOperationProfile profile,
       CancellationToken cancellationToken)
     {
+      var sceneLightDiagnostics = CreateIgnoredSceneLightDiagnostics(parsed);
       var manifest = GlbDocument.ParseMetadata(
         parsed.ManifestMetadata ?? throw new MissingMetadataException("scene"),
         profile.MaxMetadataBytes,
@@ -1417,10 +1478,23 @@ namespace EarthTool.GLTF
               profile.MaxJsonDepth)
         })
         .ToArray();
+      var lights = parsed.Lights
+        .Select(light => new
+        {
+          Parsed = light,
+          Metadata = light.Metadata is null
+            ? null
+            : GlbDocument.ParseMetadata(
+              light.Metadata,
+              profile.MaxMetadataBytes,
+              profile.MaxJsonDepth)
+        })
+        .ToArray();
       var edit = asset.Edit();
       ReconcileBaseHeaderArtistObjects(
         parsed,
         nodes.Select(node => (node.Parsed, node.Metadata)).ToArray(),
+        lights.Select(light => (light.Parsed, light.Metadata)).ToArray(),
         asset,
         expectedBaseline,
         edit);
@@ -1438,7 +1512,8 @@ namespace EarthTool.GLTF
           manifest,
           nodes.Where(node => node.Metadata?.ScopeKind == "object"
               && node.Metadata.AttachmentRecord is null
-              && node.Metadata.CannonRenderPosition is null)
+              && node.Metadata.CannonRenderPosition is null
+              && node.Metadata.StaticLightAttachmentRecord is null)
             .Select(node => node.Metadata).ToArray(),
           asset,
           expectedBaseline,
@@ -1586,7 +1661,15 @@ namespace EarthTool.GLTF
           .Where(path => !changedRecordPaths.Contains(path, StringComparer.Ordinal)))
         .Concat(Enumerable.Range(1, 4)
           .Select(number => $"CommonBaseHeader.CannonRenderPositions[{number}]")
-          .Where(path => !changedRecordPaths.Contains(path, StringComparer.Ordinal)));
+          .Where(path => !changedRecordPaths.Contains(path, StringComparer.Ordinal)))
+        .Concat(Enumerable.Range(1, 4)
+          .Select(number => $"CommonBaseHeader.StaticSpotLights[{number}]")
+          .Where(path => !changedRecordPaths.Any(changed =>
+            changed == path || changed.StartsWith(path + ".", StringComparison.Ordinal))))
+        .Concat(Enumerable.Range(1, 4)
+          .Select(number => $"CommonBaseHeader.StaticOmniLights[{number}]")
+          .Where(path => !changedRecordPaths.Any(changed =>
+            changed == path || changed.StartsWith(path + ".", StringComparison.Ordinal))));
       return new OperationResult<GltfEditImportResult>(
         OperationStatus.Succeeded,
         new GltfEditImportResult(
@@ -1594,7 +1677,24 @@ namespace EarthTool.GLTF
           nextBaseline,
           fingerprint,
           committed.Preservation,
-          restoredPaths));
+          restoredPaths),
+        sceneLightDiagnostics.Concat(committed.Diagnostics));
+    }
+
+    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredSceneLightDiagnostics(
+      ParsedGlb parsed)
+    {
+      return parsed.Nodes.Select((node, index) => (node, index))
+        .Where(item => item.node.LightIndex.HasValue
+          && item.node.Metadata is null
+          && !GlbDocument.TryParseStaticLightHelperName(item.node.Name, out _, out _))
+        .Select(item => new OperationDiagnostic(
+          GltfDiagnosticCodes.SceneLightIgnored,
+          1118,
+          DiagnosticSeverity.Warning,
+          $"nodes[{item.index}]",
+          "An untagged noncanonical punctual light remains scene-only artist lighting."))
+        .ToArray();
     }
 
     private static void ApplyMaterialBindings(
@@ -1742,7 +1842,8 @@ namespace EarthTool.GLTF
         profile.MaxJsonDepth);
       foreach (var metadata in parsed.Nodes.Select(node => node.Metadata)
         .Concat(parsed.Meshes.Select(mesh => mesh.Metadata))
-        .Concat(parsed.Materials.Select(material => material.Metadata)))
+        .Concat(parsed.Materials.Select(material => material.Metadata))
+        .Concat(parsed.Lights.Select(light => light.Metadata)))
       {
         if (metadata is not null)
         {
@@ -2264,6 +2365,7 @@ namespace EarthTool.GLTF
     private static void ReconcileBaseHeaderArtistObjects(
       ParsedGlb parsed,
       IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
+      IReadOnlyList<(ParsedGltfLight Parsed, MetadataEnvelope? Metadata)> lights,
       StaticMeshAsset asset,
       InterchangeBaseline expected,
       StaticMeshEditSession edit)
@@ -2367,6 +2469,612 @@ namespace EarthTool.GLTF
             CreateCannonRenderPositionRecord(translation));
         }
       }
+
+      ReconcileStaticLights(nodes, lights, transforms, asset, expected, edit);
+    }
+
+    private static void ReconcileStaticLights(
+      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
+      IReadOnlyList<(ParsedGltfLight Parsed, MetadataEnvelope? Metadata)> lights,
+      IReadOnlyDictionary<int, Matrix4x4> transforms,
+      StaticMeshAsset asset,
+      InterchangeBaseline expected,
+      StaticMeshEditSession edit)
+    {
+      var definitionReferenceCounts = new int[lights.Count];
+      var taggedDefinitionReferenceCounts = new int[lights.Count];
+      for (var nodeIndex = 0; nodeIndex < nodes.Count; nodeIndex++)
+      {
+        var lightIndex = nodes[nodeIndex].Parsed.LightIndex;
+        if (!lightIndex.HasValue)
+        {
+          continue;
+        }
+        if (lightIndex.Value < 0 || lightIndex.Value >= lights.Count)
+        {
+          throw new StaticLightMetadataException(
+            $"nodes[{nodeIndex}].extensions.KHR_lights_punctual.light",
+            "A static-light instance references a missing definition.");
+        }
+        definitionReferenceCounts[lightIndex.Value]++;
+        if (nodes[nodeIndex].Metadata?.StaticLightAttachmentRecord is not null)
+        {
+          taggedDefinitionReferenceCounts[lightIndex.Value]++;
+        }
+      }
+      for (var lightIndex = 0; lightIndex < lights.Count; lightIndex++)
+      {
+        if (lights[lightIndex].Metadata is not null
+          && (definitionReferenceCounts[lightIndex] != 1
+            || taggedDefinitionReferenceCounts[lightIndex] != 1))
+        {
+          throw ArtistObjectConflict(
+            "A tagged static-light definition must have exactly one tagged instance.",
+            $"extensions.KHR_lights_punctual.lights[{lightIndex}]");
+        }
+      }
+
+      var candidates = new Dictionary<(string Type, int Number), int>();
+      var reservedTargets = new HashSet<(string Type, int Number)>();
+      for (var nodeIndex = 0; nodeIndex < nodes.Count; nodeIndex++)
+      {
+        var node = nodes[nodeIndex];
+        if (node.Metadata?.StaticLightAttachmentRecord is null)
+        {
+          if (node.Metadata is null
+            && node.Parsed.LightIndex.HasValue
+            && GlbDocument.TryParseStaticLightHelperName(
+              node.Parsed.Name,
+              out var namedType,
+              out var namedNumber))
+          {
+            if (!candidates.TryAdd((namedType, namedNumber), nodeIndex))
+            {
+              throw ArtistObjectConflict(
+                "A static-light physical target is occupied more than once.",
+                $"nodes[{nodeIndex}]");
+            }
+          }
+          continue;
+        }
+        var type = node.Metadata.StaticLightType;
+        var number = node.Metadata.StaticLightPhysicalNumber;
+        var lightIndex = node.Parsed.LightIndex;
+        if (type is not ("spot" or "point")
+          || number is null or < 1 or > 4
+          || lightIndex is null or < 0
+          || lightIndex.Value >= lights.Count
+          || node.Metadata.ScopeKind != "object"
+          || node.Metadata.LocalId != -node.Metadata.StaticLightDefinitionLocalId
+          || node.Metadata.AssetLineageId != expected.AssetLineageId
+          || node.Metadata.DocumentId != expected.DocumentId
+          || node.Parsed.MeshIndex.HasValue
+          || node.Parsed.Children.Count != 0
+          || !transforms.ContainsKey(nodeIndex)
+          || node.Metadata.AttachmentRecord is not null
+          || node.Metadata.CannonRenderPosition is not null
+          || node.Metadata.StaticLightRecord is not null
+          || node.Metadata.Fingerprint is not null
+          || node.Metadata.Guards.Count != 0
+          || !HasNoUnrelatedArtistObjectMetadata(node.Metadata))
+        {
+          throw new StaticLightMetadataException(
+            $"nodes[{nodeIndex}].extras.earthtool",
+            "The static-light instance metadata envelope is malformed.");
+        }
+        var key = (type, number.Value);
+        if (!candidates.TryAdd(key, nodeIndex))
+        {
+          throw ArtistObjectConflict(
+            "A static-light physical target is occupied more than once.",
+            $"nodes[{nodeIndex}]");
+        }
+
+        var definition = lights[lightIndex.Value];
+        var metadata = definition.Metadata
+          ?? throw new StaticLightMetadataException(
+            $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}]",
+            "A tagged static-light definition lost its metadata.");
+        var localId = type == "spot" ? number.Value : number.Value + 4;
+        var record = type == "spot"
+          ? asset.CommonBaseHeader.StaticSpotLights.Skip((number.Value - 1) * 0x30).Take(0x30).ToArray()
+          : asset.CommonBaseHeader.StaticOmniLights.Skip((number.Value - 1) * 0x1C).Take(0x1C).ToArray();
+        var attachmentNumber = type == "spot" ? number.Value + 12 : number.Value + 16;
+        var attachment = asset.CommonBaseHeader.AttachmentTable
+          .Skip((attachmentNumber - 1) * 8).Take(8).ToArray();
+        var expectedGuards = GlbDocument.CreateStaticLightGuards(
+          expected,
+          type,
+          number.Value,
+          localId,
+          record,
+          attachment);
+        if (metadata.ScopeKind != "light"
+          || metadata.LocalId != localId
+          || metadata.AssetLineageId != expected.AssetLineageId
+          || metadata.DocumentId != expected.DocumentId
+          || metadata.StaticLightType != type
+          || metadata.StaticLightPhysicalNumber != number
+          || metadata.StaticLightRecord?.Count != record.Length
+          || !metadata.StaticLightRecord.SequenceEqual(record)
+          || !node.Metadata.StaticLightAttachmentRecord.SequenceEqual(attachment)
+          || metadata.Guards.Count != expectedGuards.Count
+          || expectedGuards.Any(guard => !metadata.Guards.TryGetValue(guard.Key, out var value)
+            || !string.Equals(value, guard.Value, StringComparison.Ordinal))
+          || metadata.AttachmentRecord is not null
+          || metadata.CannonRenderPosition is not null
+          || metadata.StaticLightAttachmentRecord is not null
+          || metadata.Fingerprint is not null
+          || metadata.FingerprintName is not null
+          || metadata.FingerprintVersion is not null
+          || !HasNoUnrelatedArtistObjectMetadata(metadata))
+        {
+          throw new StaticLightMetadataException(
+            $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].extras.earthtool",
+            "The static-light metadata does not match its source records.");
+        }
+
+
+        var actualGuards = CreateCurrentStaticLightGuards(
+          expected,
+          localId,
+          definition.Parsed,
+          transforms[nodeIndex],
+          $"nodes[{nodeIndex}]");
+        var changed = expectedGuards.Keys.Where(key =>
+          !string.Equals(metadata.Guards[key], actualGuards[key], StringComparison.Ordinal)).ToHashSet();
+        if (changed.Count == 0)
+        {
+          continue;
+        }
+
+        if (changed.Contains("staticLight.type"))
+        {
+          var targetType = definition.Parsed.Type;
+          if (targetType is not ("spot" or "point") || targetType == type)
+          {
+            throw new UnsupportedGltfDomainException(
+              "StaticLightTypeConversion",
+              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].type");
+          }
+          var targetAttachmentNumber = targetType == "spot" ? number.Value + 12 : number.Value + 16;
+          var targetAttachment = asset.CommonBaseHeader.AttachmentTable
+            .Skip((targetAttachmentNumber - 1) * 8).Take(8).ToArray();
+          if (BinaryPrimitives.ReadInt16LittleEndian(targetAttachment) != short.MinValue)
+          {
+            throw ArtistObjectConflict(
+              "A static-light type conversion target is already active.",
+              $"CommonBaseHeader.AttachmentTable[{targetAttachmentNumber}]");
+          }
+          if (!reservedTargets.Add((targetType, number.Value)))
+          {
+            throw ArtistObjectConflict(
+              "More than one static-light edit targets the same physical record.",
+              $"CommonBaseHeader.{(targetType == "spot" ? "StaticSpotLights" : "StaticOmniLights")}[{number.Value}]");
+          }
+          var translation = transforms[nodeIndex].Translation;
+          edit.ReplaceAttachmentRecord(attachmentNumber, CreateAbsentAttachmentRecord());
+          edit.ReplaceAttachmentRecord(
+            targetAttachmentNumber,
+            CreateStaticLightAttachmentRecord(translation, $"nodes[{nodeIndex}].translation"));
+          edit.ReplaceStaticLightRecord(
+            ToStaticLightRecordKind(targetType),
+            number.Value,
+            CreateConvertedStaticLightRecord(
+              definition.Parsed,
+              transforms[nodeIndex],
+              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}]"),
+            new[] { "TypeConversion" });
+          continue;
+        }
+        var replacement = record.ToArray();
+        var changedFields = new List<string>();
+        if (changed.Contains("staticLight.pose"))
+        {
+          var translation = transforms[nodeIndex].Translation;
+          if (!IsFinite(translation))
+          {
+            throw new UnsupportedGltfDomainException(
+              "StaticLightPose",
+              $"nodes[{nodeIndex}].translation");
+          }
+          WriteSingle(replacement, 0, translation.X);
+          WriteSingle(replacement, 4, translation.Z);
+          WriteSingle(replacement, 8, translation.Y);
+          var attachmentReplacement = attachment.ToArray();
+          BinaryPrimitives.WriteInt16LittleEndian(
+            attachmentReplacement,
+            QuantizeAttachmentCoordinate(
+              translation.X,
+              true,
+              "StaticLightPose",
+              $"nodes[{nodeIndex}].translation"));
+          BinaryPrimitives.WriteInt16LittleEndian(
+            attachmentReplacement.AsSpan(2),
+            QuantizeAttachmentCoordinate(
+              translation.Z,
+              false,
+              "StaticLightPose",
+              $"nodes[{nodeIndex}].translation"));
+          BinaryPrimitives.WriteInt16LittleEndian(
+            attachmentReplacement.AsSpan(4),
+            QuantizeAttachmentCoordinate(
+              translation.Y,
+              false,
+              "StaticLightPose",
+              $"nodes[{nodeIndex}].translation"));
+          edit.ReplaceAttachmentRecord(attachmentNumber, attachmentReplacement);
+          changedFields.Add("Position");
+        }
+        if (changed.Contains("staticLight.color"))
+        {
+          if (!IsFinite(definition.Parsed.Color)
+            || definition.Parsed.Color.X < 0
+            || definition.Parsed.Color.Y < 0
+            || definition.Parsed.Color.Z < 0)
+          {
+            throw new UnsupportedGltfDomainException(
+              "StaticLightColor",
+              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].color");
+          }
+          WriteSingle(replacement, 0x0C, definition.Parsed.Color.X);
+          WriteSingle(replacement, 0x10, definition.Parsed.Color.Y);
+          WriteSingle(replacement, 0x14, definition.Parsed.Color.Z);
+          changedFields.Add("Color");
+        }
+        if (changed.Contains("staticLight.intensity"))
+        {
+          if (!float.IsFinite(definition.Parsed.Intensity) || definition.Parsed.Intensity < 0)
+          {
+            throw new UnsupportedGltfDomainException(
+              "StaticLightIntensity",
+              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].intensity");
+          }
+          WriteSingle(replacement, type == "spot" ? 0x2C : 0x18, definition.Parsed.Intensity);
+          changedFields.Add("TerrainLightAmplitude");
+        }
+        if (changed.Contains("staticLight.direction"))
+        {
+          if (type != "spot")
+          {
+            throw new UnsupportedGltfDomainException(
+              "StaticLightDirection",
+              $"nodes[{nodeIndex}].rotation");
+          }
+          WriteStaticLightDirection(
+            replacement,
+            transforms[nodeIndex],
+            $"nodes[{nodeIndex}].rotation");
+          changedFields.Add("Direction");
+        }
+        if (changed.Contains("staticLight.cones"))
+        {
+          if (type != "spot"
+            || !float.IsFinite(definition.Parsed.InnerConeAngle)
+            || !float.IsFinite(definition.Parsed.OuterConeAngle)
+            || definition.Parsed.InnerConeAngle < 0
+            || definition.Parsed.OuterConeAngle < definition.Parsed.InnerConeAngle
+            || definition.Parsed.OuterConeAngle > MathF.PI / 2)
+          {
+            throw new UnsupportedGltfDomainException(
+              "StaticLightCones",
+              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].spot");
+          }
+          var targetDistance = ReadSingle(replacement, 0x18);
+          if (!float.IsFinite(targetDistance))
+          {
+            throw new UnsupportedGltfDomainException(
+              "StaticLightCones",
+              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].spot");
+          }
+          WriteSingle(replacement, 0x20, MathF.Tan(definition.Parsed.InnerConeAngle));
+          WriteSingle(replacement, 0x24, definition.Parsed.OuterConeAngle * targetDistance);
+          changedFields.Add("Cones");
+        }
+        edit.ReplaceStaticLightRecord(
+          ToStaticLightRecordKind(type),
+          number.Value,
+          replacement,
+          changedFields);
+      }
+
+
+      foreach (var candidate in candidates.Where(item => nodes[item.Value].Metadata is null).ToArray())
+      {
+        var node = nodes[candidate.Value].Parsed;
+        var lightIndex = node.LightIndex!.Value;
+        if (lightIndex < 0 || lightIndex >= lights.Count
+          || lights[lightIndex].Metadata is not null
+          || lights[lightIndex].Parsed.Type != candidate.Key.Type
+          || !transforms.TryGetValue(candidate.Value, out var transform))
+        {
+          throw new StaticLightMetadataException(
+            $"nodes[{candidate.Value}]",
+            "The canonically named static-light addition is malformed.");
+        }
+        if (GlbDocument.TryParseStaticLightHelperName(
+            lights[lightIndex].Parsed.Name,
+            out var definitionType,
+            out var definitionNumber)
+          && (definitionType != candidate.Key.Type || definitionNumber != candidate.Key.Number))
+        {
+          throw new StaticLightMetadataException(
+            $"extensions.KHR_lights_punctual.lights[{lightIndex}].name",
+            "The canonical static-light instance and definition names contradict each other.");
+        }
+        var attachmentNumber = candidate.Key.Type == "spot"
+          ? candidate.Key.Number + 12
+          : candidate.Key.Number + 16;
+        var sourceAttachment = asset.CommonBaseHeader.AttachmentTable
+          .Skip((attachmentNumber - 1) * 8).Take(8).ToArray();
+        if (BinaryPrimitives.ReadInt16LittleEndian(sourceAttachment) != short.MinValue)
+        {
+          throw ArtistObjectConflict(
+            "A canonically named static light targets an occupied physical record.",
+            $"CommonBaseHeader.AttachmentTable[{attachmentNumber}]");
+        }
+        if (!reservedTargets.Add(candidate.Key))
+        {
+          throw ArtistObjectConflict(
+            "More than one static-light edit targets the same physical record.",
+            $"CommonBaseHeader.{(candidate.Key.Type == "spot" ? "StaticSpotLights" : "StaticOmniLights")}[{candidate.Key.Number}]");
+        }
+        edit.ReplaceAttachmentRecord(
+          attachmentNumber,
+          CreateStaticLightAttachmentRecord(
+            transform.Translation,
+            $"nodes[{candidate.Value}].translation"));
+        var sourceRecord = candidate.Key.Type == "spot"
+          ? asset.CommonBaseHeader.StaticSpotLights
+            .Skip((candidate.Key.Number - 1) * 0x30).Take(0x30).ToArray()
+          : asset.CommonBaseHeader.StaticOmniLights
+            .Skip((candidate.Key.Number - 1) * 0x1C).Take(0x1C).ToArray();
+        var localId = candidate.Key.Type == "spot"
+          ? candidate.Key.Number
+          : candidate.Key.Number + 4;
+        var inactiveGuards = GlbDocument.CreateStaticLightGuards(
+          expected,
+          candidate.Key.Type,
+          candidate.Key.Number,
+          localId,
+          sourceRecord,
+          sourceAttachment);
+        var currentGuards = CreateCurrentStaticLightGuards(
+          expected,
+          localId,
+          lights[lightIndex].Parsed,
+          transform,
+          $"nodes[{candidate.Value}]");
+        if (inactiveGuards.Any(guard => !string.Equals(
+          guard.Value,
+          currentGuards[guard.Key],
+          StringComparison.Ordinal)))
+        {
+          edit.ReplaceStaticLightRecord(
+            ToStaticLightRecordKind(candidate.Key.Type),
+            candidate.Key.Number,
+            CreateConvertedStaticLightRecord(
+              lights[lightIndex].Parsed,
+              transform,
+              $"extensions.KHR_lights_punctual.lights[{lightIndex}]"),
+            new[] { "Addition" });
+        }
+      }
+
+      for (var number = 1; number <= 4; number++)
+      {
+        foreach (var type in new[] { "spot", "point" })
+        {
+          var attachmentNumber = type == "spot" ? number + 12 : number + 16;
+          var attachment = asset.CommonBaseHeader.AttachmentTable
+            .Skip((attachmentNumber - 1) * 8).Take(8).ToArray();
+          var active = BinaryPrimitives.ReadInt16LittleEndian(attachment) != short.MinValue;
+          if (active && !candidates.ContainsKey((type, number)))
+          {
+            edit.ReplaceAttachmentRecord(attachmentNumber, CreateAbsentAttachmentRecord());
+          }
+        }
+      }
+    }
+
+    private static IReadOnlyDictionary<string, string> CreateCurrentStaticLightGuards(
+      InterchangeBaseline baseline,
+      int localId,
+      ParsedGltfLight light,
+      Matrix4x4 transform,
+      string path)
+    {
+      if (!Matrix4x4.Decompose(transform, out _, out var rotation, out var translation)
+        || !IsFinite(rotation)
+        || !IsFinite(translation))
+      {
+        throw new UnsupportedGltfDomainException("StaticLightPose", path);
+      }
+      var direction = Vector3.Transform(-Vector3.UnitZ, rotation);
+      if (light.Type == "point")
+      {
+        direction = -Vector3.UnitZ;
+      }
+      return new Dictionary<string, string>(StringComparer.Ordinal)
+      {
+        ["staticLight.pose"] = StaticLightFingerprint(
+          baseline,
+          localId,
+          "staticLight.pose",
+          writer => WriteFingerprintVector(writer, translation)),
+        ["staticLight.type"] = StaticLightFingerprint(
+          baseline,
+          localId,
+          "staticLight.type",
+          writer => WriteFingerprintString(writer, light.Type)),
+        ["staticLight.color"] = StaticLightFingerprint(
+          baseline,
+          localId,
+          "staticLight.color",
+          writer => WriteFingerprintVector(writer, light.Color)),
+        ["staticLight.intensity"] = StaticLightFingerprint(
+          baseline,
+          localId,
+          "staticLight.intensity",
+          writer => WriteFingerprintFloat(writer, light.Intensity)),
+        ["staticLight.direction"] = StaticLightFingerprint(
+          baseline,
+          localId,
+          "staticLight.direction",
+          writer => WriteFingerprintDirection(writer, direction)),
+        ["staticLight.cones"] = StaticLightFingerprint(
+          baseline,
+          localId,
+          "staticLight.cones",
+          writer =>
+          {
+            WriteFingerprintFloat(writer, light.InnerConeAngle);
+            WriteFingerprintFloat(writer, light.OuterConeAngle);
+          })
+      };
+    }
+
+    private static StaticLightRecordKind ToStaticLightRecordKind(string type)
+    {
+      return type == "spot" ? StaticLightRecordKind.Spot : StaticLightRecordKind.Omni;
+    }
+
+    private static string StaticLightFingerprint(
+      InterchangeBaseline baseline,
+      int localId,
+      string projection,
+      Action<BinaryWriter> writeProjection)
+    {
+      return GlbDocument.CreateStaticLightFingerprint(
+        baseline,
+        localId,
+        projection,
+        writeProjection);
+    }
+
+    private static void WriteFingerprintVector(BinaryWriter writer, Vector3 value)
+    {
+      WriteFingerprintFloat(writer, value.X);
+      WriteFingerprintFloat(writer, value.Y);
+      WriteFingerprintFloat(writer, value.Z);
+    }
+
+    private static void WriteFingerprintDirection(BinaryWriter writer, Vector3 value)
+    {
+      WriteFingerprintFloat(writer, value.X);
+      WriteFingerprintFloat(writer, value.Y);
+      WriteFingerprintFloat(writer, value.Z);
+    }
+
+    private static void WriteFingerprintFloat(BinaryWriter writer, float value)
+    {
+      var canonical = MathF.Round(value, 5);
+      writer.Write(canonical == 0 ? 0 : canonical);
+    }
+
+    private static void WriteFingerprintString(BinaryWriter writer, string value)
+    {
+      var bytes = System.Text.Encoding.UTF8.GetBytes(value);
+      writer.Write(bytes.Length);
+      writer.Write(bytes);
+    }
+
+    private static float ReadSingle(byte[] source, int offset)
+    {
+      return BitConverter.Int32BitsToSingle(
+        BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan(offset)));
+    }
+
+    private static void WriteStaticLightDirection(
+      byte[] record,
+      Matrix4x4 transform,
+      string path)
+    {
+      if (!Matrix4x4.Decompose(transform, out _, out var rotation, out _)
+        || !IsFinite(rotation))
+      {
+        throw new UnsupportedGltfDomainException("StaticLightDirection", path);
+      }
+      var direction = Vector3.Transform(-Vector3.UnitZ, rotation);
+      if (!IsFinite(direction) || direction.LengthSquared() == 0)
+      {
+        throw new UnsupportedGltfDomainException("StaticLightDirection", path);
+      }
+      direction = Vector3.Normalize(direction);
+      var horizontalLength = MathF.Sqrt((direction.X * direction.X) + (direction.Z * direction.Z));
+      if (!float.IsFinite(horizontalLength) || horizontalLength < 1e-5f)
+      {
+        throw new UnsupportedGltfDomainException("StaticLightDirection", path);
+      }
+      var heading = MathF.Atan2(-direction.Z, direction.X);
+      if (heading < 0)
+      {
+        heading += MathF.PI * 2;
+      }
+      record[0x1C] = unchecked((byte)((int)MathF.Floor(
+        (heading * 256 / (MathF.PI * 2)) + 0.5f) & 0xFF));
+      WriteSingle(record, 0x28, direction.Y / horizontalLength);
+    }
+
+    private static byte[] CreateStaticLightAttachmentRecord(Vector3 translation, string path)
+    {
+      if (!IsFinite(translation))
+      {
+        throw new UnsupportedGltfDomainException("StaticLightPose", path);
+      }
+      var result = new byte[8];
+      BinaryPrimitives.WriteInt16LittleEndian(
+        result,
+        QuantizeAttachmentCoordinate(translation.X, true, "StaticLightPose", path));
+      BinaryPrimitives.WriteInt16LittleEndian(
+        result.AsSpan(2),
+        QuantizeAttachmentCoordinate(translation.Z, false, "StaticLightPose", path));
+      BinaryPrimitives.WriteInt16LittleEndian(
+        result.AsSpan(4),
+        QuantizeAttachmentCoordinate(translation.Y, false, "StaticLightPose", path));
+      return result;
+    }
+
+    private static byte[] CreateConvertedStaticLightRecord(
+      ParsedGltfLight light,
+      Matrix4x4 transform,
+      string path)
+    {
+      if (!IsFinite(light.Color)
+        || light.Color.X < 0
+        || light.Color.Y < 0
+        || light.Color.Z < 0
+        || !float.IsFinite(light.Intensity)
+        || light.Intensity < 0
+        || !IsFinite(transform.Translation))
+      {
+        throw new UnsupportedGltfDomainException("StaticLightTypeConversion", path);
+      }
+      var result = new byte[light.Type == "spot" ? 0x30 : 0x1C];
+      WriteSingle(result, 0, transform.Translation.X);
+      WriteSingle(result, 4, transform.Translation.Z);
+      WriteSingle(result, 8, transform.Translation.Y);
+      WriteSingle(result, 0x0C, light.Color.X);
+      WriteSingle(result, 0x10, light.Color.Y);
+      WriteSingle(result, 0x14, light.Color.Z);
+      if (light.Type == "point")
+      {
+        WriteSingle(result, 0x18, light.Intensity);
+        return result;
+      }
+      if (light.InnerConeAngle < 0
+        || light.OuterConeAngle < light.InnerConeAngle
+        || light.OuterConeAngle > MathF.PI / 2)
+      {
+        throw new UnsupportedGltfDomainException("StaticLightTypeConversion", path);
+      }
+      var distance = light.Range is > 0 && float.IsFinite(light.Range.Value) ? light.Range.Value : 1;
+      WriteSingle(result, 0x18, distance);
+      WriteStaticLightDirection(result, transform, path + ".rotation");
+      WriteSingle(result, 0x20, MathF.Tan(light.InnerConeAngle));
+      WriteSingle(result, 0x24, light.OuterConeAngle * distance);
+      WriteSingle(result, 0x2C, light.Intensity);
+      return result;
     }
 
     private static int ValidateAttachmentMetadata(
@@ -2385,6 +3093,12 @@ namespace EarthTool.GLTF
         || metadata.AttachmentRecord?.Count != 8
         || metadata.FingerprintName != "attachment.pose"
         || metadata.FingerprintVersion != 1
+        || metadata.StaticLightType is not null
+        || metadata.StaticLightPhysicalNumber is not null
+        || metadata.StaticLightDefinitionLocalId is not null
+        || metadata.StaticLightRecord is not null
+        || metadata.StaticLightAttachmentRecord is not null
+        || metadata.Guards.Count != 0
         || !HasNoUnrelatedArtistObjectMetadata(metadata))
       {
         throw new MalformedMetadataException("The attachment metadata envelope is malformed.");
@@ -2418,6 +3132,12 @@ namespace EarthTool.GLTF
         || metadata.CannonRenderPosition?.Count != 12
         || metadata.FingerprintName != "cannonRenderPosition.position"
         || metadata.FingerprintVersion != 1
+        || metadata.StaticLightType is not null
+        || metadata.StaticLightPhysicalNumber is not null
+        || metadata.StaticLightDefinitionLocalId is not null
+        || metadata.StaticLightRecord is not null
+        || metadata.StaticLightAttachmentRecord is not null
+        || metadata.Guards.Count != 0
         || !HasNoUnrelatedArtistObjectMetadata(metadata))
       {
         throw new MalformedMetadataException("The cannon render-position metadata envelope is malformed.");
@@ -2466,12 +3186,13 @@ namespace EarthTool.GLTF
       nodes.Add(nodeIndex);
     }
 
-    private static MetadataIdentityException ArtistObjectConflict(string message)
+    private static MetadataIdentityException ArtistObjectConflict(string message, string? path = null)
     {
       return new MetadataIdentityException(
         GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
         2012,
-        message);
+        message,
+        path);
     }
 
     private static IReadOnlyDictionary<int, Matrix4x4> CreateArtistObjectTransforms(
@@ -2493,9 +3214,12 @@ namespace EarthTool.GLTF
       var effective = node.Parsed.LocalTransform * inheritedTransform;
       var isArtistObject = node.Metadata?.AttachmentRecord is not null
         || node.Metadata?.CannonRenderPosition is not null
+        || node.Metadata?.StaticLightAttachmentRecord is not null
         || node.Metadata is null
           && (GlbDocument.TryParseAttachmentHelperName(node.Parsed.Name, out _)
-            || GlbDocument.TryParseCannonRenderPositionHelperName(node.Parsed.Name, out _));
+            || GlbDocument.TryParseCannonRenderPositionHelperName(node.Parsed.Name, out _)
+            || node.Parsed.LightIndex.HasValue
+              && GlbDocument.TryParseStaticLightHelperName(node.Parsed.Name, out _, out _));
       if (isArtistObject)
       {
         result.Add(nodeIndex, effective);
@@ -2581,17 +3305,21 @@ namespace EarthTool.GLTF
       return record;
     }
 
-    private static short QuantizeAttachmentCoordinate(float value, bool rejectsSentinel)
+    private static short QuantizeAttachmentCoordinate(
+      float value,
+      bool rejectsSentinel,
+      string domain = "AttachmentPose",
+      string? path = null)
     {
       var scaled = Math.Truncate(value * 256d);
       if (!double.IsFinite(scaled) || scaled < short.MinValue || scaled > short.MaxValue)
       {
-        throw new UnsupportedGltfDomainException("AttachmentPose");
+        throw new UnsupportedGltfDomainException(domain, path);
       }
       var result = (short)scaled;
       if (rejectsSentinel && result == short.MinValue)
       {
-        throw new UnsupportedGltfDomainException("AttachmentPose");
+        throw new UnsupportedGltfDomainException(domain, path);
       }
       return result;
     }
@@ -2667,10 +3395,12 @@ namespace EarthTool.GLTF
         && (node.Metadata is not null
             && node.Metadata.AttachmentRecord is null
             && node.Metadata.CannonRenderPosition is null
+            && node.Metadata.StaticLightAttachmentRecord is null
           || node.Metadata is null
             && node.Parsed.Children.Count == 0
             && !GlbDocument.TryParseAttachmentHelperName(node.Parsed.Name, out _)
-            && !GlbDocument.TryParseCannonRenderPositionHelperName(node.Parsed.Name, out _))))
+            && !GlbDocument.TryParseCannonRenderPositionHelperName(node.Parsed.Name, out _)
+            && !node.Parsed.LightIndex.HasValue)))
       {
         throw new MalformedMetadataException("The object scope set does not match the source hierarchy.");
       }
@@ -3028,7 +3758,16 @@ namespace EarthTool.GLTF
     {
       if (exception is MetadataIdentityException identity)
       {
-        return Diagnostic(identity.Code, identity.EventId, path, identity.Message);
+        return Diagnostic(identity.Code, identity.EventId, identity.Path ?? path, identity.Message);
+      }
+
+      if (exception is StaticLightMetadataException staticLightMetadata)
+      {
+        return Diagnostic(
+          GltfDiagnosticCodes.MalformedMetadata,
+          2001,
+          staticLightMetadata.Path,
+          staticLightMetadata.Message);
       }
 
       if (exception is MissingMetadataException)
@@ -3048,7 +3787,7 @@ namespace EarthTool.GLTF
 
       if (exception is UnsupportedGltfDomainException unsupported)
       {
-        return Unsupported(unsupported.Domain);
+        return Unsupported(unsupported.Domain, unsupported.Path ?? "$");
       }
 
       if (exception is ResourceLimitException limit)
@@ -3084,13 +3823,13 @@ namespace EarthTool.GLTF
         });
     }
 
-    private static OperationDiagnostic Unsupported(string domain)
+    private static OperationDiagnostic Unsupported(string domain, string path = "$")
     {
       return new OperationDiagnostic(
         GltfDiagnosticCodes.UnsupportedDomain,
         1102,
         DiagnosticSeverity.Error,
-        "$",
+        path,
         $"The {domain} domain is outside the one-triangle walking-skeleton profile.",
         data: new Dictionary<string, string> { ["domain"] = domain });
     }
@@ -3200,6 +3939,107 @@ namespace EarthTool.GLTF
       return diagnostics.AsReadOnly();
     }
 
+    private static IReadOnlyList<OperationDiagnostic> CreateStaticLightDiagnostics(
+      StaticMeshAsset asset)
+    {
+      var attachments = asset.CommonBaseHeader.AttachmentTable.ToArray();
+      var spots = asset.CommonBaseHeader.StaticSpotLights.ToArray();
+      var omnis = asset.CommonBaseHeader.StaticOmniLights.ToArray();
+      var diagnostics = new List<OperationDiagnostic>();
+      for (var physicalNumber = 1; physicalNumber <= 4; physicalNumber++)
+      {
+        AddStaticLightDiagnostic(
+          diagnostics,
+          "spot",
+          physicalNumber,
+          attachments.AsSpan((physicalNumber + 11) * 8, 8),
+          spots.AsSpan((physicalNumber - 1) * 0x30, 0x30));
+        AddStaticLightDiagnostic(
+          diagnostics,
+          "point",
+          physicalNumber,
+          attachments.AsSpan((physicalNumber + 15) * 8, 8),
+          omnis.AsSpan((physicalNumber - 1) * 0x1C, 0x1C));
+      }
+      return diagnostics.AsReadOnly();
+    }
+
+    private static void AddStaticLightDiagnostic(
+      ICollection<OperationDiagnostic> diagnostics,
+      string type,
+      int physicalNumber,
+      ReadOnlySpan<byte> attachment,
+      ReadOnlySpan<byte> record)
+    {
+      if (BinaryPrimitives.ReadInt16LittleEndian(attachment) == short.MinValue)
+      {
+        return;
+      }
+      var substituted = new List<string>();
+      for (var component = 0; component < 3; component++)
+      {
+        if (!float.IsFinite(ReadSingle(record, component * 4)))
+        {
+          substituted.Add($"position[{component}]");
+        }
+        var color = ReadSingle(record, 0x0C + (component * 4));
+        if (!float.IsFinite(color) || color < 0)
+        {
+          substituted.Add($"color[{component}]");
+        }
+      }
+      var intensity = ReadSingle(record, type == "spot" ? 0x2C : 0x18);
+      if (!float.IsFinite(intensity) || intensity < 0)
+      {
+        substituted.Add("intensity");
+      }
+      if (type == "spot")
+      {
+        var distance = ReadSingle(record, 0x18);
+        var tangent = ReadSingle(record, 0x20);
+        var product = ReadSingle(record, 0x24);
+        var slope = ReadSingle(record, 0x28);
+        var inner = MathF.Atan(tangent);
+        var outer = product / distance;
+        if (!float.IsFinite(slope) || !float.IsFinite(slope * slope))
+        {
+          substituted.Add("direction");
+        }
+        if (!float.IsFinite(inner)
+          || !float.IsFinite(outer)
+          || inner < 0
+          || outer < inner
+          || outer > MathF.PI / 2)
+        {
+          substituted.Add("cones");
+        }
+      }
+      if (substituted.Count == 0)
+      {
+        return;
+      }
+      var collection = type == "spot" ? "StaticSpotLights" : "StaticOmniLights";
+      diagnostics.Add(new OperationDiagnostic(
+        GltfDiagnosticCodes.StaticLightPreviewSubstituted,
+        1117,
+        DiagnosticSeverity.Warning,
+        $"CommonBaseHeader.{collection}[{physicalNumber}]",
+        "Anomalous static-light fields use deterministic finite native preview values.",
+        data: new Dictionary<string, string>
+        {
+          ["physicalNumber"] = physicalNumber.ToString(
+            System.Globalization.CultureInfo.InvariantCulture),
+          ["type"] = type,
+          ["fields"] = string.Join(",", substituted)
+        }));
+    }
+
+    private static float ReadSingle(ReadOnlySpan<byte> source, int offset)
+    {
+      return BitConverter.Int32BitsToSingle(
+        BinaryPrimitives.ReadInt32LittleEndian(source.Slice(offset, sizeof(float))));
+    }
+
     private static IReadOnlyList<OperationDiagnostic> WithoutEmittedPreviewDiagnostics(
       IEnumerable<OperationDiagnostic> diagnostics)
     {
@@ -3245,11 +4085,25 @@ namespace EarthTool.GLTF
 
     internal int EventId { get; }
 
-    internal MetadataIdentityException(string code, int eventId, string message)
+    internal string? Path { get; }
+
+    internal MetadataIdentityException(string code, int eventId, string message, string? path = null)
       : base(message)
     {
       Code = code;
       EventId = eventId;
+      Path = path;
+    }
+  }
+
+  internal sealed class StaticLightMetadataException : Exception
+  {
+    internal string Path { get; }
+
+    internal StaticLightMetadataException(string path, string message)
+      : base(message)
+    {
+      Path = path;
     }
   }
 

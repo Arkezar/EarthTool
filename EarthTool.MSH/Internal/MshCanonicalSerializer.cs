@@ -59,7 +59,9 @@ namespace EarthTool.MSH.Internal
       IReadOnlyDictionary<StaticRenderObjectId, StaticAnimationReplacement>? animations = null,
       AnimationClassBytes? animationLengths = null,
       IReadOnlyDictionary<int, byte[]>? attachmentRecords = null,
-      IReadOnlyDictionary<int, byte[]>? cannonRenderPositions = null)
+      IReadOnlyDictionary<int, byte[]>? cannonRenderPositions = null,
+      IReadOnlyDictionary<int, byte[]>? staticSpotLights = null,
+      IReadOnlyDictionary<int, byte[]>? staticOmniLights = null)
     {
       var archiveHeader = CreateArchiveHeader(source.ArchiveFraming);
       var removed = new HashSet<StaticRenderObjectId>(
@@ -71,6 +73,8 @@ namespace EarthTool.MSH.Internal
       animations ??= new Dictionary<StaticRenderObjectId, StaticAnimationReplacement>();
       attachmentRecords ??= new Dictionary<int, byte[]>();
       cannonRenderPositions ??= new Dictionary<int, byte[]>();
+      staticSpotLights ??= new Dictionary<int, byte[]>();
+      staticOmniLights ??= new Dictionary<int, byte[]>();
       var sourceRecords = source.StaticRenderObjectSequence.ToDictionary(record => record.Id);
       var addedRecords = additions.ToDictionary(addition => addition.Id);
       var finalRecordSources = new Dictionary<StaticRenderObjectId, SourceObjectId>();
@@ -156,6 +160,14 @@ namespace EarthTool.MSH.Internal
       foreach (var replacement in cannonRenderPositions)
       {
         replacement.Value.CopyTo(commonHeader, 0x018 + ((replacement.Key - 1) * 12));
+      }
+      foreach (var replacement in staticSpotLights)
+      {
+        replacement.Value.CopyTo(commonHeader, 0x048 + ((replacement.Key - 1) * 0x30));
+      }
+      foreach (var replacement in staticOmniLights)
+      {
+        replacement.Value.CopyTo(commonHeader, 0x108 + ((replacement.Key - 1) * 0x1C));
       }
       commonHeader.CopyTo(result, archiveHeader.Length);
       var cursor = archiveHeader.Length + BaseHeaderSize;

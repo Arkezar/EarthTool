@@ -497,6 +497,12 @@ namespace EarthTool.MSH.Authoring
     }
   }
 
+  internal enum StaticLightRecordKind
+  {
+    Spot,
+    Omni
+  }
+
   /// <summary>Accumulates one atomic set of static edits and commits at most once.</summary>
   public sealed class StaticMeshEditSession
   {
@@ -509,6 +515,10 @@ namespace EarthTool.MSH.Authoring
       _replacementAnimations = new();
     private readonly Dictionary<int, byte[]> _replacementAttachmentRecords = new();
     private readonly Dictionary<int, byte[]> _replacementCannonRenderPositions = new();
+    private readonly Dictionary<int, byte[]> _replacementStaticSpotLights = new();
+    private readonly Dictionary<int, byte[]> _replacementStaticOmniLights = new();
+    private readonly Dictionary<(StaticLightRecordKind Kind, int Number), HashSet<string>>
+      _staticLightFieldChanges = new();
     private readonly HashSet<StaticRenderObjectId> _removedRenderObjects = new();
     private readonly HashSet<SourceObjectId> _allocatedSourceObjects = new();
     private readonly List<StaticRenderObjectAddition> _additions = new();
@@ -730,6 +740,36 @@ namespace EarthTool.MSH.Authoring
       return this;
     }
 
+    internal StaticMeshEditSession ReplaceStaticLightRecord(
+      StaticLightRecordKind kind,
+      int physicalNumber,
+      IEnumerable<byte> record,
+      IEnumerable<string> changedFields)
+    {
+      EnsureOpen();
+      if (physicalNumber is < 1 or > 4)
+      {
+        throw new ArgumentOutOfRangeException(nameof(physicalNumber));
+      }
+      var bytes = record?.ToArray() ?? throw new ArgumentNullException(nameof(record));
+      var expectedLength = kind == StaticLightRecordKind.Spot ? 0x30 : 0x1C;
+      if (bytes.Length != expectedLength)
+      {
+        throw new ArgumentException(
+          $"A static {kind} light record must contain exactly {expectedLength} bytes.",
+          nameof(record));
+      }
+
+      (kind == StaticLightRecordKind.Spot
+        ? _replacementStaticSpotLights
+        : _replacementStaticOmniLights)
+        [physicalNumber] = bytes;
+      _staticLightFieldChanges[(kind, physicalNumber)] = new HashSet<string>(
+        changedFields ?? throw new ArgumentNullException(nameof(changedFields)),
+        StringComparer.Ordinal);
+      return this;
+    }
+
     /// <summary>Sets or explicitly clears one game-authoritative TEX resource binding.</summary>
     public StaticMeshEditSession SetTextureResourceBinding(
       StaticRenderObjectId renderObject,
@@ -864,6 +904,8 @@ namespace EarthTool.MSH.Authoring
         && _replacementAnimations.Count == 0
         && _replacementAttachmentRecords.Count == 0
         && _replacementCannonRenderPositions.Count == 0
+        && _replacementStaticSpotLights.Count == 0
+        && _replacementStaticOmniLights.Count == 0
         && !_replacementAnimationLengths.HasValue
         && _removedRenderObjects.Count == 0
         && _additions.Count == 0
@@ -887,7 +929,9 @@ namespace EarthTool.MSH.Authoring
           _replacementAnimations,
           _replacementAnimationLengths,
           _replacementAttachmentRecords,
-          _replacementCannonRenderPositions);
+          _replacementCannonRenderPositions,
+          _replacementStaticSpotLights,
+          _replacementStaticOmniLights);
       if (bytes.Length > profile.MaxOutputBytes)
       {
         return new MshEditResult<StaticMeshAsset>(
@@ -970,6 +1014,20 @@ namespace EarthTool.MSH.Authoring
           $"CommonBaseHeader.CannonRenderPositions[{physicalNumber}]",
           PreservationDisposition.Regenerated,
           "CannonRenderPositionEdit"));
+      }
+      foreach (var replacement in _staticLightFieldChanges.OrderBy(item => item.Key.Kind)
+        .ThenBy(item => item.Key.Number))
+      {
+        var collection = replacement.Key.Kind == StaticLightRecordKind.Spot
+          ? "StaticSpotLights"
+          : "StaticOmniLights";
+        foreach (var field in replacement.Value.OrderBy(value => value, StringComparer.Ordinal))
+        {
+          changes.Add(Change(
+            $"CommonBaseHeader.{collection}[{replacement.Key.Number}].{field}",
+            PreservationDisposition.Regenerated,
+            "StaticLightEdit"));
+        }
       }
       if (_editedRootSourceObject is not null)
       {

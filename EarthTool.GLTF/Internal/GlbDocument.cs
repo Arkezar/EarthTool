@@ -74,6 +74,8 @@ namespace EarthTool.GLTF.Internal
 
     internal IReadOnlyList<ParsedGltfAnimation> Animations { get; }
 
+    internal IReadOnlyList<ParsedGltfLight> Lights { get; }
+
     internal int RootNodeIndex { get; }
 
     internal ParsedGlb(
@@ -83,6 +85,7 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyList<ParsedGltfNode> nodes,
       IReadOnlyList<ParsedGltfMaterial> materials,
       IReadOnlyList<ParsedGltfAnimation> animations,
+      IReadOnlyList<ParsedGltfLight> lights,
       int rootNodeIndex)
     {
       ManifestMetadata = manifestMetadata;
@@ -91,6 +94,7 @@ namespace EarthTool.GLTF.Internal
       Nodes = nodes;
       Materials = materials;
       Animations = animations;
+      Lights = lights;
       RootNodeIndex = rootNodeIndex;
     }
   }
@@ -103,6 +107,8 @@ namespace EarthTool.GLTF.Internal
 
     internal int? MeshIndex { get; }
 
+    internal int? LightIndex { get; }
+
     internal IReadOnlyList<int> Children { get; }
 
     internal Matrix4x4 LocalTransform { get; }
@@ -111,14 +117,55 @@ namespace EarthTool.GLTF.Internal
       string? name,
       string? metadata,
       int? meshIndex,
+      int? lightIndex,
       IReadOnlyList<int> children,
       Matrix4x4 localTransform)
     {
       Name = name;
       Metadata = metadata;
       MeshIndex = meshIndex;
+      LightIndex = lightIndex;
       Children = children;
       LocalTransform = localTransform;
+    }
+  }
+
+  internal sealed class ParsedGltfLight
+  {
+    internal string? Name { get; }
+
+    internal string? Metadata { get; }
+
+    internal string Type { get; }
+
+    internal Vector3 Color { get; }
+
+    internal float Intensity { get; }
+
+    internal float? Range { get; }
+
+    internal float InnerConeAngle { get; }
+
+    internal float OuterConeAngle { get; }
+
+    internal ParsedGltfLight(
+      string? name,
+      string? metadata,
+      string type,
+      Vector3 color,
+      float intensity,
+      float? range,
+      float innerConeAngle,
+      float outerConeAngle)
+    {
+      Name = name;
+      Metadata = metadata;
+      Type = type;
+      Color = color;
+      Intensity = intensity;
+      Range = range;
+      InnerConeAngle = innerConeAngle;
+      OuterConeAngle = outerConeAngle;
     }
   }
 
@@ -447,6 +494,18 @@ namespace EarthTool.GLTF.Internal
 
     internal IReadOnlyList<byte>? CannonRenderPosition { get; }
 
+    internal string? StaticLightType { get; }
+
+    internal int? StaticLightPhysicalNumber { get; }
+
+    internal int? StaticLightDefinitionLocalId { get; }
+
+    internal IReadOnlyList<byte>? StaticLightRecord { get; }
+
+    internal IReadOnlyList<byte>? StaticLightAttachmentRecord { get; }
+
+    internal IReadOnlyDictionary<string, string> Guards { get; }
+
     internal MetadataEnvelope(
       Guid assetLineageId,
       Guid documentId,
@@ -471,7 +530,13 @@ namespace EarthTool.GLTF.Internal
       int? attachmentPhysicalNumber,
       IReadOnlyList<byte>? attachmentRecord,
       int? cannonRenderPositionNumber,
-      IReadOnlyList<byte>? cannonRenderPosition)
+      IReadOnlyList<byte>? cannonRenderPosition,
+      string? staticLightType,
+      int? staticLightPhysicalNumber,
+      int? staticLightDefinitionLocalId,
+      IReadOnlyList<byte>? staticLightRecord,
+      IReadOnlyList<byte>? staticLightAttachmentRecord,
+      IReadOnlyDictionary<string, string> guards)
     {
       AssetLineageId = assetLineageId;
       DocumentId = documentId;
@@ -497,6 +562,12 @@ namespace EarthTool.GLTF.Internal
       AttachmentRecord = attachmentRecord;
       CannonRenderPositionNumber = cannonRenderPositionNumber;
       CannonRenderPosition = cannonRenderPosition;
+      StaticLightType = staticLightType;
+      StaticLightPhysicalNumber = staticLightPhysicalNumber;
+      StaticLightDefinitionLocalId = staticLightDefinitionLocalId;
+      StaticLightRecord = staticLightRecord;
+      StaticLightAttachmentRecord = staticLightAttachmentRecord;
+      Guards = guards;
     }
   }
 
@@ -552,6 +623,13 @@ namespace EarthTool.GLTF.Internal
       {
         maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(
           CreateCannonRenderPositionMetadata(baseline, cannon)));
+      }
+      foreach (var light in ProjectStaticLights(asset))
+      {
+        maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(
+          CreateStaticLightInstanceMetadata(baseline, light)));
+        maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(
+          CreateStaticLightMetadata(baseline, light)));
       }
       return maximum;
     }
@@ -772,6 +850,7 @@ namespace EarthTool.GLTF.Internal
           node.TryGetProperty("name", out var name) ? name.GetString() : null,
           TryGetMetadata(node),
           node.TryGetProperty("mesh", out var mesh) ? mesh.GetInt32() : null,
+          TryGetLightIndex(node),
           Array.AsReadOnly(children),
           ReadNodeTransform(node)));
       }
@@ -801,6 +880,7 @@ namespace EarthTool.GLTF.Internal
           .ToArray()
         : Array.Empty<ParsedGltfMaterial>();
       var animations = ReadAnimations(root, binary);
+      var lights = ReadLights(root, intent);
 
       return new ParsedGlb(
         manifest,
@@ -809,7 +889,60 @@ namespace EarthTool.GLTF.Internal
         nodes.AsReadOnly(),
         Array.AsReadOnly(materials),
         animations,
+        lights,
         root.GetProperty("scenes")[0].GetProperty("nodes")[0].GetInt32());
+    }
+
+    private static int? TryGetLightIndex(JsonElement node)
+    {
+      return node.TryGetProperty("extensions", out var extensions)
+        && extensions.TryGetProperty("KHR_lights_punctual", out var light)
+        && light.TryGetProperty("light", out var index)
+        ? index.GetInt32()
+        : null;
+    }
+
+    private static IReadOnlyList<ParsedGltfLight> ReadLights(
+      JsonElement root,
+      GltfImportIntent intent)
+    {
+      if (!root.TryGetProperty("extensions", out var extensions)
+        || !extensions.TryGetProperty("KHR_lights_punctual", out var punctual)
+        || !punctual.TryGetProperty("lights", out var lights))
+      {
+        return Array.Empty<ParsedGltfLight>();
+      }
+
+      var result = new List<ParsedGltfLight>();
+      foreach (var light in lights.EnumerateArray())
+      {
+        var color = light.TryGetProperty("color", out var colorArray)
+          ? ReadFloatArray(colorArray, 3, "light.color")
+          : new[] { 1f, 1f, 1f };
+        var type = light.GetProperty("type").GetString()
+          ?? throw new InvalidDataException("A punctual-light type cannot be null.");
+        var inner = 0f;
+        var outer = MathF.PI / 4;
+        if (light.TryGetProperty("spot", out var spot))
+        {
+          inner = spot.TryGetProperty("innerConeAngle", out var innerElement)
+            ? innerElement.GetSingle()
+            : 0;
+          outer = spot.TryGetProperty("outerConeAngle", out var outerElement)
+            ? outerElement.GetSingle()
+            : MathF.PI / 4;
+        }
+        result.Add(new ParsedGltfLight(
+          light.TryGetProperty("name", out var name) ? name.GetString() : null,
+          TryGetMetadata(light),
+          type,
+          new Vector3(color[0], color[1], color[2]),
+          light.TryGetProperty("intensity", out var intensity) ? intensity.GetSingle() : 1,
+          light.TryGetProperty("range", out var range) ? range.GetSingle() : null,
+          inner,
+          outer));
+      }
+      return result.AsReadOnly();
     }
 
     internal static void Validate(byte[] glb, GltfOperationProfile profile)
@@ -913,6 +1046,17 @@ namespace EarthTool.GLTF.Internal
         AnimationClassBytes? animationFrameIndices = null;
         var animationClasses = new List<MetadataAnimationClass>();
         MetadataAnimationProjection? animationProjection = null;
+        var guards = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (root.TryGetProperty("guards", out var guardObject))
+        {
+          foreach (var guard in guardObject.EnumerateObject())
+          {
+            guards.Add(
+              guard.Name,
+              guard.Value.GetString()
+                ?? throw new MalformedMetadataException("A native projection guard is missing."));
+          }
+        }
         if (root.TryGetProperty("staticAnimation", out var staticAnimation))
         {
           if (staticAnimation.TryGetProperty("lengths", out var lengths))
@@ -994,7 +1138,27 @@ namespace EarthTool.GLTF.Internal
             : null,
           root.TryGetProperty("cannonRenderPosition", out cannonRenderPosition)
             ? ReadBase64(cannonRenderPosition, "record")
-            : null);
+            : null,
+          root.TryGetProperty("staticLight", out var staticLight)
+            ? staticLight.GetProperty("type").GetString()
+            : root.TryGetProperty("staticLightInstance", out var staticLightInstance)
+              ? staticLightInstance.GetProperty("type").GetString()
+              : null,
+          root.TryGetProperty("staticLight", out staticLight)
+            ? staticLight.GetProperty("physicalNumber").GetInt32()
+            : root.TryGetProperty("staticLightInstance", out staticLightInstance)
+              ? staticLightInstance.GetProperty("physicalNumber").GetInt32()
+              : null,
+          root.TryGetProperty("staticLightInstance", out staticLightInstance)
+            ? staticLightInstance.GetProperty("definitionLocalId").GetInt32()
+            : null,
+          root.TryGetProperty("staticLight", out staticLight)
+            ? ReadBase64(staticLight, "record")
+            : null,
+          root.TryGetProperty("staticLightInstance", out staticLightInstance)
+            ? ReadBase64(staticLightInstance, "attachmentRecord")
+            : null,
+          new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(guards));
       }
       catch (UnsupportedMetadataVersionException)
       {
@@ -1220,6 +1384,7 @@ namespace EarthTool.GLTF.Internal
       var sources = StaticSourceObjectTraversal.Flatten(rootSourceObject).ToArray();
       var attachments = ProjectAttachments(asset);
       var cannonRenderPositions = ProjectCannonRenderPositions(asset);
+      var staticLights = ProjectStaticLights(asset);
       var nodeIndices = sources
         .Select((source, index) => new { source.Id, Index = index })
         .ToDictionary(item => item.Id, item => item.Index);
@@ -1265,7 +1430,41 @@ namespace EarthTool.GLTF.Internal
         writer.WriteEndObject();
         writer.WriteStartArray("extensionsUsed");
         writer.WriteStringValue("KHR_materials_unlit");
+        if (staticLights.Count > 0)
+        {
+          writer.WriteStringValue("KHR_lights_punctual");
+        }
         writer.WriteEndArray();
+        if (staticLights.Count > 0)
+        {
+          writer.WriteStartObject("extensions");
+          writer.WriteStartObject("KHR_lights_punctual");
+          writer.WriteStartArray("lights");
+          foreach (var light in staticLights)
+          {
+            writer.WriteStartObject();
+            writer.WriteString("name", GetStaticLightHelperName(light.Type, light.PhysicalNumber));
+            writer.WriteString("type", light.Type);
+            writer.WriteStartArray("color");
+            writer.WriteNumberValue(light.Color.X);
+            writer.WriteNumberValue(light.Color.Y);
+            writer.WriteNumberValue(light.Color.Z);
+            writer.WriteEndArray();
+            writer.WriteNumber("intensity", light.Intensity);
+            if (light.Type == "spot")
+            {
+              writer.WriteStartObject("spot");
+              writer.WriteNumber("innerConeAngle", light.InnerConeAngle);
+              writer.WriteNumber("outerConeAngle", light.OuterConeAngle);
+              writer.WriteEndObject();
+            }
+            WriteExtras(writer, CreateStaticLightMetadata(baseline, light));
+            writer.WriteEndObject();
+          }
+          writer.WriteEndArray();
+          writer.WriteEndObject();
+          writer.WriteEndObject();
+        }
         writer.WriteNumber("scene", 0);
         writer.WriteStartArray("scenes");
         writer.WriteStartObject();
@@ -1292,7 +1491,9 @@ namespace EarthTool.GLTF.Internal
             writer.WriteEndArray();
           }
           var isRoot = source.Id.Equals(rootSourceObject.Id);
-          if (source.Children.Count > 0 || isRoot && (attachments.Count > 0 || cannonRenderPositions.Count > 0))
+          if (source.Children.Count > 0 || isRoot && (attachments.Count > 0
+            || cannonRenderPositions.Count > 0
+            || staticLights.Count > 0))
           {
             writer.WriteStartArray("children");
             foreach (var child in source.Children)
@@ -1302,7 +1503,9 @@ namespace EarthTool.GLTF.Internal
             if (isRoot)
             {
               var helperIndex = sources.Length;
-              for (var index = 0; index < attachments.Count + cannonRenderPositions.Count; index++)
+              for (var index = 0;
+                index < attachments.Count + cannonRenderPositions.Count + staticLights.Count;
+                index++)
               {
                 writer.WriteNumberValue(helperIndex + index);
               }
@@ -1335,6 +1538,20 @@ namespace EarthTool.GLTF.Internal
           writer.WriteString("name", $"ET_CannonRenderPosition_{cannon.PhysicalNumber}");
           WriteTransform(writer, cannon.Translation, Quaternion.Identity);
           WriteExtras(writer, CreateCannonRenderPositionMetadata(baseline, cannon));
+          writer.WriteEndObject();
+        }
+        for (var lightIndex = 0; lightIndex < staticLights.Count; lightIndex++)
+        {
+          var light = staticLights[lightIndex];
+          writer.WriteStartObject();
+          writer.WriteString("name", GetStaticLightHelperName(light.Type, light.PhysicalNumber));
+          WriteTransform(writer, light.Translation, light.Rotation);
+          writer.WriteStartObject("extensions");
+          writer.WriteStartObject("KHR_lights_punctual");
+          writer.WriteNumber("light", lightIndex);
+          writer.WriteEndObject();
+          writer.WriteEndObject();
+          WriteExtras(writer, CreateStaticLightInstanceMetadata(baseline, light));
           writer.WriteEndObject();
         }
 
@@ -1982,6 +2199,139 @@ namespace EarthTool.GLTF.Internal
       return Encoding.UTF8.GetString(stream.ToArray());
     }
 
+    private static string CreateStaticLightInstanceMetadata(
+      InterchangeBaseline baseline,
+      ProjectedStaticLight light)
+    {
+      using var stream = new MemoryStream();
+      using (var writer = new Utf8JsonWriter(stream))
+      {
+        WriteMetadataHeader(writer, baseline, "object", -light.LocalId);
+        writer.WriteStartObject("staticLightInstance");
+        writer.WriteString("type", light.Type);
+        writer.WriteNumber("physicalNumber", light.PhysicalNumber);
+        writer.WriteNumber("definitionLocalId", light.LocalId);
+        writer.WriteString("attachmentRecord", Convert.ToBase64String(light.AttachmentRecord));
+        writer.WriteEndObject();
+        writer.WriteEndObject();
+      }
+      return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static string CreateStaticLightMetadata(
+      InterchangeBaseline baseline,
+      ProjectedStaticLight light)
+    {
+      using var stream = new MemoryStream();
+      using (var writer = new Utf8JsonWriter(stream))
+      {
+        WriteMetadataHeader(writer, baseline, "light", light.LocalId);
+        writer.WriteStartObject("guards");
+        foreach (var guard in CreateStaticLightGuards(baseline, light))
+        {
+          writer.WriteString(guard.Key, guard.Value);
+        }
+        writer.WriteEndObject();
+        writer.WriteStartObject("staticLight");
+        writer.WriteString("type", light.Type);
+        writer.WriteNumber("physicalNumber", light.PhysicalNumber);
+        writer.WriteString("record", Convert.ToBase64String(light.Record));
+        writer.WriteEndObject();
+        writer.WriteEndObject();
+      }
+      return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    internal static IReadOnlyDictionary<string, string> CreateStaticLightGuards(
+      InterchangeBaseline baseline,
+      string type,
+      int physicalNumber,
+      int localId,
+      byte[] record,
+      byte[] attachmentRecord)
+    {
+      return CreateStaticLightGuards(
+        baseline,
+        ProjectStaticLight(type, physicalNumber, localId, record, attachmentRecord));
+    }
+
+    private static IReadOnlyDictionary<string, string> CreateStaticLightGuards(
+      InterchangeBaseline baseline,
+      ProjectedStaticLight light)
+    {
+      return new Dictionary<string, string>(StringComparer.Ordinal)
+      {
+        ["staticLight.pose"] = CreateStaticLightFingerprint(
+          baseline,
+          light.LocalId,
+          "staticLight.pose",
+          writer => WriteCanonicalVector(writer, light.Translation)),
+        ["staticLight.type"] = CreateStaticLightFingerprint(
+          baseline,
+          light.LocalId,
+          "staticLight.type",
+          writer => WriteFingerprintString(writer, light.Type)),
+        ["staticLight.color"] = CreateStaticLightFingerprint(
+          baseline,
+          light.LocalId,
+          "staticLight.color",
+          writer => WriteCanonicalVector(writer, light.Color)),
+        ["staticLight.intensity"] = CreateStaticLightFingerprint(
+          baseline,
+          light.LocalId,
+          "staticLight.intensity",
+          writer => WriteStaticLightGuardFloat(writer, light.Intensity)),
+        ["staticLight.direction"] = CreateStaticLightFingerprint(
+          baseline,
+          light.LocalId,
+          "staticLight.direction",
+          writer => WriteCanonicalDirection(writer, Vector3.Transform(-Vector3.UnitZ, light.Rotation))),
+        ["staticLight.cones"] = CreateStaticLightFingerprint(
+          baseline,
+          light.LocalId,
+          "staticLight.cones",
+          writer =>
+          {
+            WriteStaticLightGuardFloat(writer, light.InnerConeAngle);
+            WriteStaticLightGuardFloat(writer, light.OuterConeAngle);
+          })
+      };
+    }
+
+    internal static string CreateStaticLightFingerprint(
+      InterchangeBaseline baseline,
+      int localId,
+      string projection,
+      Action<BinaryWriter> writeProjection)
+    {
+      using var preimage = new MemoryStream();
+      using (var writer = new BinaryWriter(preimage, Encoding.UTF8, true))
+      {
+        WriteFingerprintHeader(writer, baseline, projection, "light", localId);
+        writeProjection(writer);
+      }
+      return Hash(preimage.ToArray());
+    }
+
+    private static void WriteCanonicalVector(BinaryWriter writer, Vector3 value)
+    {
+      WriteStaticLightGuardFloat(writer, value.X);
+      WriteStaticLightGuardFloat(writer, value.Y);
+      WriteStaticLightGuardFloat(writer, value.Z);
+    }
+
+    private static void WriteCanonicalDirection(BinaryWriter writer, Vector3 value)
+    {
+      WriteStaticLightGuardFloat(writer, value.X);
+      WriteStaticLightGuardFloat(writer, value.Y);
+      WriteStaticLightGuardFloat(writer, value.Z);
+    }
+
+    private static void WriteStaticLightGuardFloat(BinaryWriter writer, float value)
+    {
+      WriteCanonicalFloat(writer, MathF.Round(value, 5));
+    }
+
     internal static string CreateAttachmentPoseFingerprint(
       InterchangeBaseline baseline,
       int physicalNumber,
@@ -2477,6 +2827,125 @@ namespace EarthTool.GLTF.Internal
       return Array.AsReadOnly(result);
     }
 
+    private static IReadOnlyList<ProjectedStaticLight> ProjectStaticLights(StaticMeshAsset asset)
+    {
+      var attachments = asset.CommonBaseHeader.AttachmentTable.ToArray();
+      var spots = asset.CommonBaseHeader.StaticSpotLights.ToArray();
+      var omnis = asset.CommonBaseHeader.StaticOmniLights.ToArray();
+      var result = new List<ProjectedStaticLight>();
+      for (var physicalNumber = 1; physicalNumber <= 4; physicalNumber++)
+      {
+        var spotAttachment = attachments.AsSpan((physicalNumber + 11) * 8, 8).ToArray();
+        if (BinaryPrimitives.ReadInt16LittleEndian(spotAttachment) != short.MinValue)
+        {
+          result.Add(ProjectStaticLight(
+            "spot",
+            physicalNumber,
+            physicalNumber,
+            spots.AsSpan((physicalNumber - 1) * 0x30, 0x30).ToArray(),
+            spotAttachment));
+        }
+
+        var omniAttachment = attachments.AsSpan((physicalNumber + 15) * 8, 8).ToArray();
+        if (BinaryPrimitives.ReadInt16LittleEndian(omniAttachment) != short.MinValue)
+        {
+          result.Add(ProjectStaticLight(
+            "point",
+            physicalNumber,
+            physicalNumber + 4,
+            omnis.AsSpan((physicalNumber - 1) * 0x1C, 0x1C).ToArray(),
+            omniAttachment));
+        }
+      }
+      return result.AsReadOnly();
+    }
+
+    private static ProjectedStaticLight ProjectStaticLight(
+      string type,
+      int physicalNumber,
+      int localId,
+      byte[] record,
+      byte[] attachmentRecord)
+    {
+      var position = new Vector3(
+        ReadNonNegativeFinitePreview(record, 0, false),
+        ReadNonNegativeFinitePreview(record, 8, false),
+        ReadNonNegativeFinitePreview(record, 4, false));
+      var color = new Vector3(
+        ReadNonNegativeFinitePreview(record, 0x0C, true),
+        ReadNonNegativeFinitePreview(record, 0x10, true),
+        ReadNonNegativeFinitePreview(record, 0x14, true));
+      var intensityOffset = type == "spot" ? 0x2C : 0x18;
+      var intensity = ReadNonNegativeFinitePreview(record, intensityOffset, true);
+      var rotation = Quaternion.Identity;
+      var inner = 0f;
+      var outer = MathF.PI / 4;
+      if (type == "spot")
+      {
+        var heading = record[0x1C] * MathF.PI * 2 / 256;
+        var slope = ReadSingle(record, 0x28);
+        if (!float.IsFinite(slope) || !float.IsFinite(slope * slope))
+        {
+          slope = 0;
+        }
+        var direction = Vector3.Normalize(new Vector3(
+          MathF.Cos(heading),
+          slope,
+          -MathF.Sin(heading)));
+        rotation = CreateDirectionRotation(direction);
+        var tangent = ReadSingle(record, 0x20);
+        var distance = ReadSingle(record, 0x18);
+        var product = ReadSingle(record, 0x24);
+        var candidateInner = MathF.Atan(tangent);
+        var candidateOuter = product / distance;
+        if (float.IsFinite(candidateInner)
+          && float.IsFinite(candidateOuter)
+          && candidateInner >= 0
+          && candidateOuter >= candidateInner
+          && candidateOuter <= MathF.PI / 2)
+        {
+          inner = candidateInner;
+          outer = candidateOuter;
+        }
+      }
+      return new ProjectedStaticLight(
+        type,
+        physicalNumber,
+        localId,
+        record,
+        attachmentRecord,
+        position,
+        rotation,
+        color,
+        intensity,
+        inner,
+        outer);
+    }
+
+    private static Quaternion CreateDirectionRotation(Vector3 direction)
+    {
+      var from = -Vector3.UnitZ;
+      var dot = Vector3.Dot(from, direction);
+      if (dot < -0.999999f)
+      {
+        return Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI);
+      }
+      var cross = Vector3.Cross(from, direction);
+      return Quaternion.Normalize(new Quaternion(cross, 1 + dot));
+    }
+
+    private static float ReadNonNegativeFinitePreview(byte[] record, int offset, bool nonNegative)
+    {
+      var value = ReadSingle(record, offset);
+      return float.IsFinite(value) && (!nonNegative || value >= 0) ? value : 0;
+    }
+
+    private static float ReadSingle(byte[] record, int offset)
+    {
+      return BitConverter.Int32BitsToSingle(
+        BinaryPrimitives.ReadInt32LittleEndian(record.AsSpan(offset)));
+    }
+
     internal static float ReadFinitePreview(byte[] record, int offset)
     {
       var value = BitConverter.Int32BitsToSingle(
@@ -2537,6 +3006,36 @@ namespace EarthTool.GLTF.Internal
       return false;
     }
 
+    internal static string GetStaticLightHelperName(string type, int physicalNumber)
+    {
+      return type == "spot"
+        ? $"ET_SpotLight_{physicalNumber}_Attachment_{physicalNumber + 12}"
+        : $"ET_OmniLight_{physicalNumber}_Attachment_{physicalNumber + 16}";
+    }
+
+    internal static bool TryParseStaticLightHelperName(
+      string? name,
+      out string type,
+      out int physicalNumber)
+    {
+      for (physicalNumber = 1; physicalNumber <= 4; physicalNumber++)
+      {
+        if (string.Equals(name, GetStaticLightHelperName("spot", physicalNumber), StringComparison.Ordinal))
+        {
+          type = "spot";
+          return true;
+        }
+        if (string.Equals(name, GetStaticLightHelperName("point", physicalNumber), StringComparison.Ordinal))
+        {
+          type = "point";
+          return true;
+        }
+      }
+      type = string.Empty;
+      physicalNumber = 0;
+      return false;
+    }
+
     private sealed class ProjectedAttachment
     {
       internal int PhysicalNumber { get; }
@@ -2568,6 +3067,47 @@ namespace EarthTool.GLTF.Internal
         PhysicalNumber = physicalNumber;
         Record = record;
         Translation = translation;
+      }
+    }
+
+    private sealed class ProjectedStaticLight
+    {
+      internal string Type { get; }
+      internal int PhysicalNumber { get; }
+      internal int LocalId { get; }
+      internal byte[] Record { get; }
+      internal byte[] AttachmentRecord { get; }
+      internal Vector3 Translation { get; }
+      internal Quaternion Rotation { get; }
+      internal Vector3 Color { get; }
+      internal float Intensity { get; }
+      internal float InnerConeAngle { get; }
+      internal float OuterConeAngle { get; }
+
+      internal ProjectedStaticLight(
+        string type,
+        int physicalNumber,
+        int localId,
+        byte[] record,
+        byte[] attachmentRecord,
+        Vector3 translation,
+        Quaternion rotation,
+        Vector3 color,
+        float intensity,
+        float innerConeAngle,
+        float outerConeAngle)
+      {
+        Type = type;
+        PhysicalNumber = physicalNumber;
+        LocalId = localId;
+        Record = record;
+        AttachmentRecord = attachmentRecord;
+        Translation = translation;
+        Rotation = rotation;
+        Color = color;
+        Intensity = intensity;
+        InnerConeAngle = innerConeAngle;
+        OuterConeAngle = outerConeAngle;
       }
     }
 
@@ -3449,10 +3989,13 @@ namespace EarthTool.GLTF.Internal
   {
     internal string Domain { get; }
 
-    internal UnsupportedGltfDomainException(string domain)
+    internal string? Path { get; }
+
+    internal UnsupportedGltfDomainException(string domain, string? path = null)
       : base($"The {domain} domain is outside the one-triangle walking-skeleton profile.")
     {
       Domain = domain;
+      Path = path;
     }
   }
 }
