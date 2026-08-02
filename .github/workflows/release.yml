@@ -188,6 +188,11 @@ jobs:
   blender-qualification:
     uses: ./.github/workflows/blender-qualification.yml
 
+  official-msh-corpus-qualification:
+    uses: ./.github/workflows/official-msh-corpus-qualification.yml
+    secrets:
+      corpus_root: ${{ secrets.OFFICIAL_MSH_CORPUS_ROOT }}
+
   code-quality:
     name: Code Quality Analysis
     runs-on: ubuntu-latest
@@ -373,7 +378,7 @@ jobs:
 
   create-release:
     name: Create Release
-    needs: [build-and-test, blender-qualification, code-quality]
+    needs: [build-and-test, blender-qualification, official-msh-corpus-qualification, code-quality]
     runs-on: ubuntu-latest
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true')
 

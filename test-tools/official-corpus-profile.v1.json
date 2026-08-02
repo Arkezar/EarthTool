@@ -1,0 +1,10 @@
+{
+  "format": "earthtool.official-msh-corpus-profile",
+  "version": 1,
+  "corpus": {
+    "assets": 1151,
+    "staticAssets": 957,
+    "dynamicAssets": 194
+  },
+  "diagnostics": []
+}

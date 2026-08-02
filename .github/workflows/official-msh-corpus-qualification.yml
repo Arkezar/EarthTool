@@ -1,0 +1,63 @@
+name: Official MSH Corpus Qualification
+
+on:
+  workflow_call:
+    secrets:
+      corpus_root:
+        description: Absolute private corpus directory on the controlled runner
+        required: true
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: "8.0.x"
+
+jobs:
+  qualify:
+    name: Official MSH corpus qualification
+    runs-on: [self-hosted, official-msh-corpus]
+    timeout-minutes: 180
+    env:
+      EARTHTOOL_OFFICIAL_MSH_CORPUS: ${{ secrets.corpus_root || secrets.OFFICIAL_MSH_CORPUS_ROOT }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: test-tools/package-lock.json
+
+      - name: Install pinned Khronos validator
+        run: npm ci --prefix test-tools
+
+      - name: Test qualification tooling
+        run: npm test --prefix test-tools
+
+      - name: Build qualification binaries
+        run: dotnet build EarthTool.sln --configuration Release
+
+      - name: Run official corpus gate
+        run: >-
+          node test-tools/official-corpus-qualification.mjs
+          --evidence artifacts/official-msh-corpus-qualification.json
+
+      - name: Remove private intermediate output
+        if: always()
+        shell: bash
+        run: rm -rf artifacts/official-corpus-results
+
+      - name: Upload aggregate evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: official-msh-corpus-qualification
+          path: artifacts/official-msh-corpus-qualification.json
+          if-no-files-found: error
+          retention-days: 30

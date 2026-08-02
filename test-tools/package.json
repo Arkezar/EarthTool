@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "qualify:corpus": "node official-corpus-qualification.mjs"
   },
   "devDependencies": {
     "gltf-validator": "2.0.0-dev.3.10"

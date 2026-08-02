@@ -23,6 +23,7 @@ on:
       - "EarthTool.sln"
       - ".github/workflows/ci-unified.yml"
       - ".github/workflows/blender-qualification.yml"
+      - ".github/workflows/official-msh-corpus-qualification.yml"
   pull_request:
     branches: [main, master, dev]
     paths:
@@ -44,6 +45,7 @@ on:
       - "Directory.Packages.props"
       - "EarthTool.sln"
       - ".github/workflows/blender-qualification.yml"
+      - ".github/workflows/official-msh-corpus-qualification.yml"
   workflow_dispatch:
 
 env:
@@ -105,6 +107,7 @@ jobs:
               - 'Directory.Packages.props'
               - 'EarthTool.sln'
               - '.github/workflows/blender-qualification.yml'
+              - '.github/workflows/official-msh-corpus-qualification.yml'
 
   msh-gltf-contract:
     name: MSH/glTF contract (${{ matrix.os }})
@@ -145,7 +148,7 @@ jobs:
         run: |
           MSH_TESTS=$(dotnet test EarthTool.MSH.Tests/EarthTool.MSH.Tests.csproj --configuration Release --no-restore --list-tests | grep -c '^    ')
           CLI_TESTS=$(dotnet test EarthTool.CLI.Tests/EarthTool.CLI.Tests.csproj --configuration Release --no-restore --list-tests | grep -c '^    ')
-          test "$MSH_TESTS" -eq 347
+          test "$MSH_TESTS" -eq 350
           test "$CLI_TESTS" -eq 24
 
       - name: Run MSH/glTF contract tests
