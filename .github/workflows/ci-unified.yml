@@ -5,6 +5,7 @@ on:
     branches: [main, master, dev, "feature/**"]
     paths:
       - "EarthTool.CLI/**"
+      - "EarthTool.CLI.Tests/**"
       - "EarthTool.WD.GUI/**"
       - "EarthTool.PAR.GUI/**"
       - "EarthTool.TEX.GUI/**"
@@ -26,6 +27,7 @@ on:
     branches: [main, master, dev]
     paths:
       - "EarthTool.CLI/**"
+      - "EarthTool.CLI.Tests/**"
       - "EarthTool.WD.GUI/**"
       - "EarthTool.PAR.GUI/**"
       - "EarthTool.TEX.GUI/**"
@@ -68,10 +70,12 @@ jobs:
           filters: |
             cli:
               - 'EarthTool.CLI/**'
+              - 'EarthTool.CLI.Tests/**'
               - 'EarthTool.Common/**'
               - 'EarthTool.WD/**'
               - 'EarthTool.MSH/**'
               - 'EarthTool.MSH.Tests/**'
+              - 'EarthTool.GLTF/**'
               - 'EarthTool.DAE/**'
               - 'EarthTool.PAR/**'
               - 'EarthTool.TEX/**'

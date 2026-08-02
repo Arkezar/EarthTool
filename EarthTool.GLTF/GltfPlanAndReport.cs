@@ -1227,6 +1227,29 @@ namespace EarthTool.GLTF
         fingerprint: result.Value?.Fingerprint);
     }
 
+    /// <summary>Captures an export that failed before a static source asset was available.</summary>
+    public static GltfCliReportOperation ForFailedExport(
+      string input,
+      string destination,
+      GltfPackageKind packageKind,
+      OperationResult<GltfExportReceipt> result)
+    {
+      if (result is null)
+      {
+        throw new ArgumentNullException(nameof(result));
+      }
+      if (result.Succeeded)
+      {
+        throw new ArgumentException("A failed export report requires a non-success result.", nameof(result));
+      }
+      return new GltfCliReportOperation(
+        input,
+        destination ?? throw new ArgumentNullException(nameof(destination)),
+        GltfCliReportOperationKind.Export,
+        packageKind,
+        result);
+    }
+
     /// <summary>Captures one complete new-model import outcome.</summary>
     public static GltfCliReportOperation ForNewModelImport(
       string input,

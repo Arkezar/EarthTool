@@ -33,6 +33,7 @@ public sealed class EarthTool.GLTF.GltfCliReportOperation
   property EarthTool.Common.Operations.OperationStatus Status { get; }
   method EarthTool.GLTF.GltfCliReportOperation ForEditImport(System.String input, System.String destination, EarthTool.GLTF.GltfPackageKind packageKind, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfEditImportResult> result)
   method EarthTool.GLTF.GltfCliReportOperation ForExport(System.String input, System.String destination, EarthTool.GLTF.GltfPackageKind packageKind, EarthTool.MSH.Assets.StaticMeshAsset asset, EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfExportReceipt> result)
+  method EarthTool.GLTF.GltfCliReportOperation ForFailedExport(System.String input, System.String destination, EarthTool.GLTF.GltfPackageKind packageKind, EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfExportReceipt> result)
   method EarthTool.GLTF.GltfCliReportOperation ForNewModelImport(System.String input, System.String destination, EarthTool.GLTF.GltfPackageKind packageKind, EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfNewModelImportResult> result)
   method EarthTool.GLTF.GltfCliReportOperation ForValidation(System.String input, EarthTool.GLTF.GltfPackageKind packageKind, EarthTool.Common.Operations.OperationResult result)
 public enum EarthTool.GLTF.GltfCliReportOperationKind : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
