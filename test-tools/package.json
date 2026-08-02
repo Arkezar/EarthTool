@@ -2,6 +2,9 @@
   "name": "earthtool-test-tools",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
   "devDependencies": {
     "gltf-validator": "2.0.0-dev.3.10"
   }

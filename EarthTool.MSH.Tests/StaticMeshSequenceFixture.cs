@@ -30,6 +30,18 @@ internal sealed class StaticMeshSequenceFixture
     return Create(records, storedTrailingUnwind: 2);
   }
 
+  internal static StaticMeshSequenceFixture CreateInterleavedWithoutTextures()
+  {
+    var records = new[]
+    {
+      new Record(0x00000100, string.Empty, Vector3.Zero, 0, 0xDEADBEEF, false, false),
+      new Record(0x00000A00, string.Empty, new Vector3(1, 2, 3), 64, 2, false, true),
+      new Record(0x00001001, string.Empty, new Vector3(4, 5, 6), 0, 3, false, false),
+      new Record(0x00000C00, string.Empty, new Vector3(7, 8, 9), 0, 0, false, false)
+    };
+    return Create(records, storedTrailingUnwind: 2);
+  }
+
   internal static StaticMeshSequenceFixture CreateSingle()
   {
     return Create(

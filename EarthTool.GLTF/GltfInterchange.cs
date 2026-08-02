@@ -2494,11 +2494,12 @@ namespace EarthTool.GLTF
         var animationReplacements = ValidateAnimationProjection(
           parsed,
           manifest,
-          nodes.Where(node => node.Metadata?.ScopeKind == "object"
+          nodes.Select(node => node.Metadata?.ScopeKind == "object"
               && node.Metadata.AttachmentRecord is null
               && node.Metadata.CannonRenderPosition is null
-              && node.Metadata.StaticLightAttachmentRecord is null)
-            .Select(node => node.Metadata).ToArray(),
+              && node.Metadata.StaticLightAttachmentRecord is null
+                ? node.Metadata
+                : null).ToArray(),
           asset,
           reconciliationBaseline,
           profile.MaxOutputBytes);

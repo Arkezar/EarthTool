@@ -1,0 +1,63 @@
+﻿name: Blender Qualification
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: "8.0.x"
+
+jobs:
+  qualify:
+    name: Blender qualification (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x64
+          - os: windows-latest
+            platform: windows-x64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: test-tools/package-lock.json
+
+      - name: Install pinned Khronos validator
+        run: npm ci --prefix test-tools
+
+      - name: Test qualification resolver
+        run: npm test --prefix test-tools
+
+      - name: Build qualification tests
+        run: dotnet build EarthTool.MSH.Tests/EarthTool.MSH.Tests.csproj --configuration Release
+
+      - name: Run deduplicated Blender matrix
+        run: >-
+          node test-tools/blender-qualification.mjs
+          --platform ${{ matrix.platform }}
+          --evidence artifacts/blender-qualification-${{ matrix.platform }}.json
+
+      - name: Upload qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: blender-qualification-${{ matrix.platform }}
+          path: |
+            artifacts/blender-qualification-${{ matrix.platform }}.json
+            artifacts/blender-results/**
+          if-no-files-found: warn
+          retention-days: 30

@@ -585,6 +585,7 @@ public class GltfWalkingSkeletonTests
   [Theory]
   [InlineData(false)]
   [InlineData(true)]
+  [Trait("Category", "BlenderQualification")]
   public async Task BlenderRoundTripPreservesCombinedStaticLightRecords(bool separate)
   {
     var sourceBytes = StaticLightMshFixture.Create(
@@ -626,7 +627,7 @@ public class GltfWalkingSkeletonTests
           new GltfExportOptions(LineageId, DocumentId));
       export.Status.Should().Be(OperationStatus.Succeeded);
 
-      await RoundTripThroughBlenderAsync(sourcePath, blenderPath, separate);
+      var blenderEvidence = await RoundTripThroughBlenderAsync(sourcePath, blenderPath, separate);
       using (var blenderJson = separate
         ? JsonDocument.Parse(await File.ReadAllBytesAsync(blenderPath))
         : ReadGlbJson(await File.ReadAllBytesAsync(blenderPath)))
@@ -656,6 +657,11 @@ public class GltfWalkingSkeletonTests
         string.Join("; ", import.Value.Preservation.Changes
           .Where(change => change.Disposition != PreservationDisposition.Retained)
           .Select(change => $"{change.FieldPath}:{change.Reason}")));
+      await RecordBlenderEvidenceAsync(
+        blenderEvidence,
+        import.Status.ToString(),
+        import.Value.Preservation.Changes,
+        separate ? "no-edit-separate-gltf" : "no-edit-glb");
     }
     finally
     {
@@ -1330,6 +1336,7 @@ public class GltfWalkingSkeletonTests
   [Theory]
   [InlineData(false)]
   [InlineData(true)]
+  [Trait("Category", "BlenderQualification")]
   public async Task BlenderRoundTripPreservesAttachmentAndCannonRecords(bool separate)
   {
     var sourceBytes = AttachmentAndCannonMshFixture.Create(
@@ -1358,7 +1365,7 @@ public class GltfWalkingSkeletonTests
           new GltfExportOptions(LineageId, DocumentId));
       export.Status.Should().Be(OperationStatus.Succeeded);
 
-      await RoundTripThroughBlenderAsync(inputPath, outputPath, separate);
+      var blenderEvidence = await RoundTripThroughBlenderAsync(inputPath, outputPath, separate);
       OperationResult<GltfEditImportResult> import;
       if (separate)
       {
@@ -1374,6 +1381,144 @@ public class GltfWalkingSkeletonTests
         OperationStatus.Succeeded,
         string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
       import.Value!.Asset.GetSerializedRepresentation().Should().Equal(sourceBytes);
+      await RecordBlenderEvidenceAsync(
+        blenderEvidence,
+        import.Status.ToString(),
+        import.Value.Preservation.Changes,
+        separate ? "no-edit-separate-gltf" : "no-edit-glb");
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Theory]
+  [InlineData("hierarchy")]
+  [InlineData("geometry")]
+  [InlineData("material")]
+  [InlineData("animation")]
+  [InlineData("attachment")]
+  [InlineData("light")]
+  [InlineData("metadata-loss")]
+  [InlineData("branch")]
+  [InlineData("ambiguity")]
+  [InlineData("stale")]
+  [Trait("Category", "BlenderQualification")]
+  public async Task BlenderEditsPassOwnershipAwareOracle(string scenario)
+  {
+    var sourceBytes = scenario switch
+    {
+      "hierarchy" or "material" => StaticMeshSequenceFixture.CreateInterleavedWithoutTextures().Data,
+      "animation" => StaticAnimationMshFixture.Create(
+        0,
+        new StaticAnimationMshFixture.AnimationLengths(2, 0, 0, 0),
+        translations: [Vector3.Zero, Vector3.One],
+        matrices: [Matrix4x4.Identity, Matrix4x4.CreateRotationZ(0.25f)]),
+      "attachment" => AttachmentAndCannonMshFixture.Create(
+        new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+        {
+          [3] = new(256, -512, 768, 32, 0xA5)
+        }),
+      "light" => StaticLightMshFixture.Create(
+        spots: new Dictionary<int, StaticLightMshFixture.SpotRecord>
+        {
+          [1] = new(
+            Vector3.One,
+            new Vector3(0.25f, 0.5f, 0.75f),
+            8,
+            32,
+            [1, 2, 3],
+            0.25f,
+            4,
+            0.5f,
+            2)
+        },
+        activeSpots: [1]),
+      _ => OneTriangleMshFixture.Create()
+    };
+    var asset = await ReadAssetAsync(sourceBytes);
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(directory);
+    try
+    {
+      var sourcePath = Path.Combine(directory, "source.glb");
+      var blenderPath = Path.Combine(directory, "blender.glb");
+      var interchange = new GltfInterchange();
+      var export = await interchange.ExportGlbFileAsync(
+        asset,
+        sourcePath,
+        new GltfExportOptions(LineageId, DocumentId));
+      export.Status.Should().Be(OperationStatus.Succeeded);
+      var blenderEvidence = await RoundTripThroughBlenderAsync(
+        sourcePath,
+        blenderPath,
+        separate: false,
+        scenario);
+      var expectedBaseline = scenario == "branch"
+        ? new InterchangeBaseline(LineageId, Guid.NewGuid())
+        : export.Value!.Baseline;
+      await using var blenderGlb = File.OpenRead(blenderPath);
+      var import = await interchange.ImportEditGlbAsync(blenderGlb, expectedBaseline);
+
+      if (scenario is "metadata-loss" or "branch" or "ambiguity" or "stale")
+      {
+        var expectedCode = scenario switch
+        {
+          "metadata-loss" => GltfDiagnosticCodes.MissingManifest,
+          "branch" => GltfDiagnosticCodes.DocumentMismatch,
+          "ambiguity" => GltfDiagnosticCodes.DuplicateScopeIdentity,
+          _ => GltfDiagnosticCodes.StaleNativeProjection
+        };
+        import.Status.Should().Be(OperationStatus.Failed);
+        import.Value.Should().BeNull();
+        import.Diagnostics.Should().Contain(diagnostic => diagnostic.Code == expectedCode);
+        await RecordBlenderEvidenceAsync(
+          blenderEvidence,
+          expectedCode,
+          Array.Empty<PreservationChange>(),
+          scenario);
+        return;
+      }
+
+      import.Status.Should().Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+      var changes = import.Value!.Preservation.Changes;
+      AssertOnlyExpectedBlenderChanges(scenario, changes);
+      switch (scenario)
+      {
+        case "hierarchy":
+          changes.Should().Contain(change =>
+            change.FieldPath == "StaticRenderObjectSequence"
+            && change.Disposition == PreservationDisposition.Regenerated);
+          break;
+        case "geometry":
+          changes.Should().Contain(change =>
+            change.FieldPath.EndsWith(".RenderVertices", StringComparison.Ordinal)
+            && change.Disposition == PreservationDisposition.Regenerated);
+          break;
+        case "material":
+          import.Value.Asset.StaticRenderObjectSequence.Select(record => record.TexturePathBytes)
+            .Should().Equal(asset.StaticRenderObjectSequence.Select(record => record.TexturePathBytes));
+          break;
+        case "animation":
+          changes.Should().Contain(change =>
+            change.FieldPath.EndsWith(".AnimationTracks.TranslationFrames", StringComparison.Ordinal)
+            && change.Disposition == PreservationDisposition.Regenerated);
+          break;
+        case "attachment":
+          changes.Should().Contain(change =>
+            change.FieldPath == "CommonBaseHeader.AttachmentTable[3]"
+            && change.Disposition == PreservationDisposition.Regenerated);
+          break;
+        case "light":
+          changes.Should().Contain(change =>
+            change.FieldPath.StartsWith("CommonBaseHeader.StaticSpotLights[1]", StringComparison.Ordinal)
+            && change.Disposition == PreservationDisposition.Regenerated);
+          break;
+      }
+      await RecordBlenderEvidenceAsync(blenderEvidence, import.Status.ToString(), changes, scenario);
     }
     finally
     {
@@ -5991,6 +6136,41 @@ public class GltfWalkingSkeletonTests
     return JsonDocument.Parse(glb.AsMemory(20, jsonLength));
   }
 
+  private static void AssertOnlyExpectedBlenderChanges(
+    string scenario,
+    IReadOnlyList<PreservationChange> changes)
+  {
+    changes.Where(change =>
+      change.Disposition != PreservationDisposition.Retained
+      && !IsExpectedBlenderChange(scenario, change.FieldPath)).Should().BeEmpty();
+  }
+
+  private static bool IsExpectedBlenderChange(string scenario, string path)
+  {
+    return scenario switch
+    {
+      "hierarchy" => path is "StaticRenderObjectSequence"
+          or "RootSourceObject"
+          or "StoredTrailingHierarchyUnwindCount"
+        || path.StartsWith("StaticRenderObjectSequence[", StringComparison.Ordinal)
+        && (path.EndsWith(".ObjectFlags", StringComparison.Ordinal)
+          || path.EndsWith(".NextRecordMarker", StringComparison.Ordinal)
+          || path.EndsWith(".HierarchyUnwindCount", StringComparison.Ordinal)),
+      "geometry" => path is "StaticRenderObjectSequence[0].RenderVertices"
+        or "StaticRenderObjectSequence[0].Triangles"
+        or "StaticRenderObjectSequence[0].VertexBlockPadding",
+      "material" => false,
+      "animation" => path.StartsWith(
+        "StaticRenderObjectSequence[0].AnimationTracks.",
+        StringComparison.Ordinal),
+      "attachment" => path == "CommonBaseHeader.AttachmentTable[3]",
+      "light" => path is "CommonBaseHeader.AttachmentTable[13]"
+        or "CommonBaseHeader.StaticSpotLights[1].Position"
+        or "CommonBaseHeader.StaticSpotLights[1].TerrainLightAmplitude",
+      _ => false
+    };
+  }
+
   private static async Task AssertKhronosValidAsync(string path)
   {
     var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../.."));
@@ -6013,29 +6193,85 @@ public class GltfWalkingSkeletonTests
     output.Should().Contain("\"warnings\":0");
   }
 
-  private static async Task RoundTripThroughBlenderAsync(
+  private static async Task<BlenderOutputEvidence> RoundTripThroughBlenderAsync(
     string inputPath,
     string outputPath,
-    bool separate)
+    bool separate,
+    string scenario = "none")
   {
     var scriptPath = Path.Combine(Path.GetDirectoryName(outputPath)!, "round-trip.py");
     await File.WriteAllTextAsync(scriptPath, """
       import bpy
+      import json
       import sys
 
       args = sys.argv[sys.argv.index("--") + 1:]
       bpy.ops.wm.read_factory_settings(use_empty=True)
-      bpy.ops.import_scene.gltf(filepath=args[0])
+      bpy.ops.import_scene.gltf(
+          filepath=args[0],
+          merge_vertices=False,
+          import_scene_extras=True)
+      scenario = args[3]
+      mesh_objects = [item for item in bpy.context.scene.objects if item.type == 'MESH']
+      if scenario == 'hierarchy':
+          if len(mesh_objects) < 3:
+              raise RuntimeError('hierarchy scenario requires three mesh objects')
+          mesh_objects[-1].parent = mesh_objects[-2]
+      elif scenario == 'geometry':
+          mesh_objects[0].data.vertices[0].co.x += 0.25
+      elif scenario == 'material':
+          bpy.data.materials[0].name = 'Artist material'
+      elif scenario == 'animation':
+          action = list(bpy.data.actions)[0]
+          if hasattr(action, 'fcurves'):
+              curves = list(action.fcurves)
+          else:
+              curves = [curve for layer in action.layers
+                        for strip in layer.strips
+                        for channelbag in strip.channelbags
+                        for curve in channelbag.fcurves]
+          location_curves = [curve for curve in curves if curve.data_path == 'location']
+          if not location_curves:
+              raise RuntimeError('animation scenario requires a location curve')
+          location_curves[0].keyframe_points[-1].co.y += 0.25
+      elif scenario == 'attachment':
+          attachments = [item for item in bpy.context.scene.objects
+                         if 'earthtool' in item and
+                         'attachment' in json.loads(item['earthtool']).get('payload', {})]
+          if len(attachments) != 1:
+              raise RuntimeError('attachment scenario requires one attachment')
+          attachments[0].location.x += 0.25
+      elif scenario == 'light':
+          lights = [item for item in bpy.context.scene.objects if item.type == 'LIGHT']
+          if len(lights) != 1:
+              raise RuntimeError('light scenario requires one light')
+          lights[0].location.x += 0.25
+          lights[0].data.energy *= 1.25
+      elif scenario == 'metadata-loss':
+          del bpy.context.scene['earthtool']
+      elif scenario == 'stale':
+          metadata = json.loads(mesh_objects[0].data['earthtool'])
+          metadata['guards']['nativeProjection']['digest'] = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+          mesh_objects[0].data['earthtool'] = json.dumps(metadata, separators=(',', ':'))
+      elif scenario == 'ambiguity':
+          copy = mesh_objects[0].copy()
+          copy.data = mesh_objects[0].data.copy()
+          bpy.context.scene.collection.objects.link(copy)
+          copy.parent = mesh_objects[0]
       bpy.context.scene.render.fps = 24
       bpy.context.scene.render.fps_base = 1
+      bpy.context.scene.frame_step = 1
       bpy.ops.export_scene.gltf(
           filepath=args[1],
           export_format=args[2],
           export_extras=True,
+          export_attributes=True,
           export_lights=True,
           export_yup=True)
       """);
-    var startInfo = new ProcessStartInfo("blender")
+    var blenderExecutable = Environment.GetEnvironmentVariable("EARTHTOOL_BLENDER_EXECUTABLE")
+      ?? "blender";
+    var startInfo = new ProcessStartInfo(blenderExecutable)
     {
       RedirectStandardOutput = true,
       RedirectStandardError = true,
@@ -6051,7 +6287,8 @@ public class GltfWalkingSkeletonTests
       "--",
       inputPath,
       outputPath,
-      separate ? "GLTF_SEPARATE" : "GLB"
+      separate ? "GLTF_SEPARATE" : "GLB",
+      scenario
     })
     {
       startInfo.ArgumentList.Add(argument);
@@ -6062,7 +6299,109 @@ public class GltfWalkingSkeletonTests
     var error = await process.StandardError.ReadToEndAsync();
     await process.WaitForExitAsync();
     process.ExitCode.Should().Be(0, $"Blender stdout: {output} stderr: {error}");
+    File.Exists(outputPath).Should().BeTrue($"Blender stdout: {output} stderr: {error}");
+
+    if (Environment.GetEnvironmentVariable("EARTHTOOL_RUN_KHRONOS_VALIDATOR") == "1")
+    {
+      await AssertKhronosValidAsync(outputPath);
+    }
+    var outputSha256 = await ComputeBlenderPackageHashAsync(outputPath, separate);
+    return new BlenderOutputEvidence(
+      separate ? "gltf" : "glb",
+      outputSha256,
+      Environment.GetEnvironmentVariable("EARTHTOOL_RUN_KHRONOS_VALIDATOR") == "1"
+        ? "passed"
+        : "not-run");
   }
+
+  private static async Task RecordBlenderEvidenceAsync(
+    BlenderOutputEvidence output,
+    string earthToolOutcome,
+    IEnumerable<PreservationChange> changes,
+    params string[] domains)
+  {
+    var evidencePath = Environment.GetEnvironmentVariable("EARTHTOOL_BLENDER_EVIDENCE_EVENTS");
+    if (string.IsNullOrWhiteSpace(evidencePath))
+    {
+      return;
+    }
+    foreach (var domain in domains)
+    {
+      var json = JsonSerializer.Serialize(new
+      {
+        domain,
+        package = output.Package,
+        outputSha256 = output.OutputSha256,
+        sharpGltfValidation = "passed",
+        khronosValidation = output.KhronosValidation,
+        earthToolOutcome,
+        options = new
+        {
+          import = new[]
+          {
+            "import_merge_vertices=false",
+            "import_scene_extras=true"
+          },
+          export = new[]
+          {
+            output.Package == "glb" ? "export_format=GLB" : "export_format=GLTF_SEPARATE",
+            "export_extras=true",
+            "export_attributes=true",
+            "export_lights=true",
+            "export_yup=true",
+            "scene.render.fps=24",
+            "scene.render.fps_base=1",
+            "scene.frame_step=1"
+          }
+        },
+        preservation = changes.Select(change => new
+        {
+          fieldPath = change.FieldPath,
+          disposition = change.Disposition.ToString()
+        })
+      });
+      await File.AppendAllTextAsync(evidencePath, json + Environment.NewLine);
+    }
+  }
+
+  private static async Task<string> ComputeBlenderPackageHashAsync(string outputPath, bool separate)
+  {
+    if (!separate)
+    {
+      await using var output = File.OpenRead(outputPath);
+      return Convert.ToHexString(await SHA256.HashDataAsync(output)).ToLowerInvariant();
+    }
+
+    using var manifest = JsonDocument.Parse(await File.ReadAllBytesAsync(outputPath));
+    var directory = Path.GetDirectoryName(outputPath)!;
+    var resources = new[] { Path.GetFileName(outputPath) }
+      .Concat(manifest.RootElement.TryGetProperty("buffers", out var buffers)
+        ? buffers.EnumerateArray().Select(buffer => buffer.GetProperty("uri").GetString()!)
+        : [])
+      .Concat(manifest.RootElement.TryGetProperty("images", out var images)
+        ? images.EnumerateArray()
+          .Where(image => image.TryGetProperty("uri", out var uri)
+            && !uri.GetString()!.StartsWith("data:", StringComparison.Ordinal))
+          .Select(image => image.GetProperty("uri").GetString()!)
+        : [])
+      .Select(Uri.UnescapeDataString)
+      .Distinct(StringComparer.Ordinal)
+      .Order(StringComparer.Ordinal);
+    using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+    foreach (var resource in resources)
+    {
+      hash.AppendData(Encoding.UTF8.GetBytes(resource));
+      hash.AppendData([0]);
+      hash.AppendData(await File.ReadAllBytesAsync(Path.Combine(directory, resource)));
+      hash.AppendData([0]);
+    }
+    return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+  }
+
+  private sealed record BlenderOutputEvidence(
+    string Package,
+    string OutputSha256,
+    string KhronosValidation);
 
   private static float ReadSingle(byte[] data, int offset)
   {
