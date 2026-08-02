@@ -61,6 +61,59 @@ public class CanonicalMeshAuthoringTests
   }
 
   [Fact]
+  public void CanonicalStaticBuilderAppliesOnlyTypedFootprintExtentAndRoleOverrides()
+  {
+    var elevations = Enumerable.Range(0, 16).Select(index => index / 4f).ToArray();
+    var cornerPassage = new byte[16];
+    cornerPassage[14] = 1;
+    cornerPassage[15] = 2;
+    var source = new CanonicalStaticSourceObject(
+      [new CanonicalStaticRenderObject(CreateVertices(), CreateTriangles())],
+      [new CanonicalStaticSourceObject(
+        [new CanonicalStaticRenderObject(CreateVertices(), CreateTriangles())],
+        role: new CanonicalStaticObjectRole(StaticRenderObjectFlags.Rotor))],
+      role: new CanonicalStaticObjectRole(
+        StaticRenderObjectFlags.ViewerFaced
+          | StaticRenderObjectFlags.Barrel
+          | StaticRenderObjectFlags.MarkerAttachment2,
+        barrelMaximumAngle: 37));
+
+    var build = StaticMeshBuilder.Create(CreationGuid, LineageId)
+      .SetRootSourceObject(source)
+      .SetFootprint(new CanonicalStaticFootprint(0xC000, elevations, cornerPassage))
+      .SetHorizontalExtents(new CanonicalHorizontalExtents(1.25f, 2.5f, 3.75f, 4.5f))
+      .Build();
+
+    build.TryGetValue(out var asset).Should().BeTrue();
+    asset!.CommonBaseHeader.BoxPresenceMask.Should().Be(0xC000);
+    Enumerable.Range(0, 16).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(
+      asset.CommonBaseHeader.BoxTopElevations.Skip(index * 2).Take(2).ToArray()))
+      .Should().Equal(elevations.Reverse().Select(value => (ushort)(value * 256)));
+    asset.CommonBaseHeader.BoxCornerPassageFlags.Should().Equal(cornerPassage.Reverse());
+    asset.CommonBaseHeader.RotatedOccupancyDescriptors.Should().Equal(
+      ToBytes(0x3A000088u, 0x0400C000u, 0xCB001100u, 0xFF000003u));
+    asset.CommonBaseHeader.RotatedCornerPassageMaps.Should().Equal(
+      ToBytes(
+        0xFFFFFFFF2FFF1FFFul,
+        0x81FFFFFFFFFFFFFFul,
+        0xFFF4FFF8FFFFFFFFul,
+        0xFFFFFFFFFFFFFF42ul));
+    asset.CommonBaseHeader.HorizontalExtents.Should().Equal(
+      ToBytes((ushort)320, (ushort)640, (ushort)960, (ushort)1152));
+    asset.StaticRenderObjectSequence[0].KnownFlags.Should().Be(
+      StaticRenderObjectFlags.ViewerFaced
+        | StaticRenderObjectFlags.Barrel
+        | StaticRenderObjectFlags.MarkerAttachment2);
+    asset.StaticRenderObjectSequence[0].BarrelMaximumAngle.Should().Be(37);
+    asset.StaticRenderObjectSequence[1].KnownFlags.Should().Be(
+      StaticRenderObjectFlags.Rotor | StaticRenderObjectFlags.BeginsNestedSourceObject);
+
+    Action reservedRole = () => new CanonicalStaticObjectRole(
+      StaticRenderObjectFlags.BeginsNestedSourceObject);
+    reservedRole.Should().Throw<ArgumentOutOfRangeException>();
+  }
+
+  [Fact]
   public void CanonicalBuilderCopiesInputsAndRejectsNonFiniteValues()
   {
     var vertices = CreateVertices().ToList();
@@ -359,6 +412,16 @@ public class CanonicalMeshAuthoringTests
       BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(index * sizeof(uint)), values[index]);
     }
 
+    return bytes;
+  }
+
+  private static byte[] ToBytes(params ushort[] values)
+  {
+    var bytes = new byte[values.Length * sizeof(ushort)];
+    for (var index = 0; index < values.Length; index++)
+    {
+      BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(index * sizeof(ushort)), values[index]);
+    }
     return bytes;
   }
 

@@ -310,15 +310,31 @@ public struct EarthTool.MSH.Authoring.CanonicalDynamicTerrainLight
   constructor CanonicalDynamicTerrainLight(EarthTool.MSH.Assets.DynamicLightType lightType, System.Numerics.Vector3 color)
   property System.Numerics.Vector3 Color { get; }
   property EarthTool.MSH.Assets.DynamicLightType LightType { get; }
+public sealed class EarthTool.MSH.Authoring.CanonicalHorizontalExtents
+  constructor CanonicalHorizontalExtents(System.Single positiveY, System.Single negativeY, System.Single positiveX, System.Single negativeX)
+  property System.Single NegativeX { get; }
+  property System.Single NegativeY { get; }
+  property System.Single PositiveX { get; }
+  property System.Single PositiveY { get; }
+public sealed class EarthTool.MSH.Authoring.CanonicalStaticFootprint
+  constructor CanonicalStaticFootprint(System.UInt16 presenceMask, System.Collections.Generic.IEnumerable<System.Single> topElevations, System.Collections.Generic.IEnumerable<System.Byte> cornerPassageFlags)
+  property System.Collections.Generic.IReadOnlyList<System.Byte> CornerPassageFlags { get; }
+  property System.UInt16 PresenceMask { get; }
+  property System.Collections.Generic.IReadOnlyList<System.Single> TopElevations { get; }
+public sealed class EarthTool.MSH.Authoring.CanonicalStaticObjectRole
+  constructor CanonicalStaticObjectRole(EarthTool.MSH.Assets.StaticRenderObjectFlags flags, System.Byte barrelMaximumAngle = 0)
+  property System.Byte BarrelMaximumAngle { get; }
+  property EarthTool.MSH.Assets.StaticRenderObjectFlags Flags { get; }
 public sealed class EarthTool.MSH.Authoring.CanonicalStaticRenderObject
   constructor CanonicalStaticRenderObject(System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticVertex> renderVertices, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalTriangle> triangles, System.String? textureResourceKey = null)
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Authoring.CanonicalStaticVertex> RenderVertices { get; }
   property System.String? TextureResourceKey { get; }
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Authoring.CanonicalTriangle> Triangles { get; }
 public sealed class EarthTool.MSH.Authoring.CanonicalStaticSourceObject
-  constructor CanonicalStaticSourceObject(System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticRenderObject> renderObjects, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticSourceObject>? children = null)
+  constructor CanonicalStaticSourceObject(System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticRenderObject> renderObjects, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticSourceObject>? children = null, EarthTool.MSH.Authoring.CanonicalStaticObjectRole? role = null)
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Authoring.CanonicalStaticSourceObject> Children { get; }
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Authoring.CanonicalStaticRenderObject> RenderObjects { get; }
+  property EarthTool.MSH.Authoring.CanonicalStaticObjectRole? Role { get; }
 public sealed class EarthTool.MSH.Authoring.CanonicalStaticVertex
   constructor CanonicalStaticVertex(System.Numerics.Vector3 position, System.Numerics.Vector3 normal, System.Numerics.Vector2 textureCoordinate)
   property System.Numerics.Vector3 Normal { get; }
@@ -379,6 +395,8 @@ public sealed class EarthTool.MSH.Authoring.StaticMeshBuilder
   method EarthTool.MSH.Authoring.StaticMeshBuilder Create()
   method EarthTool.MSH.Authoring.StaticMeshBuilder Create(System.Guid creationGuid, EarthTool.MSH.Assets.MeshAssetLineageId lineageId)
   method EarthTool.MSH.Authoring.StaticMeshBuilder SetAnimationLengths(System.Byte a, System.Byte b, System.Byte c, System.Byte d)
+  method EarthTool.MSH.Authoring.StaticMeshBuilder SetFootprint(EarthTool.MSH.Authoring.CanonicalStaticFootprint footprint)
+  method EarthTool.MSH.Authoring.StaticMeshBuilder SetHorizontalExtents(EarthTool.MSH.Authoring.CanonicalHorizontalExtents horizontalExtents)
   method EarthTool.MSH.Authoring.StaticMeshBuilder SetRenderObject(System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticVertex> vertices, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalTriangle> triangles)
   method EarthTool.MSH.Authoring.StaticMeshBuilder SetRootSourceObject(EarthTool.MSH.Authoring.CanonicalStaticSourceObject rootSourceObject)
 public sealed class EarthTool.MSH.Authoring.StaticMeshEditSession

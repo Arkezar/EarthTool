@@ -15,6 +15,123 @@ using System.Threading;
 
 namespace EarthTool.MSH.Authoring
 {
+  /// <summary>Describes one canonical logical 4x4 footprint.</summary>
+  public sealed class CanonicalStaticFootprint
+  {
+    /// <summary>Gets the low-16 logical occupied-cell mask.</summary>
+    public ushort PresenceMask { get; }
+    /// <summary>Gets 16 logical unsigned top elevations in world units.</summary>
+    public IReadOnlyList<float> TopElevations { get; }
+    /// <summary>Gets 16 logical four-bit corner-passage values.</summary>
+    public IReadOnlyList<byte> CornerPassageFlags { get; }
+
+    /// <summary>Initializes a canonical semantic footprint.</summary>
+    public CanonicalStaticFootprint(
+      ushort presenceMask,
+      IEnumerable<float> topElevations,
+      IEnumerable<byte> cornerPassageFlags)
+    {
+      PresenceMask = presenceMask;
+      var elevations = (topElevations ?? throw new ArgumentNullException(nameof(topElevations))).ToArray();
+      var flags = (cornerPassageFlags
+        ?? throw new ArgumentNullException(nameof(cornerPassageFlags))).ToArray();
+      if (elevations.Length != 16 || flags.Length != 16)
+      {
+        throw new ArgumentException("A canonical footprint requires exactly 16 logical cells.");
+      }
+      if (elevations.Any(value => !float.IsFinite(value) || value < 0 || value * 256d > ushort.MaxValue))
+      {
+        throw new ArgumentOutOfRangeException(nameof(topElevations));
+      }
+      if (flags.Any(value => value > 0x0F))
+      {
+        throw new ArgumentOutOfRangeException(nameof(cornerPassageFlags));
+      }
+
+      TopElevations = Array.AsReadOnly(elevations);
+      CornerPassageFlags = Array.AsReadOnly(flags);
+    }
+  }
+
+  /// <summary>Describes four canonical horizontal extent magnitudes.</summary>
+  public sealed class CanonicalHorizontalExtents
+  {
+    /// <summary>Gets the positive-Y extent.</summary>
+    public float PositiveY { get; }
+    /// <summary>Gets the negative-Y extent magnitude.</summary>
+    public float NegativeY { get; }
+    /// <summary>Gets the positive-X extent.</summary>
+    public float PositiveX { get; }
+    /// <summary>Gets the negative-X extent magnitude.</summary>
+    public float NegativeX { get; }
+
+    /// <summary>Initializes canonical semantic horizontal extents.</summary>
+    public CanonicalHorizontalExtents(float positiveY, float negativeY, float positiveX, float negativeX)
+    {
+      ValidateExtent(positiveY, nameof(positiveY));
+      ValidateExtent(negativeY, nameof(negativeY));
+      ValidateExtent(positiveX, nameof(positiveX));
+      ValidateExtent(negativeX, nameof(negativeX));
+
+      PositiveY = positiveY;
+      NegativeY = negativeY;
+      PositiveX = positiveX;
+      NegativeX = negativeX;
+    }
+
+    private static void ValidateExtent(float value, string parameterName)
+    {
+      if (!float.IsFinite(value) || value < 0 || value * 256d > ushort.MaxValue)
+      {
+        throw new ArgumentOutOfRangeException(parameterName);
+      }
+    }
+  }
+
+  /// <summary>Describes supported semantic roles for a canonical source object.</summary>
+  public sealed class CanonicalStaticObjectRole
+  {
+    private const StaticRenderObjectFlags AllowedFlags =
+      StaticRenderObjectFlags.ViewerFaced
+      | StaticRenderObjectFlags.Barrel
+      | StaticRenderObjectFlags.Rotor
+      | StaticRenderObjectFlags.MarkerAttachment1
+      | StaticRenderObjectFlags.MarkerAttachment2
+      | StaticRenderObjectFlags.MarkerAttachment3
+      | StaticRenderObjectFlags.MarkerAttachment4;
+
+    /// <summary>Gets the recognized semantic role flags.</summary>
+    public StaticRenderObjectFlags Flags { get; }
+    /// <summary>Gets the canonical barrel maximum raise-angle byte.</summary>
+    public byte BarrelMaximumAngle { get; }
+
+    /// <summary>Initializes supported semantic source-object roles.</summary>
+    public CanonicalStaticObjectRole(
+      StaticRenderObjectFlags flags,
+      byte barrelMaximumAngle = 0)
+    {
+      if ((flags & ~AllowedFlags) != 0)
+      {
+        throw new ArgumentOutOfRangeException(nameof(flags));
+      }
+      if ((flags & StaticRenderObjectFlags.Barrel) == 0 && barrelMaximumAngle != 0)
+      {
+        throw new ArgumentOutOfRangeException(nameof(barrelMaximumAngle));
+      }
+      var markerFlags = flags & (StaticRenderObjectFlags.MarkerAttachment1
+        | StaticRenderObjectFlags.MarkerAttachment2
+        | StaticRenderObjectFlags.MarkerAttachment3
+        | StaticRenderObjectFlags.MarkerAttachment4);
+      if (markerFlags != 0 && ((uint)markerFlags & ((uint)markerFlags - 1)) != 0)
+      {
+        throw new ArgumentOutOfRangeException(nameof(flags));
+      }
+
+      Flags = flags;
+      BarrelMaximumAngle = barrelMaximumAngle;
+    }
+  }
+
   /// <summary>Represents one semantic vertex accepted by canonical static authoring.</summary>
   public sealed class CanonicalStaticVertex
   {
@@ -106,14 +223,19 @@ namespace EarthTool.MSH.Authoring
     /// <summary>Gets ordered canonical child source objects.</summary>
     public IReadOnlyList<CanonicalStaticSourceObject> Children { get; }
 
+    /// <summary>Gets the optional supported source-object role.</summary>
+    public CanonicalStaticObjectRole? Role { get; }
+
     /// <summary>Initializes one canonical source-object draft.</summary>
     public CanonicalStaticSourceObject(
       IEnumerable<CanonicalStaticRenderObject> renderObjects,
-      IEnumerable<CanonicalStaticSourceObject>? children = null)
+      IEnumerable<CanonicalStaticSourceObject>? children = null,
+      CanonicalStaticObjectRole? role = null)
     {
       RenderObjects = Array.AsReadOnly(
         (renderObjects ?? throw new ArgumentNullException(nameof(renderObjects))).ToArray());
       Children = Array.AsReadOnly((children ?? Array.Empty<CanonicalStaticSourceObject>()).ToArray());
+      Role = role;
       if (RenderObjects.Any(item => item is null) || Children.Any(item => item is null))
       {
         throw new ArgumentException("Canonical static collections cannot contain null values.");
@@ -153,6 +275,8 @@ namespace EarthTool.MSH.Authoring
     private readonly MeshAssetLineageId _lineageId;
     private AnimationClassBytes _animationLengths;
     private CanonicalStaticSourceObject? _rootSourceObject;
+    private CanonicalStaticFootprint? _footprint;
+    private CanonicalHorizontalExtents? _horizontalExtents;
 
     private StaticMeshBuilder(Guid creationGuid, MeshAssetLineageId lineageId)
     {
@@ -206,6 +330,20 @@ namespace EarthTool.MSH.Authoring
       return this;
     }
 
+    /// <summary>Sets an explicit semantic footprint instead of deriving the historical default.</summary>
+    public StaticMeshBuilder SetFootprint(CanonicalStaticFootprint footprint)
+    {
+      _footprint = footprint ?? throw new ArgumentNullException(nameof(footprint));
+      return this;
+    }
+
+    /// <summary>Sets explicit semantic horizontal extents instead of deriving them from root geometry.</summary>
+    public StaticMeshBuilder SetHorizontalExtents(CanonicalHorizontalExtents horizontalExtents)
+    {
+      _horizontalExtents = horizontalExtents ?? throw new ArgumentNullException(nameof(horizontalExtents));
+      return this;
+    }
+
     /// <summary>Builds one immutable canonical snapshot.</summary>
     public MshBuildResult<StaticMeshAsset> Build(MshOperationProfile? profile = null)
     {
@@ -216,12 +354,23 @@ namespace EarthTool.MSH.Authoring
         return new MshBuildResult<StaticMeshAsset>(false, null, new[] { failure });
       }
 
+      failure = AuthoringValidation.ValidateStaticHeader(
+        _rootSourceObject!,
+        _footprint,
+        _horizontalExtents);
+      if (failure is not null)
+      {
+        return new MshBuildResult<StaticMeshAsset>(false, null, new[] { failure });
+      }
+
       try
       {
         var bytes = MshCanonicalSerializer.CreateStatic(
           _creationGuid,
           _animationLengths,
-          _rootSourceObject!);
+          _rootSourceObject!,
+          _footprint,
+          _horizontalExtents);
         if (bytes.Length > profile.MaxOutputBytes)
         {
           return new MshBuildResult<StaticMeshAsset>(false, null,
@@ -1361,19 +1510,6 @@ namespace EarthTool.MSH.Authoring
         }
       }
 
-      var maximumZ = vertices.Max(vertex => vertex.Position.Z);
-      var extent = vertices.SelectMany(vertex => new[]
-      {
-        Math.Max(0, vertex.Position.X),
-        Math.Max(0, -vertex.Position.X),
-        Math.Max(0, vertex.Position.Y),
-        Math.Max(0, -vertex.Position.Y)
-      }).Max();
-      if (maximumZ < 0 || maximumZ * 256d > ushort.MaxValue || extent * 256d > ushort.MaxValue)
-      {
-        return Invalid("CommonBaseHeader", "Derived footprint or horizontal extents are out of range.");
-      }
-
       for (var index = 0; index < triangles.Count; index++)
       {
         var triangle = triangles[index];
@@ -1387,6 +1523,37 @@ namespace EarthTool.MSH.Authoring
         }
       }
 
+      return null;
+    }
+
+    internal static OperationDiagnostic? ValidateStaticHeader(
+      CanonicalStaticSourceObject root,
+      CanonicalStaticFootprint? footprint,
+      CanonicalHorizontalExtents? horizontalExtents)
+    {
+      var vertices = root.RenderObjects.SelectMany(item => item.RenderVertices).ToArray();
+      if (footprint is null)
+      {
+        var maximumZ = vertices.Max(vertex => vertex.Position.Z);
+        if (maximumZ < 0 || maximumZ * 256d > ushort.MaxValue)
+        {
+          return Invalid("CommonBaseHeader.Footprint", "The derived footprint height is out of range.");
+        }
+      }
+      if (horizontalExtents is null)
+      {
+        var extent = vertices.SelectMany(vertex => new[]
+        {
+          Math.Max(0, vertex.Position.X),
+          Math.Max(0, -vertex.Position.X),
+          Math.Max(0, vertex.Position.Y),
+          Math.Max(0, -vertex.Position.Y)
+        }).Max();
+        if (extent * 256d > ushort.MaxValue)
+        {
+          return Invalid("CommonBaseHeader.HorizontalExtents", "The derived horizontal extents are out of range.");
+        }
+      }
       return null;
     }
 

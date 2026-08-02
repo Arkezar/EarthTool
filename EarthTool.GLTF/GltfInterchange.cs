@@ -691,16 +691,9 @@ namespace EarthTool.GLTF
       var json = await ReadBoundedAsync(jsonStream, profile.MaxInputBytes, cancellationToken)
         .ConfigureAwait(false);
       var bufferUri = GlbDocument.GetSeparateBufferUri(json, profile);
-      if (Path.IsPathRooted(bufferUri)
-        || !string.Equals(Path.GetFileName(bufferUri), bufferUri, StringComparison.Ordinal)
-        || bufferUri.IndexOfAny(new[] { '/', '\\' }) >= 0)
-      {
-        throw new InvalidDataException("The external buffer URI must be a safe relative file name.");
-      }
-
       var directory = Path.GetDirectoryName(Path.GetFullPath(sourcePath))
         ?? Directory.GetCurrentDirectory();
-      var bufferPath = Path.Combine(directory, bufferUri);
+      var bufferPath = ResolveContainedSidecar(directory, bufferUri);
       EnsureRegularSidecar(bufferPath);
       await using var binaryStream = new FileStream(
         bufferPath,
@@ -722,20 +715,17 @@ namespace EarthTool.GLTF
       var images = new Dictionary<string, byte[]>(StringComparer.Ordinal);
       foreach (var imageUri in GlbDocument.GetSeparateImageUris(json, profile))
       {
-        if (Path.IsPathRooted(imageUri)
-          || !string.Equals(Path.GetFileName(imageUri), imageUri, StringComparison.Ordinal)
-          || imageUri.IndexOfAny(new[] { '/', '\\' }) >= 0
-          || (!imageUri.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
-            && !imageUri.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
-            && !imageUri.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)))
+        if (!imageUri.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+          && !imageUri.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
+          && !imageUri.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))
         {
-          throw new InvalidDataException("An external image URI must be a safe relative PNG or JPEG file name.");
+          throw new InvalidDataException("An external image URI must identify a PNG or JPEG file.");
         }
         if (remaining <= 0)
         {
           throw new ResourceLimitException(profile.MaxInputBytes, profile.MaxInputBytes);
         }
-        var imagePath = Path.Combine(directory, imageUri);
+        var imagePath = ResolveContainedSidecar(directory, imageUri);
         EnsureRegularSidecar(imagePath);
         await using var imageStream = new FileStream(
           imagePath,
@@ -750,6 +740,39 @@ namespace EarthTool.GLTF
         images.Add(imageUri, image);
       }
       return (json, binary, bufferUri, images);
+    }
+
+    private static string ResolveContainedSidecar(string directory, string relativeUri)
+    {
+      if (string.IsNullOrWhiteSpace(relativeUri)
+        || relativeUri.IndexOfAny(new[] { '\\', '?', '#' }) >= 0
+        || Uri.TryCreate(relativeUri, UriKind.Absolute, out _))
+      {
+        throw new InvalidDataException("A glTF sidecar URI must be safe, relative, and contained.");
+      }
+      var decoded = Uri.UnescapeDataString(relativeUri);
+      var segments = decoded.Split('/');
+      if (segments.Any(segment => string.IsNullOrEmpty(segment) || segment is "." or ".."))
+      {
+        throw new InvalidDataException("A glTF sidecar URI must be safe, relative, and contained.");
+      }
+      var root = Path.GetFullPath(directory);
+      var path = Path.GetFullPath(Path.Combine(new[] { root }.Concat(segments).ToArray()));
+      if (!path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+      {
+        throw new InvalidDataException("A glTF sidecar URI escapes the package directory.");
+      }
+      var current = root;
+      foreach (var segment in segments.Take(segments.Length - 1))
+      {
+        current = Path.Combine(current, segment);
+        if (Directory.Exists(current)
+          && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+        {
+          throw new InvalidDataException("A glTF sidecar URI traverses a symbolic link.");
+        }
+      }
+      return path;
     }
 
     private static void EnsureRegularSidecar(string path)
@@ -768,7 +791,9 @@ namespace EarthTool.GLTF
       GltfNewModelImportOptions options)
     {
       cancellationToken.ThrowIfCancellationRequested();
-      var sceneLightDiagnostics = CreateIgnoredSceneLightDiagnostics(parsed);
+      var sceneLightDiagnostics = CreateIgnoredSceneLightDiagnostics(parsed, options);
+      var inertDiagnostics = CreateIgnoredInertDataDiagnostics(parsed);
+      var texBindingDiagnostics = CreateNewModelTexBindingDiagnostics(parsed, options);
       if (parsed.HasReservedMetadata)
       {
         return Failed<GltfNewModelImportResult>(Diagnostic(
@@ -778,6 +803,7 @@ namespace EarthTool.GLTF
           "New-model import requires input without reserved EarthTool metadata."));
       }
 
+      ValidateNewModelMaterialBindings(parsed, options);
       long serializedLength;
       try
       {
@@ -785,9 +811,18 @@ namespace EarthTool.GLTF
           .GetCanonicalStaticSerializedLength(parsed.Nodes
             .Where(node => node.MeshIndex.HasValue)
             .SelectMany(node => parsed.Meshes[node.MeshIndex!.Value].Primitives)
-            .Select(primitive => (
-               primitive.Vertices.Count,
-               primitive.Triangles.Count)));
+             .Select(primitive => (
+                primitive.Vertices.Count,
+                primitive.Triangles.Count)));
+        serializedLength = checked(serializedLength + parsed.Nodes
+          .Where(node => node.MeshIndex.HasValue)
+          .SelectMany(node => parsed.Meshes[node.MeshIndex!.Value].Primitives)
+          .Sum(primitive => primitive.MaterialIndex.HasValue
+            && options.TextureResourceBindings.TryGetValue(
+              GetMaterialHandle(parsed, primitive.MaterialIndex.Value),
+              out var binding)
+            ? binding?.Length ?? 0
+            : 0));
       }
       catch (OverflowException)
       {
@@ -798,13 +833,21 @@ namespace EarthTool.GLTF
         throw new ResourceLimitException(serializedLength, profile.MaxOutputBytes);
       }
 
-      var animations = CreateNewModelAnimations(parsed, serializedLength, profile.MaxOutputBytes);
-      ValidateNewModelMaterialBindings(parsed, options);
+      var animations = CreateNewModelAnimations(parsed, serializedLength, profile.MaxOutputBytes, options);
+      ValidateNewModelObjectRoles(parsed, options);
       var draft = CreateNewModelSourceTree(parsed, options, animations.AnimatedSourceNodes);
       var lineage = new MeshAssetLineageId(Guid.NewGuid());
-      var build = StaticMeshBuilder.Create(Guid.NewGuid(), lineage)
-        .SetRootSourceObject(draft.Source)
-        .Build(new MshOperationProfile(
+      var builder = StaticMeshBuilder.Create(Guid.NewGuid(), lineage)
+        .SetRootSourceObject(draft.Source);
+      if (options.Footprint is not null)
+      {
+        builder.SetFootprint(options.Footprint.ToCanonical());
+      }
+      if (options.HorizontalExtents is not null)
+      {
+        builder.SetHorizontalExtents(options.HorizontalExtents.ToCanonical());
+      }
+      var build = builder.Build(new MshOperationProfile(
           maxOutputBytes: profile.MaxOutputBytes,
           maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
           maxStaticHierarchyDepth: profile.MaxHierarchyDepth));
@@ -818,7 +861,7 @@ namespace EarthTool.GLTF
       var edit = asset.Edit();
       ApplyNewModelPivots(draft, asset.RootSourceObject, edit);
       ApplyNewModelAnimations(animations, draft, asset.RootSourceObject, edit);
-      ApplyNewModelBaseHeaderArtistObjects(parsed, edit);
+      ApplyNewModelBaseHeaderArtistObjects(parsed, edit, options);
       var committed = edit.Commit(new MshOperationProfile(
         maxOutputBytes: profile.MaxOutputBytes,
         maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
@@ -833,8 +876,9 @@ namespace EarthTool.GLTF
       var baseline = new InterchangeBaseline(lineage.Value, Guid.NewGuid());
       return new OperationResult<GltfNewModelImportResult>(
         OperationStatus.Succeeded,
-        new GltfNewModelImportResult(authored, baseline, CreateNewModelPreservationReport()),
-        sceneLightDiagnostics.Concat(committed.Diagnostics));
+        new GltfNewModelImportResult(authored, baseline, CreateNewModelPreservationReport(authored)),
+        sceneLightDiagnostics.Concat(inertDiagnostics).Concat(texBindingDiagnostics)
+          .Concat(committed.Diagnostics));
     }
 
     private static void ValidateNewModelMaterialBindings(
@@ -847,13 +891,24 @@ namespace EarthTool.GLTF
         .Distinct()
         .ToArray();
       if (usedMaterialIndices.Any(index => parsed.Materials[index].HasBaseColorTexture
-        && !options.TextureResourceBindings.ContainsKey(index)))
+        && (!options.TextureResourceBindings.TryGetValue(
+          GetMaterialHandle(parsed, index),
+          out var binding)
+          || binding is null)))
+      {
+        throw new UnsupportedGltfDomainException("TexResourceBinding");
+      }
+      if (parsed.Meshes.SelectMany(mesh => mesh.Primitives).Any(primitive =>
+        primitive.MaterialIndex.HasValue
+          && parsed.Materials[primitive.MaterialIndex.Value].HasBaseColorTexture
+          && !primitive.HasTextureCoordinate))
       {
         throw new UnsupportedGltfDomainException("TexResourceBinding");
       }
       foreach (var binding in options.TextureResourceBindings)
       {
-        if (binding.Key >= parsed.Materials.Count)
+        var materialIndex = GetMaterialIndex(parsed, binding.Key);
+        if (!materialIndex.HasValue || !usedMaterialIndices.Contains(materialIndex.Value))
         {
           throw new UnsupportedGltfDomainException("TexResourceBinding");
         }
@@ -867,6 +922,155 @@ namespace EarthTool.GLTF
           throw new UnsupportedGltfDomainException("TexResourceBinding");
         }
       }
+    }
+
+    private static void ValidateNewModelObjectRoles(
+      ParsedGlb parsed,
+      GltfNewModelImportOptions options)
+    {
+      for (var nodeIndex = 0; nodeIndex < parsed.Nodes.Count; nodeIndex++)
+      {
+        if (GlbDocument.TryParseStaticLightHelperName(
+            parsed.Nodes[nodeIndex].Name,
+            out _,
+            out _)
+          && !parsed.Nodes[nodeIndex].LightIndex.HasValue)
+        {
+          throw new UnsupportedGltfDomainException("StaticLights", $"nodes[{nodeIndex}]");
+        }
+      }
+      foreach (var role in options.ObjectRoles)
+      {
+        var nodeIndex = GetNodeIndex(parsed, role.Key);
+        if (!nodeIndex.HasValue || !parsed.Nodes[nodeIndex.Value].MeshIndex.HasValue)
+        {
+          throw new UnsupportedGltfDomainException("ObjectRoles");
+        }
+      }
+      foreach (var helper in options.HelperBindings)
+      {
+        var nodeIndex = GetNodeIndex(parsed, helper.Key);
+        if (!nodeIndex.HasValue
+          || parsed.Nodes[nodeIndex.Value].MeshIndex.HasValue
+          || parsed.Nodes[nodeIndex.Value].CameraIndex.HasValue
+          || options.ObjectRoles.ContainsKey(helper.Key))
+        {
+          throw new UnsupportedGltfDomainException("ArtistObjects");
+        }
+        var expectsLight = helper.Value.Kind is GltfNewModelHelperKind.SpotLight
+          or GltfNewModelHelperKind.OmniLight;
+        if (expectsLight != parsed.Nodes[nodeIndex.Value].LightIndex.HasValue)
+        {
+          throw new UnsupportedGltfDomainException("ArtistObjects");
+        }
+      }
+      foreach (var light in options.StaticLightOptions)
+      {
+        var lightIndex = GetLightIndex(parsed, light.Key);
+        if (!lightIndex.HasValue
+          || !parsed.Nodes.Select((node, index) => (node, index)).Any(item =>
+            item.node.LightIndex == lightIndex.Value
+              && (options.HelperBindings.TryGetValue(
+                  GetNodeHandle(parsed, item.index),
+                  out var binding)
+                && binding.Kind is GltfNewModelHelperKind.SpotLight
+                  or GltfNewModelHelperKind.OmniLight
+                || GlbDocument.TryParseStaticLightHelperName(item.node.Name, out _, out _))))
+        {
+          throw new UnsupportedGltfDomainException("StaticLights");
+        }
+        if (parsed.Lights[lightIndex.Value].Type == "point" && light.Value.TargetDistance.HasValue)
+        {
+          throw new UnsupportedGltfDomainException("StaticLights");
+        }
+      }
+    }
+
+    private static int[] GetNodeOrder(ParsedGlb parsed)
+    {
+      if (parsed.NewModelNodeOrder is not null)
+      {
+        return parsed.NewModelNodeOrder;
+      }
+      var result = new List<int>();
+      AddNodeOrder(parsed.RootNodeIndex, parsed, result);
+      parsed.NewModelNodeOrder = result.ToArray();
+      return parsed.NewModelNodeOrder;
+    }
+
+    private static void AddNodeOrder(int nodeIndex, ParsedGlb parsed, ICollection<int> result)
+    {
+      result.Add(nodeIndex);
+      foreach (var child in parsed.Nodes[nodeIndex].Children)
+      {
+        AddNodeOrder(child, parsed, result);
+      }
+    }
+
+    private static int? GetNodeIndex(ParsedGlb parsed, GltfNodeHandle handle)
+    {
+      var order = GetNodeOrder(parsed);
+      return handle.Value <= order.Length ? order[handle.Value - 1] : null;
+    }
+
+    private static GltfNodeHandle GetNodeHandle(ParsedGlb parsed, int nodeIndex)
+    {
+      var order = GetNodeOrder(parsed);
+      return new GltfNodeHandle(Array.IndexOf(order, nodeIndex) + 1);
+    }
+
+    private static int[] GetMaterialOrder(ParsedGlb parsed)
+    {
+      if (parsed.NewModelMaterialOrder is not null)
+      {
+        return parsed.NewModelMaterialOrder;
+      }
+      parsed.NewModelMaterialOrder = GetNodeOrder(parsed)
+        .Where(nodeIndex => parsed.Nodes[nodeIndex].MeshIndex.HasValue)
+        .SelectMany(nodeIndex => parsed.Meshes[parsed.Nodes[nodeIndex].MeshIndex!.Value].Primitives)
+        .Where(primitive => primitive.MaterialIndex.HasValue)
+        .Select(primitive => primitive.MaterialIndex!.Value)
+        .Distinct()
+        .ToArray();
+      return parsed.NewModelMaterialOrder;
+    }
+
+    private static int? GetMaterialIndex(ParsedGlb parsed, GltfMaterialHandle handle)
+    {
+      var order = GetMaterialOrder(parsed);
+      return handle.Value <= order.Length ? order[handle.Value - 1] : null;
+    }
+
+    private static GltfMaterialHandle GetMaterialHandle(ParsedGlb parsed, int materialIndex)
+    {
+      var order = GetMaterialOrder(parsed);
+      return new GltfMaterialHandle(Array.IndexOf(order, materialIndex) + 1);
+    }
+
+    private static int[] GetLightOrder(ParsedGlb parsed)
+    {
+      if (parsed.NewModelLightOrder is not null)
+      {
+        return parsed.NewModelLightOrder;
+      }
+      parsed.NewModelLightOrder = GetNodeOrder(parsed)
+        .Where(nodeIndex => parsed.Nodes[nodeIndex].LightIndex.HasValue)
+        .Select(nodeIndex => parsed.Nodes[nodeIndex].LightIndex!.Value)
+        .Distinct()
+        .ToArray();
+      return parsed.NewModelLightOrder;
+    }
+
+    private static int? GetLightIndex(ParsedGlb parsed, GltfLightHandle handle)
+    {
+      var order = GetLightOrder(parsed);
+      return handle.Value <= order.Length ? order[handle.Value - 1] : null;
+    }
+
+    private static GltfLightHandle GetLightHandle(ParsedGlb parsed, int lightIndex)
+    {
+      var order = GetLightOrder(parsed);
+      return new GltfLightHandle(Array.IndexOf(order, lightIndex) + 1);
     }
 
     private static NewModelSourceDraft CreateNewModelSourceTree(
@@ -899,14 +1103,20 @@ namespace EarthTool.GLTF
       var effectiveTransform = node.LocalTransform * inheritedLinearTransform;
       if (!node.MeshIndex.HasValue)
       {
-        if (GlbDocument.TryParseAttachmentHelperName(node.Name, out _)
+        var claimedArtistObject = options.HelperBindings.ContainsKey(GetNodeHandle(parsed, nodeIndex))
+          || GlbDocument.TryParseAttachmentHelperName(node.Name, out _)
           || GlbDocument.TryParseCannonRenderPositionHelperName(node.Name, out _)
-          || node.LightIndex.HasValue)
+          || GlbDocument.TryParseStaticLightHelperName(node.Name, out _, out _);
+        if (claimedArtistObject)
         {
           if (node.Children.Count != 0)
           {
             throw new UnsupportedGltfDomainException("TransformOrHierarchy");
           }
+          return Array.Empty<NewModelSourceDraft>();
+        }
+        if ((node.LightIndex.HasValue || node.CameraIndex.HasValue) && node.Children.Count == 0)
+        {
           return Array.Empty<NewModelSourceDraft>();
         }
         var collapsed = node.Children
@@ -948,7 +1158,7 @@ namespace EarthTool.GLTF
           : new CanonicalTriangle(triangle.Vertex0, triangle.Vertex1, triangle.Vertex2)),
         primitive.MaterialIndex.HasValue
           && options.TextureResourceBindings.TryGetValue(
-            primitive.MaterialIndex.Value,
+            GetMaterialHandle(parsed, primitive.MaterialIndex.Value),
             out var textureResourceKey)
           ? textureResourceKey
           : null))
@@ -968,7 +1178,12 @@ namespace EarthTool.GLTF
       {
         new NewModelSourceDraft(
           nodeIndex,
-          new CanonicalStaticSourceObject(renderObjects, children.Select(child => child.Source)),
+          new CanonicalStaticSourceObject(
+            renderObjects,
+            children.Select(child => child.Source),
+            options.ObjectRoles.TryGetValue(GetNodeHandle(parsed, nodeIndex), out var role)
+              ? role.ToCanonical()
+              : null),
           pivot,
           children)
       };
@@ -976,10 +1191,14 @@ namespace EarthTool.GLTF
 
     private static void ApplyNewModelBaseHeaderArtistObjects(
       ParsedGlb parsed,
-      StaticMeshEditSession edit)
+      StaticMeshEditSession edit,
+      GltfNewModelImportOptions options)
     {
       var nodes = parsed.Nodes.Select(node => (node, (MetadataEnvelope?)null)).ToArray();
-      var transforms = CreateArtistObjectTransforms(parsed.RootNodeIndex, nodes);
+      var transforms = CreateArtistObjectTransforms(
+        parsed.RootNodeIndex,
+        nodes,
+        options.HelperBindings.Keys.Select(handle => GetNodeIndex(parsed, handle)!.Value).ToHashSet());
       var attachments = new Dictionary<int, int>();
       var cannons = new Dictionary<int, int>();
       var lights = new Dictionary<(string Type, int Number), int>();
@@ -990,7 +1209,38 @@ namespace EarthTool.GLTF
         {
           continue;
         }
-        if (GlbDocument.TryParseAttachmentHelperName(node.Name, out var physicalNumber))
+        if (options.HelperBindings.TryGetValue(
+          GetNodeHandle(parsed, index),
+          out var binding))
+        {
+          if (HasContradictoryHelperName(node.Name, binding))
+          {
+            throw ArtistObjectConflict("A typed helper binding contradicts its canonical helper name.");
+          }
+          if (binding.Kind == GltfNewModelHelperKind.Attachment)
+          {
+            if (!attachments.TryAdd(binding.PhysicalNumber, index))
+            {
+              throw ArtistObjectConflict("A physical attachment target is occupied more than once.");
+            }
+          }
+          else if (binding.Kind == GltfNewModelHelperKind.CannonRenderPosition)
+          {
+            if (!cannons.TryAdd(binding.PhysicalNumber, index))
+            {
+              throw ArtistObjectConflict("A cannon render-position target is occupied more than once.");
+            }
+          }
+          else
+          {
+            var type = binding.Kind == GltfNewModelHelperKind.SpotLight ? "spot" : "point";
+            if (!lights.TryAdd((type, binding.PhysicalNumber), index))
+            {
+              throw ArtistObjectConflict("A static-light target is occupied more than once.");
+            }
+          }
+        }
+        else if (GlbDocument.TryParseAttachmentHelperName(node.Name, out var physicalNumber))
         {
           if (!attachments.TryAdd(physicalNumber, index))
           {
@@ -1040,6 +1290,20 @@ namespace EarthTool.GLTF
             "StaticLights",
             $"nodes[{item.Value}].extensions.KHR_lights_punctual");
         }
+        var lightOptions = options.StaticLightOptions.TryGetValue(
+          GetLightHandle(parsed, node.LightIndex.Value),
+          out var explicitLightOptions)
+          ? explicitLightOptions
+          : null;
+        var targetDistance = lightOptions?.TargetDistance
+          ?? parsed.Lights[node.LightIndex.Value].Range;
+        if (item.Key.Type == "spot"
+          && (targetDistance is not > 0 || !float.IsFinite(targetDistance.Value)))
+        {
+          throw new UnsupportedGltfDomainException(
+            "StaticLights",
+            $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}].range");
+        }
         if (!usedLightDefinitions.Add(node.LightIndex.Value))
         {
           throw ArtistObjectConflict(
@@ -1068,9 +1332,34 @@ namespace EarthTool.GLTF
           CreateConvertedStaticLightRecord(
             parsed.Lights[node.LightIndex.Value],
             transforms[item.Value],
-            $"nodes[{item.Value}]"),
+            $"nodes[{item.Value}]",
+            lightOptions),
           new[] { "NewStaticLight" });
       }
+    }
+
+    private static bool HasContradictoryHelperName(
+      string? name,
+      GltfNewModelHelperBinding binding)
+    {
+      if (GlbDocument.TryParseAttachmentHelperName(name, out var attachment))
+      {
+        return binding.Kind != GltfNewModelHelperKind.Attachment
+          || binding.PhysicalNumber != attachment;
+      }
+      if (GlbDocument.TryParseCannonRenderPositionHelperName(name, out var cannon))
+      {
+        return binding.Kind != GltfNewModelHelperKind.CannonRenderPosition
+          || binding.PhysicalNumber != cannon;
+      }
+      if (GlbDocument.TryParseStaticLightHelperName(name, out var type, out var light))
+      {
+        var kind = type == "spot"
+          ? GltfNewModelHelperKind.SpotLight
+          : GltfNewModelHelperKind.OmniLight;
+        return binding.Kind != kind || binding.PhysicalNumber != light;
+      }
+      return false;
     }
 
     private static CanonicalStaticVertex TransformNewModelVertex(
@@ -1118,14 +1407,22 @@ namespace EarthTool.GLTF
     private static NewModelAnimationSet CreateNewModelAnimations(
       ParsedGlb parsed,
       long serializedLength,
-      int maximumOutputLength)
+      int maximumOutputLength,
+      GltfNewModelImportOptions options)
     {
       if (parsed.Animations.Count == 0)
       {
+        if (options.AnimationClasses.Count != 0)
+        {
+          throw new UnsupportedGltfDomainException("animations");
+        }
         return new NewModelAnimationSet(default, Array.Empty<NewModelAnimationTrack>());
       }
-      if (parsed.Animations.GroupBy(animation => animation.Name, StringComparer.Ordinal)
-        .Any(group => group.Key is null || group.Count() != 1))
+      if (options.AnimationClasses.Keys.Any(handle => handle.Value > parsed.Animations.Count)
+        || parsed.Animations.Select((animation, index) => (animation, index))
+          .Where(item => !options.AnimationClasses.ContainsKey(new GltfAnimationHandle(item.index + 1)))
+          .GroupBy(item => item.animation.Name, StringComparer.Ordinal)
+          .Any(group => group.Key is null || group.Count() != 1))
       {
         throw new UnsupportedGltfDomainException("animations");
       }
@@ -1133,16 +1430,25 @@ namespace EarthTool.GLTF
       var lengths = new byte[4];
       var tracks = new List<NewModelAnimationTrack>();
       var animatedSourceNodes = new HashSet<int>();
-      foreach (var animation in parsed.Animations)
+      for (var animationIndex = 0; animationIndex < parsed.Animations.Count; animationIndex++)
       {
-        var classIndex = animation.Name switch
+        var animation = parsed.Animations[animationIndex];
+        var classIndex = options.AnimationClasses.TryGetValue(
+          new GltfAnimationHandle(animationIndex + 1),
+          out var explicitClass)
+          ? (int)explicitClass
+          : animation.Name switch
+          {
+            "EarthTool A" => 0,
+            "EarthTool B" => 1,
+            "EarthTool C" => 2,
+            "EarthTool D" => 3,
+            _ => throw new UnsupportedGltfDomainException("animations")
+          };
+        if (lengths[classIndex] != 0)
         {
-          "EarthTool A" => 0,
-          "EarthTool B" => 1,
-          "EarthTool C" => 2,
-          "EarthTool D" => 3,
-          _ => throw new UnsupportedGltfDomainException("animations")
-        };
+          throw new UnsupportedGltfDomainException("animations");
+        }
         var endFrameValue = animation.EndTime * 24d;
         var endFrame = (int)Math.Round(endFrameValue);
         if (Math.Abs(endFrameValue - endFrame) > 1e-5 || endFrame is < 0 or >= byte.MaxValue)
@@ -1316,9 +1622,9 @@ namespace EarthTool.GLTF
       }
     }
 
-    private static PreservationReport CreateNewModelPreservationReport()
+    private static PreservationReport CreateNewModelPreservationReport(StaticMeshAsset asset)
     {
-      return new PreservationReport(new[]
+      var changes = new List<PreservationChange>
       {
         Canonicalized("ArchiveFraming"),
         Canonicalized("CommonBaseHeader"),
@@ -1330,14 +1636,28 @@ namespace EarthTool.GLTF
         Canonicalized("CommonBaseHeader.StaticLights"),
         Canonicalized("CommonBaseHeader.HorizontalExtents"),
         Canonicalized("StaticRenderObjectSequence"),
-        Canonicalized("StaticRenderObjectSequence[*].AnimationClassValue"),
-        Canonicalized("StaticRenderObjectSequence[*].AnimationTracks.ScaleFrames"),
-        Canonicalized("StaticRenderObjectSequence[*].AnimationTracks.TranslationFrames"),
-        Canonicalized("StaticRenderObjectSequence[*].AnimationTracks.Matrices"),
-        Canonicalized("StaticRenderObjectSequence[*].TexturePathBytes"),
         Canonicalized("RootSourceObject"),
         Canonicalized("RootTrailingBytes")
-      });
+      };
+      for (var index = 0; index < asset.StaticRenderObjectSequence.Count; index++)
+      {
+        var path = $"StaticRenderObjectSequence[{index}]";
+        changes.Add(Canonicalized(path + ".ObjectFlags"));
+        changes.Add(Canonicalized(path + ".BarrelMaximumAngle"));
+        changes.Add(Canonicalized(path + ".Pivot"));
+        changes.Add(Canonicalized(path + ".RenderVertices"));
+        changes.Add(Canonicalized(path + ".VertexBlockCount"));
+        changes.Add(Canonicalized(path + ".VertexBlockPadding"));
+        changes.Add(Canonicalized(path + ".Triangles"));
+        changes.Add(Canonicalized(path + ".AnimationClassValue"));
+        changes.Add(Canonicalized(path + ".AnimationTracks.ScaleFrames"));
+        changes.Add(Canonicalized(path + ".AnimationTracks.TranslationFrames"));
+        changes.Add(Canonicalized(path + ".AnimationTracks.Matrices"));
+        changes.Add(Canonicalized(path + ".TexturePathBytes"));
+        changes.Add(Canonicalized(path + ".NextRecordMarker"));
+      }
+      changes.Add(Canonicalized("StoredTrailingHierarchyUnwindCount"));
+      return new PreservationReport(changes);
     }
 
     private static PreservationChange Canonicalized(string path)
@@ -1766,11 +2086,13 @@ namespace EarthTool.GLTF
     }
 
     private static IReadOnlyList<OperationDiagnostic> CreateIgnoredSceneLightDiagnostics(
-      ParsedGlb parsed)
+      ParsedGlb parsed,
+      GltfNewModelImportOptions? options = null)
     {
       return parsed.Nodes.Select((node, index) => (node, index))
         .Where(item => item.node.LightIndex.HasValue
           && item.node.Metadata is null
+          && !(options?.HelperBindings.ContainsKey(GetNodeHandle(parsed, item.index)) ?? false)
           && !GlbDocument.TryParseStaticLightHelperName(item.node.Name, out _, out _))
         .Select(item => new OperationDiagnostic(
           GltfDiagnosticCodes.SceneLightIgnored,
@@ -1778,6 +2100,36 @@ namespace EarthTool.GLTF
           DiagnosticSeverity.Warning,
           $"nodes[{item.index}]",
           "An untagged noncanonical punctual light remains scene-only artist lighting."))
+        .ToArray();
+    }
+
+    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredInertDataDiagnostics(
+      ParsedGlb parsed)
+    {
+      return parsed.IgnoredInertPaths.Select(path => new OperationDiagnostic(
+        GltfDiagnosticCodes.InertDataIgnored,
+        1119,
+        DiagnosticSeverity.Warning,
+        path,
+        "Inert native glTF data was excluded from canonical MSH state."))
+        .ToArray();
+    }
+
+    private static IReadOnlyList<OperationDiagnostic> CreateNewModelTexBindingDiagnostics(
+      ParsedGlb parsed,
+      GltfNewModelImportOptions options)
+    {
+      return options.TextureResourceBindings
+        .Where(binding => binding.Value is not null)
+        .Select(binding => (binding, MaterialIndex: GetMaterialIndex(parsed, binding.Key)))
+        .Where(item => item.MaterialIndex.HasValue
+          && !parsed.Materials[item.MaterialIndex.Value].HasBaseColorTexture)
+        .Select(item => new OperationDiagnostic(
+          GltfDiagnosticCodes.TextureResourceMissing,
+          1107,
+          DiagnosticSeverity.Warning,
+          $"materials[{item.MaterialIndex!.Value}]",
+          "The explicit TEX resource binding has no decoded native preview and remains reference-only."))
         .ToArray();
     }
 
@@ -3124,7 +3476,8 @@ namespace EarthTool.GLTF
     private static byte[] CreateConvertedStaticLightRecord(
       ParsedGltfLight light,
       Matrix4x4 transform,
-      string path)
+      string path,
+      GltfNewModelStaticLightOptions? options = null)
     {
       if (!IsFinite(light.Color)
         || light.Color.X < 0
@@ -3145,7 +3498,7 @@ namespace EarthTool.GLTF
       WriteSingle(result, 0x14, light.Color.Z);
       if (light.Type == "point")
       {
-        WriteSingle(result, 0x18, light.Intensity);
+        WriteSingle(result, 0x18, options?.TerrainLightAmplitude ?? light.Intensity);
         return result;
       }
       if (light.InnerConeAngle < 0
@@ -3154,12 +3507,13 @@ namespace EarthTool.GLTF
       {
         throw new UnsupportedGltfDomainException("StaticLightTypeConversion", path);
       }
-      var distance = light.Range is > 0 && float.IsFinite(light.Range.Value) ? light.Range.Value : 1;
+      var distance = options?.TargetDistance
+        ?? (light.Range is > 0 && float.IsFinite(light.Range.Value) ? light.Range.Value : 1);
       WriteSingle(result, 0x18, distance);
       WriteStaticLightDirection(result, transform, path + ".rotation");
       WriteSingle(result, 0x20, MathF.Tan(light.InnerConeAngle));
       WriteSingle(result, 0x24, light.OuterConeAngle * distance);
-      WriteSingle(result, 0x2C, light.Intensity);
+      WriteSingle(result, 0x2C, options?.TerrainLightAmplitude ?? light.Intensity);
       return result;
     }
 
@@ -3290,10 +3644,16 @@ namespace EarthTool.GLTF
 
     private static IReadOnlyDictionary<int, Matrix4x4> CreateArtistObjectTransforms(
       int rootNodeIndex,
-      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes)
+      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
+      ISet<int>? explicitArtistObjects = null)
     {
       var result = new Dictionary<int, Matrix4x4>();
-      AddArtistObjectTransforms(rootNodeIndex, Matrix4x4.Identity, nodes, result);
+      AddArtistObjectTransforms(
+        rootNodeIndex,
+        Matrix4x4.Identity,
+        nodes,
+        result,
+        explicitArtistObjects ?? new HashSet<int>());
       return result;
     }
 
@@ -3301,11 +3661,13 @@ namespace EarthTool.GLTF
       int nodeIndex,
       Matrix4x4 inheritedTransform,
       IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
-      IDictionary<int, Matrix4x4> result)
+      IDictionary<int, Matrix4x4> result,
+      ISet<int> explicitArtistObjects)
     {
       var node = nodes[nodeIndex];
       var effective = node.Parsed.LocalTransform * inheritedTransform;
-      var isArtistObject = node.Metadata?.AttachmentRecord is not null
+      var isArtistObject = explicitArtistObjects.Contains(nodeIndex)
+        || node.Metadata?.AttachmentRecord is not null
         || node.Metadata?.CannonRenderPosition is not null
         || node.Metadata?.StaticLightAttachmentRecord is not null
         || node.Metadata is null
@@ -3321,7 +3683,7 @@ namespace EarthTool.GLTF
       var childInherited = node.Parsed.MeshIndex.HasValue ? Matrix4x4.Identity : effective;
       foreach (var child in node.Parsed.Children)
       {
-        AddArtistObjectTransforms(child, childInherited, nodes, result);
+        AddArtistObjectTransforms(child, childInherited, nodes, result, explicitArtistObjects);
       }
     }
 

@@ -80,6 +80,14 @@ namespace EarthTool.GLTF.Internal
 
     internal MetadataConflictCollector MetadataConflicts { get; }
 
+    internal IReadOnlyList<string> IgnoredInertPaths { get; }
+
+    internal int[]? NewModelNodeOrder { get; set; }
+
+    internal int[]? NewModelMaterialOrder { get; set; }
+
+    internal int[]? NewModelLightOrder { get; set; }
+
     internal ParsedGlb(
       string? manifestMetadata,
       bool hasReservedMetadata,
@@ -89,7 +97,8 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyList<ParsedGltfAnimation> animations,
       IReadOnlyList<ParsedGltfLight> lights,
       int rootNodeIndex,
-      MetadataConflictCollector metadataConflicts)
+      MetadataConflictCollector metadataConflicts,
+      IReadOnlyList<string> ignoredInertPaths)
     {
       ManifestMetadata = manifestMetadata;
       HasReservedMetadata = hasReservedMetadata;
@@ -100,6 +109,7 @@ namespace EarthTool.GLTF.Internal
       Lights = lights;
       RootNodeIndex = rootNodeIndex;
       MetadataConflicts = metadataConflicts;
+      IgnoredInertPaths = ignoredInertPaths;
     }
   }
 
@@ -113,6 +123,8 @@ namespace EarthTool.GLTF.Internal
 
     internal int? LightIndex { get; }
 
+    internal int? CameraIndex { get; }
+
     internal IReadOnlyList<int> Children { get; }
 
     internal Matrix4x4 LocalTransform { get; }
@@ -122,6 +134,7 @@ namespace EarthTool.GLTF.Internal
       string? metadata,
       int? meshIndex,
       int? lightIndex,
+      int? cameraIndex,
       IReadOnlyList<int> children,
       Matrix4x4 localTransform)
     {
@@ -129,6 +142,7 @@ namespace EarthTool.GLTF.Internal
       Metadata = metadata;
       MeshIndex = meshIndex;
       LightIndex = lightIndex;
+      CameraIndex = cameraIndex;
       Children = children;
       LocalTransform = localTransform;
     }
@@ -194,14 +208,18 @@ namespace EarthTool.GLTF.Internal
 
     internal int? MaterialIndex { get; }
 
+    internal bool HasTextureCoordinate { get; }
+
     internal ParsedGltfPrimitive(
       IReadOnlyList<RenderVertex> vertices,
       IReadOnlyList<StaticTriangle> triangles,
-      int? materialIndex)
+      int? materialIndex,
+      bool hasTextureCoordinate)
     {
       Vertices = vertices;
       Triangles = triangles;
       MaterialIndex = materialIndex;
+      HasTextureCoordinate = hasTextureCoordinate;
     }
   }
 
@@ -935,6 +953,7 @@ namespace EarthTool.GLTF.Internal
           TryGetMetadata(node),
           node.TryGetProperty("mesh", out var mesh) ? mesh.GetInt32() : null,
           TryGetLightIndex(node),
+          node.TryGetProperty("camera", out var camera) ? camera.GetInt32() : null,
           Array.AsReadOnly(children),
           ReadNodeTransform(node)));
       }
@@ -973,7 +992,8 @@ namespace EarthTool.GLTF.Internal
         animations,
         lights,
         root.GetProperty("scenes")[0].GetProperty("nodes")[0].GetInt32(),
-        metadataConflicts);
+        metadataConflicts,
+        GetIgnoredInertPaths(root, intent));
     }
 
     private static void ValidateMetadataGraph(
@@ -3814,9 +3834,17 @@ namespace EarthTool.GLTF.Internal
           throw new UnsupportedGltfDomainException("TransformOrHierarchy");
         }
         if (node.TryGetProperty("skin", out _)
-          || node.TryGetProperty("camera", out _))
+          || intent == GltfImportIntent.Edit && node.TryGetProperty("camera", out _))
         {
           throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+        }
+        if (intent == GltfImportIntent.NewModel
+          && node.TryGetProperty("camera", out var camera)
+          && (!root.TryGetProperty("cameras", out var cameras)
+            || camera.GetInt32() < 0
+            || camera.GetInt32() >= cameras.GetArrayLength()))
+        {
+          throw new UnsupportedGltfDomainException("cameras");
         }
 
         if (node.TryGetProperty("children", out var children))
@@ -3913,7 +3941,10 @@ namespace EarthTool.GLTF.Internal
             throw new UnsupportedGltfDomainException("materials");
           }
           var attributes = primitive.GetProperty("attributes");
-          if (attributes.EnumerateObject().Any(attribute => !supportedAttributes.Contains(attribute.Name))
+          if (attributes.EnumerateObject().Any(attribute =>
+              !supportedAttributes.Contains(attribute.Name)
+              && (intent != GltfImportIntent.NewModel
+                || !IsIgnoredInertAttribute(attribute.Name)))
             || !attributes.TryGetProperty("POSITION", out _)
             || !attributes.TryGetProperty("NORMAL", out _)
             || intent == GltfImportIntent.Edit && !attributes.TryGetProperty("TEXCOORD_0", out _)
@@ -3971,11 +4002,59 @@ namespace EarthTool.GLTF.Internal
 
       foreach (var domain in new[] { "skins", "cameras", "samplers" })
       {
-        if (root.TryGetProperty(domain, out _))
+        if (root.TryGetProperty(domain, out _)
+          && (domain == "skins" || intent == GltfImportIntent.Edit))
         {
           throw new UnsupportedGltfDomainException(domain);
         }
       }
+    }
+
+    private static bool IsIgnoredInertAttribute(string name)
+    {
+      return name == "TANGENT"
+        || name.StartsWith("TEXCOORD_", StringComparison.Ordinal)
+          && name != "TEXCOORD_0";
+    }
+
+    private static IReadOnlyList<string> GetIgnoredInertPaths(
+      JsonElement root,
+      GltfImportIntent intent)
+    {
+      if (intent != GltfImportIntent.NewModel)
+      {
+        return Array.Empty<string>();
+      }
+
+      var paths = new List<string>();
+      var nodes = root.GetProperty("nodes");
+      for (var nodeIndex = 0; nodeIndex < nodes.GetArrayLength(); nodeIndex++)
+      {
+        if (nodes[nodeIndex].TryGetProperty("camera", out _))
+        {
+          paths.Add($"nodes[{nodeIndex}].camera");
+        }
+      }
+      if (root.TryGetProperty("samplers", out _))
+      {
+        paths.Add("samplers");
+      }
+      var meshes = root.GetProperty("meshes");
+      for (var meshIndex = 0; meshIndex < meshes.GetArrayLength(); meshIndex++)
+      {
+        var primitives = meshes[meshIndex].GetProperty("primitives");
+        for (var primitiveIndex = 0; primitiveIndex < primitives.GetArrayLength(); primitiveIndex++)
+        {
+          foreach (var attribute in primitives[primitiveIndex].GetProperty("attributes").EnumerateObject())
+          {
+            if (IsIgnoredInertAttribute(attribute.Name))
+            {
+              paths.Add($"meshes[{meshIndex}].primitives[{primitiveIndex}].attributes.{attribute.Name}");
+            }
+          }
+        }
+      }
+      return paths.AsReadOnly();
     }
 
     private static void ValidateMaterials(JsonElement root)
@@ -4062,29 +4141,43 @@ namespace EarthTool.GLTF.Internal
       }
       if (textures.ValueKind != JsonValueKind.Array
         || images.ValueKind != JsonValueKind.Array
-        || textures.GetArrayLength() != images.GetArrayLength())
+        || textures.GetArrayLength() == 0
+        || images.GetArrayLength() == 0)
       {
         throw new UnsupportedGltfDomainException("TexturePreviews");
       }
       for (var index = 0; index < textures.GetArrayLength(); index++)
       {
         var texture = textures[index];
-        var image = images[index];
         if (texture.ValueKind != JsonValueKind.Object
           || texture.EnumerateObject().Any(property => property.Name is not ("source" or "name"))
-          || texture.GetProperty("source").GetInt32() != index
-          || image.ValueKind != JsonValueKind.Object
+          || !texture.TryGetProperty("source", out var source)
+          || source.GetInt32() < 0
+          || source.GetInt32() >= images.GetArrayLength())
+        {
+          throw new UnsupportedGltfDomainException("TexturePreviews");
+        }
+      }
+      for (var index = 0; index < images.GetArrayLength(); index++)
+      {
+        var image = images[index];
+        var hasBufferView = image.TryGetProperty("bufferView", out var bufferView);
+        var hasUri = image.TryGetProperty("uri", out var uri);
+        var mimeType = image.TryGetProperty("mimeType", out var mime)
+          ? mime.GetString()
+          : null;
+        if (image.ValueKind != JsonValueKind.Object
           || image.EnumerateObject().Any(property =>
             property.Name is not ("name" or "bufferView" or "uri" or "mimeType"))
-          || image.GetProperty("mimeType").GetString() != "image/png"
-          || image.TryGetProperty("bufferView", out var bufferView)
-            == image.TryGetProperty("uri", out var uri)
-          || bufferView.ValueKind != JsonValueKind.Undefined
+          || hasBufferView == hasUri
+          || hasBufferView
             && (bufferView.GetInt32() < 0
               || bufferView.GetInt32() >= root.GetProperty("bufferViews").GetArrayLength())
-          || uri.ValueKind != JsonValueKind.Undefined
+          || hasUri
             && (uri.ValueKind != JsonValueKind.String
-              || string.IsNullOrEmpty(uri.GetString())))
+              || string.IsNullOrEmpty(uri.GetString()))
+          || mimeType is not null and not ("image/png" or "image/jpeg")
+          || hasBufferView && mimeType is null)
         {
           throw new UnsupportedGltfDomainException("TexturePreviews");
         }
@@ -4906,7 +4999,7 @@ namespace EarthTool.GLTF.Internal
         "VEC3");
       var vertexCount = positions.Length / 3;
       var textureCoordinates = attributes.TryGetProperty("TEXCOORD_0", out var textureAccessor)
-        ? ReadFloatAccessor(root, binary, textureAccessor.GetInt32(), 2, "VEC2")
+        ? ReadTextureCoordinateAccessor(root, binary, textureAccessor.GetInt32())
         : new float[vertexCount * 2];
       if (vertexCount == 0
         || normals.Length != vertexCount * 3
@@ -4997,7 +5090,62 @@ namespace EarthTool.GLTF.Internal
       return new ParsedGltfPrimitive(
         Array.AsReadOnly(vertices),
         Array.AsReadOnly(triangles),
-        primitive.TryGetProperty("material", out var material) ? material.GetInt32() : null);
+        primitive.TryGetProperty("material", out var material) ? material.GetInt32() : null,
+        textureAccessor.ValueKind != JsonValueKind.Undefined);
+    }
+
+    private static float[] ReadTextureCoordinateAccessor(
+      JsonElement root,
+      ReadOnlySpan<byte> binary,
+      int accessorIndex)
+    {
+      var accessor = root.GetProperty("accessors")[accessorIndex];
+      var componentType = accessor.GetProperty("componentType").GetInt32();
+      if (componentType == 5126)
+      {
+        return ReadFloatAccessor(root, binary, accessorIndex, 2, "VEC2");
+      }
+      if (componentType is not (5121 or 5123)
+        || accessor.GetProperty("type").GetString() != "VEC2"
+        || !accessor.TryGetProperty("normalized", out var normalized)
+        || !normalized.GetBoolean()
+        || accessor.TryGetProperty("sparse", out _))
+      {
+        throw new UnsupportedGltfDomainException("VertexAccessor");
+      }
+
+      var count = accessor.GetProperty("count").GetInt32();
+      if (count <= 0 || count > 65536)
+      {
+        throw new UnsupportedGltfDomainException("VertexAccessor");
+      }
+      var view = root.GetProperty("bufferViews")[accessor.GetProperty("bufferView").GetInt32()];
+      EnsureBufferView(view);
+      var componentSize = componentType == 5121 ? 1 : 2;
+      var elementSize = componentSize * 2;
+      var stride = view.TryGetProperty("byteStride", out var strideValue)
+        ? strideValue.GetInt32()
+        : elementSize;
+      if (stride < elementSize)
+      {
+        throw new InvalidDataException("Texture-coordinate accessor stride is too small.");
+      }
+      var offset = checked(GetOffset(view) + GetOffset(accessor));
+      EnsureRange(binary.Length, offset, count, stride, elementSize);
+      var result = new float[count * 2];
+      var maximum = componentType == 5121 ? byte.MaxValue : ushort.MaxValue;
+      for (var element = 0; element < count; element++)
+      {
+        for (var component = 0; component < 2; component++)
+        {
+          var componentOffset = checked(offset + element * stride + component * componentSize);
+          var value = componentType == 5121
+            ? binary[componentOffset]
+            : ReadUInt16(binary, componentOffset);
+          result[element * 2 + component] = (float)value / maximum;
+        }
+      }
+      return result;
     }
 
     private static float[] ReadFloatAccessor(
@@ -5010,8 +5158,7 @@ namespace EarthTool.GLTF.Internal
       var accessor = root.GetProperty("accessors")[accessorIndex];
       if (accessor.GetProperty("componentType").GetInt32() != 5126
         || accessor.GetProperty("type").GetString() != accessorType
-        || accessor.TryGetProperty("normalized", out var normalized) && normalized.GetBoolean()
-        || accessor.TryGetProperty("sparse", out _))
+        || accessor.TryGetProperty("normalized", out var normalized) && normalized.GetBoolean())
       {
         throw new UnsupportedGltfDomainException("VertexAccessor");
       }
@@ -5022,35 +5169,93 @@ namespace EarthTool.GLTF.Internal
         throw new UnsupportedGltfDomainException("VertexAccessor");
       }
 
-      var view = root.GetProperty("bufferViews")[accessor.GetProperty("bufferView").GetInt32()];
-      EnsureBufferView(view);
       var elementSize = dimensions * sizeof(float);
-      var stride = view.TryGetProperty("byteStride", out var strideValue)
-        ? strideValue.GetInt32()
-        : elementSize;
-      if (stride < elementSize)
-      {
-        throw new InvalidDataException("Vertex accessor stride is too small.");
-      }
-
-      var offset = checked(GetOffset(view) + GetOffset(accessor));
-      EnsureRange(binary.Length, offset, count, stride, elementSize);
       var result = new float[count * dimensions];
-      for (var element = 0; element < count; element++)
+      if (accessor.TryGetProperty("bufferView", out var viewIndex))
       {
-        for (var component = 0; component < dimensions; component++)
+        var view = root.GetProperty("bufferViews")[viewIndex.GetInt32()];
+        EnsureBufferView(view);
+        var stride = view.TryGetProperty("byteStride", out var strideValue)
+          ? strideValue.GetInt32()
+          : elementSize;
+        if (stride < elementSize)
         {
-          var resultIndex = element * dimensions + component;
-          var componentOffset = checked(offset + element * stride + component * sizeof(float));
-          result[resultIndex] = BitConverter.Int32BitsToSingle(
-            BinaryPrimitives.ReadInt32LittleEndian(binary.Slice(componentOffset, sizeof(float))));
-          if (float.IsNaN(result[resultIndex]) || float.IsInfinity(result[resultIndex]))
+          throw new InvalidDataException("Vertex accessor stride is too small.");
+        }
+        var offset = checked(GetOffset(view) + GetOffset(accessor));
+        EnsureRange(binary.Length, offset, count, stride, elementSize);
+        for (var element = 0; element < count; element++)
+        {
+          for (var component = 0; component < dimensions; component++)
           {
-            throw new InvalidDataException("Vertex accessor contains a non-finite value.");
+            result[element * dimensions + component] = ReadFiniteAccessorFloat(
+              binary,
+              checked(offset + element * stride + component * sizeof(float)));
           }
         }
       }
 
+      if (accessor.TryGetProperty("sparse", out var sparse))
+      {
+        var sparseCount = sparse.GetProperty("count").GetInt32();
+        if (sparseCount <= 0 || sparseCount > count)
+        {
+          throw new UnsupportedGltfDomainException("VertexAccessor");
+        }
+        var sparseIndices = sparse.GetProperty("indices");
+        var indexComponentType = sparseIndices.GetProperty("componentType").GetInt32();
+        if (indexComponentType is not (5121 or 5123 or 5125))
+        {
+          throw new UnsupportedGltfDomainException("VertexAccessor");
+        }
+        var indexSize = indexComponentType == 5121 ? 1 : indexComponentType == 5123 ? 2 : 4;
+        var indexView = root.GetProperty("bufferViews")[sparseIndices.GetProperty("bufferView").GetInt32()];
+        EnsureBufferView(indexView);
+        var indexOffset = checked(GetOffset(indexView) + GetOffset(sparseIndices));
+        EnsureRange(binary.Length, indexOffset, sparseCount, indexSize, indexSize);
+        var sparseValues = sparse.GetProperty("values");
+        var valueView = root.GetProperty("bufferViews")[sparseValues.GetProperty("bufferView").GetInt32()];
+        EnsureBufferView(valueView);
+        var valueOffset = checked(GetOffset(valueView) + GetOffset(sparseValues));
+        EnsureRange(binary.Length, valueOffset, sparseCount, elementSize, elementSize);
+        for (var sparseIndex = 0; sparseIndex < sparseCount; sparseIndex++)
+        {
+          var indexOffsetValue = checked(indexOffset + sparseIndex * indexSize);
+          var targetIndex = indexComponentType == 5121
+            ? binary[indexOffsetValue]
+            : indexComponentType == 5123
+              ? ReadUInt16(binary, indexOffsetValue)
+              : checked((int)ReadUInt32(binary, indexOffsetValue));
+          if (targetIndex < 0 || targetIndex >= count)
+          {
+            throw new InvalidDataException("Sparse accessor index is outside the accessor range.");
+          }
+          for (var component = 0; component < dimensions; component++)
+          {
+            result[targetIndex * dimensions + component] = ReadFiniteAccessorFloat(
+              binary,
+              checked(valueOffset + sparseIndex * elementSize + component * sizeof(float)));
+          }
+        }
+      }
+
+      if (!accessor.TryGetProperty("bufferView", out _)
+        && !accessor.TryGetProperty("sparse", out _))
+      {
+        throw new UnsupportedGltfDomainException("VertexAccessor");
+      }
+
+      return result;
+    }
+
+    private static float ReadFiniteAccessorFloat(ReadOnlySpan<byte> binary, int offset)
+    {
+      var result = BitConverter.Int32BitsToSingle(
+        BinaryPrimitives.ReadInt32LittleEndian(binary.Slice(offset, sizeof(float))));
+      if (!float.IsFinite(result))
+      {
+        throw new InvalidDataException("Vertex accessor contains a non-finite value.");
+      }
       return result;
     }
 

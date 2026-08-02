@@ -60,6 +60,8 @@ namespace EarthTool.GLTF
     public const string StaticLightPreviewSubstituted = "ETG1017";
     /// <summary>An untagged noncanonical punctual light remains scene-only artist lighting.</summary>
     public const string SceneLightIgnored = "ETG1018";
+    /// <summary>Inert native glTF data was deliberately excluded from canonical MSH state.</summary>
+    public const string InertDataIgnored = "ETG1019";
     /// <summary>Required EarthTool manifest metadata is absent.</summary>
     public const string MissingManifest = "ETG2000";
     /// <summary>The edit-import scene contract is invalid.</summary>
@@ -573,23 +575,374 @@ namespace EarthTool.GLTF
 
   }
 
-  /// <summary>Supplies explicit game-authoritative TEX bindings for generic material indices.</summary>
+  /// <summary>Identifies one source node by its one-based document-local authoring order.</summary>
+  public readonly struct GltfNodeHandle : IEquatable<GltfNodeHandle>
+  {
+    /// <summary>Gets the one-based document-local value.</summary>
+    public int Value { get; }
+
+    /// <summary>Initializes a document-local node handle.</summary>
+    public GltfNodeHandle(int value)
+    {
+      if (value <= 0)
+      {
+        throw new ArgumentOutOfRangeException(nameof(value));
+      }
+      Value = value;
+    }
+
+    /// <inheritdoc />
+    public bool Equals(GltfNodeHandle other) => Value == other.Value;
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is GltfNodeHandle other && Equals(other);
+    /// <inheritdoc />
+    public override int GetHashCode() => Value;
+  }
+
+  /// <summary>Identifies one source material by its one-based document-local authoring order.</summary>
+  public readonly struct GltfMaterialHandle : IEquatable<GltfMaterialHandle>
+  {
+    /// <summary>Gets the one-based document-local value.</summary>
+    public int Value { get; }
+
+    /// <summary>Initializes a document-local material handle.</summary>
+    public GltfMaterialHandle(int value)
+    {
+      if (value <= 0)
+      {
+        throw new ArgumentOutOfRangeException(nameof(value));
+      }
+      Value = value;
+    }
+
+    /// <inheritdoc />
+    public bool Equals(GltfMaterialHandle other) => Value == other.Value;
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is GltfMaterialHandle other && Equals(other);
+    /// <inheritdoc />
+    public override int GetHashCode() => Value;
+  }
+
+  /// <summary>Identifies one punctual-light definition by one-based document-local order.</summary>
+  public readonly struct GltfLightHandle : IEquatable<GltfLightHandle>
+  {
+    /// <summary>Gets the one-based document-local value.</summary>
+    public int Value { get; }
+
+    /// <summary>Initializes a document-local light handle.</summary>
+    public GltfLightHandle(int value)
+    {
+      if (value <= 0)
+      {
+        throw new ArgumentOutOfRangeException(nameof(value));
+      }
+      Value = value;
+    }
+
+    /// <inheritdoc />
+    public bool Equals(GltfLightHandle other) => Value == other.Value;
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is GltfLightHandle other && Equals(other);
+    /// <inheritdoc />
+    public override int GetHashCode() => Value;
+  }
+
+  /// <summary>Identifies one animation by one-based document-local order.</summary>
+  public readonly struct GltfAnimationHandle : IEquatable<GltfAnimationHandle>
+  {
+    /// <summary>Gets the one-based document-local value.</summary>
+    public int Value { get; }
+
+    /// <summary>Initializes a document-local animation handle.</summary>
+    public GltfAnimationHandle(int value)
+    {
+      if (value <= 0)
+      {
+        throw new ArgumentOutOfRangeException(nameof(value));
+      }
+      Value = value;
+    }
+
+    /// <inheritdoc />
+    public bool Equals(GltfAnimationHandle other) => Value == other.Value;
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is GltfAnimationHandle other && Equals(other);
+    /// <inheritdoc />
+    public override int GetHashCode() => Value;
+  }
+
+  /// <summary>Names the four supported MSH animation classes.</summary>
+  public enum GltfNewModelAnimationClass
+  {
+    /// <summary>Animation class A.</summary>
+    A = 0,
+    /// <summary>Animation class B.</summary>
+    B = 1,
+    /// <summary>Animation class C.</summary>
+    C = 2,
+    /// <summary>Animation class D.</summary>
+    D = 3
+  }
+
+  /// <summary>Names supported helper semantics for one generic source node.</summary>
+  public enum GltfNewModelHelperKind
+  {
+    /// <summary>Authors one ordinary attachment record.</summary>
+    Attachment = 0,
+    /// <summary>Authors one full-precision cannon render position.</summary>
+    CannonRenderPosition = 1,
+    /// <summary>Authors one spot light and its activity attachment.</summary>
+    SpotLight = 2,
+    /// <summary>Authors one omni light and its activity attachment.</summary>
+    OmniLight = 3
+  }
+
+  /// <summary>Binds one source node to a supported physical helper target.</summary>
+  public sealed class GltfNewModelHelperBinding
+  {
+    /// <summary>Gets the helper semantic kind.</summary>
+    public GltfNewModelHelperKind Kind { get; }
+    /// <summary>Gets the physical target number.</summary>
+    public int PhysicalNumber { get; }
+
+    /// <summary>Initializes one typed helper binding.</summary>
+    public GltfNewModelHelperBinding(GltfNewModelHelperKind kind, int physicalNumber)
+    {
+      if (!Enum.IsDefined(typeof(GltfNewModelHelperKind), kind))
+      {
+        throw new ArgumentOutOfRangeException(nameof(kind));
+      }
+      if (kind == GltfNewModelHelperKind.Attachment
+          && (physicalNumber is < 1 or > 49 or >= 13 and <= 20)
+        || kind != GltfNewModelHelperKind.Attachment && physicalNumber is < 1 or > 4)
+      {
+        throw new ArgumentOutOfRangeException(nameof(physicalNumber));
+      }
+      Kind = kind;
+      PhysicalNumber = physicalNumber;
+    }
+  }
+
+  /// <summary>Supplies MSH-only semantic values for one generic punctual light.</summary>
+  public sealed class GltfNewModelStaticLightOptions
+  {
+    /// <summary>Gets the optional positive spot target distance.</summary>
+    public float? TargetDistance { get; }
+    /// <summary>Gets the optional terrain-light amplitude.</summary>
+    public float? TerrainLightAmplitude { get; }
+
+    /// <summary>Initializes supported semantic light values.</summary>
+    public GltfNewModelStaticLightOptions(
+      float? targetDistance = null,
+      float? terrainLightAmplitude = null)
+    {
+      if (targetDistance.HasValue
+        && (!float.IsFinite(targetDistance.Value) || targetDistance.Value <= 0))
+      {
+        throw new ArgumentOutOfRangeException(nameof(targetDistance));
+      }
+      if (terrainLightAmplitude.HasValue
+        && (!float.IsFinite(terrainLightAmplitude.Value) || terrainLightAmplitude.Value < 0))
+      {
+        throw new ArgumentOutOfRangeException(nameof(terrainLightAmplitude));
+      }
+      TargetDistance = targetDistance;
+      TerrainLightAmplitude = terrainLightAmplitude;
+    }
+  }
+
+  /// <summary>Names supported semantic roles for a newly authored source object.</summary>
+  [Flags]
+  public enum GltfStaticObjectRoles
+  {
+    /// <summary>No recognized role.</summary>
+    None = 0,
+    /// <summary>Faces the active viewer.</summary>
+    ViewerFaced = 1,
+    /// <summary>Uses the barrel transform role.</summary>
+    Barrel = 2,
+    /// <summary>Uses the rotor transform role.</summary>
+    Rotor = 4,
+    /// <summary>Uses marker attachment 1.</summary>
+    MarkerAttachment1 = 8,
+    /// <summary>Uses marker attachment 2.</summary>
+    MarkerAttachment2 = 16,
+    /// <summary>Uses marker attachment 3.</summary>
+    MarkerAttachment3 = 32,
+    /// <summary>Uses marker attachment 4.</summary>
+    MarkerAttachment4 = 64
+  }
+
+  /// <summary>Supplies supported semantic role values for one source object.</summary>
+  public sealed class GltfNewModelObjectRole
+  {
+    /// <summary>Gets the supported role set.</summary>
+    public GltfStaticObjectRoles Roles { get; }
+    /// <summary>Gets the barrel maximum raise-angle byte.</summary>
+    public byte BarrelMaximumAngle { get; }
+
+    /// <summary>Initializes a supported semantic role override.</summary>
+    public GltfNewModelObjectRole(
+      GltfStaticObjectRoles roles,
+      byte barrelMaximumAngle = 0)
+    {
+      var allowed = GltfStaticObjectRoles.ViewerFaced
+        | GltfStaticObjectRoles.Barrel
+        | GltfStaticObjectRoles.Rotor
+        | GltfStaticObjectRoles.MarkerAttachment1
+        | GltfStaticObjectRoles.MarkerAttachment2
+        | GltfStaticObjectRoles.MarkerAttachment3
+        | GltfStaticObjectRoles.MarkerAttachment4;
+      if ((roles & ~allowed) != 0)
+      {
+        throw new ArgumentOutOfRangeException(nameof(roles));
+      }
+      if ((roles & GltfStaticObjectRoles.Barrel) == 0 && barrelMaximumAngle != 0)
+      {
+        throw new ArgumentOutOfRangeException(nameof(barrelMaximumAngle));
+      }
+      var markerRoles = roles & (GltfStaticObjectRoles.MarkerAttachment1
+        | GltfStaticObjectRoles.MarkerAttachment2
+        | GltfStaticObjectRoles.MarkerAttachment3
+        | GltfStaticObjectRoles.MarkerAttachment4);
+      if (markerRoles != 0 && ((int)markerRoles & ((int)markerRoles - 1)) != 0)
+      {
+        throw new ArgumentOutOfRangeException(nameof(roles));
+      }
+      Roles = roles;
+      BarrelMaximumAngle = barrelMaximumAngle;
+    }
+
+    internal CanonicalStaticObjectRole ToCanonical()
+    {
+      var flags = StaticRenderObjectFlags.None;
+      if ((Roles & GltfStaticObjectRoles.ViewerFaced) != 0) flags |= StaticRenderObjectFlags.ViewerFaced;
+      if ((Roles & GltfStaticObjectRoles.Barrel) != 0) flags |= StaticRenderObjectFlags.Barrel;
+      if ((Roles & GltfStaticObjectRoles.Rotor) != 0) flags |= StaticRenderObjectFlags.Rotor;
+      if ((Roles & GltfStaticObjectRoles.MarkerAttachment1) != 0) flags |= StaticRenderObjectFlags.MarkerAttachment1;
+      if ((Roles & GltfStaticObjectRoles.MarkerAttachment2) != 0) flags |= StaticRenderObjectFlags.MarkerAttachment2;
+      if ((Roles & GltfStaticObjectRoles.MarkerAttachment3) != 0) flags |= StaticRenderObjectFlags.MarkerAttachment3;
+      if ((Roles & GltfStaticObjectRoles.MarkerAttachment4) != 0) flags |= StaticRenderObjectFlags.MarkerAttachment4;
+      return new CanonicalStaticObjectRole(flags, BarrelMaximumAngle);
+    }
+  }
+
+  /// <summary>Supplies one explicit semantic 4x4 footprint.</summary>
+  public sealed class GltfNewModelFootprint
+  {
+    /// <summary>Gets the low-16 logical occupied-cell mask.</summary>
+    public ushort PresenceMask { get; }
+    /// <summary>Gets 16 logical unsigned top elevations.</summary>
+    public IReadOnlyList<float> TopElevations { get; }
+    /// <summary>Gets 16 logical four-bit corner-passage values.</summary>
+    public IReadOnlyList<byte> CornerPassageFlags { get; }
+
+    /// <summary>Initializes an explicit semantic footprint.</summary>
+    public GltfNewModelFootprint(
+      ushort presenceMask,
+      IEnumerable<float> topElevations,
+      IEnumerable<byte> cornerPassageFlags)
+    {
+      var canonical = new CanonicalStaticFootprint(presenceMask, topElevations, cornerPassageFlags);
+      PresenceMask = canonical.PresenceMask;
+      TopElevations = canonical.TopElevations;
+      CornerPassageFlags = canonical.CornerPassageFlags;
+    }
+
+    internal CanonicalStaticFootprint ToCanonical() =>
+      new(PresenceMask, TopElevations, CornerPassageFlags);
+  }
+
+  /// <summary>Supplies explicit semantic horizontal extent magnitudes.</summary>
+  public sealed class GltfNewModelHorizontalExtents
+  {
+    /// <summary>Gets the positive-Y extent.</summary>
+    public float PositiveY { get; }
+    /// <summary>Gets the negative-Y extent magnitude.</summary>
+    public float NegativeY { get; }
+    /// <summary>Gets the positive-X extent.</summary>
+    public float PositiveX { get; }
+    /// <summary>Gets the negative-X extent magnitude.</summary>
+    public float NegativeX { get; }
+
+    /// <summary>Initializes explicit semantic horizontal extents.</summary>
+    public GltfNewModelHorizontalExtents(float positiveY, float negativeY, float positiveX, float negativeX)
+    {
+      var canonical = new CanonicalHorizontalExtents(positiveY, negativeY, positiveX, negativeX);
+      PositiveY = canonical.PositiveY;
+      NegativeY = canonical.NegativeY;
+      PositiveX = canonical.PositiveX;
+      NegativeX = canonical.NegativeX;
+    }
+
+    internal CanonicalHorizontalExtents ToCanonical() =>
+      new(PositiveY, NegativeY, PositiveX, NegativeX);
+  }
+
+  /// <summary>Supplies closed semantic overrides for generic new-model authoring.</summary>
   public sealed class GltfNewModelImportOptions
   {
-    /// <summary>Gets material-index bindings; a null value explicitly clears the binding.</summary>
-    public IReadOnlyDictionary<int, string?> TextureResourceBindings { get; }
+    /// <summary>Gets material-handle bindings; null clears an untextured material binding.</summary>
+    public IReadOnlyDictionary<GltfMaterialHandle, string?> TextureResourceBindings { get; }
+    /// <summary>Gets the optional explicit footprint.</summary>
+    public GltfNewModelFootprint? Footprint { get; }
+    /// <summary>Gets the optional explicit horizontal extents.</summary>
+    public GltfNewModelHorizontalExtents? HorizontalExtents { get; }
+    /// <summary>Gets supported role overrides keyed by node handle.</summary>
+    public IReadOnlyDictionary<GltfNodeHandle, GltfNewModelObjectRole> ObjectRoles { get; }
+    /// <summary>Gets explicit helper semantics keyed by node handle.</summary>
+    public IReadOnlyDictionary<GltfNodeHandle, GltfNewModelHelperBinding> HelperBindings { get; }
+    /// <summary>Gets MSH-only semantic light values keyed by light handle.</summary>
+    public IReadOnlyDictionary<GltfLightHandle, GltfNewModelStaticLightOptions> StaticLightOptions { get; }
+    /// <summary>Gets explicit class bindings keyed by animation handle.</summary>
+    public IReadOnlyDictionary<GltfAnimationHandle, GltfNewModelAnimationClass> AnimationClasses { get; }
 
-    /// <summary>Initializes explicit generic material bindings.</summary>
+    /// <summary>Initializes closed semantic new-model overrides.</summary>
     public GltfNewModelImportOptions(
-      IReadOnlyDictionary<int, string?>? textureResourceBindings = null)
+      IReadOnlyDictionary<GltfMaterialHandle, string?>? textureResourceBindings = null,
+      GltfNewModelFootprint? footprint = null,
+      GltfNewModelHorizontalExtents? horizontalExtents = null,
+      IReadOnlyDictionary<GltfNodeHandle, GltfNewModelObjectRole>? objectRoles = null,
+      IReadOnlyDictionary<GltfNodeHandle, GltfNewModelHelperBinding>? helperBindings = null,
+      IReadOnlyDictionary<GltfLightHandle, GltfNewModelStaticLightOptions>? staticLightOptions = null,
+      IReadOnlyDictionary<GltfAnimationHandle, GltfNewModelAnimationClass>? animationClasses = null)
     {
       var bindings = textureResourceBindings?.ToDictionary(pair => pair.Key, pair => pair.Value)
-        ?? new Dictionary<int, string?>();
-      if (bindings.Keys.Any(index => index < 0))
+        ?? new Dictionary<GltfMaterialHandle, string?>();
+      var roles = objectRoles?.ToDictionary(pair => pair.Key, pair => pair.Value)
+        ?? new Dictionary<GltfNodeHandle, GltfNewModelObjectRole>();
+      var helpers = helperBindings?.ToDictionary(pair => pair.Key, pair => pair.Value)
+        ?? new Dictionary<GltfNodeHandle, GltfNewModelHelperBinding>();
+      var lights = staticLightOptions?.ToDictionary(pair => pair.Key, pair => pair.Value)
+        ?? new Dictionary<GltfLightHandle, GltfNewModelStaticLightOptions>();
+      var animations = animationClasses?.ToDictionary(pair => pair.Key, pair => pair.Value)
+        ?? new Dictionary<GltfAnimationHandle, GltfNewModelAnimationClass>();
+      if (bindings.Keys.Any(handle => handle.Value <= 0)
+        || roles.Keys.Any(handle => handle.Value <= 0)
+        || helpers.Keys.Any(handle => handle.Value <= 0)
+        || lights.Keys.Any(handle => handle.Value <= 0)
+        || animations.Keys.Any(handle => handle.Value <= 0))
       {
-        throw new ArgumentOutOfRangeException(nameof(textureResourceBindings));
+        throw new ArgumentOutOfRangeException(nameof(textureResourceBindings),
+          "A document-local handle must be positive.");
       }
-      TextureResourceBindings = new ReadOnlyDictionary<int, string?>(bindings);
+      if (roles.Values.Any(role => role is null)
+        || helpers.Values.Any(binding => binding is null)
+        || lights.Values.Any(light => light is null))
+      {
+        throw new ArgumentException("New-model semantic overrides cannot contain null values.");
+      }
+      if (animations.Values.Any(value => !Enum.IsDefined(typeof(GltfNewModelAnimationClass), value)))
+      {
+        throw new ArgumentOutOfRangeException(nameof(animationClasses));
+      }
+      TextureResourceBindings = new ReadOnlyDictionary<GltfMaterialHandle, string?>(bindings);
+      Footprint = footprint;
+      HorizontalExtents = horizontalExtents;
+      ObjectRoles = new ReadOnlyDictionary<GltfNodeHandle, GltfNewModelObjectRole>(roles);
+      HelperBindings = new ReadOnlyDictionary<GltfNodeHandle, GltfNewModelHelperBinding>(helpers);
+      StaticLightOptions = new ReadOnlyDictionary<GltfLightHandle, GltfNewModelStaticLightOptions>(lights);
+      AnimationClasses = new ReadOnlyDictionary<GltfAnimationHandle, GltfNewModelAnimationClass>(animations);
     }
   }
 

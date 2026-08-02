@@ -22,14 +22,21 @@ namespace EarthTool.MSH.Internal
     internal static byte[] CreateStatic(
       Guid creationGuid,
       AnimationClassBytes animationLengths,
-      CanonicalStaticSourceObject rootSourceObject)
+      CanonicalStaticSourceObject rootSourceObject,
+      CanonicalStaticFootprint? footprint = null,
+      CanonicalHorizontalExtents? horizontalExtents = null)
     {
       var framing = new MeshArchiveFraming(0x20D0A1FF, null, creationGuid);
       var records = FlattenStaticTree(rootSourceObject);
       var vertices = rootSourceObject.RenderObjects
         .SelectMany(record => record.RenderVertices)
         .ToArray();
-      var commonHeader = CreateCanonicalCommonHeader(0, animationLengths, vertices);
+      var commonHeader = CreateCanonicalCommonHeader(
+        0,
+        animationLengths,
+        vertices,
+        footprint,
+        horizontalExtents);
       return CreateStatic(framing, commonHeader, records, Array.Empty<byte>());
     }
 
@@ -414,7 +421,7 @@ namespace EarthTool.MSH.Internal
       var result = new byte[checked(53 + blocks * 0xA0 + texturePathBytes.Count
         + triangles.Count * 8)];
       var cursor = 0;
-      WriteStaticRecord(result, ref cursor, vertices, triangles, texturePathBytes, 0, 1);
+      WriteStaticRecord(result, ref cursor, vertices, triangles, texturePathBytes, 0, 0, 1);
       WriteVector3(result, result.Length - StaticRecordPivotOffsetFromEnd, pivot, invertY: true);
       return result;
     }
@@ -718,7 +725,9 @@ namespace EarthTool.MSH.Internal
     internal static byte[] CreateCanonicalCommonHeader(
       uint meshKind,
       AnimationClassBytes animationLengths,
-      IReadOnlyList<CanonicalStaticVertex> vertices)
+      IReadOnlyList<CanonicalStaticVertex> vertices,
+      CanonicalStaticFootprint? footprint = null,
+      CanonicalHorizontalExtents? horizontalExtents = null)
     {
       var header = new byte[BaseHeaderSize];
       header[0] = (byte)'M';
@@ -739,7 +748,7 @@ namespace EarthTool.MSH.Internal
 
       if (meshKind == 0)
       {
-        WriteCanonicalStaticHeaderRegions(header, vertices);
+        WriteCanonicalStaticHeaderRegions(header, vertices, footprint, horizontalExtents);
       }
 
       return header;
@@ -772,6 +781,9 @@ namespace EarthTool.MSH.Internal
             ? Array.Empty<byte>()
             : Encoding.ASCII.GetBytes(record.RenderObject.TextureResourceKey),
           record.ObjectFlags,
+          ReferenceEquals(record.RenderObject, record.Source.RenderObjects[0])
+            ? record.Source.Role?.BarrelMaximumAngle ?? 0
+            : (byte)0,
           index == records.Count - 1 ? 0u : 1u);
       }
 
@@ -801,7 +813,7 @@ namespace EarthTool.MSH.Internal
         var unwind = beginsNested
           ? previousDepth - (current.Depth - 1)
           : previousDepth - current.Depth;
-        current.ObjectFlags = checked((byte)unwind);
+        current.ObjectFlags = (current.ObjectFlags & 0xFFFFFF00u) | checked((byte)unwind);
         if (beginsNested)
         {
           current.ObjectFlags |= (uint)StaticRenderObjectFlags.BeginsNestedSourceObject;
@@ -816,7 +828,10 @@ namespace EarthTool.MSH.Internal
       int depth,
       List<CanonicalStaticRecord> records)
     {
-      records.Add(new CanonicalStaticRecord(source, source.RenderObjects[0], depth));
+      records.Add(new CanonicalStaticRecord(source, source.RenderObjects[0], depth)
+      {
+        ObjectFlags = (uint)(source.Role?.Flags ?? StaticRenderObjectFlags.None)
+      });
       foreach (var child in source.Children)
       {
         Flatten(child, depth + 1, records);
@@ -859,28 +874,103 @@ namespace EarthTool.MSH.Internal
 
     private static void WriteCanonicalStaticHeaderRegions(
       byte[] header,
-      IReadOnlyList<CanonicalStaticVertex> vertices)
+      IReadOnlyList<CanonicalStaticVertex> vertices,
+      CanonicalStaticFootprint? footprint,
+      CanonicalHorizontalExtents? horizontalExtents)
     {
-      WriteUInt32(header, 0x0C, 0x00008000);
-      var maximumZ = vertices.Max(vertex => vertex.Position.Z);
-      WriteUInt16(header, 0x178, ToUnsignedFixedPoint(maximumZ));
-      WriteUInt32(header, 0x1A8, 0x3A000008);
-      WriteUInt32(header, 0x1AC, 0x00008000);
-      WriteUInt32(header, 0x1B0, 0xCA001000);
-      WriteUInt32(header, 0x1B4, 0xFF000001);
-      WriteUInt64(header, 0x1B8, 0xFFFFFFFFFFFF0FFF);
-      WriteUInt64(header, 0x1C0, 0x0FFFFFFFFFFFFFFF);
-      WriteUInt64(header, 0x1C8, 0xFFF0FFFFFFFFFFFF);
-      WriteUInt64(header, 0x1D0, 0xFFFFFFFFFFFFFFF0);
+      var resolvedFootprint = footprint ?? new CanonicalStaticFootprint(
+        0x8000,
+        Enumerable.Range(0, 16).Select(index => index == 15
+          ? vertices.Max(vertex => vertex.Position.Z)
+          : 0),
+        new byte[16]);
+      WriteUInt32(header, 0x0C, resolvedFootprint.PresenceMask);
+      for (var logicalIndex = 0; logicalIndex < 16; logicalIndex++)
+      {
+        WriteUInt16(
+          header,
+          0x196 - (logicalIndex * sizeof(ushort)),
+          ToUnsignedFixedPoint(resolvedFootprint.TopElevations[logicalIndex]));
+        header[0x1A7 - logicalIndex] = resolvedFootprint.CornerPassageFlags[logicalIndex];
+      }
+      WriteCanonicalRotatedFootprint(header, resolvedFootprint);
 
-      var maximumX = Math.Max(0, vertices.Max(vertex => vertex.Position.X));
-      var minimumX = Math.Min(0, vertices.Min(vertex => vertex.Position.X));
-      var maximumY = Math.Max(0, vertices.Max(vertex => vertex.Position.Y));
-      var minimumY = Math.Min(0, vertices.Min(vertex => vertex.Position.Y));
-      WriteUInt16(header, 0x360, ToUnsignedFixedPoint(maximumY));
-      WriteUInt16(header, 0x362, ToUnsignedFixedPoint(-minimumY));
-      WriteUInt16(header, 0x364, ToUnsignedFixedPoint(maximumX));
-      WriteUInt16(header, 0x366, ToUnsignedFixedPoint(-minimumX));
+      var resolvedExtents = horizontalExtents ?? new CanonicalHorizontalExtents(
+        Math.Max(0, vertices.Max(vertex => vertex.Position.Y)),
+        -Math.Min(0, vertices.Min(vertex => vertex.Position.Y)),
+        Math.Max(0, vertices.Max(vertex => vertex.Position.X)),
+        -Math.Min(0, vertices.Min(vertex => vertex.Position.X)));
+      WriteUInt16(header, 0x360, ToUnsignedFixedPoint(resolvedExtents.PositiveY));
+      WriteUInt16(header, 0x362, ToUnsignedFixedPoint(resolvedExtents.NegativeY));
+      WriteUInt16(header, 0x364, ToUnsignedFixedPoint(resolvedExtents.PositiveX));
+      WriteUInt16(header, 0x366, ToUnsignedFixedPoint(resolvedExtents.NegativeX));
+    }
+
+    private static void WriteCanonicalRotatedFootprint(
+      byte[] header,
+      CanonicalStaticFootprint footprint)
+    {
+      var anchors = new[] { (X: 0, Y: 3), (X: 0, Y: 0), (X: 3, Y: 0), (X: 3, Y: 3) };
+      var flagMaps = new[]
+      {
+        new[] { 1, 0, 3, 2 },
+        new[] { 0, 3, 2, 1 },
+        new[] { 3, 2, 1, 0 },
+        new[] { 2, 1, 0, 3 }
+      };
+      for (var quarterTurn = 0; quarterTurn < 4; quarterTurn++)
+      {
+        ushort rotatedMask = 0;
+        ulong rotatedFlags = footprint.PresenceMask == 0 ? 0 : ulong.MaxValue;
+        var occupiedPhysicalSlots = new List<int>();
+        for (var logicalIndex = 0; logicalIndex < 16; logicalIndex++)
+        {
+          if ((footprint.PresenceMask & (1 << logicalIndex)) == 0)
+          {
+            continue;
+          }
+          var physicalSlot = 15 - logicalIndex;
+          var row = physicalSlot / 4;
+          var column = physicalSlot % 4;
+          var rotatedPhysicalSlot = quarterTurn switch
+          {
+            0 => 4 * (3 - column) + row,
+            1 => physicalSlot,
+            2 => 4 * column + (3 - row),
+            _ => 15 - physicalSlot
+          };
+          occupiedPhysicalSlots.Add(rotatedPhysicalSlot);
+          var rotatedLogicalIndex = 15 - rotatedPhysicalSlot;
+          rotatedMask |= checked((ushort)(1 << rotatedLogicalIndex));
+          byte rotatedNibble = 0;
+          for (var bit = 0; bit < 4; bit++)
+          {
+            if ((footprint.CornerPassageFlags[logicalIndex] & (1 << flagMaps[quarterTurn][bit])) != 0)
+            {
+              rotatedNibble |= checked((byte)(1 << bit));
+            }
+          }
+          var shift = rotatedLogicalIndex * 4;
+          rotatedFlags = (rotatedFlags & ~(0xFul << shift)) | ((ulong)rotatedNibble << shift);
+        }
+
+        uint descriptor = rotatedMask;
+        if (occupiedPhysicalSlots.Count != 0)
+        {
+          var minimumRow = occupiedPhysicalSlots.Min(slot => slot / 4);
+          var maximumRow = occupiedPhysicalSlots.Max(slot => slot / 4);
+          var minimumColumn = occupiedPhysicalSlots.Min(slot => slot % 4);
+          var maximumColumn = occupiedPhysicalSlots.Max(slot => slot % 4);
+          var biasA = minimumRow + (int)Math.Truncate((maximumColumn + 1 - minimumRow) / 2d);
+          var biasB = minimumColumn + (int)Math.Truncate((maximumRow + 1 - minimumColumn) / 2d);
+          descriptor |= (uint)anchors[quarterTurn].X << 30;
+          descriptor |= (uint)anchors[quarterTurn].Y << 28;
+          descriptor |= (uint)biasA << 26;
+          descriptor |= (uint)biasB << 24;
+        }
+        WriteUInt32(header, 0x1A8 + (quarterTurn * sizeof(uint)), descriptor);
+        WriteUInt64(header, 0x1B8 + (quarterTurn * sizeof(ulong)), rotatedFlags);
+      }
     }
 
     private static ushort ToUnsignedFixedPoint(float value)
@@ -895,6 +985,7 @@ namespace EarthTool.MSH.Internal
       IReadOnlyList<CanonicalTriangle> triangles,
       IReadOnlyList<byte> texturePathBytes,
       uint objectFlags,
+      byte barrelMaximumAngle,
       uint nextRecordMarker)
     {
       var recordOffset = cursor;
@@ -939,7 +1030,7 @@ namespace EarthTool.MSH.Internal
 
       cursor += 12;
       cursor += sizeof(uint) + 12;
-      cursor++;
+      data[cursor++] = barrelMaximumAngle;
       WriteUInt32(data, cursor, nextRecordMarker);
       cursor += sizeof(uint);
     }

@@ -1,3 +1,9 @@
+public struct EarthTool.GLTF.GltfAnimationHandle : System.IEquatable<EarthTool.GLTF.GltfAnimationHandle>
+  constructor GltfAnimationHandle(System.Int32 value)
+  property System.Int32 Value { get; }
+  method System.Boolean Equals(EarthTool.GLTF.GltfAnimationHandle other)
+  method System.Boolean Equals(System.Object? obj)
+  method System.Int32 GetHashCode()
 public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String AmbiguousPartitionCorrespondence = "ETG2012"
   field System.String AmbiguousTextureResource = "ETG1008"
@@ -9,6 +15,7 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String DanglingMetadataReference = "ETG2013"
   field System.String DocumentMismatch = "ETG2007"
   field System.String DuplicateScopeIdentity = "ETG2009"
+  field System.String InertDataIgnored = "ETG1019"
   field System.String InvalidGeometry = "ETG1006"
   field System.String InvalidGlb = "ETG1000"
   field System.String InvalidManifestInventory = "ETG2020"
@@ -67,6 +74,18 @@ public sealed class EarthTool.GLTF.GltfInterchange
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfNewModelImportResult>> ImportNewModelGltfFileAsync(System.String sourcePath, EarthTool.GLTF.GltfNewModelImportOptions? options = null, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult> ValidateGlbAsync(System.IO.Stream source, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult> ValidateGltfFileAsync(System.String sourcePath, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
+public struct EarthTool.GLTF.GltfLightHandle : System.IEquatable<EarthTool.GLTF.GltfLightHandle>
+  constructor GltfLightHandle(System.Int32 value)
+  property System.Int32 Value { get; }
+  method System.Boolean Equals(EarthTool.GLTF.GltfLightHandle other)
+  method System.Boolean Equals(System.Object? obj)
+  method System.Int32 GetHashCode()
+public struct EarthTool.GLTF.GltfMaterialHandle : System.IEquatable<EarthTool.GLTF.GltfMaterialHandle>
+  constructor GltfMaterialHandle(System.Int32 value)
+  property System.Int32 Value { get; }
+  method System.Boolean Equals(EarthTool.GLTF.GltfMaterialHandle other)
+  method System.Boolean Equals(System.Object? obj)
+  method System.Int32 GetHashCode()
 public static class EarthTool.GLTF.GltfMetadataConflictActions
   field System.String Abort = "abort"
   field System.String AcceptBranch = "acceptBranch"
@@ -81,13 +100,58 @@ public static class EarthTool.GLTF.GltfMetadataConflictActions
   field System.String RetryWithMetadata = "retryWithMetadata"
 public static class EarthTool.GLTF.GltfMetadataConflictCatalog
   property System.Collections.Generic.IReadOnlyDictionary<System.String, System.Collections.Generic.IReadOnlyList<System.String>> ActionsByCode { get; }
+public enum EarthTool.GLTF.GltfNewModelAnimationClass : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
+  field EarthTool.GLTF.GltfNewModelAnimationClass A = 0
+  field EarthTool.GLTF.GltfNewModelAnimationClass B = 1
+  field EarthTool.GLTF.GltfNewModelAnimationClass C = 2
+  field EarthTool.GLTF.GltfNewModelAnimationClass D = 3
+public sealed class EarthTool.GLTF.GltfNewModelFootprint
+  constructor GltfNewModelFootprint(System.UInt16 presenceMask, System.Collections.Generic.IEnumerable<System.Single> topElevations, System.Collections.Generic.IEnumerable<System.Byte> cornerPassageFlags)
+  property System.Collections.Generic.IReadOnlyList<System.Byte> CornerPassageFlags { get; }
+  property System.UInt16 PresenceMask { get; }
+  property System.Collections.Generic.IReadOnlyList<System.Single> TopElevations { get; }
+public sealed class EarthTool.GLTF.GltfNewModelHelperBinding
+  constructor GltfNewModelHelperBinding(EarthTool.GLTF.GltfNewModelHelperKind kind, System.Int32 physicalNumber)
+  property EarthTool.GLTF.GltfNewModelHelperKind Kind { get; }
+  property System.Int32 PhysicalNumber { get; }
+public enum EarthTool.GLTF.GltfNewModelHelperKind : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
+  field EarthTool.GLTF.GltfNewModelHelperKind Attachment = 0
+  field EarthTool.GLTF.GltfNewModelHelperKind CannonRenderPosition = 1
+  field EarthTool.GLTF.GltfNewModelHelperKind OmniLight = 3
+  field EarthTool.GLTF.GltfNewModelHelperKind SpotLight = 2
+public sealed class EarthTool.GLTF.GltfNewModelHorizontalExtents
+  constructor GltfNewModelHorizontalExtents(System.Single positiveY, System.Single negativeY, System.Single positiveX, System.Single negativeX)
+  property System.Single NegativeX { get; }
+  property System.Single NegativeY { get; }
+  property System.Single PositiveX { get; }
+  property System.Single PositiveY { get; }
 public sealed class EarthTool.GLTF.GltfNewModelImportOptions
-  constructor GltfNewModelImportOptions(System.Collections.Generic.IReadOnlyDictionary<System.Int32, System.String?>? textureResourceBindings = null)
-  property System.Collections.Generic.IReadOnlyDictionary<System.Int32, System.String?> TextureResourceBindings { get; }
+  constructor GltfNewModelImportOptions(System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfMaterialHandle, System.String?>? textureResourceBindings = null, EarthTool.GLTF.GltfNewModelFootprint? footprint = null, EarthTool.GLTF.GltfNewModelHorizontalExtents? horizontalExtents = null, System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfNodeHandle, EarthTool.GLTF.GltfNewModelObjectRole>? objectRoles = null, System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfNodeHandle, EarthTool.GLTF.GltfNewModelHelperBinding>? helperBindings = null, System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfLightHandle, EarthTool.GLTF.GltfNewModelStaticLightOptions>? staticLightOptions = null, System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfAnimationHandle, EarthTool.GLTF.GltfNewModelAnimationClass>? animationClasses = null)
+  property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfAnimationHandle, EarthTool.GLTF.GltfNewModelAnimationClass> AnimationClasses { get; }
+  property EarthTool.GLTF.GltfNewModelFootprint? Footprint { get; }
+  property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfNodeHandle, EarthTool.GLTF.GltfNewModelHelperBinding> HelperBindings { get; }
+  property EarthTool.GLTF.GltfNewModelHorizontalExtents? HorizontalExtents { get; }
+  property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfNodeHandle, EarthTool.GLTF.GltfNewModelObjectRole> ObjectRoles { get; }
+  property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfLightHandle, EarthTool.GLTF.GltfNewModelStaticLightOptions> StaticLightOptions { get; }
+  property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfMaterialHandle, System.String?> TextureResourceBindings { get; }
 public sealed class EarthTool.GLTF.GltfNewModelImportResult
   property EarthTool.MSH.Assets.StaticMeshAsset Asset { get; }
   property EarthTool.GLTF.InterchangeBaseline Baseline { get; }
   property EarthTool.MSH.Authoring.PreservationReport Preservation { get; }
+public sealed class EarthTool.GLTF.GltfNewModelObjectRole
+  constructor GltfNewModelObjectRole(EarthTool.GLTF.GltfStaticObjectRoles roles, System.Byte barrelMaximumAngle = 0)
+  property System.Byte BarrelMaximumAngle { get; }
+  property EarthTool.GLTF.GltfStaticObjectRoles Roles { get; }
+public sealed class EarthTool.GLTF.GltfNewModelStaticLightOptions
+  constructor GltfNewModelStaticLightOptions(System.Single? targetDistance = null, System.Single? terrainLightAmplitude = null)
+  property System.Single? TargetDistance { get; }
+  property System.Single? TerrainLightAmplitude { get; }
+public struct EarthTool.GLTF.GltfNodeHandle : System.IEquatable<EarthTool.GLTF.GltfNodeHandle>
+  constructor GltfNodeHandle(System.Int32 value)
+  property System.Int32 Value { get; }
+  method System.Boolean Equals(EarthTool.GLTF.GltfNodeHandle other)
+  method System.Boolean Equals(System.Object? obj)
+  method System.Int32 GetHashCode()
 public sealed class EarthTool.GLTF.GltfOperationProfile
   constructor GltfOperationProfile(System.Int32 maxInputBytes = 33554432, System.Int32 maxOutputBytes = 33554432, System.Int32 maxMetadataBytes = 4194304, System.Int32 maxJsonDepth = 32, System.Int32 maxActiveRenderVertices = 65536)
   constructor GltfOperationProfile(System.Int32 maxInputBytes, System.Int32 maxOutputBytes, System.Int32 maxMetadataBytes, System.Int32 maxJsonDepth, System.Int32 maxActiveRenderVertices, System.Int32 maxNodes, System.Int32 maxHierarchyDepth)
@@ -111,6 +175,15 @@ public sealed class EarthTool.GLTF.GltfOperationProfile
   property System.Int32 MaxTextureSearchRoots { get; }
   property System.Int32 MaxTotalMetadataBytes { get; }
   property System.Int32 MaxUnknownMetadataMembers { get; }
+public enum EarthTool.GLTF.GltfStaticObjectRoles : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
+  field EarthTool.GLTF.GltfStaticObjectRoles Barrel = 2
+  field EarthTool.GLTF.GltfStaticObjectRoles MarkerAttachment1 = 8
+  field EarthTool.GLTF.GltfStaticObjectRoles MarkerAttachment2 = 16
+  field EarthTool.GLTF.GltfStaticObjectRoles MarkerAttachment3 = 32
+  field EarthTool.GLTF.GltfStaticObjectRoles MarkerAttachment4 = 64
+  field EarthTool.GLTF.GltfStaticObjectRoles None = 0
+  field EarthTool.GLTF.GltfStaticObjectRoles Rotor = 4
+  field EarthTool.GLTF.GltfStaticObjectRoles ViewerFaced = 1
 public sealed class EarthTool.GLTF.InterchangeBaseline
   constructor InterchangeBaseline(System.Guid assetLineageId, System.Guid documentId)
   property System.Guid AssetLineageId { get; }
