@@ -1,0 +1,113 @@
+{
+  "ETG2000": [
+    "abort",
+    "retryWithMetadata",
+    "discardLineage"
+  ],
+  "ETG2001": [
+    "abort",
+    "repairNativeExternally"
+  ],
+  "ETG2002": [
+    "abort",
+    "retryWithMetadata",
+    "discardLineage"
+  ],
+  "ETG2003": [
+    "abort",
+    "retryWithMetadata",
+    "discardAffectedState",
+    "discardLineage"
+  ],
+  "ETG2004": [
+    "abort",
+    "retryWithMetadata",
+    "discardLineage"
+  ],
+  "ETG2005": [
+    "abort",
+    "retryWithMetadata"
+  ],
+  "ETG2006": [
+    "abort",
+    "adoptAsNew",
+    "discardLineage"
+  ],
+  "ETG2007": [
+    "abort",
+    "retryWithMetadata",
+    "acceptBranch"
+  ],
+  "ETG2008": [
+    "abort",
+    "mapScope",
+    "forkScope",
+    "discardAffectedState"
+  ],
+  "ETG2009": [
+    "abort",
+    "mapScope",
+    "forkScope",
+    "discardAffectedState"
+  ],
+  "ETG2010": [
+    "abort",
+    "retryWithMetadata",
+    "acceptDeletion"
+  ],
+  "ETG2011": [
+    "abort",
+    "mapScope",
+    "forkScope",
+    "discardAffectedState",
+    "discardLineage"
+  ],
+  "ETG2012": [
+    "abort",
+    "mapScope",
+    "forkScope",
+    "repairNativeExternally"
+  ],
+  "ETG2013": [
+    "abort",
+    "mapScope",
+    "discardAffectedState"
+  ],
+  "ETG2014": [
+    "abort",
+    "regenerateDerivedState",
+    "discardAffectedState",
+    "repairNativeExternally"
+  ],
+  "ETG2015": [
+    "abort",
+    "retryWithMetadata",
+    "discardAffectedState"
+  ],
+  "ETG2016": [
+    "abort",
+    "regenerateDerivedState",
+    "discardAffectedState",
+    "repairNativeExternally"
+  ],
+  "ETG2017": [
+    "abort",
+    "acceptBranch",
+    "discardAffectedState"
+  ],
+  "ETG2018": [
+    "abort",
+    "retryWithMetadata",
+    "discardAffectedState",
+    "discardLineage"
+  ],
+  "ETG2019": [
+    "abort",
+    "retryWithMetadata"
+  ],
+  "ETG2020": [
+    "abort",
+    "retryWithMetadata",
+    "discardLineage"
+  ]
+}

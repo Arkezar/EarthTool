@@ -68,13 +68,22 @@ namespace EarthTool.GLTF
         var projectionDiagnostics = animationDiagnostics
           .Concat(CreateCannonRenderPositionDiagnostics(asset))
           .Concat(CreateStaticLightDiagnostics(asset)).ToArray();
-        var metadataLength = GlbDocument.GetMaximumMetadataByteCount(asset, baseline);
+        var metadataLength = GlbDocument.GetMaximumMetadataByteCount(
+          asset,
+          baseline,
+          options.PreservedUnknownMetadata,
+          options.MetadataNextIds);
         if (metadataLength > profile.MaxMetadataBytes)
         {
           return Failed<GltfExportReceipt>(Limit("scenes[0].extras.earthtool", metadataLength, profile.MaxMetadataBytes));
         }
 
-        var minimumOutputLength = GlbDocument.GetMinimumOutputByteCount(asset, baseline, true);
+        var minimumOutputLength = GlbDocument.GetMinimumOutputByteCount(
+          asset,
+          baseline,
+          options.PreservedUnknownMetadata,
+          options.MetadataNextIds,
+          true);
         if (minimumOutputLength > profile.MaxOutputBytes)
         {
           return Failed<GltfExportReceipt>(Limit("$", minimumOutputLength, profile.MaxOutputBytes));
@@ -82,6 +91,8 @@ namespace EarthTool.GLTF
         var withoutPreviews = GlbDocument.Create(
           asset,
           baseline,
+          options.PreservedUnknownMetadata,
+          options.MetadataNextIds,
           new Dictionary<StaticRenderObjectId, TexPreview>(),
           out var fingerprint);
         if (withoutPreviews.Length > profile.MaxOutputBytes)
@@ -102,7 +113,13 @@ namespace EarthTool.GLTF
 
         var glb = previewResult.Previews.Count == 0
           ? withoutPreviews
-          : GlbDocument.Create(asset, baseline, previewResult.Previews, out fingerprint);
+          : GlbDocument.Create(
+            asset,
+            baseline,
+            options.PreservedUnknownMetadata,
+            options.MetadataNextIds,
+            previewResult.Previews,
+            out fingerprint);
         var exportDiagnostics = previewResult.Diagnostics.Concat(projectionDiagnostics).ToArray();
         if (glb.Length > profile.MaxOutputBytes)
         {
@@ -213,13 +230,22 @@ namespace EarthTool.GLTF
         var projectionDiagnostics = animationDiagnostics
           .Concat(CreateCannonRenderPositionDiagnostics(asset))
           .Concat(CreateStaticLightDiagnostics(asset)).ToArray();
-        var metadataLength = GlbDocument.GetMaximumMetadataByteCount(asset, baseline);
+        var metadataLength = GlbDocument.GetMaximumMetadataByteCount(
+          asset,
+          baseline,
+          options.PreservedUnknownMetadata,
+          options.MetadataNextIds);
         if (metadataLength > profile.MaxMetadataBytes)
         {
           return Failed<GltfExportReceipt>(Limit("scenes[0].extras.earthtool", metadataLength, profile.MaxMetadataBytes));
         }
 
-        var minimumOutputLength = GlbDocument.GetMinimumOutputByteCount(asset, baseline, false);
+        var minimumOutputLength = GlbDocument.GetMinimumOutputByteCount(
+          asset,
+          baseline,
+          options.PreservedUnknownMetadata,
+          options.MetadataNextIds,
+          false);
         if (minimumOutputLength > profile.MaxOutputBytes)
         {
           return Failed<GltfExportReceipt>(Limit("$", minimumOutputLength, profile.MaxOutputBytes));
@@ -227,6 +253,8 @@ namespace EarthTool.GLTF
         var withoutPreviews = GlbDocument.CreateSeparate(
           asset,
           baseline,
+          options.PreservedUnknownMetadata,
+          options.MetadataNextIds,
           new Dictionary<StaticRenderObjectId, TexPreview>(),
           out var fingerprint);
         var withoutPreviewLength = checked(withoutPreviews.Json.Length + withoutPreviews.Binary.Length);
@@ -248,7 +276,13 @@ namespace EarthTool.GLTF
 
         var package = previewResult.Previews.Count == 0
           ? withoutPreviews
-          : GlbDocument.CreateSeparate(asset, baseline, previewResult.Previews, out fingerprint);
+          : GlbDocument.CreateSeparate(
+            asset,
+            baseline,
+            options.PreservedUnknownMetadata,
+            options.MetadataNextIds,
+            previewResult.Previews,
+            out fingerprint);
         var outputLength = checked(package.Json.Length
           + package.Binary.Length
           + package.ImageSidecars.Values.Sum(bytes => bytes.Length));
@@ -442,7 +476,6 @@ namespace EarthTool.GLTF
         var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken).ConfigureAwait(false);
         var parsed = GlbDocument.Parse(bytes, profile);
         ValidateGeometryProfile(parsed, profile);
-        ValidateMetadataProfile(parsed, profile);
         return await ImportParsedAsync(
           parsed,
           expectedBaseline,
@@ -582,7 +615,6 @@ namespace EarthTool.GLTF
         var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken).ConfigureAwait(false);
         var parsed = GlbDocument.Parse(bytes, profile);
         ValidateGeometryProfile(parsed, profile);
-        ValidateMetadataProfile(parsed, profile);
         return new OperationResult(OperationStatus.Succeeded);
       }
       catch (OperationCanceledException)
@@ -613,7 +645,6 @@ namespace EarthTool.GLTF
           .ConfigureAwait(false);
         var parsed = GlbDocument.ParseSeparate(package.Json, package.Binary, profile);
         ValidateGeometryProfile(parsed, profile);
-        ValidateMetadataProfile(parsed, profile);
         GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri, package.Images);
         return new OperationResult(OperationStatus.Succeeded);
       }
@@ -727,8 +758,8 @@ namespace EarthTool.GLTF
       if (parsed.HasReservedMetadata)
       {
         return Failed<GltfNewModelImportResult>(Diagnostic(
-          GltfDiagnosticCodes.MisplacedMetadata,
-          2009,
+          GltfDiagnosticCodes.OrphanEnvelope,
+          2011,
           "$",
           "New-model import requires input without reserved EarthTool metadata."));
       }
@@ -1383,22 +1414,26 @@ namespace EarthTool.GLTF
       var sceneLightDiagnostics = CreateIgnoredSceneLightDiagnostics(parsed);
       var manifest = GlbDocument.ParseMetadata(
         parsed.ManifestMetadata ?? throw new MissingMetadataException("scene"),
-        profile.MaxMetadataBytes,
-        profile.MaxJsonDepth);
+        profile);
       ValidateManifestMetadata(manifest, expectedBaseline);
 
       byte[] sourceMsh;
       try
       {
-        sourceMsh = Convert.FromBase64String(manifest.SourceMsh!);
+        sourceMsh = GlbDocument.DecodeBase64Url(
+          manifest.SourceMsh!,
+          profile.MaxMetadataBytes).ToArray();
       }
       catch (FormatException ex)
       {
-        return Failed<GltfEditImportResult>(Diagnostic(
+        return Failed<GltfEditImportResult>(MetadataDiagnostic(
           GltfDiagnosticCodes.MalformedMetadata,
-          2001,
+          2003,
           "scenes[0]",
-          ex.Message));
+          ex.Message,
+          GltfMetadataConflictActions.Abort,
+          GltfMetadataConflictActions.RetryWithMetadata,
+          GltfMetadataConflictActions.DiscardLineage));
       }
 
       cancellationToken.ThrowIfCancellationRequested();
@@ -1421,11 +1456,14 @@ namespace EarthTool.GLTF
         || !manifest.NextSourceObjectLocalId.HasValue
         || manifest.NextSourceObjectLocalId.Value <= manifest.SourceObjectLocalIds.Max())
       {
-        return Failed<GltfEditImportResult>(Diagnostic(
+        return Failed<GltfEditImportResult>(MetadataDiagnostic(
           GltfDiagnosticCodes.MalformedMetadata,
-          2001,
+          2003,
           "scenes[0]",
-          "Preserved MSH state did not pass the safe MSH reader."));
+          "Preserved MSH state did not pass the safe MSH reader.",
+          GltfMetadataConflictActions.Abort,
+          GltfMetadataConflictActions.RetryWithMetadata,
+          GltfMetadataConflictActions.DiscardLineage));
       }
 
       StaticMeshAsset asset;
@@ -1449,11 +1487,14 @@ namespace EarthTool.GLTF
         || ex is ArgumentException
         || ex is InvalidDataException)
       {
-        return Failed<GltfEditImportResult>(Diagnostic(
+        return Failed<GltfEditImportResult>(MetadataDiagnostic(
           GltfDiagnosticCodes.MalformedMetadata,
-          2001,
+          2003,
           "scenes[0]",
-          ex.Message));
+          ex.Message,
+          GltfMetadataConflictActions.Abort,
+          GltfMetadataConflictActions.RetryWithMetadata,
+          GltfMetadataConflictActions.DiscardLineage));
       }
 
       var meshes = parsed.Meshes
@@ -1462,8 +1503,7 @@ namespace EarthTool.GLTF
           Parsed = mesh,
           Metadata = GlbDocument.ParseMetadata(
             mesh.Metadata ?? throw new MissingMetadataException("mesh"),
-            profile.MaxMetadataBytes,
-            profile.MaxJsonDepth)
+            profile)
         })
         .ToArray();
       var nodes = parsed.Nodes
@@ -1474,8 +1514,7 @@ namespace EarthTool.GLTF
             ? null
             : GlbDocument.ParseMetadata(
               node.Metadata,
-              profile.MaxMetadataBytes,
-              profile.MaxJsonDepth)
+              profile)
         })
         .ToArray();
       var lights = parsed.Lights
@@ -1486,8 +1525,7 @@ namespace EarthTool.GLTF
             ? null
             : GlbDocument.ParseMetadata(
               light.Metadata,
-              profile.MaxMetadataBytes,
-              profile.MaxJsonDepth)
+              profile)
         })
         .ToArray();
       var edit = asset.Edit();
@@ -1535,7 +1573,7 @@ namespace EarthTool.GLTF
       {
         return Failed<GltfEditImportResult>(Diagnostic(
           GltfDiagnosticCodes.StaleNativeProjection,
-          2008,
+          2016,
           "animations",
           ex.Message));
       }
@@ -1555,7 +1593,7 @@ namespace EarthTool.GLTF
       {
         return Failed<GltfEditImportResult>(Diagnostic(
           GltfDiagnosticCodes.StaleNativeProjection,
-          2008,
+          2016,
           "meshes",
           ex.Message));
       }
@@ -1677,8 +1715,26 @@ namespace EarthTool.GLTF
           nextBaseline,
           fingerprint,
           committed.Preservation,
-          restoredPaths),
+          restoredPaths,
+          CollectUnknownMetadata(
+            new[] { manifest }
+              .Concat(meshes.Select(item => item.Metadata))
+              .Concat(nodes.Where(item => item.Metadata is not null).Select(item => item.Metadata!))
+              .Concat(lights.Where(item => item.Metadata is not null).Select(item => item.Metadata!))),
+          manifest.ScopeNextIds),
         sceneLightDiagnostics.Concat(committed.Diagnostics));
+    }
+
+    private static IReadOnlyDictionary<string, string> CollectUnknownMetadata(
+      IEnumerable<MetadataEnvelope> envelopes)
+    {
+      return new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
+        envelopes.SelectMany(envelope => envelope.UnknownMembers.Select(member => new
+        {
+          Key = $"{envelope.ScopeKind}:{envelope.LocalId}:{member.Key}",
+          member.Value
+        }))
+          .ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal));
     }
 
     private static IReadOnlyList<OperationDiagnostic> CreateIgnoredSceneLightDiagnostics(
@@ -1707,8 +1763,7 @@ namespace EarthTool.GLTF
     {
       var materials = parsed.Materials.Select(material => GlbDocument.ParseMetadata(
         material.Metadata ?? throw new MissingMetadataException("material"),
-        profile.MaxMetadataBytes,
-        profile.MaxJsonDepth)).ToArray();
+        profile)).ToArray();
       foreach (var material in materials)
       {
         if (material.ScopeKind != "material"
@@ -1834,24 +1889,6 @@ namespace EarthTool.GLTF
       }
     }
 
-    private static void ValidateMetadataProfile(ParsedGlb parsed, GltfOperationProfile profile)
-    {
-      GlbDocument.ParseMetadata(
-        parsed.ManifestMetadata ?? throw new MissingMetadataException("scene"),
-        profile.MaxMetadataBytes,
-        profile.MaxJsonDepth);
-      foreach (var metadata in parsed.Nodes.Select(node => node.Metadata)
-        .Concat(parsed.Meshes.Select(mesh => mesh.Metadata))
-        .Concat(parsed.Materials.Select(material => material.Metadata))
-        .Concat(parsed.Lights.Select(light => light.Metadata)))
-      {
-        if (metadata is not null)
-        {
-          GlbDocument.ParseMetadata(metadata, profile.MaxMetadataBytes, profile.MaxJsonDepth);
-        }
-      }
-    }
-
     private static bool IsFinite(System.Numerics.Vector3 value)
     {
       return IsFinite(value.X) && IsFinite(value.Y) && IsFinite(value.Z);
@@ -1875,17 +1912,17 @@ namespace EarthTool.GLTF
     {
       if (manifest.ScopeKind != "manifest" || manifest.LocalId != 0 || manifest.SourceMsh is null)
       {
-        throw new InvalidDataException("The scene metadata manifest is malformed.");
+        throw new MalformedMetadataException("The scene metadata manifest is malformed.");
       }
 
       if (manifest.AssetLineageId != expected.AssetLineageId)
       {
-        throw new MetadataIdentityException(GltfDiagnosticCodes.AssetLineageMismatch, 2003,
+        throw new MetadataIdentityException(GltfDiagnosticCodes.AssetLineageMismatch, 2006,
           "The GLB belongs to a different asset lineage.");
       }
       if (manifest.DocumentId != expected.DocumentId)
       {
-        throw new MetadataIdentityException(GltfDiagnosticCodes.DocumentMismatch, 2004,
+        throw new MetadataIdentityException(GltfDiagnosticCodes.DocumentMismatch, 2007,
           "The GLB belongs to a different interchange document.");
       }
 
@@ -2435,8 +2472,13 @@ namespace EarthTool.GLTF
 
         var nodeIndex = candidates[0];
         var metadata = nodes[nodeIndex].Metadata;
+        var originalPhysicalNumber = metadata is null
+          ? physicalNumber
+          : GlbDocument.GetAttachmentPhysicalNumber(
+            GlbDocument.GetFirstArtistObjectLocalId(asset),
+            metadata.LocalId);
         if (metadata is not null
-          && metadata.LocalId != physicalNumber
+          && originalPhysicalNumber != physicalNumber
           && sourceActive)
         {
           throw ArtistObjectConflict("An attachment cannot be rebound to an occupied physical target.");
@@ -2545,7 +2587,10 @@ namespace EarthTool.GLTF
           || lightIndex is null or < 0
           || lightIndex.Value >= lights.Count
           || node.Metadata.ScopeKind != "object"
-          || node.Metadata.LocalId != -node.Metadata.StaticLightDefinitionLocalId
+          || node.Metadata.StaticLightDefinitionLocalId is null
+          || node.Metadata.LocalId != GlbDocument.GetStaticLightArtistObjectLocalId(
+            GlbDocument.GetFirstArtistObjectLocalId(asset),
+            node.Metadata.StaticLightDefinitionLocalId.GetValueOrDefault())
           || node.Metadata.AssetLineageId != expected.AssetLineageId
           || node.Metadata.DocumentId != expected.DocumentId
           || node.Parsed.MeshIndex.HasValue
@@ -3083,11 +3128,14 @@ namespace EarthTool.GLTF
       InterchangeBaseline expected)
     {
       var physicalNumber = metadata.AttachmentPhysicalNumber;
+      var sourcePhysicalNumber = GlbDocument.GetAttachmentPhysicalNumber(
+        GlbDocument.GetFirstArtistObjectLocalId(asset),
+        metadata.LocalId);
       if (metadata.AssetLineageId != expected.AssetLineageId
         || metadata.DocumentId != expected.DocumentId
         || metadata.ScopeKind != "object"
-        || metadata.LocalId is < 1 or > 49
-        || metadata.LocalId is >= 13 and <= 20
+        || sourcePhysicalNumber is < 1 or > 49
+        || sourcePhysicalNumber is >= 13 and <= 20
         || physicalNumber is null or < 1 or > 49
         || physicalNumber is >= 13 and <= 20
         || metadata.AttachmentRecord?.Count != 8
@@ -3104,11 +3152,11 @@ namespace EarthTool.GLTF
         throw new MalformedMetadataException("The attachment metadata envelope is malformed.");
       }
       var sourceRecord = asset.CommonBaseHeader.AttachmentTable
-        .Skip((metadata.LocalId - 1) * 8).Take(8);
+        .Skip((sourcePhysicalNumber - 1) * 8).Take(8);
       if (!sourceRecord.SequenceEqual(metadata.AttachmentRecord)
         || metadata.Fingerprint != GlbDocument.CreateAttachmentPoseFingerprint(
           expected,
-          metadata.LocalId,
+          sourcePhysicalNumber,
           sourceRecord.ToArray())
         || BinaryPrimitives.ReadInt16LittleEndian(metadata.AttachmentRecord.ToArray()) == short.MinValue)
       {
@@ -3123,11 +3171,13 @@ namespace EarthTool.GLTF
       InterchangeBaseline expected)
     {
       var physicalNumber = metadata.CannonRenderPositionNumber;
+      var expectedLocalId = GlbDocument.GetCannonArtistObjectLocalId(
+        GlbDocument.GetFirstArtistObjectLocalId(asset),
+        physicalNumber.GetValueOrDefault());
       if (metadata.AssetLineageId != expected.AssetLineageId
         || metadata.DocumentId != expected.DocumentId
         || metadata.ScopeKind != "object"
-        || metadata.LocalId is < 1 or > 4
-        || metadata.LocalId != physicalNumber
+        || metadata.LocalId != expectedLocalId
         || physicalNumber is null or < 1 or > 4
         || metadata.CannonRenderPosition?.Count != 12
         || metadata.FingerprintName != "cannonRenderPosition.position"
@@ -3143,11 +3193,11 @@ namespace EarthTool.GLTF
         throw new MalformedMetadataException("The cannon render-position metadata envelope is malformed.");
       }
       var sourceRecord = asset.CommonBaseHeader.CannonRenderPositions
-        .Skip((metadata.LocalId - 1) * 12).Take(12);
+        .Skip((physicalNumber.Value - 1) * 12).Take(12);
       if (!sourceRecord.SequenceEqual(metadata.CannonRenderPosition)
         || metadata.Fingerprint != GlbDocument.CreateCannonRenderPositionFingerprint(
           expected,
-          metadata.LocalId,
+          physicalNumber.Value,
           sourceRecord.ToArray()))
       {
         throw new MalformedMetadataException(
@@ -3756,33 +3806,103 @@ namespace EarthTool.GLTF
 
     private static OperationDiagnostic ToDiagnostic(Exception exception, string path = "$")
     {
+      if (exception is MetadataConflictException conflict)
+      {
+        var actions = GltfMetadataConflictCatalog.ActionsByCode.TryGetValue(
+          conflict.Code,
+          out var catalogActions)
+          ? catalogActions
+          : conflict.Actions;
+        var data = new Dictionary<string, string>(conflict.ConflictData, StringComparer.Ordinal)
+        {
+          ["conflictKey"] = $"{conflict.Code}:{conflict.Path}",
+          ["importMode"] = "edit",
+          ["actions"] = string.Join(",", actions)
+        };
+        return new OperationDiagnostic(
+          conflict.Code,
+          conflict.EventId,
+          DiagnosticSeverity.Error,
+          conflict.Path,
+          conflict.Message,
+          data: data);
+      }
+
       if (exception is MetadataIdentityException identity)
       {
-        return Diagnostic(identity.Code, identity.EventId, identity.Path ?? path, identity.Message);
+        var actions = identity.Code == GltfDiagnosticCodes.DocumentMismatch
+          ? new[]
+          {
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.AcceptBranch
+          }
+          : identity.Code == GltfDiagnosticCodes.AssetLineageMismatch
+            ? new[]
+            {
+              GltfMetadataConflictActions.Abort,
+              GltfMetadataConflictActions.AdoptAsNew,
+              GltfMetadataConflictActions.DiscardLineage
+            }
+            : new[]
+            {
+              GltfMetadataConflictActions.Abort,
+              GltfMetadataConflictActions.MapScope,
+              GltfMetadataConflictActions.ForkScope,
+              GltfMetadataConflictActions.DiscardAffectedState
+            };
+        return MetadataDiagnostic(
+          identity.Code,
+          identity.EventId,
+          identity.Path ?? path,
+          identity.Message,
+          actions);
       }
 
       if (exception is StaticLightMetadataException staticLightMetadata)
       {
-        return Diagnostic(
+        return MetadataDiagnostic(
           GltfDiagnosticCodes.MalformedMetadata,
-          2001,
+          2003,
           staticLightMetadata.Path,
           staticLightMetadata.Message);
       }
 
       if (exception is MissingMetadataException)
       {
-        return Diagnostic(GltfDiagnosticCodes.MissingManifest, 2000, path, exception.Message);
+        return MetadataDiagnostic(
+          GltfDiagnosticCodes.MissingManifest,
+          2000,
+          path,
+          exception.Message,
+          GltfMetadataConflictActions.Abort,
+          GltfMetadataConflictActions.RetryWithMetadata,
+          GltfMetadataConflictActions.DiscardLineage);
       }
 
       if (exception is UnsupportedMetadataVersionException)
       {
-        return Diagnostic(GltfDiagnosticCodes.UnsupportedMetadataVersion, 2002, path, exception.Message);
+        return MetadataDiagnostic(
+          GltfDiagnosticCodes.UnsupportedMetadataVersion,
+          2004,
+          path,
+          exception.Message,
+          GltfMetadataConflictActions.Abort,
+          GltfMetadataConflictActions.RetryWithMetadata,
+          GltfMetadataConflictActions.DiscardLineage);
       }
 
       if (exception is MalformedMetadataException)
       {
-        return Diagnostic(GltfDiagnosticCodes.MalformedMetadata, 2001, path, exception.Message);
+        return MetadataDiagnostic(
+          GltfDiagnosticCodes.MalformedMetadata,
+          2003,
+          path,
+          exception.Message,
+          GltfMetadataConflictActions.Abort,
+          GltfMetadataConflictActions.RetryWithMetadata,
+          GltfMetadataConflictActions.DiscardAffectedState,
+          GltfMetadataConflictActions.DiscardLineage);
       }
 
       if (exception is UnsupportedGltfDomainException unsupported)
@@ -4054,6 +4174,31 @@ namespace EarthTool.GLTF
     private static OperationDiagnostic Diagnostic(string code, int eventId, string path, string message)
     {
       return new OperationDiagnostic(code, eventId, DiagnosticSeverity.Error, path, message);
+    }
+
+    private static OperationDiagnostic MetadataDiagnostic(
+      string code,
+      int eventId,
+      string path,
+      string message,
+      params string[] actions)
+    {
+      if (GltfMetadataConflictCatalog.ActionsByCode.TryGetValue(code, out var catalogActions))
+      {
+        actions = catalogActions.ToArray();
+      }
+      return new OperationDiagnostic(
+        code,
+        eventId,
+        DiagnosticSeverity.Error,
+        path,
+        message,
+        data: new Dictionary<string, string>
+        {
+          ["conflictKey"] = $"{code}:{path}",
+          ["importMode"] = "edit",
+          ["actions"] = string.Join(",", actions)
+        });
     }
 
     private static OperationResult<T> Failed<T>(OperationDiagnostic diagnostic)

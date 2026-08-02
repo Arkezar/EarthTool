@@ -506,6 +506,14 @@ namespace EarthTool.GLTF.Internal
 
     internal IReadOnlyDictionary<string, string> Guards { get; }
 
+    internal IReadOnlyDictionary<string, IReadOnlyList<int>> ScopeInventory { get; }
+
+    internal IReadOnlyDictionary<string, int> ScopeNextIds { get; }
+
+    internal IReadOnlyDictionary<string, string> UnknownMembers { get; }
+
+    internal int ElementCount { get; }
+
     internal MetadataEnvelope(
       Guid assetLineageId,
       Guid documentId,
@@ -536,7 +544,11 @@ namespace EarthTool.GLTF.Internal
       int? staticLightDefinitionLocalId,
       IReadOnlyList<byte>? staticLightRecord,
       IReadOnlyList<byte>? staticLightAttachmentRecord,
-      IReadOnlyDictionary<string, string> guards)
+      IReadOnlyDictionary<string, string> guards,
+      IReadOnlyDictionary<string, IReadOnlyList<int>> scopeInventory,
+      IReadOnlyDictionary<string, int> scopeNextIds,
+      IReadOnlyDictionary<string, string> unknownMembers,
+      int elementCount)
     {
       AssetLineageId = assetLineageId;
       DocumentId = documentId;
@@ -568,6 +580,10 @@ namespace EarthTool.GLTF.Internal
       StaticLightRecord = staticLightRecord;
       StaticLightAttachmentRecord = staticLightAttachmentRecord;
       Guards = guards;
+      ScopeInventory = scopeInventory;
+      ScopeNextIds = scopeNextIds;
+      UnknownMembers = unknownMembers;
+      ElementCount = elementCount;
     }
   }
 
@@ -580,26 +596,57 @@ namespace EarthTool.GLTF.Internal
     internal static byte[] Create(
       StaticMeshAsset asset,
       InterchangeBaseline baseline,
+      IReadOnlyDictionary<string, string> unknownMetadata,
+      IReadOnlyDictionary<string, int> metadataNextIds,
       IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
       out NativeProjectionFingerprint fingerprint)
     {
-      var package = CreatePackage(asset, baseline, false, previews, out fingerprint);
+      var package = CreatePackage(
+        asset,
+        baseline,
+        unknownMetadata,
+        metadataNextIds,
+        false,
+        previews,
+        out fingerprint);
       return Pack(package.Json, package.Binary);
     }
 
     internal static GltfPackage CreateSeparate(
       StaticMeshAsset asset,
       InterchangeBaseline baseline,
+      IReadOnlyDictionary<string, string> unknownMetadata,
+      IReadOnlyDictionary<string, int> metadataNextIds,
       IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
       out NativeProjectionFingerprint fingerprint)
     {
-      return CreatePackage(asset, baseline, true, previews, out fingerprint);
+      return CreatePackage(
+        asset,
+        baseline,
+        unknownMetadata,
+        metadataNextIds,
+        true,
+        previews,
+        out fingerprint);
     }
 
-    internal static int GetMaximumMetadataByteCount(StaticMeshAsset asset, InterchangeBaseline baseline)
+    internal static int GetMaximumMetadataByteCount(
+      StaticMeshAsset asset,
+      InterchangeBaseline baseline,
+      IReadOnlyDictionary<string, string> unknownMetadata,
+      IReadOnlyDictionary<string, int> metadataNextIds)
     {
       var animations = StaticAnimationProjection.Create(asset, baseline);
-      var empty = CreateMetadata(baseline, "manifest", 0, string.Empty, null, asset, animations);
+      var empty = CreateMetadata(
+        baseline,
+        "manifest",
+        0,
+        string.Empty,
+        null,
+        unknownMetadata,
+        metadataNextIds,
+        asset,
+        animations);
       var base64Length = checked(((asset.SerializedLength + 2) / 3) * 4);
       var maximum = checked(Encoding.UTF8.GetByteCount(empty) + base64Length);
       foreach (var source in StaticSourceObjectTraversal.Flatten(asset.RootSourceObject))
@@ -610,6 +657,8 @@ namespace EarthTool.GLTF.Internal
           source.Id.Value,
           null,
           null,
+          unknownMetadata,
+          metadataNextIds,
           animationProjection: animations.Objects.SingleOrDefault(item =>
             item.SourceObjectLocalId == source.Id.Value));
         maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(metadata));
@@ -617,19 +666,19 @@ namespace EarthTool.GLTF.Internal
       foreach (var attachment in ProjectAttachments(asset))
       {
         maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(
-          CreateAttachmentMetadata(baseline, attachment)));
+          CreateAttachmentMetadata(baseline, attachment, unknownMetadata)));
       }
       foreach (var cannon in ProjectCannonRenderPositions(asset))
       {
         maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(
-          CreateCannonRenderPositionMetadata(baseline, cannon)));
+          CreateCannonRenderPositionMetadata(baseline, cannon, unknownMetadata)));
       }
       foreach (var light in ProjectStaticLights(asset))
       {
         maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(
-          CreateStaticLightInstanceMetadata(baseline, light)));
+          CreateStaticLightInstanceMetadata(baseline, light, unknownMetadata)));
         maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(
-          CreateStaticLightMetadata(baseline, light)));
+          CreateStaticLightMetadata(baseline, light, unknownMetadata)));
       }
       return maximum;
     }
@@ -637,6 +686,8 @@ namespace EarthTool.GLTF.Internal
     internal static int GetMinimumOutputByteCount(
       StaticMeshAsset asset,
       InterchangeBaseline baseline,
+      IReadOnlyDictionary<string, string> unknownMetadata,
+      IReadOnlyDictionary<string, int> metadataNextIds,
       bool glb)
     {
       long binaryLength = 0;
@@ -663,13 +714,15 @@ namespace EarthTool.GLTF.Internal
       var containerBytes = glb ? 28 : 0;
       return checked((int)(
         binaryLength
-        + GetMaximumMetadataByteCount(asset, baseline)
+        + GetMaximumMetadataByteCount(asset, baseline, unknownMetadata, metadataNextIds)
         + containerBytes));
     }
 
     private static GltfPackage CreatePackage(
       StaticMeshAsset asset,
       InterchangeBaseline baseline,
+      IReadOnlyDictionary<string, string> unknownMetadata,
+      IReadOnlyDictionary<string, int> metadataNextIds,
       bool separate,
       IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
       out NativeProjectionFingerprint fingerprint)
@@ -694,8 +747,10 @@ namespace EarthTool.GLTF.Internal
         baseline,
         "manifest",
         0,
-        Convert.ToBase64String(asset.GetSerializedRepresentation()),
+        EncodeBase64Url(asset.GetSerializedRepresentation()),
         null,
+        unknownMetadata,
+        metadataNextIds,
         asset,
         animations);
       var json = CreateJson(
@@ -704,6 +759,8 @@ namespace EarthTool.GLTF.Internal
         binary.Length,
         baseline,
         manifest,
+        unknownMetadata,
+        metadataNextIds,
         previewLayouts,
         animations,
         animationLayouts,
@@ -837,6 +894,7 @@ namespace EarthTool.GLTF.Internal
       GltfImportIntent intent)
     {
       ValidateSupportedGraph(root, profile, intent);
+      ValidateMetadataGraph(root, profile, intent);
       var manifest = intent == GltfImportIntent.Edit
         ? GetMetadata(root.GetProperty("scenes")[0], "scene")
         : TryGetMetadata(root.GetProperty("scenes")[0]);
@@ -891,6 +949,440 @@ namespace EarthTool.GLTF.Internal
         animations,
         lights,
         root.GetProperty("scenes")[0].GetProperty("nodes")[0].GetInt32());
+    }
+
+    private static void ValidateMetadataGraph(
+      JsonElement root,
+      GltfOperationProfile profile,
+      GltfImportIntent intent)
+    {
+      var allowedCarriers = new Dictionary<string, string>(StringComparer.Ordinal)
+      {
+        ["scenes[0]"] = "manifest"
+      };
+      AddAllowedCarriers(allowedCarriers, root, "nodes", "object");
+      AddAllowedCarriers(allowedCarriers, root, "meshes", "mesh");
+      AddAllowedCarriers(allowedCarriers, root, "materials", "material");
+      if (root.TryGetProperty("extensions", out var extensions)
+        && extensions.TryGetProperty("KHR_lights_punctual", out var punctual)
+        && punctual.TryGetProperty("lights", out var lights))
+      {
+        for (var index = 0; index < lights.GetArrayLength(); index++)
+        {
+          allowedCarriers.Add($"extensions.KHR_lights_punctual.lights[{index}]", "light");
+        }
+      }
+
+      var carriers = new List<(string Path, string Value)>();
+      long metadataBytes = 0;
+      CollectMetadataCarriers(
+        root,
+        "$",
+        allowedCarriers,
+        carriers,
+        profile,
+        ref metadataBytes);
+      if (intent == GltfImportIntent.NewModel)
+      {
+        if (carriers.Count != 0)
+        {
+          throw new MetadataConflictException(
+            GltfDiagnosticCodes.OrphanEnvelope,
+            2011,
+            carriers[0].Path,
+            "New-model import cannot consume a claimed EarthTool metadata lineage.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.AdoptAsNew,
+            GltfMetadataConflictActions.DiscardLineage);
+        }
+        return;
+      }
+
+      var manifestCarrier = carriers.SingleOrDefault(carrier => carrier.Path == "scenes[0]");
+      if (manifestCarrier == default)
+      {
+        throw new MetadataConflictException(
+          GltfDiagnosticCodes.MissingManifest,
+          2000,
+          "scenes[0]",
+          "The edit document has no EarthTool metadata manifest.",
+          GltfMetadataConflictActions.Abort,
+          GltfMetadataConflictActions.RetryWithMetadata,
+          GltfMetadataConflictActions.DiscardLineage);
+      }
+      if (carriers.Count > profile.MaxMetadataEnvelopes)
+      {
+        throw MetadataLimit("metadata", carriers.Count, profile.MaxMetadataEnvelopes);
+      }
+
+      long totalBytes = 0;
+      long totalElements = 0;
+      long totalUnknownMembers = 0;
+      var parsed = new List<(string Path, string CarrierKind, MetadataEnvelope Envelope)>();
+      foreach (var carrier in carriers.OrderBy(item => item.Path == "scenes[0]" ? string.Empty : item.Path,
+        StringComparer.Ordinal))
+      {
+        var bytes = Encoding.UTF8.GetByteCount(carrier.Value);
+        totalBytes = checked(totalBytes + bytes);
+        if (totalBytes > profile.MaxTotalMetadataBytes)
+        {
+          throw MetadataLimit(carrier.Path, totalBytes, profile.MaxTotalMetadataBytes);
+        }
+        MetadataEnvelope envelope;
+        try
+        {
+          envelope = ParseMetadata(
+            carrier.Value,
+            profile,
+            checked(profile.MaxMetadataElements - (int)totalElements),
+            checked(profile.MaxUnknownMetadataMembers - (int)totalUnknownMembers));
+        }
+        catch (UnsupportedMetadataVersionException)
+        {
+          throw new MetadataConflictException(
+            GltfDiagnosticCodes.UnsupportedMetadataVersion,
+            2004,
+            carrier.Path,
+            "The EarthTool metadata version is unsupported and remains opaque.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.DiscardLineage);
+        }
+        catch (MalformedMetadataException ex)
+        {
+          throw new MetadataConflictException(
+            GltfDiagnosticCodes.MalformedMetadata,
+            2003,
+            carrier.Path,
+            ex.Message,
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.DiscardAffectedState,
+            GltfMetadataConflictActions.DiscardLineage);
+        }
+        catch (MetadataConflictException ex)
+        {
+          throw new MetadataConflictException(
+            ex.Code,
+            ex.EventId,
+            ex.Path == "$" ? carrier.Path : carrier.Path + "." + ex.Path,
+            ex.Message,
+            ex.ConflictData,
+            ex.Actions.ToArray());
+        }
+        catch (ResourceLimitException limit)
+        {
+          throw MetadataLimit(carrier.Path, limit.Actual, limit.Maximum);
+        }
+        totalElements += envelope.ElementCount;
+        totalUnknownMembers += envelope.UnknownMembers.Count;
+        if (totalElements > profile.MaxMetadataElements)
+        {
+          throw MetadataLimit(carrier.Path, totalElements, profile.MaxMetadataElements);
+        }
+        if (totalUnknownMembers > profile.MaxUnknownMetadataMembers)
+        {
+          throw MetadataLimit(
+            carrier.Path,
+            totalUnknownMembers,
+            profile.MaxUnknownMetadataMembers);
+        }
+        var carrierKind = allowedCarriers[carrier.Path];
+        if (envelope.ScopeKind != carrierKind)
+        {
+          throw new MetadataConflictException(
+            GltfDiagnosticCodes.KindCarrierMismatch,
+            2008,
+            carrier.Path,
+            "The metadata envelope kind does not match its glTF carrier.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.MapScope,
+            GltfMetadataConflictActions.ForkScope,
+            GltfMetadataConflictActions.DiscardAffectedState);
+        }
+        if (carrierKind == "manifest" ? envelope.LocalId != 0 : envelope.LocalId <= 0)
+        {
+          throw new MetadataConflictException(
+            GltfDiagnosticCodes.MalformedMetadata,
+            2003,
+            carrier.Path,
+            "The metadata local ID is outside its allowed range.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.DiscardAffectedState,
+            GltfMetadataConflictActions.DiscardLineage);
+        }
+        parsed.Add((carrier.Path, carrierKind, envelope));
+      }
+
+      var manifest = parsed.Single(item => item.Path == "scenes[0]").Envelope;
+      foreach (var item in parsed.Where(item => item.Path != "scenes[0]"))
+      {
+        if (item.Envelope.AssetLineageId != manifest.AssetLineageId)
+        {
+          throw IdentityConflict(
+            GltfDiagnosticCodes.AssetLineageMismatch,
+            2006,
+            item.Path,
+            item.Envelope,
+            "The metadata envelope belongs to a foreign asset lineage.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.AdoptAsNew,
+            GltfMetadataConflictActions.DiscardLineage);
+        }
+        if (item.Envelope.DocumentId != manifest.DocumentId)
+        {
+          throw IdentityConflict(
+            GltfDiagnosticCodes.DocumentMismatch,
+            2007,
+            item.Path,
+            item.Envelope,
+            "The metadata envelope belongs to another document branch.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.AcceptBranch);
+        }
+      }
+
+      var duplicate = parsed.GroupBy(
+          item => (item.Envelope.ScopeKind, item.Envelope.LocalId))
+        .FirstOrDefault(group => group.Count() > 1);
+      if (duplicate is not null)
+      {
+        var item = duplicate.OrderBy(value => value.Path, StringComparer.Ordinal).Skip(1).First();
+        throw IdentityConflict(
+          GltfDiagnosticCodes.DuplicateScopeIdentity,
+          2009,
+          item.Path,
+          item.Envelope,
+          "More than one metadata envelope claims the same scope identity.",
+          GltfMetadataConflictActions.Abort,
+          GltfMetadataConflictActions.MapScope,
+          GltfMetadataConflictActions.ForkScope,
+          GltfMetadataConflictActions.DiscardAffectedState);
+      }
+
+      ValidateManifestInventory(manifest, parsed, profile);
+    }
+
+    private static void AddAllowedCarriers(
+      IDictionary<string, string> carriers,
+      JsonElement root,
+      string collectionName,
+      string kind)
+    {
+      if (!root.TryGetProperty(collectionName, out var collection))
+      {
+        return;
+      }
+      for (var index = 0; index < collection.GetArrayLength(); index++)
+      {
+        carriers.Add($"{collectionName}[{index}]", kind);
+      }
+    }
+
+    private static void CollectMetadataCarriers(
+      JsonElement element,
+      string path,
+      IReadOnlyDictionary<string, string> allowedCarriers,
+      ICollection<(string Path, string Value)> result,
+      GltfOperationProfile profile,
+      ref long metadataBytes)
+    {
+      if (element.ValueKind == JsonValueKind.Object)
+      {
+        var extrasProperties = element.EnumerateObject()
+          .Where(property => property.Name == "extras")
+          .ToArray();
+        var reserved = extrasProperties
+          .Where(property => property.Value.ValueKind == JsonValueKind.Object)
+          .SelectMany(property => property.Value.EnumerateObject())
+          .Where(property => property.Name == "earthtool")
+          .ToArray();
+        if (reserved.Length > 0 && extrasProperties.Length > 1)
+        {
+          throw CarrierConflict(path, "The extras object containing EarthTool metadata occurs more than once.");
+        }
+        if (reserved.Length > 1)
+        {
+          throw CarrierConflict(path, "The reserved EarthTool carrier occurs more than once.");
+        }
+        if (reserved.Length == 1)
+        {
+          if (!allowedCarriers.ContainsKey(path.TrimStart('$').TrimStart('.')))
+          {
+            throw new MetadataConflictException(
+              GltfDiagnosticCodes.OrphanEnvelope,
+              2011,
+              path,
+              "EarthTool metadata appears on an unsupported carrier.",
+              GltfMetadataConflictActions.Abort,
+              GltfMetadataConflictActions.MapScope,
+              GltfMetadataConflictActions.DiscardAffectedState,
+              GltfMetadataConflictActions.DiscardLineage);
+          }
+          if (reserved[0].Value.ValueKind != JsonValueKind.String)
+          {
+            throw CarrierConflict(path, "EarthTool metadata must be a non-empty string envelope.");
+          }
+          if (result.Count >= profile.MaxMetadataEnvelopes)
+          {
+            throw MetadataLimit("metadata", result.Count + 1L, profile.MaxMetadataEnvelopes);
+          }
+          var value = reserved[0].Value.GetString();
+          if (string.IsNullOrEmpty(value))
+          {
+            throw CarrierConflict(path, "EarthTool metadata must be a non-empty string envelope.");
+          }
+          var decodedBytes = Encoding.UTF8.GetByteCount(value);
+          metadataBytes = checked(metadataBytes + decodedBytes);
+          if (decodedBytes > profile.MaxMetadataBytes)
+          {
+            throw MetadataLimit(path, decodedBytes, profile.MaxMetadataBytes);
+          }
+          if (metadataBytes > profile.MaxTotalMetadataBytes)
+          {
+            throw MetadataLimit(path, metadataBytes, profile.MaxTotalMetadataBytes);
+          }
+          result.Add((path.TrimStart('$').TrimStart('.'), value));
+        }
+
+        foreach (var property in element.EnumerateObject())
+        {
+          if (property.Name == "extras")
+          {
+            continue;
+          }
+          var childPath = path == "$" ? property.Name : path + "." + property.Name;
+          CollectMetadataCarriers(
+            property.Value,
+            childPath,
+            allowedCarriers,
+            result,
+            profile,
+            ref metadataBytes);
+        }
+      }
+      else if (element.ValueKind == JsonValueKind.Array)
+      {
+        var index = 0;
+        foreach (var item in element.EnumerateArray())
+        {
+          CollectMetadataCarriers(
+            item,
+            $"{path}[{index++}]",
+            allowedCarriers,
+            result,
+            profile,
+            ref metadataBytes);
+        }
+      }
+    }
+
+    private static MetadataConflictException CarrierConflict(string path, string message)
+    {
+      return new MetadataConflictException(
+        GltfDiagnosticCodes.InvalidMetadataCarrier,
+        2002,
+        path,
+        message,
+        GltfMetadataConflictActions.Abort,
+        GltfMetadataConflictActions.RetryWithMetadata,
+        GltfMetadataConflictActions.DiscardLineage);
+    }
+
+    private static MetadataConflictException MetadataLimit(string path, long actual, int maximum)
+    {
+      return new MetadataConflictException(
+        GltfDiagnosticCodes.MetadataResourceLimitExceeded,
+        2005,
+        path,
+        "The metadata graph exceeds its finite operation profile.",
+        new Dictionary<string, string>
+        {
+          ["actual"] = actual.ToString(System.Globalization.CultureInfo.InvariantCulture),
+          ["maximum"] = maximum.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        },
+        GltfMetadataConflictActions.Abort,
+        GltfMetadataConflictActions.RetryWithMetadata);
+    }
+
+    private static MetadataConflictException IdentityConflict(
+      string code,
+      int eventId,
+      string path,
+      MetadataEnvelope envelope,
+      string message,
+      params string[] actions)
+    {
+      return new MetadataConflictException(
+        code,
+        eventId,
+        path,
+        message,
+        new Dictionary<string, string>
+        {
+          ["lineage"] = envelope.AssetLineageId.ToString("D"),
+          ["document"] = envelope.DocumentId.ToString("D"),
+          ["scopeKind"] = envelope.ScopeKind,
+          ["localId"] = envelope.LocalId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        },
+        actions);
+    }
+
+    private static void ValidateManifestInventory(
+      MetadataEnvelope manifest,
+      IReadOnlyList<(string Path, string CarrierKind, MetadataEnvelope Envelope)> graph,
+      GltfOperationProfile profile)
+    {
+      if (manifest.ScopeInventory.Count != 4 || manifest.ScopeNextIds.Count != 4)
+      {
+        throw InvalidInventory("The manifest must declare all supported scope inventories.");
+      }
+      var inventoryEntries = manifest.ScopeInventory.Values.Sum(ids => (long)ids.Count);
+      var totalScopes = checked(graph.Count + inventoryEntries);
+      if (totalScopes > profile.MaxMetadataEnvelopes)
+      {
+        throw MetadataLimit("scenes[0]", totalScopes, profile.MaxMetadataEnvelopes);
+      }
+      foreach (var kind in new[] { "object", "mesh", "material", "light" })
+      {
+        var ids = manifest.ScopeInventory[kind];
+        if (ids.Any(id => id <= 0)
+          || ids.Zip(ids.Skip(1), (left, right) => left < right).Any(increasing => !increasing)
+          || manifest.ScopeNextIds[kind] <= 0
+          || ids.Count > 0 && manifest.ScopeNextIds[kind] <= ids[^1])
+        {
+          throw InvalidInventory("A manifest inventory is not strictly increasing or has an invalid high-water mark.");
+        }
+      }
+      foreach (var item in graph.Where(item => item.Envelope.ScopeKind != "manifest"))
+      {
+        if (!manifest.ScopeInventory[item.Envelope.ScopeKind].Contains(item.Envelope.LocalId))
+        {
+          throw new MetadataConflictException(
+            GltfDiagnosticCodes.OrphanEnvelope,
+            2011,
+            item.Path,
+            "A metadata envelope is absent from the manifest inventory.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.MapScope,
+            GltfMetadataConflictActions.ForkScope,
+            GltfMetadataConflictActions.DiscardAffectedState);
+        }
+      }
+    }
+
+    private static MetadataConflictException InvalidInventory(string message)
+    {
+      return new MetadataConflictException(
+        GltfDiagnosticCodes.InvalidManifestInventory,
+        2020,
+        "scenes[0]",
+        message,
+        GltfMetadataConflictActions.Abort,
+        GltfMetadataConflictActions.RetryWithMetadata,
+        GltfMetadataConflictActions.DiscardLineage);
     }
 
     private static int? TryGetLightIndex(JsonElement node)
@@ -1003,31 +1495,153 @@ namespace EarthTool.GLTF.Internal
       }
     }
 
-    internal static MetadataEnvelope ParseMetadata(string value, int maxMetadataBytes, int maxJsonDepth)
+    internal static MetadataEnvelope ParseMetadata(string value, GltfOperationProfile profile)
     {
-      if (Encoding.UTF8.GetByteCount(value) > maxMetadataBytes)
+      return ParseMetadata(
+        value,
+        profile,
+        profile.MaxMetadataElements,
+        profile.MaxUnknownMetadataMembers);
+    }
+
+    private static MetadataEnvelope ParseMetadata(
+      string value,
+      GltfOperationProfile profile,
+      int remainingElements,
+      int remainingUnknownMembers)
+    {
+      var byteCount = Encoding.UTF8.GetByteCount(value);
+      if (byteCount > profile.MaxMetadataBytes)
       {
-        throw new ResourceLimitException(Encoding.UTF8.GetByteCount(value), maxMetadataBytes);
+        throw new ResourceLimitException(byteCount, profile.MaxMetadataBytes);
       }
 
       try
       {
-        using var document = JsonDocument.Parse(value, new JsonDocumentOptions { MaxDepth = maxJsonDepth });
-        var root = document.RootElement;
-        if (root.GetProperty("format").GetString() != "earthtool.msh.gltf")
+        var json = Encoding.UTF8.GetBytes(value);
+        var elementCount = ValidateJsonLimits(json, profile.MaxJsonDepth, remainingElements);
+        using var document = JsonDocument.Parse(json, new JsonDocumentOptions
         {
-          throw new MalformedMetadataException("Unsupported EarthTool metadata format.");
+          MaxDepth = profile.MaxJsonDepth,
+          CommentHandling = JsonCommentHandling.Disallow,
+          AllowTrailingCommas = false
+        });
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+          throw new MalformedMetadataException("An EarthTool envelope must be a JSON object.");
         }
-
-        if (root.GetProperty("version").GetInt32() != 1)
+        var versionProperties = root.EnumerateObject().Where(property => property.Name == "version").ToArray();
+        if (versionProperties.Length != 1 || versionProperties[0].Value.ValueKind != JsonValueKind.Number)
+        {
+          throw new MalformedMetadataException("The metadata version is missing or malformed.");
+        }
+        if (!versionProperties[0].Value.TryGetInt32(out var version))
+        {
+          throw new MalformedMetadataException("The metadata version must be an integer.");
+        }
+        if (version != 1)
         {
           throw new UnsupportedMetadataVersionException();
         }
+        ValidateNoDuplicateMembers(root);
 
-        var scope = root.GetProperty("scope");
-        var hasProjection = root.TryGetProperty("nativeProjection", out var projection);
+        if (root.GetProperty("format").ValueKind != JsonValueKind.String
+          || root.GetProperty("format").GetString() != "earthtool.msh.gltf")
+        {
+          throw new MalformedMetadataException("Unsupported EarthTool metadata format.");
+        }
+        var kind = ReadRequiredString(root, "kind");
+        var lineage = ReadVersion4Guid(root, "lineage");
+        var documentId = ReadVersion4Guid(root, "document");
+        var localId = root.GetProperty("id").GetInt32();
+        if (kind is not ("manifest" or "object" or "mesh" or "material" or "light"))
+        {
+          throw new MetadataConflictException(
+            GltfDiagnosticCodes.UnknownRequiredSemantics,
+            2018,
+            "$",
+            "The metadata scope kind is not supported.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.DiscardLineage);
+        }
+
+        var guardObject = root.GetProperty("guards");
+        if (guardObject.ValueKind != JsonValueKind.Object)
+        {
+          throw new MalformedMetadataException("The metadata guards member must be an object.");
+        }
+        if (guardObject.EnumerateObject().Count() > profile.MaxMetadataGuards)
+        {
+          throw new ResourceLimitException(
+            guardObject.EnumerateObject().Count(),
+            profile.MaxMetadataGuards);
+        }
+        var guards = new Dictionary<string, string>(StringComparer.Ordinal);
+        var guardProjections = new Dictionary<string, (string Projection, int Version)>(StringComparer.Ordinal);
+        foreach (var guard in guardObject.EnumerateObject())
+        {
+          if (!IsKnownGuard(kind, guard.Name))
+          {
+            continue;
+          }
+          if (guard.Value.ValueKind != JsonValueKind.Object)
+          {
+            throw new MalformedMetadataException("A metadata guard must be an object.");
+          }
+          var projection = ReadRequiredString(guard.Value, "projection");
+          var projectionVersion = guard.Value.GetProperty("version").GetInt32();
+          var algorithm = ReadRequiredString(guard.Value, "algorithm");
+          var digest = ReadRequiredString(guard.Value, "digest");
+          if (projectionVersion <= 0 || algorithm != "sha256")
+          {
+            throw new MetadataConflictException(
+              GltfDiagnosticCodes.UnsupportedGuard,
+              2015,
+              "guards." + guard.Name,
+              "The metadata guard projection is unsupported.",
+              GltfMetadataConflictActions.Abort,
+              GltfMetadataConflictActions.RetryWithMetadata,
+              GltfMetadataConflictActions.DiscardAffectedState);
+          }
+          guards.Add(guard.Name, DecodeSha256(digest));
+          guardProjections.Add(guard.Name, (projection, projectionVersion));
+        }
+
+        var payload = root.GetProperty("payload");
+        if (payload.ValueKind != JsonValueKind.Object)
+        {
+          throw new MalformedMetadataException("The metadata payload member must be an object.");
+        }
+        var envelopePayload = payload;
+        if (kind == "manifest")
+        {
+          if (!payload.TryGetProperty("origin", out var origin)
+            || origin.ValueKind != JsonValueKind.Object
+            || !origin.TryGetProperty("kind", out var originKind)
+            || originKind.ValueKind != JsonValueKind.String
+            || !payload.TryGetProperty("asset", out var assetPayload)
+            || assetPayload.ValueKind != JsonValueKind.Object)
+          {
+            throw new MalformedMetadataException(
+              "The manifest origin or asset payload is missing or malformed.");
+          }
+          if (originKind.GetString() is not ("mshExport" or "newModel" or "lineageFork"))
+          {
+            throw new MetadataConflictException(
+              GltfDiagnosticCodes.UnknownRequiredSemantics,
+              2018,
+              "$",
+              "The manifest origin kind requires unsupported semantics.",
+              GltfMetadataConflictActions.Abort,
+              GltfMetadataConflictActions.RetryWithMetadata,
+              GltfMetadataConflictActions.DiscardLineage);
+          }
+          envelopePayload = assetPayload;
+        }
         var partitions = new List<MetadataPartition>();
-        if (root.TryGetProperty("partitions", out var partitionArray))
+        if (envelopePayload.TryGetProperty("partitions", out var partitionArray))
         {
           foreach (var partition in partitionArray.EnumerateArray())
           {
@@ -1038,26 +1652,15 @@ namespace EarthTool.GLTF.Internal
           }
         }
 
-        var staticRenderObjectLocalIds = ReadIntegerArray(root, "staticRenderObjectLocalIds");
-        var sourceObjectLocalIds = ReadIntegerArray(root, "sourceObjectLocalIds");
-        var staticRenderObjectInventory = ReadIntegerArray(root, "staticRenderObjectInventory");
-        var sourceObjectInventory = ReadIntegerArray(root, "sourceObjectInventory");
+        var staticRenderObjectLocalIds = ReadIntegerArray(envelopePayload, "staticRenderObjectLocalIds");
+        var sourceObjectLocalIds = ReadIntegerArray(envelopePayload, "sourceObjectLocalIds");
+        var staticRenderObjectInventory = ReadIntegerArray(envelopePayload, "staticRenderObjectInventory");
+        var sourceObjectInventory = ReadIntegerArray(envelopePayload, "sourceObjectInventory");
         AnimationClassBytes? animationLengths = null;
         AnimationClassBytes? animationFrameIndices = null;
         var animationClasses = new List<MetadataAnimationClass>();
         MetadataAnimationProjection? animationProjection = null;
-        var guards = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (root.TryGetProperty("guards", out var guardObject))
-        {
-          foreach (var guard in guardObject.EnumerateObject())
-          {
-            guards.Add(
-              guard.Name,
-              guard.Value.GetString()
-                ?? throw new MalformedMetadataException("A native projection guard is missing."));
-          }
-        }
-        if (root.TryGetProperty("staticAnimation", out var staticAnimation))
+        if (envelopePayload.TryGetProperty("staticAnimation", out var staticAnimation))
         {
           if (staticAnimation.TryGetProperty("lengths", out var lengths))
           {
@@ -1088,9 +1691,9 @@ namespace EarthTool.GLTF.Internal
               staticAnimation.TryGetProperty("sha256", out var animationFingerprint)
                 ? animationFingerprint.GetString()
                 : null,
-              ReadBase64(staticAnimation, "scaleFrames"),
-              ReadBase64(staticAnimation, "translationFrames"),
-              ReadBase64(staticAnimation, "matrices"));
+              ReadBase64(staticAnimation, "scaleFrames", profile.MaxMetadataBytes),
+              ReadBase64(staticAnimation, "translationFrames", profile.MaxMetadataBytes),
+              ReadBase64(staticAnimation, "matrices", profile.MaxMetadataBytes));
             if (status is not ("native" or "metadataOnly" or "absent"))
             {
               throw new MalformedMetadataException("Unsupported static animation status.");
@@ -1098,83 +1701,447 @@ namespace EarthTool.GLTF.Internal
           }
         }
 
+        var scopeInventory = ReadScopeInventory(payload);
+        var scopeNextIds = ReadScopeNextIds(payload);
+        var unknownMembers = ReadUnknownMembers(root, kind, remainingUnknownMembers);
+        var hasProjection = guardProjections.TryGetValue(
+          "nativeProjection",
+          out var nativeProjection);
+        var domainGuards = new Dictionary<string, string>(guards, StringComparer.Ordinal);
+        domainGuards.Remove("nativeProjection");
+        var sourceMshValue = envelopePayload.TryGetProperty("sourceMsh", out var sourceMsh)
+          ? sourceMsh.GetString()
+          : null;
+        if (sourceMshValue is not null)
+        {
+          ValidateBase64Length(sourceMshValue, profile.MaxMetadataBytes);
+        }
         return new MetadataEnvelope(
-          root.GetProperty("assetLineage").GetGuid(),
-          root.GetProperty("document").GetGuid(),
-          scope.GetProperty("kind").GetString() ?? throw new MalformedMetadataException("Missing scope kind."),
-          scope.GetProperty("localId").GetInt32(),
-          root.TryGetProperty("sourceMsh", out var sourceMsh) ? sourceMsh.GetString() : null,
-          hasProjection ? projection.GetProperty("sha256").GetString() : null,
-          hasProjection ? projection.GetProperty("name").GetString() : null,
-          hasProjection ? projection.GetProperty("version").GetInt32() : null,
+          lineage,
+          documentId,
+          kind,
+          localId,
+          sourceMshValue,
+          hasProjection ? guards["nativeProjection"] : null,
+          hasProjection ? nativeProjection.Projection : null,
+          hasProjection ? nativeProjection.Version : null,
           partitions.AsReadOnly(),
           staticRenderObjectLocalIds,
           sourceObjectLocalIds,
           staticRenderObjectInventory,
           sourceObjectInventory,
-          root.TryGetProperty("nextStaticRenderObjectLocalId", out var nextRenderObjectId)
+          envelopePayload.TryGetProperty("nextStaticRenderObjectLocalId", out var nextRenderObjectId)
             ? nextRenderObjectId.GetInt32()
             : null,
-          root.TryGetProperty("nextSourceObjectLocalId", out var nextSourceObjectId)
+          envelopePayload.TryGetProperty("nextSourceObjectLocalId", out var nextSourceObjectId)
             ? nextSourceObjectId.GetInt32()
             : null,
-          root.TryGetProperty("textureBinding", out var textureBinding)
-            ? Array.AsReadOnly(Convert.FromBase64String(
+          envelopePayload.TryGetProperty("textureBinding", out var textureBinding)
+            ? DecodeBase64Url(
               textureBinding.GetString()
-                ?? throw new MalformedMetadataException("Missing TEX resource binding.")))
+                ?? throw new MalformedMetadataException("Missing TEX resource binding."),
+              profile.MaxMetadataBytes)
             : null,
           animationLengths,
           animationFrameIndices,
           animationClasses.AsReadOnly(),
           animationProjection,
-          root.TryGetProperty("attachment", out var attachment)
+          envelopePayload.TryGetProperty("attachment", out var attachment)
             ? attachment.GetProperty("physicalNumber").GetInt32()
             : null,
-          root.TryGetProperty("attachment", out attachment)
-            ? ReadBase64(attachment, "record")
+          envelopePayload.TryGetProperty("attachment", out attachment)
+            ? ReadBase64(attachment, "record", profile.MaxMetadataBytes)
             : null,
-          root.TryGetProperty("cannonRenderPosition", out var cannonRenderPosition)
+          envelopePayload.TryGetProperty("cannonRenderPosition", out var cannonRenderPosition)
             ? cannonRenderPosition.GetProperty("physicalNumber").GetInt32()
             : null,
-          root.TryGetProperty("cannonRenderPosition", out cannonRenderPosition)
-            ? ReadBase64(cannonRenderPosition, "record")
+          envelopePayload.TryGetProperty("cannonRenderPosition", out cannonRenderPosition)
+            ? ReadBase64(cannonRenderPosition, "record", profile.MaxMetadataBytes)
             : null,
-          root.TryGetProperty("staticLight", out var staticLight)
+          envelopePayload.TryGetProperty("staticLight", out var staticLight)
             ? staticLight.GetProperty("type").GetString()
-            : root.TryGetProperty("staticLightInstance", out var staticLightInstance)
+            : envelopePayload.TryGetProperty("staticLightInstance", out var staticLightInstance)
               ? staticLightInstance.GetProperty("type").GetString()
               : null,
-          root.TryGetProperty("staticLight", out staticLight)
+          envelopePayload.TryGetProperty("staticLight", out staticLight)
             ? staticLight.GetProperty("physicalNumber").GetInt32()
-            : root.TryGetProperty("staticLightInstance", out staticLightInstance)
+            : envelopePayload.TryGetProperty("staticLightInstance", out staticLightInstance)
               ? staticLightInstance.GetProperty("physicalNumber").GetInt32()
               : null,
-          root.TryGetProperty("staticLightInstance", out staticLightInstance)
+          envelopePayload.TryGetProperty("staticLightInstance", out staticLightInstance)
             ? staticLightInstance.GetProperty("definitionLocalId").GetInt32()
             : null,
-          root.TryGetProperty("staticLight", out staticLight)
-            ? ReadBase64(staticLight, "record")
+          envelopePayload.TryGetProperty("staticLight", out staticLight)
+            ? ReadBase64(staticLight, "record", profile.MaxMetadataBytes)
             : null,
-          root.TryGetProperty("staticLightInstance", out staticLightInstance)
-            ? ReadBase64(staticLightInstance, "attachmentRecord")
+          envelopePayload.TryGetProperty("staticLightInstance", out staticLightInstance)
+            ? ReadBase64(staticLightInstance, "attachmentRecord", profile.MaxMetadataBytes)
             : null,
-          new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(guards));
+          new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(domainGuards),
+          scopeInventory,
+          scopeNextIds,
+          unknownMembers,
+          elementCount);
       }
-      catch (UnsupportedMetadataVersionException)
-      {
-        throw;
-      }
-      catch (MalformedMetadataException)
+      catch (Exception ex) when (ex is UnsupportedMetadataVersionException
+        || ex is MalformedMetadataException
+        || ex is MetadataConflictException
+        || ex is ResourceLimitException)
       {
         throw;
       }
       catch (Exception ex) when (ex is JsonException
         || ex is InvalidOperationException
         || ex is KeyNotFoundException
-        || ex is FormatException)
+        || ex is FormatException
+        || ex is OverflowException)
       {
         throw new MalformedMetadataException("Malformed EarthTool metadata.", ex);
       }
+    }
+
+    private static int ValidateJsonLimits(
+      ReadOnlySpan<byte> json,
+      int maximumDepth,
+      int maximumElements)
+    {
+      var reader = new Utf8JsonReader(json, new JsonReaderOptions
+      {
+        MaxDepth = int.MaxValue,
+        CommentHandling = JsonCommentHandling.Disallow,
+        AllowTrailingCommas = false
+      });
+      var elements = 0;
+      while (reader.Read())
+      {
+        if (reader.CurrentDepth > maximumDepth)
+        {
+          throw new ResourceLimitException(reader.CurrentDepth, maximumDepth);
+        }
+        if (reader.TokenType != JsonTokenType.PropertyName
+          && reader.TokenType is not (JsonTokenType.EndObject or JsonTokenType.EndArray)
+          && ++elements > maximumElements)
+        {
+          throw new ResourceLimitException(elements, maximumElements);
+        }
+      }
+      return elements;
+    }
+
+    private static void ValidateNoDuplicateMembers(JsonElement root)
+    {
+      var pending = new Stack<JsonElement>();
+      pending.Push(root);
+      while (pending.Count > 0)
+      {
+        var current = pending.Pop();
+        if (current.ValueKind == JsonValueKind.Object)
+        {
+          var names = new HashSet<string>(StringComparer.Ordinal);
+          foreach (var property in current.EnumerateObject())
+          {
+            if (!names.Add(property.Name))
+            {
+              throw new MalformedMetadataException("Duplicate JSON member names are not allowed.");
+            }
+            pending.Push(property.Value);
+          }
+        }
+        else if (current.ValueKind == JsonValueKind.Array)
+        {
+          foreach (var item in current.EnumerateArray())
+          {
+            pending.Push(item);
+          }
+        }
+      }
+    }
+
+    private static string ReadRequiredString(JsonElement owner, string name)
+    {
+      var value = owner.GetProperty(name);
+      return value.ValueKind == JsonValueKind.String && value.GetString() is string text
+        ? text
+        : throw new MalformedMetadataException($"The {name} member must be a string.");
+    }
+
+    private static Guid ReadVersion4Guid(JsonElement owner, string name)
+    {
+      var text = ReadRequiredString(owner, name);
+      if (!Guid.TryParseExact(text, "D", out var value)
+        || value.ToString("D") != text
+        || !GltfMetadataIdentity.IsVersion4(value))
+      {
+        throw new MalformedMetadataException($"The {name} member must be a lowercase version-4 UUID.");
+      }
+      return value;
+    }
+
+    private static string DecodeSha256(string value)
+    {
+      if (value.Length != 43 || value.Any(character => !((character >= 'a' && character <= 'z')
+        || (character >= 'A' && character <= 'Z')
+        || (character >= '0' && character <= '9')
+        || character is '-' or '_')))
+      {
+        throw new MalformedMetadataException("A SHA-256 digest must use unpadded base64url.");
+      }
+      var bytes = Convert.FromBase64String(value.Replace('-', '+').Replace('_', '/') + "=");
+      if (bytes.Length != 32)
+      {
+        throw new MalformedMetadataException("A SHA-256 digest must contain 32 bytes.");
+      }
+      return BitConverter.ToString(bytes).Replace("-", string.Empty).ToLowerInvariant();
+    }
+
+    private static IReadOnlyDictionary<string, IReadOnlyList<int>> ReadScopeInventory(JsonElement payload)
+    {
+      if (!payload.TryGetProperty("inventory", out var inventory))
+      {
+        return new System.Collections.ObjectModel.ReadOnlyDictionary<string, IReadOnlyList<int>>(
+          new Dictionary<string, IReadOnlyList<int>>(StringComparer.Ordinal));
+      }
+      var result = new Dictionary<string, IReadOnlyList<int>>(StringComparer.Ordinal);
+      foreach (var kind in new[] { "object", "mesh", "material", "light" })
+      {
+        if (inventory.TryGetProperty(kind, out _))
+        {
+          result.Add(kind, ReadIntegerArray(inventory, kind));
+        }
+      }
+      return new System.Collections.ObjectModel.ReadOnlyDictionary<string, IReadOnlyList<int>>(result);
+    }
+
+    private static IReadOnlyDictionary<string, int> ReadScopeNextIds(JsonElement payload)
+    {
+      if (!payload.TryGetProperty("nextIds", out var nextIds))
+      {
+        return new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(
+          new Dictionary<string, int>(StringComparer.Ordinal));
+      }
+      var result = new Dictionary<string, int>(StringComparer.Ordinal);
+      foreach (var kind in new[] { "object", "mesh", "material", "light" })
+      {
+        if (nextIds.TryGetProperty(kind, out var nextId))
+        {
+          result.Add(kind, nextId.GetInt32());
+        }
+      }
+      return new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(result);
+    }
+
+    private static IReadOnlyDictionary<string, string> ReadUnknownMembers(
+      JsonElement root,
+      string scopeKind,
+      int maximum)
+    {
+      var result = new Dictionary<string, string>(StringComparer.Ordinal);
+      CollectUnknownMembers(root, string.Empty, scopeKind, result, maximum);
+      return new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(result);
+    }
+
+    private static void CollectUnknownMembers(
+      JsonElement element,
+      string path,
+      string scopeKind,
+      IDictionary<string, string> result,
+      int maximum)
+    {
+      if (element.ValueKind == JsonValueKind.Object)
+      {
+        foreach (var property in element.EnumerateObject())
+        {
+          var childPath = path + "/" + EscapeJsonPointerSegment(property.Name);
+          if (!IsKnownMetadataMember(scopeKind, childPath))
+          {
+            if (result.Count >= maximum)
+            {
+              throw new ResourceLimitException(result.Count + 1L, maximum);
+            }
+            result.Add(childPath, property.Value.GetRawText());
+            continue;
+          }
+          CollectUnknownMembers(property.Value, childPath, scopeKind, result, maximum);
+        }
+      }
+      else if (element.ValueKind == JsonValueKind.Array)
+      {
+        var index = 0;
+        foreach (var item in element.EnumerateArray())
+        {
+          CollectUnknownMembers(item, path + "/" + index++, scopeKind, result, maximum);
+        }
+      }
+    }
+
+    private static bool IsKnownMetadataMember(string scopeKind, string path)
+    {
+      if (path is "/format" or "/version" or "/kind" or "/lineage" or "/document" or "/id"
+        or "/guards" or "/payload")
+      {
+        return true;
+      }
+
+      var segments = path.Split('/');
+      if (segments.Length == 3 && segments[1] == "guards"
+        && IsKnownGuard(scopeKind, segments[2]))
+      {
+        return true;
+      }
+      if (segments.Length == 4 && segments[1] == "guards"
+        && IsKnownGuard(scopeKind, segments[2])
+        && segments[3] is "projection" or "version" or "algorithm" or "digest")
+      {
+        return true;
+      }
+
+      return scopeKind switch
+      {
+        "manifest" => IsKnownManifestMember(segments),
+        "mesh" => path == "/payload/partitions"
+          || segments.Length == 5 && segments[1] == "payload" && segments[2] == "partitions"
+            && int.TryParse(segments[3], out _) && segments[4] is "localId" or "sha256",
+        "material" => path == "/payload/textureBinding",
+        "object" => IsKnownObjectMember(path),
+        "light" => path == "/payload/staticLight"
+          || path is "/payload/staticLight/type" or "/payload/staticLight/physicalNumber"
+            or "/payload/staticLight/record",
+        _ => false
+      };
+    }
+
+    internal static bool IsSupportedUnknownMetadataPath(string scopeKind, string path)
+    {
+      if (path.Length < 2 || path[0] != '/' || path.EndsWith("/", StringComparison.Ordinal))
+      {
+        return false;
+      }
+      for (var index = 0; index < path.Length; index++)
+      {
+        if (path[index] == '~'
+          && (index + 1 >= path.Length || path[++index] is not ('0' or '1')))
+        {
+          return false;
+        }
+      }
+      if (IsKnownMetadataMember(scopeKind, path))
+      {
+        return false;
+      }
+
+      var separator = path.LastIndexOf('/');
+      var parent = path.Substring(0, separator);
+      if (parent.Length == 0 || parent == "/payload" || parent == "/guards")
+      {
+        return true;
+      }
+      var segments = parent.Split('/');
+      if (segments.Length == 3 && segments[1] == "guards"
+        && IsKnownGuard(scopeKind, segments[2]))
+      {
+        return true;
+      }
+      if (scopeKind == "manifest")
+      {
+        return parent is "/payload/origin" or "/payload/asset" or "/payload/inventory"
+          or "/payload/nextIds" or "/payload/asset/staticAnimation"
+          || segments.Length == 6 && segments[1] == "payload" && segments[2] == "asset"
+            && segments[3] == "staticAnimation" && segments[4] == "classes"
+            && IsCanonicalArrayIndex(segments[5]);
+      }
+      if (scopeKind == "mesh")
+      {
+        return segments.Length == 4 && segments[1] == "payload" && segments[2] == "partitions"
+          && IsCanonicalArrayIndex(segments[3]);
+      }
+      if (scopeKind == "object")
+      {
+        return parent is "/payload/staticAnimation" or "/payload/attachment"
+          or "/payload/cannonRenderPosition" or "/payload/staticLightInstance";
+      }
+      return scopeKind == "light" && parent == "/payload/staticLight";
+    }
+
+    private static bool IsCanonicalArrayIndex(string value)
+    {
+      return int.TryParse(
+          value,
+          System.Globalization.NumberStyles.None,
+          System.Globalization.CultureInfo.InvariantCulture,
+          out var index)
+        && index >= 0
+        && value == index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static bool IsKnownGuard(string scopeKind, string name)
+    {
+      return scopeKind is "mesh" or "object" && name == "nativeProjection"
+        || scopeKind == "light" && name is "staticLight.pose" or "staticLight.type"
+          or "staticLight.color" or "staticLight.intensity" or "staticLight.direction"
+          or "staticLight.cones";
+    }
+
+    private static bool IsKnownManifestMember(IReadOnlyList<string> segments)
+    {
+      var path = string.Join("/", segments);
+      if (path is "/payload/origin" or "/payload/asset" or "/payload/inventory" or "/payload/nextIds"
+        or "/payload/origin/kind" or "/payload/origin/source" or "/payload/origin/parentLineage"
+        or "/payload/origin/parentDocument")
+      {
+        return true;
+      }
+      if (segments.Count == 4 && segments[1] == "payload"
+        && segments[2] is "inventory" or "nextIds"
+        && segments[3] is "object" or "mesh" or "material" or "light")
+      {
+        return true;
+      }
+      if (segments.Count == 4 && segments[1] == "payload" && segments[2] == "asset"
+        && segments[3] is "sourceMsh" or "staticRenderObjectLocalIds" or "sourceObjectLocalIds"
+          or "staticRenderObjectInventory" or "sourceObjectInventory" or "nextStaticRenderObjectLocalId"
+          or "nextSourceObjectLocalId" or "staticAnimation")
+      {
+        return true;
+      }
+      if (segments.Count == 5 && segments[1] == "payload" && segments[2] == "asset"
+        && segments[3] == "staticAnimation" && segments[4] is "lengths" or "frameIndices" or "classes")
+      {
+        return true;
+      }
+      return segments.Count == 7 && segments[1] == "payload" && segments[2] == "asset"
+        && segments[3] == "staticAnimation" && segments[4] == "classes"
+        && int.TryParse(segments[5], out _) && segments[6] is "class" or "objects" or "nativeObjects" or "sha256";
+    }
+
+    private static bool IsKnownObjectMember(string path)
+    {
+      if (path is "/payload/staticAnimation" or "/payload/attachment"
+        or "/payload/cannonRenderPosition" or "/payload/staticLightInstance")
+      {
+        return true;
+      }
+      if (path.StartsWith("/payload/staticAnimation/", StringComparison.Ordinal))
+      {
+        return path.Substring("/payload/staticAnimation/".Length) is "animationClassValue" or "class"
+          or "declaredLength" or "status" or "scaleFrames" or "translationFrames" or "matrices" or "sha256";
+      }
+      if (path.StartsWith("/payload/attachment/", StringComparison.Ordinal)
+        || path.StartsWith("/payload/cannonRenderPosition/", StringComparison.Ordinal))
+      {
+        var name = path.Substring(path.LastIndexOf('/') + 1);
+        return name is "physicalNumber" or "record";
+      }
+      if (path.StartsWith("/payload/staticLightInstance/", StringComparison.Ordinal))
+      {
+        var name = path.Substring(path.LastIndexOf('/') + 1);
+        return name is "type" or "physicalNumber" or "definitionLocalId" or "attachmentRecord";
+      }
+      return false;
+    }
+
+    private static string EscapeJsonPointerSegment(string value)
+    {
+      return value.Replace("~", "~0").Replace("/", "~1");
     }
 
     private static IReadOnlyList<int> ReadIntegerArray(JsonElement root, string propertyName)
@@ -1202,11 +2169,48 @@ namespace EarthTool.GLTF.Internal
       return new AnimationClassBytes(values[0], values[1], values[2], values[3]);
     }
 
-    private static IReadOnlyList<byte> ReadBase64(JsonElement owner, string propertyName)
+    private static IReadOnlyList<byte> ReadBase64(
+      JsonElement owner,
+      string propertyName,
+      int maximumDecodedBytes)
     {
-      return Array.AsReadOnly(Convert.FromBase64String(
+      return DecodeBase64Url(
         owner.GetProperty(propertyName).GetString()
-          ?? throw new MalformedMetadataException($"Missing {propertyName} animation data.")));
+          ?? throw new MalformedMetadataException($"Missing {propertyName} animation data."),
+        maximumDecodedBytes);
+    }
+
+    internal static IReadOnlyList<byte> DecodeBase64Url(string value, int maximumDecodedBytes)
+    {
+      ValidateBase64Length(value, maximumDecodedBytes);
+      var padded = value.Replace('-', '+').Replace('_', '/');
+      padded += new string('=', (4 - (padded.Length % 4)) % 4);
+      return Array.AsReadOnly(Convert.FromBase64String(padded));
+    }
+
+    private static void ValidateBase64Length(string value, int maximumDecodedBytes)
+    {
+      if (value.Length % 4 == 1
+        || value.Any(character => !((character >= 'a' && character <= 'z')
+          || (character >= 'A' && character <= 'Z')
+          || (character >= '0' && character <= '9')
+          || character is '-' or '_')))
+      {
+        throw new MalformedMetadataException("Opaque metadata must use unpadded base64url.");
+      }
+      var decodedLength = checked(value.Length * 6L / 8L);
+      if (decodedLength > maximumDecodedBytes)
+      {
+        throw new ResourceLimitException(decodedLength, maximumDecodedBytes);
+      }
+    }
+
+    internal static string EncodeBase64Url(IReadOnlyList<byte> value)
+    {
+      return Convert.ToBase64String(value.ToArray())
+        .TrimEnd('=')
+        .Replace('+', '-')
+        .Replace('/', '_');
     }
 
     private static byte[] CreateBinary(
@@ -1375,6 +2379,8 @@ namespace EarthTool.GLTF.Internal
       int binaryLength,
       InterchangeBaseline baseline,
       string manifest,
+      IReadOnlyDictionary<string, string> unknownMetadata,
+      IReadOnlyDictionary<string, int> metadataNextIds,
       IReadOnlyDictionary<StaticRenderObjectId, PreviewLayout> previewLayouts,
       AnimationProjectionSet animations,
       IReadOnlyList<AnimationLayout> animationLayouts,
@@ -1458,7 +2464,7 @@ namespace EarthTool.GLTF.Internal
               writer.WriteNumber("outerConeAngle", light.OuterConeAngle);
               writer.WriteEndObject();
             }
-            WriteExtras(writer, CreateStaticLightMetadata(baseline, light));
+            WriteExtras(writer, CreateStaticLightMetadata(baseline, light, unknownMetadata));
             writer.WriteEndObject();
           }
           writer.WriteEndArray();
@@ -1520,6 +2526,8 @@ namespace EarthTool.GLTF.Internal
             source.Id.Value,
             null,
             null,
+            unknownMetadata,
+            metadataNextIds,
             animationProjection: animations.Objects.SingleOrDefault(item =>
               item.SourceObjectLocalId == source.Id.Value)));
           writer.WriteEndObject();
@@ -1529,7 +2537,7 @@ namespace EarthTool.GLTF.Internal
           writer.WriteStartObject();
           writer.WriteString("name", GetAttachmentHelperName(attachment.PhysicalNumber));
           WriteTransform(writer, attachment.Translation, attachment.Rotation);
-          WriteExtras(writer, CreateAttachmentMetadata(baseline, attachment));
+          WriteExtras(writer, CreateAttachmentMetadata(baseline, attachment, unknownMetadata));
           writer.WriteEndObject();
         }
         foreach (var cannon in cannonRenderPositions)
@@ -1537,7 +2545,7 @@ namespace EarthTool.GLTF.Internal
           writer.WriteStartObject();
           writer.WriteString("name", $"ET_CannonRenderPosition_{cannon.PhysicalNumber}");
           WriteTransform(writer, cannon.Translation, Quaternion.Identity);
-          WriteExtras(writer, CreateCannonRenderPositionMetadata(baseline, cannon));
+          WriteExtras(writer, CreateCannonRenderPositionMetadata(baseline, cannon, unknownMetadata));
           writer.WriteEndObject();
         }
         for (var lightIndex = 0; lightIndex < staticLights.Count; lightIndex++)
@@ -1551,7 +2559,7 @@ namespace EarthTool.GLTF.Internal
           writer.WriteNumber("light", lightIndex);
           writer.WriteEndObject();
           writer.WriteEndObject();
-          WriteExtras(writer, CreateStaticLightInstanceMetadata(baseline, light));
+          WriteExtras(writer, CreateStaticLightInstanceMetadata(baseline, light, unknownMetadata));
           writer.WriteEndObject();
         }
 
@@ -1581,7 +2589,8 @@ namespace EarthTool.GLTF.Internal
           WriteExtras(writer, CreateMeshMetadata(
             baseline,
             source,
-            layouts));
+            layouts,
+            unknownMetadata));
           writer.WriteEndObject();
         }
 
@@ -1612,7 +2621,7 @@ namespace EarthTool.GLTF.Internal
           writer.WriteStartObject("KHR_materials_unlit");
           writer.WriteEndObject();
           writer.WriteEndObject();
-          WriteExtras(writer, CreateMaterialMetadata(baseline, renderObject));
+          WriteExtras(writer, CreateMaterialMetadata(baseline, renderObject, unknownMetadata));
           writer.WriteEndObject();
         }
         writer.WriteEndArray();
@@ -1915,6 +2924,8 @@ namespace EarthTool.GLTF.Internal
       int localId,
       string? sourceMsh,
       string? fingerprint,
+      IReadOnlyDictionary<string, string> unknownMetadata,
+      IReadOnlyDictionary<string, int> metadataNextIds,
       StaticMeshAsset? sourceAsset = null,
       AnimationProjectionSet? animations = null,
       ProjectedAnimationObject? animationProjection = null)
@@ -1922,22 +2933,35 @@ namespace EarthTool.GLTF.Internal
       using var stream = new MemoryStream();
       using (var writer = new Utf8JsonWriter(stream))
       {
-        writer.WriteStartObject();
-        writer.WriteString("format", "earthtool.msh.gltf");
-        writer.WriteNumber("version", 1);
-        writer.WriteString("assetLineage", baseline.AssetLineageId);
-        writer.WriteString("document", baseline.DocumentId);
-        writer.WriteStartObject("scope");
-        writer.WriteString("kind", scopeKind);
-        writer.WriteNumber("localId", localId);
-        writer.WriteEndObject();
-        if (sourceMsh is not null)
+        WriteMetadataStart(writer, baseline, scopeKind, localId);
+        WriteUnknownMetadata(writer, unknownMetadata, scopeKind, localId, false);
+        writer.WriteStartObject("guards");
+        if (fingerprint is not null)
         {
-          writer.WriteString("sourceMsh", sourceMsh);
+          WriteGuard(
+            writer,
+            "nativeProjection",
+            "static-geometry",
+            1,
+            fingerprint,
+            unknownMetadata,
+            scopeKind,
+            localId);
         }
-
+        WriteUnknownMetadata(writer, unknownMetadata, scopeKind, localId, "/guards/");
+        writer.WriteEndObject();
+        writer.WriteStartObject("payload");
         if (sourceAsset is not null)
         {
+          writer.WriteStartObject("origin");
+          writer.WriteString("kind", "mshExport");
+          WriteUnknownMetadata(writer, unknownMetadata, scopeKind, localId, "/payload/origin/");
+          writer.WriteEndObject();
+          writer.WriteStartObject("asset");
+          if (sourceMsh is not null)
+          {
+            writer.WriteString("sourceMsh", sourceMsh);
+          }
           writer.WriteStartArray("staticRenderObjectLocalIds");
           foreach (var record in sourceAsset.StaticRenderObjectSequence)
           {
@@ -1979,6 +3003,7 @@ namespace EarthTool.GLTF.Internal
             WriteAnimationBytes(writer, "lengths", sourceAsset.CommonBaseHeader.AnimationLengths);
             WriteAnimationBytes(writer, "frameIndices", sourceAsset.CommonBaseHeader.AnimationFrameIndices);
             writer.WriteStartArray("classes");
+            var animationClassIndex = 0;
             foreach (var group in animations.Objects.Where(item => item.HasSourceTracks)
               .GroupBy(item => item.ClassIndex).OrderBy(group => group.Key))
             {
@@ -2002,11 +3027,31 @@ namespace EarthTool.GLTF.Internal
               {
                 writer.WriteString("sha256", clip.Fingerprint);
               }
+              WriteUnknownMetadata(
+                writer,
+                unknownMetadata,
+                scopeKind,
+                localId,
+                $"/payload/asset/staticAnimation/classes/{animationClassIndex++}/");
               writer.WriteEndObject();
             }
             writer.WriteEndArray();
+            WriteUnknownMetadata(
+              writer,
+              unknownMetadata,
+              scopeKind,
+              localId,
+              "/payload/asset/staticAnimation/");
             writer.WriteEndObject();
           }
+
+          WriteUnknownMetadata(writer, unknownMetadata, scopeKind, localId, "/payload/asset/");
+          writer.WriteEndObject();
+          WriteScopeInventory(writer, sourceAsset, metadataNextIds, unknownMetadata);
+        }
+        else if (sourceMsh is not null)
+        {
+          writer.WriteString("sourceMsh", sourceMsh);
         }
 
         if (animationProjection is not null)
@@ -2022,32 +3067,31 @@ namespace EarthTool.GLTF.Internal
               : animationProjection.HasSourceTracks ? "metadataOnly" : "absent");
           writer.WriteString(
             "scaleFrames",
-            Convert.ToBase64String(StaticAnimationProjection.SerializeScaleFrames(
+            EncodeBase64Url(StaticAnimationProjection.SerializeScaleFrames(
               animationProjection.SourceTracks)));
           writer.WriteString(
             "translationFrames",
-            Convert.ToBase64String(StaticAnimationProjection.SerializeTranslationFrames(
+            EncodeBase64Url(StaticAnimationProjection.SerializeTranslationFrames(
               animationProjection.SourceTracks)));
           writer.WriteString(
             "matrices",
-            Convert.ToBase64String(StaticAnimationProjection.SerializeMatrices(
+            EncodeBase64Url(StaticAnimationProjection.SerializeMatrices(
               animationProjection.SourceTracks)));
           if (animationProjection.Fingerprint is not null)
           {
             writer.WriteString("sha256", animationProjection.Fingerprint);
           }
+          WriteUnknownMetadata(
+            writer,
+            unknownMetadata,
+            scopeKind,
+            localId,
+            "/payload/staticAnimation/");
           writer.WriteEndObject();
         }
 
-        if (fingerprint is not null)
-        {
-          writer.WriteStartObject("nativeProjection");
-          writer.WriteString("name", "static-geometry");
-          writer.WriteNumber("version", 1);
-          writer.WriteString("sha256", fingerprint);
-          writer.WriteEndObject();
-        }
-
+        WriteUnknownMetadata(writer, unknownMetadata, scopeKind, localId, true);
+        writer.WriteEndObject();
         writer.WriteEndObject();
       }
 
@@ -2070,7 +3114,8 @@ namespace EarthTool.GLTF.Internal
     private static string CreateMeshMetadata(
       InterchangeBaseline baseline,
       StaticSourceObject source,
-      IReadOnlyDictionary<StaticRenderObjectId, PartitionLayout> layouts)
+      IReadOnlyDictionary<StaticRenderObjectId, PartitionLayout> layouts,
+      IReadOnlyDictionary<string, string> unknownMetadata)
     {
       var partitions = source.StaticRenderObjectIds.Select(renderObjectId =>
       {
@@ -2087,21 +3132,23 @@ namespace EarthTool.GLTF.Internal
       using var stream = new MemoryStream();
       using (var writer = new Utf8JsonWriter(stream))
       {
-        writer.WriteStartObject();
-        writer.WriteString("format", "earthtool.msh.gltf");
-        writer.WriteNumber("version", 1);
-        writer.WriteString("assetLineage", baseline.AssetLineageId);
-        writer.WriteString("document", baseline.DocumentId);
-        writer.WriteStartObject("scope");
-        writer.WriteString("kind", "mesh");
-        writer.WriteNumber("localId", source.Id.Value);
+        WriteMetadataStart(writer, baseline, "mesh", source.Id.Value);
+        WriteUnknownMetadata(writer, unknownMetadata, "mesh", source.Id.Value, false);
+        writer.WriteStartObject("guards");
+        WriteGuard(
+          writer,
+          "nativeProjection",
+          "static-geometry",
+          1,
+          fingerprint.Sha256,
+          unknownMetadata,
+          "mesh",
+          source.Id.Value);
+        WriteUnknownMetadata(writer, unknownMetadata, "mesh", source.Id.Value, "/guards/");
         writer.WriteEndObject();
-        writer.WriteStartObject("nativeProjection");
-        writer.WriteString("name", "static-geometry");
-        writer.WriteNumber("version", 1);
-        writer.WriteString("sha256", fingerprint.Sha256);
-        writer.WriteEndObject();
+        writer.WriteStartObject("payload");
         writer.WriteStartArray("partitions");
+        var partitionIndex = 0;
         foreach (var renderObjectId in source.StaticRenderObjectIds)
         {
           var layout = layouts[renderObjectId];
@@ -2114,10 +3161,18 @@ namespace EarthTool.GLTF.Internal
               renderObjectId.Value,
               layout.Partition.Vertices,
               layout.Partition.RenderObject.Triangles));
+          WriteUnknownMetadata(
+            writer,
+            unknownMetadata,
+            "mesh",
+            source.Id.Value,
+            $"/payload/partitions/{partitionIndex++}/");
           writer.WriteEndObject();
         }
 
         writer.WriteEndArray();
+        WriteUnknownMetadata(writer, unknownMetadata, "mesh", source.Id.Value, true);
+        writer.WriteEndObject();
         writer.WriteEndObject();
       }
 
@@ -2126,23 +3181,23 @@ namespace EarthTool.GLTF.Internal
 
     private static string CreateMaterialMetadata(
       InterchangeBaseline baseline,
-      StaticRenderObject renderObject)
+      StaticRenderObject renderObject,
+      IReadOnlyDictionary<string, string> unknownMetadata)
     {
       using var stream = new MemoryStream();
       using (var writer = new Utf8JsonWriter(stream))
       {
-        writer.WriteStartObject();
-        writer.WriteString("format", "earthtool.msh.gltf");
-        writer.WriteNumber("version", 1);
-        writer.WriteString("assetLineage", baseline.AssetLineageId);
-        writer.WriteString("document", baseline.DocumentId);
-        writer.WriteStartObject("scope");
-        writer.WriteString("kind", "material");
-        writer.WriteNumber("localId", renderObject.LocalId);
+        WriteMetadataStart(writer, baseline, "material", renderObject.LocalId);
+        WriteUnknownMetadata(writer, unknownMetadata, "material", renderObject.LocalId, false);
+        writer.WriteStartObject("guards");
+        WriteUnknownMetadata(writer, unknownMetadata, "material", renderObject.LocalId, "/guards/");
         writer.WriteEndObject();
+        writer.WriteStartObject("payload");
         writer.WriteString(
           "textureBinding",
-          Convert.ToBase64String(renderObject.TexturePathBytes.ToArray()));
+          EncodeBase64Url(renderObject.TexturePathBytes.ToArray()));
+        WriteUnknownMetadata(writer, unknownMetadata, "material", renderObject.LocalId, true);
+        writer.WriteEndObject();
         writer.WriteEndObject();
       }
 
@@ -2151,23 +3206,33 @@ namespace EarthTool.GLTF.Internal
 
     private static string CreateAttachmentMetadata(
       InterchangeBaseline baseline,
-      ProjectedAttachment attachment)
+      ProjectedAttachment attachment,
+      IReadOnlyDictionary<string, string> unknownMetadata)
     {
       using var stream = new MemoryStream();
       using (var writer = new Utf8JsonWriter(stream))
       {
-        WriteMetadataHeader(writer, baseline, "object", attachment.PhysicalNumber);
-        writer.WriteStartObject("nativeProjection");
-        writer.WriteString("name", "attachment.pose");
-        writer.WriteNumber("version", 1);
-        writer.WriteString("sha256", CreateAttachmentPoseFingerprint(
+        WriteMetadataStart(writer, baseline, "object", attachment.LocalId);
+        WriteUnknownMetadata(writer, unknownMetadata, "object", attachment.LocalId, false);
+        writer.WriteStartObject("guards");
+        WriteGuard(writer, "nativeProjection", "attachment.pose", 1, CreateAttachmentPoseFingerprint(
           baseline,
           attachment.PhysicalNumber,
-          attachment.Record));
+          attachment.Record), unknownMetadata, "object", attachment.LocalId);
+        WriteUnknownMetadata(writer, unknownMetadata, "object", attachment.LocalId, "/guards/");
         writer.WriteEndObject();
+        writer.WriteStartObject("payload");
         writer.WriteStartObject("attachment");
         writer.WriteNumber("physicalNumber", attachment.PhysicalNumber);
-        writer.WriteString("record", Convert.ToBase64String(attachment.Record));
+        writer.WriteString("record", EncodeBase64Url(attachment.Record));
+        WriteUnknownMetadata(
+          writer,
+          unknownMetadata,
+          "object",
+          attachment.LocalId,
+          "/payload/attachment/");
+        writer.WriteEndObject();
+        WriteUnknownMetadata(writer, unknownMetadata, "object", attachment.LocalId, true);
         writer.WriteEndObject();
         writer.WriteEndObject();
       }
@@ -2176,23 +3241,34 @@ namespace EarthTool.GLTF.Internal
 
     private static string CreateCannonRenderPositionMetadata(
       InterchangeBaseline baseline,
-      ProjectedCannonRenderPosition cannon)
+      ProjectedCannonRenderPosition cannon,
+      IReadOnlyDictionary<string, string> unknownMetadata)
     {
       using var stream = new MemoryStream();
       using (var writer = new Utf8JsonWriter(stream))
       {
-        WriteMetadataHeader(writer, baseline, "object", cannon.PhysicalNumber);
-        writer.WriteStartObject("nativeProjection");
-        writer.WriteString("name", "cannonRenderPosition.position");
-        writer.WriteNumber("version", 1);
-        writer.WriteString("sha256", CreateCannonRenderPositionFingerprint(
+        WriteMetadataStart(writer, baseline, "object", cannon.LocalId);
+        WriteUnknownMetadata(writer, unknownMetadata, "object", cannon.LocalId, false);
+        writer.WriteStartObject("guards");
+        WriteGuard(writer, "nativeProjection", "cannonRenderPosition.position", 1,
+          CreateCannonRenderPositionFingerprint(
           baseline,
           cannon.PhysicalNumber,
-          cannon.Record));
+          cannon.Record), unknownMetadata, "object", cannon.LocalId);
+        WriteUnknownMetadata(writer, unknownMetadata, "object", cannon.LocalId, "/guards/");
         writer.WriteEndObject();
+        writer.WriteStartObject("payload");
         writer.WriteStartObject("cannonRenderPosition");
         writer.WriteNumber("physicalNumber", cannon.PhysicalNumber);
-        writer.WriteString("record", Convert.ToBase64String(cannon.Record));
+        writer.WriteString("record", EncodeBase64Url(cannon.Record));
+        WriteUnknownMetadata(
+          writer,
+          unknownMetadata,
+          "object",
+          cannon.LocalId,
+          "/payload/cannonRenderPosition/");
+        writer.WriteEndObject();
+        WriteUnknownMetadata(writer, unknownMetadata, "object", cannon.LocalId, true);
         writer.WriteEndObject();
         writer.WriteEndObject();
       }
@@ -2201,17 +3277,31 @@ namespace EarthTool.GLTF.Internal
 
     private static string CreateStaticLightInstanceMetadata(
       InterchangeBaseline baseline,
-      ProjectedStaticLight light)
+      ProjectedStaticLight light,
+      IReadOnlyDictionary<string, string> unknownMetadata)
     {
       using var stream = new MemoryStream();
       using (var writer = new Utf8JsonWriter(stream))
       {
-        WriteMetadataHeader(writer, baseline, "object", -light.LocalId);
+        WriteMetadataStart(writer, baseline, "object", light.InstanceLocalId);
+        WriteUnknownMetadata(writer, unknownMetadata, "object", light.InstanceLocalId, false);
+        writer.WriteStartObject("guards");
+        WriteUnknownMetadata(writer, unknownMetadata, "object", light.InstanceLocalId, "/guards/");
+        writer.WriteEndObject();
+        writer.WriteStartObject("payload");
         writer.WriteStartObject("staticLightInstance");
         writer.WriteString("type", light.Type);
         writer.WriteNumber("physicalNumber", light.PhysicalNumber);
         writer.WriteNumber("definitionLocalId", light.LocalId);
-        writer.WriteString("attachmentRecord", Convert.ToBase64String(light.AttachmentRecord));
+        writer.WriteString("attachmentRecord", EncodeBase64Url(light.AttachmentRecord));
+        WriteUnknownMetadata(
+          writer,
+          unknownMetadata,
+          "object",
+          light.InstanceLocalId,
+          "/payload/staticLightInstance/");
+        writer.WriteEndObject();
+        WriteUnknownMetadata(writer, unknownMetadata, "object", light.InstanceLocalId, true);
         writer.WriteEndObject();
         writer.WriteEndObject();
       }
@@ -2220,22 +3310,42 @@ namespace EarthTool.GLTF.Internal
 
     private static string CreateStaticLightMetadata(
       InterchangeBaseline baseline,
-      ProjectedStaticLight light)
+      ProjectedStaticLight light,
+      IReadOnlyDictionary<string, string> unknownMetadata)
     {
       using var stream = new MemoryStream();
       using (var writer = new Utf8JsonWriter(stream))
       {
-        WriteMetadataHeader(writer, baseline, "light", light.LocalId);
+        WriteMetadataStart(writer, baseline, "light", light.LocalId);
+        WriteUnknownMetadata(writer, unknownMetadata, "light", light.LocalId, false);
         writer.WriteStartObject("guards");
         foreach (var guard in CreateStaticLightGuards(baseline, light))
         {
-          writer.WriteString(guard.Key, guard.Value);
+          WriteGuard(
+            writer,
+            guard.Key,
+            guard.Key,
+            1,
+            guard.Value,
+            unknownMetadata,
+            "light",
+            light.LocalId);
         }
+        WriteUnknownMetadata(writer, unknownMetadata, "light", light.LocalId, "/guards/");
         writer.WriteEndObject();
+        writer.WriteStartObject("payload");
         writer.WriteStartObject("staticLight");
         writer.WriteString("type", light.Type);
         writer.WriteNumber("physicalNumber", light.PhysicalNumber);
-        writer.WriteString("record", Convert.ToBase64String(light.Record));
+        writer.WriteString("record", EncodeBase64Url(light.Record));
+        WriteUnknownMetadata(
+          writer,
+          unknownMetadata,
+          "light",
+          light.LocalId,
+          "/payload/staticLight/");
+        writer.WriteEndObject();
+        WriteUnknownMetadata(writer, unknownMetadata, "light", light.LocalId, true);
         writer.WriteEndObject();
         writer.WriteEndObject();
       }
@@ -2252,7 +3362,7 @@ namespace EarthTool.GLTF.Internal
     {
       return CreateStaticLightGuards(
         baseline,
-        ProjectStaticLight(type, physicalNumber, localId, record, attachmentRecord));
+        ProjectStaticLight(type, physicalNumber, localId, 1, record, attachmentRecord));
     }
 
     private static IReadOnlyDictionary<string, string> CreateStaticLightGuards(
@@ -2403,7 +3513,7 @@ namespace EarthTool.GLTF.Internal
       writer.Write(value == 0 ? 0 : value);
     }
 
-    private static void WriteMetadataHeader(
+    private static void WriteMetadataStart(
       Utf8JsonWriter writer,
       InterchangeBaseline baseline,
       string scopeKind,
@@ -2412,11 +3522,156 @@ namespace EarthTool.GLTF.Internal
       writer.WriteStartObject();
       writer.WriteString("format", "earthtool.msh.gltf");
       writer.WriteNumber("version", 1);
-      writer.WriteString("assetLineage", baseline.AssetLineageId);
-      writer.WriteString("document", baseline.DocumentId);
-      writer.WriteStartObject("scope");
       writer.WriteString("kind", scopeKind);
-      writer.WriteNumber("localId", localId);
+      writer.WriteString("lineage", baseline.AssetLineageId);
+      writer.WriteString("document", baseline.DocumentId);
+      writer.WriteNumber("id", localId);
+    }
+
+    private static void WriteUnknownMetadata(
+      Utf8JsonWriter writer,
+      IReadOnlyDictionary<string, string> unknownMetadata,
+      string scopeKind,
+      int localId,
+      bool payload)
+    {
+      WriteUnknownMetadata(
+        writer,
+        unknownMetadata,
+        scopeKind,
+        localId,
+        payload ? "/payload/" : "/");
+    }
+
+    private static void WriteUnknownMetadata(
+      Utf8JsonWriter writer,
+      IReadOnlyDictionary<string, string> unknownMetadata,
+      string scopeKind,
+      int localId,
+      string section)
+    {
+      var prefix = $"{scopeKind}:{localId}:";
+      foreach (var member in unknownMetadata.Where(item => item.Key.StartsWith(prefix, StringComparison.Ordinal))
+        .OrderBy(item => item.Key, StringComparer.Ordinal))
+      {
+        var name = member.Key.Substring(prefix.Length);
+        if (!name.StartsWith(section, StringComparison.Ordinal))
+        {
+          continue;
+        }
+        name = name.Substring(section.Length);
+        if (section == "/" && name.StartsWith("payload/", StringComparison.Ordinal))
+        {
+          continue;
+        }
+        if (name.Length == 0 || name.IndexOf('/') >= 0)
+        {
+          continue;
+        }
+        writer.WritePropertyName(name.Replace("~1", "/").Replace("~0", "~"));
+        writer.WriteRawValue(member.Value, false);
+      }
+    }
+
+    private static void WriteGuard(
+      Utf8JsonWriter writer,
+      string name,
+      string projection,
+      int version,
+      string sha256,
+      IReadOnlyDictionary<string, string> unknownMetadata,
+      string scopeKind,
+      int localId)
+    {
+      if (sha256.Length != 64)
+      {
+        throw new InvalidOperationException("A metadata guard requires a SHA-256 digest.");
+      }
+      var bytes = new byte[32];
+      for (var index = 0; index < bytes.Length; index++)
+      {
+        bytes[index] = byte.Parse(
+          sha256.Substring(index * 2, 2),
+          System.Globalization.NumberStyles.HexNumber,
+          System.Globalization.CultureInfo.InvariantCulture);
+      }
+      if (bytes.Length != 32)
+      {
+        throw new InvalidOperationException("A metadata guard requires a SHA-256 digest.");
+      }
+      var digest = Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+      writer.WriteStartObject(name);
+      writer.WriteString("projection", projection);
+      writer.WriteNumber("version", version);
+      writer.WriteString("algorithm", "sha256");
+      writer.WriteString("digest", digest);
+      WriteUnknownMetadata(
+        writer,
+        unknownMetadata,
+        scopeKind,
+        localId,
+        $"/guards/{EscapeJsonPointerSegment(name)}/");
+      writer.WriteEndObject();
+    }
+
+    private static void WriteScopeInventory(
+      Utf8JsonWriter writer,
+      StaticMeshAsset asset,
+      IReadOnlyDictionary<string, int> metadataNextIds,
+      IReadOnlyDictionary<string, string> unknownMetadata)
+    {
+      var objectIds = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
+        .Select(source => source.Id.Value)
+        .Concat(ProjectAttachments(asset).Select(attachment => attachment.LocalId))
+        .Concat(ProjectCannonRenderPositions(asset).Select(cannon => cannon.LocalId))
+        .Concat(ProjectStaticLights(asset).Select(light => light.InstanceLocalId))
+        .OrderBy(id => id)
+        .ToArray();
+      var inventories = new Dictionary<string, int[]>(StringComparer.Ordinal)
+      {
+        ["object"] = objectIds,
+        ["mesh"] = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
+          .Select(source => source.Id.Value).OrderBy(id => id).ToArray(),
+        ["material"] = asset.StaticRenderObjectSequence.Select(record => record.LocalId)
+          .OrderBy(id => id).ToArray(),
+        ["light"] = ProjectStaticLights(asset).Select(light => light.LocalId).OrderBy(id => id).ToArray()
+      };
+      writer.WriteStartObject("inventory");
+      foreach (var kind in new[] { "object", "mesh", "material", "light" })
+      {
+        writer.WriteStartArray(kind);
+        foreach (var id in inventories[kind])
+        {
+          writer.WriteNumberValue(id);
+        }
+        writer.WriteEndArray();
+      }
+      WriteUnknownMetadata(writer, unknownMetadata, "manifest", 0, "/payload/inventory/");
+      writer.WriteEndObject();
+      writer.WriteStartObject("nextIds");
+      foreach (var kind in new[] { "object", "mesh", "material", "light" })
+      {
+        var ids = inventories[kind];
+        var next = ids.Length == 0 ? 1 : checked(ids[^1] + 1);
+        if (kind == "mesh" && asset.NextSourceObjectLocalId.HasValue)
+        {
+          next = Math.Max(next, asset.NextSourceObjectLocalId.Value);
+        }
+        else if (kind == "material" && asset.NextStaticRenderObjectLocalId.HasValue)
+        {
+          next = Math.Max(next, asset.NextStaticRenderObjectLocalId.Value);
+        }
+        else if (kind == "light")
+        {
+          next = Math.Max(next, 9);
+        }
+        if (metadataNextIds.TryGetValue(kind, out var preservedNext))
+        {
+          next = Math.Max(next, preservedNext);
+        }
+        writer.WriteNumber(kind, next);
+      }
+      WriteUnknownMetadata(writer, unknownMetadata, "manifest", 0, "/payload/nextIds/");
       writer.WriteEndObject();
     }
 
@@ -2435,8 +3690,21 @@ namespace EarthTool.GLTF.Internal
         throw new ResourceLimitException(nodes.GetArrayLength(), profile.MaxNodes);
       }
       if (root.GetProperty("scene").GetInt32() != 0
-        || root.GetProperty("scenes").GetArrayLength() != 1
-        || nodes.GetArrayLength() == 0
+        || root.GetProperty("scenes").GetArrayLength() != 1)
+      {
+        if (intent == GltfImportIntent.Edit)
+        {
+          throw new MetadataConflictException(
+            GltfDiagnosticCodes.InvalidSceneContract,
+            2001,
+            "scenes",
+            "Edit import requires exactly one declared default scene.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RepairNativeExternally);
+        }
+        throw new UnsupportedGltfDomainException("SceneGraph");
+      }
+      if (nodes.GetArrayLength() == 0
         || meshes.GetArrayLength() == 0
         || root.GetProperty("buffers").GetArrayLength() != 1)
       {
@@ -2777,6 +4045,7 @@ namespace EarthTool.GLTF.Internal
     private static IReadOnlyList<ProjectedAttachment> ProjectAttachments(StaticMeshAsset asset)
     {
       var table = asset.CommonBaseHeader.AttachmentTable.ToArray();
+      var firstArtistObjectId = GetFirstArtistObjectLocalId(asset);
       var result = new List<ProjectedAttachment>();
       for (var physicalNumber = 1; physicalNumber <= 49; physicalNumber++)
       {
@@ -2800,6 +4069,7 @@ namespace EarthTool.GLTF.Internal
           rotation = new Quaternion(-rotation.X, -rotation.Y, -rotation.Z, -rotation.W);
         }
         result.Add(new ProjectedAttachment(
+          GetAttachmentArtistObjectLocalId(firstArtistObjectId, physicalNumber),
           physicalNumber,
           record,
           new Vector3(x / 256f, z / 256f, storedNegativeY / 256f),
@@ -2812,6 +4082,7 @@ namespace EarthTool.GLTF.Internal
       StaticMeshAsset asset)
     {
       var records = asset.CommonBaseHeader.CannonRenderPositions.ToArray();
+      var firstArtistObjectId = GetFirstArtistObjectLocalId(asset);
       var result = new ProjectedCannonRenderPosition[4];
       for (var physicalNumber = 1; physicalNumber <= 4; physicalNumber++)
       {
@@ -2820,6 +4091,7 @@ namespace EarthTool.GLTF.Internal
         var storedNegativeY = ReadFinitePreview(record, 4);
         var z = ReadFinitePreview(record, 8);
         result[physicalNumber - 1] = new ProjectedCannonRenderPosition(
+          GetCannonArtistObjectLocalId(firstArtistObjectId, physicalNumber),
           physicalNumber,
           record,
           new Vector3(x, z, storedNegativeY));
@@ -2832,6 +4104,7 @@ namespace EarthTool.GLTF.Internal
       var attachments = asset.CommonBaseHeader.AttachmentTable.ToArray();
       var spots = asset.CommonBaseHeader.StaticSpotLights.ToArray();
       var omnis = asset.CommonBaseHeader.StaticOmniLights.ToArray();
+      var firstArtistObjectId = GetFirstArtistObjectLocalId(asset);
       var result = new List<ProjectedStaticLight>();
       for (var physicalNumber = 1; physicalNumber <= 4; physicalNumber++)
       {
@@ -2842,6 +4115,7 @@ namespace EarthTool.GLTF.Internal
             "spot",
             physicalNumber,
             physicalNumber,
+            GetStaticLightArtistObjectLocalId(firstArtistObjectId, physicalNumber),
             spots.AsSpan((physicalNumber - 1) * 0x30, 0x30).ToArray(),
             spotAttachment));
         }
@@ -2853,6 +4127,7 @@ namespace EarthTool.GLTF.Internal
             "point",
             physicalNumber,
             physicalNumber + 4,
+            GetStaticLightArtistObjectLocalId(firstArtistObjectId, physicalNumber + 4),
             omnis.AsSpan((physicalNumber - 1) * 0x1C, 0x1C).ToArray(),
             omniAttachment));
         }
@@ -2864,6 +4139,7 @@ namespace EarthTool.GLTF.Internal
       string type,
       int physicalNumber,
       int localId,
+      int instanceLocalId,
       byte[] record,
       byte[] attachmentRecord)
     {
@@ -2912,6 +4188,7 @@ namespace EarthTool.GLTF.Internal
         type,
         physicalNumber,
         localId,
+        instanceLocalId,
         record,
         attachmentRecord,
         position,
@@ -2920,6 +4197,33 @@ namespace EarthTool.GLTF.Internal
         intensity,
         inner,
         outer);
+    }
+
+    internal static int GetFirstArtistObjectLocalId(StaticMeshAsset asset)
+    {
+      var highest = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
+        .Max(source => source.Id.Value);
+      return Math.Max(asset.NextSourceObjectLocalId ?? checked(highest + 1), checked(highest + 1));
+    }
+
+    internal static int GetAttachmentArtistObjectLocalId(int firstArtistObjectId, int physicalNumber)
+    {
+      return checked(firstArtistObjectId + physicalNumber - 1);
+    }
+
+    internal static int GetAttachmentPhysicalNumber(int firstArtistObjectId, int localId)
+    {
+      return checked(localId - firstArtistObjectId + 1);
+    }
+
+    internal static int GetCannonArtistObjectLocalId(int firstArtistObjectId, int physicalNumber)
+    {
+      return checked(firstArtistObjectId + 49 + physicalNumber - 1);
+    }
+
+    internal static int GetStaticLightArtistObjectLocalId(int firstArtistObjectId, int definitionLocalId)
+    {
+      return checked(firstArtistObjectId + 53 + definitionLocalId - 1);
     }
 
     private static Quaternion CreateDirectionRotation(Vector3 direction)
@@ -3038,17 +4342,21 @@ namespace EarthTool.GLTF.Internal
 
     private sealed class ProjectedAttachment
     {
+      internal int LocalId { get; }
+
       internal int PhysicalNumber { get; }
       internal byte[] Record { get; }
       internal Vector3 Translation { get; }
       internal Quaternion Rotation { get; }
 
       internal ProjectedAttachment(
+        int localId,
         int physicalNumber,
         byte[] record,
         Vector3 translation,
         Quaternion rotation)
       {
+        LocalId = localId;
         PhysicalNumber = physicalNumber;
         Record = record;
         Translation = translation;
@@ -3058,12 +4366,19 @@ namespace EarthTool.GLTF.Internal
 
     private sealed class ProjectedCannonRenderPosition
     {
+      internal int LocalId { get; }
+
       internal int PhysicalNumber { get; }
       internal byte[] Record { get; }
       internal Vector3 Translation { get; }
 
-      internal ProjectedCannonRenderPosition(int physicalNumber, byte[] record, Vector3 translation)
+      internal ProjectedCannonRenderPosition(
+        int localId,
+        int physicalNumber,
+        byte[] record,
+        Vector3 translation)
       {
+        LocalId = localId;
         PhysicalNumber = physicalNumber;
         Record = record;
         Translation = translation;
@@ -3075,6 +4390,7 @@ namespace EarthTool.GLTF.Internal
       internal string Type { get; }
       internal int PhysicalNumber { get; }
       internal int LocalId { get; }
+      internal int InstanceLocalId { get; }
       internal byte[] Record { get; }
       internal byte[] AttachmentRecord { get; }
       internal Vector3 Translation { get; }
@@ -3088,6 +4404,7 @@ namespace EarthTool.GLTF.Internal
         string type,
         int physicalNumber,
         int localId,
+        int instanceLocalId,
         byte[] record,
         byte[] attachmentRecord,
         Vector3 translation,
@@ -3100,6 +4417,7 @@ namespace EarthTool.GLTF.Internal
         Type = type;
         PhysicalNumber = physicalNumber;
         LocalId = localId;
+        InstanceLocalId = instanceLocalId;
         Record = record;
         AttachmentRecord = attachmentRecord;
         Translation = translation;
@@ -3982,6 +5300,47 @@ namespace EarthTool.GLTF.Internal
     internal MalformedMetadataException(string message, Exception? innerException = null)
       : base(message, innerException)
     {
+    }
+  }
+
+  internal sealed class MetadataConflictException : Exception
+  {
+    internal string Code { get; }
+
+    internal int EventId { get; }
+
+    internal string Path { get; }
+
+    internal IReadOnlyList<string> Actions { get; }
+
+    internal IReadOnlyDictionary<string, string> ConflictData { get; }
+
+    internal MetadataConflictException(
+      string code,
+      int eventId,
+      string path,
+      string message,
+      params string[] actions)
+      : this(code, eventId, path, message, null, actions)
+    {
+    }
+
+    internal MetadataConflictException(
+      string code,
+      int eventId,
+      string path,
+      string message,
+      IReadOnlyDictionary<string, string>? data,
+      params string[] actions)
+      : base(message)
+    {
+      Code = code;
+      EventId = eventId;
+      Path = path;
+      Actions = Array.AsReadOnly(actions);
+      ConflictData = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
+        data?.ToDictionary(pair => pair.Key, pair => pair.Value)
+        ?? new Dictionary<string, string>());
     }
   }
 

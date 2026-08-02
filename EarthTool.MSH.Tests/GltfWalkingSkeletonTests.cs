@@ -18,8 +18,8 @@ namespace EarthTool.MSH.Tests;
 
 public class GltfWalkingSkeletonTests
 {
-  private static readonly Guid LineageId = new("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
-  private static readonly Guid DocumentId = new("11111111-2222-3333-4444-555555555555");
+  private static readonly Guid LineageId = new("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
+  private static readonly Guid DocumentId = new("11111111-2222-4333-8444-555555555555");
 
   [Fact]
   public async Task SparseStaticLightsProjectNativelyAndRestoreExactRecords()
@@ -659,7 +659,8 @@ public class GltfWalkingSkeletonTests
     var duplicateResult = await interchange.ImportEditGlbAsync(duplicateInput, export.Value.Baseline);
     duplicateResult.Status.Should().Be(OperationStatus.Failed);
     duplicateResult.Value.Should().BeNull();
-    duplicateResult.Diagnostics.Should().ContainSingle(diagnostic => diagnostic.Code == "ETG2012");
+    duplicateResult.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.DuplicateScopeIdentity);
   }
 
   [Fact]
@@ -942,7 +943,7 @@ public class GltfWalkingSkeletonTests
         node!["name"]!.GetValue<string>() == GlbDocument.GetAttachmentHelperName(21))!.AsObject();
       rebound["name"] = GlbDocument.GetAttachmentHelperName(22);
       var metadata = JsonNode.Parse(rebound["extras"]!["earthtool"]!.GetValue<string>())!.AsObject();
-      metadata["attachment"]!["physicalNumber"] = 22;
+      metadata["payload"]!["attachment"]!["physicalNumber"] = 22;
       rebound["extras"]!["earthtool"] = metadata.ToJsonString();
       rebound["translation"] = new JsonArray(2, 3, 4);
     });
@@ -1052,7 +1053,8 @@ public class GltfWalkingSkeletonTests
 
     duplicate.Status.Should().Be(OperationStatus.Failed);
     duplicate.Value.Should().BeNull();
-    duplicate.Diagnostics.Should().ContainSingle(diagnostic => diagnostic.Code == "ETG2012");
+    duplicate.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.DuplicateScopeIdentity);
 
     var forked = RewriteJson(glb.ToArray(), root =>
     {
@@ -1350,14 +1352,16 @@ public class GltfWalkingSkeletonTests
     json.RootElement.TryGetProperty("animations", out _).Should().BeFalse();
     using var objectMetadata = JsonDocument.Parse(json.RootElement.GetProperty("nodes")[0]
       .GetProperty("extras").GetProperty("earthtool").GetString()!);
-    var preservedAnimation = objectMetadata.RootElement.GetProperty("staticAnimation");
+    var preservedAnimation = objectMetadata.RootElement.GetProperty("payload")
+      .GetProperty("staticAnimation");
     preservedAnimation.GetProperty("status").GetString().Should().Be("absent");
     preservedAnimation.GetProperty("animationClassValue").GetUInt32().Should().Be(0);
-    Convert.FromBase64String(preservedAnimation.GetProperty("scaleFrames").GetString()!)
+    GlbDocument.DecodeBase64Url(preservedAnimation.GetProperty("scaleFrames").GetString()!, int.MaxValue)
       .Should().BeEmpty();
-    Convert.FromBase64String(preservedAnimation.GetProperty("translationFrames").GetString()!)
+    GlbDocument.DecodeBase64Url(
+      preservedAnimation.GetProperty("translationFrames").GetString()!, int.MaxValue)
       .Should().BeEmpty();
-    Convert.FromBase64String(preservedAnimation.GetProperty("matrices").GetString()!)
+    GlbDocument.DecodeBase64Url(preservedAnimation.GetProperty("matrices").GetString()!, int.MaxValue)
       .Should().BeEmpty();
   }
 
@@ -1381,7 +1385,7 @@ public class GltfWalkingSkeletonTests
     json.RootElement.TryGetProperty("animations", out _).Should().BeFalse();
     using var objectMetadata = JsonDocument.Parse(json.RootElement.GetProperty("nodes")[0]
       .GetProperty("extras").GetProperty("earthtool").GetString()!);
-    objectMetadata.RootElement.GetProperty("staticAnimation")
+    objectMetadata.RootElement.GetProperty("payload").GetProperty("staticAnimation")
       .GetProperty("animationClassValue").GetUInt32().Should().Be(5);
   }
 
@@ -1535,14 +1539,17 @@ public class GltfWalkingSkeletonTests
         .Should().Equal(0, 1f / 24f);
       using var objectMetadata = JsonDocument.Parse(json.RootElement.GetProperty("nodes")[0]
         .GetProperty("extras").GetProperty("earthtool").GetString()!);
-      var preservedAnimation = objectMetadata.RootElement.GetProperty("staticAnimation");
+      var preservedAnimation = objectMetadata.RootElement.GetProperty("payload")
+        .GetProperty("staticAnimation");
       preservedAnimation.GetProperty("animationClassValue").GetUInt32().Should().Be(5);
-      Convert.FromBase64String(preservedAnimation.GetProperty("scaleFrames").GetString()!)
+      GlbDocument.DecodeBase64Url(
+        preservedAnimation.GetProperty("scaleFrames").GetString()!, int.MaxValue)
         .Should().BeEmpty();
-      Convert.FromBase64String(preservedAnimation.GetProperty("matrices").GetString()!)
+      GlbDocument.DecodeBase64Url(
+        preservedAnimation.GetProperty("matrices").GetString()!, int.MaxValue)
         .Should().BeEmpty();
-      var preservedTranslations = Convert.FromBase64String(
-        preservedAnimation.GetProperty("translationFrames").GetString()!);
+      var preservedTranslations = GlbDocument.DecodeBase64Url(
+        preservedAnimation.GetProperty("translationFrames").GetString()!, int.MaxValue).ToArray();
       for (var frame = 0; frame < translations.Length; frame++)
       {
         ReadSingle(preservedTranslations, frame * 12).Should().Be(translations[frame].X);
@@ -1907,7 +1914,7 @@ public class GltfWalkingSkeletonTests
     {
       var node = root["nodes"]![0]!.AsObject();
       var metadata = JsonNode.Parse(node["extras"]!["earthtool"]!.GetValue<string>())!.AsObject();
-      metadata["staticAnimation"]!["sha256"] = new string('0', 64);
+      metadata["payload"]!["staticAnimation"]!["sha256"] = new string('0', 64);
       node["extras"]!["earthtool"] = metadata.ToJsonString();
     });
     await using var source = new MemoryStream(stale);
@@ -2125,8 +2132,9 @@ public class GltfWalkingSkeletonTests
           .Should().BeTrue();
         var metadata = JsonDocument.Parse(
           material.GetProperty("extras").GetProperty("earthtool").GetString()!);
-        var localId = metadata.RootElement.GetProperty("scope").GetProperty("localId").GetInt32();
-        Convert.FromBase64String(metadata.RootElement.GetProperty("textureBinding").GetString()!)
+        var localId = metadata.RootElement.GetProperty("id").GetInt32();
+        GlbDocument.DecodeBase64Url(metadata.RootElement.GetProperty("payload")
+          .GetProperty("textureBinding").GetString()!, int.MaxValue)
           .Should().Equal(asset.StaticRenderObjectSequence.Single(record =>
             record.LocalId == localId).TexturePathBytes);
       }
@@ -2173,7 +2181,8 @@ public class GltfWalkingSkeletonTests
     {
       var material = root["materials"]![0]!.AsObject();
       var metadata = JsonNode.Parse(material["extras"]!["earthtool"]!.GetValue<string>())!.AsObject();
-      metadata["textureBinding"] = Convert.ToBase64String(Encoding.ASCII.GetBytes(replacement));
+      metadata["payload"]!["textureBinding"] = GlbDocument.EncodeBase64Url(
+        Encoding.ASCII.GetBytes(replacement));
       material["extras"]!["earthtool"] = metadata.ToJsonString();
     });
     await using var edited = new MemoryStream(editedBytes);
@@ -2217,17 +2226,10 @@ public class GltfWalkingSkeletonTests
 
     var import = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
 
-    import.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
-    var records = import.Value!.Asset.StaticRenderObjectSequence;
-    records.Single(record => record.LocalId == 1).TexturePathBytes.Should()
-      .Equal(records.Single(record => record.LocalId == 3).TexturePathBytes);
-    records.Single(record => record.LocalId == 2).TexturePathBytes.Should()
-      .Equal(asset.StaticRenderObjectSequence.Single(record => record.LocalId == 2).TexturePathBytes);
-    import.Value.Preservation.Changes.Count(change =>
-      change.FieldPath.EndsWith(".TexturePathBytes", StringComparison.Ordinal)
-      && change.Disposition == PreservationDisposition.Regenerated).Should().Be(1);
+    import.Status.Should().Be(OperationStatus.Failed);
+    import.Value.Should().BeNull();
+    import.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+      .Be(GltfDiagnosticCodes.DuplicateScopeIdentity);
   }
 
   [Fact]
@@ -2415,7 +2417,8 @@ public class GltfWalkingSkeletonTests
       json.RootElement.TryGetProperty("images", out _).Should().BeFalse();
       var metadata = JsonDocument.Parse(json.RootElement.GetProperty("materials")[0]
         .GetProperty("extras").GetProperty("earthtool").GetString()!);
-      Convert.FromBase64String(metadata.RootElement.GetProperty("textureBinding").GetString()!)
+      GlbDocument.DecodeBase64Url(metadata.RootElement.GetProperty("payload")
+        .GetProperty("textureBinding").GetString()!, int.MaxValue)
         .Should().Equal("Textures\\root-a.tex"u8.ToArray());
     }
     finally
@@ -3536,7 +3539,7 @@ public class GltfWalkingSkeletonTests
     imported.Status.Should().Be(OperationStatus.Failed);
     imported.Value.Should().BeNull();
     imported.Diagnostics.Should().ContainSingle().Subject.Code.Should()
-      .Be(GltfDiagnosticCodes.MisplacedMetadata);
+        .Be(GltfDiagnosticCodes.OrphanEnvelope);
   }
 
   [Theory]
@@ -4396,7 +4399,7 @@ public class GltfWalkingSkeletonTests
       import.Status.Should().Be(OperationStatus.Failed);
       import.Value.Should().BeNull();
       import.Diagnostics.Should().ContainSingle().Subject.Code.Should()
-        .Be(GltfDiagnosticCodes.AmbiguousPartitionCorrespondence);
+        .Be(GltfDiagnosticCodes.DuplicateScopeIdentity);
       return;
     }
     import.Status.Should().Be(
@@ -4561,7 +4564,7 @@ public class GltfWalkingSkeletonTests
     import.Status.Should().Be(OperationStatus.Failed);
     import.Value.Should().BeNull();
     import.Diagnostics.Should().ContainSingle().Subject.Code.Should()
-      .Be(GltfDiagnosticCodes.AmbiguousPartitionCorrespondence);
+      .Be(GltfDiagnosticCodes.DuplicateScopeIdentity);
   }
 
   [Fact]
@@ -4704,10 +4707,10 @@ public class GltfWalkingSkeletonTests
 
       glbValidation.Status.Should().Be(OperationStatus.Failed);
       glbValidation.Diagnostics.Should().ContainSingle().Subject.Code.Should()
-        .Be(GltfDiagnosticCodes.ResourceLimitExceeded);
+        .Be(GltfDiagnosticCodes.MetadataResourceLimitExceeded);
       gltfValidation.Status.Should().Be(OperationStatus.Failed);
       gltfValidation.Diagnostics.Should().ContainSingle().Subject.Code.Should()
-        .Be(GltfDiagnosticCodes.ResourceLimitExceeded);
+        .Be(GltfDiagnosticCodes.MetadataResourceLimitExceeded);
     }
     finally
     {

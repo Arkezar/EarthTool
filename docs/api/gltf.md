@@ -27,9 +27,13 @@ resources use their first highest-resolution image and report that variants are
 not represented. `GltfOperationProfile` bounds aggregate TEX bytes and decoded
 pixels as well as the number of search roots and directory entries examined.
 
-Both exports assign asset-lineage and document identities, write EarthTool
-metadata as string-valued `extras["earthtool"]`, and compute named version-1
-geometry fingerprints. Partition fingerprints ignore index width, vertex
+Both exports assign asset-lineage and document identities and write compact
+version-1 EarthTool envelopes as string-valued `extras["earthtool"]`. Each
+envelope declares `format`, `version`, `kind`, lowercase version-4 `lineage` and
+`document` UUIDs, a bounded local `id`, structured SHA-256 `guards`, and a
+kind-specific `payload`. The scene manifest owns strictly increasing scope
+inventories and retained identity high-water marks. Opaque metadata bytes use
+unpadded base64url. Partition fingerprints ignore index width, vertex
 numbering, cyclic triangle-index rotation, and triangle order. They retain
 winding and triangle multiplicity.
 
@@ -62,7 +66,7 @@ object/class and reports `ETG1014`; other objects and classes still export.
 
 `ImportEditGlbAsync` and `ImportEditGltfFileAsync` require the expected lineage
 and document identities. They validate metadata carriers, object and mesh
-ownership, native hierarchy, projection name and version, and partition
+ownership, the complete scope inventory, native hierarchy, projection name and version, and partition
 fingerprints before reconciling serialized MSH state. Applicable metadata
 restores exact topology and guarded state, including duplicate or unreferenced
 vertices, degenerate triangles, lane padding, sharing links, and triangle
@@ -112,6 +116,20 @@ materializing MSH output. All import and validation operations enforce finite
 positions, normals, and texture coordinates; triangle or non-indexed triangle
 topology; valid unsigned-byte, unsigned-short, or unsigned-int indices; required
 texture coordinates; and `GltfOperationProfile.MaxActiveRenderVertices`.
+The profile also bounds decoded bytes per envelope and cumulatively, envelope
+count, JSON depth and elements, guards, unknown additive members, and retained
+metadata. Validation fails fast with one bounded conflict diagnostic. Metadata
+exhaustion reports `ETG2005` before reconciliation.
+Malformed carriers, envelopes, identities, kinds, duplicates, and inventories
+use their assigned `ETG2000` through `ETG2020` conflicts. Diagnostics expose a
+deterministic conflict key and the complete allowed action identifiers from
+`GltfMetadataConflictCatalog`. Unknown additive version-1 members retain their
+exact raw JSON tokens in `GltfEditImportResult.PreservedUnknownMetadata` but do
+not gain identity, guard, reference, action, or trust semantics. Passing
+`NextExportOptions` to the next export rewrites those tokens into the rotated
+baseline. Dictionary keys combine scope identity with an escaped JSON Pointer
+to the additive member. Unsupported versions remain opaque and are never
+partially salvaged.
 
 Path-based exports stage sibling temporary files and replace the destination
 only after conversion and validation succeed. SharpGLTF strict validation runs

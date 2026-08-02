@@ -6,9 +6,19 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text.Json;
 
 namespace EarthTool.GLTF
 {
+  internal static class GltfMetadataIdentity
+  {
+    internal static bool IsVersion4(Guid value)
+    {
+      var bytes = value.ToByteArray();
+      return value != Guid.Empty && bytes[7] >> 4 == 4 && (bytes[8] & 0xC0) == 0x80;
+    }
+  }
+
   /// <summary>Defines stable diagnostics emitted by the glTF interchange facade.</summary>
   public static class GltfDiagnosticCodes
   {
@@ -52,22 +62,168 @@ namespace EarthTool.GLTF
     public const string SceneLightIgnored = "ETG1018";
     /// <summary>Required EarthTool manifest metadata is absent.</summary>
     public const string MissingManifest = "ETG2000";
+    /// <summary>The edit-import scene contract is invalid.</summary>
+    public const string InvalidSceneContract = "ETG2001";
+    /// <summary>A reserved EarthTool metadata carrier is invalid.</summary>
+    public const string InvalidMetadataCarrier = "ETG2002";
     /// <summary>EarthTool metadata is malformed.</summary>
-    public const string MalformedMetadata = "ETG2001";
+    public const string MalformedMetadata = "ETG2003";
     /// <summary>EarthTool metadata version is unsupported.</summary>
-    public const string UnsupportedMetadataVersion = "ETG2002";
+    public const string UnsupportedMetadataVersion = "ETG2004";
+    /// <summary>The metadata graph exceeds its finite operation profile.</summary>
+    public const string MetadataResourceLimitExceeded = "ETG2005";
     /// <summary>Asset lineage differs from the expected baseline.</summary>
-    public const string AssetLineageMismatch = "ETG2003";
+    public const string AssetLineageMismatch = "ETG2006";
     /// <summary>Document identity differs from the expected baseline.</summary>
-    public const string DocumentMismatch = "ETG2004";
+    public const string DocumentMismatch = "ETG2007";
+    /// <summary>An envelope kind does not match its glTF carrier.</summary>
+    public const string KindCarrierMismatch = "ETG2008";
+    /// <summary>More than one envelope claims the same scope identity.</summary>
+    public const string DuplicateScopeIdentity = "ETG2009";
     /// <summary>Expected local metadata scope is absent.</summary>
-    public const string MissingExpectedScope = "ETG2005";
-    /// <summary>Native projection no longer matches preservation metadata.</summary>
-    public const string StaleNativeProjection = "ETG2008";
-    /// <summary>EarthTool metadata appears on an unsupported carrier.</summary>
-    public const string MisplacedMetadata = "ETG2009";
+    public const string MissingExpectedScope = "ETG2010";
+    /// <summary>An envelope is not associated with a reachable native scope.</summary>
+    public const string OrphanEnvelope = "ETG2011";
     /// <summary>Native geometry cannot be associated with one unique preserved partition set.</summary>
     public const string AmbiguousPartitionCorrespondence = "ETG2012";
+    /// <summary>A metadata reference has no matching scope.</summary>
+    public const string DanglingMetadataReference = "ETG2013";
+    /// <summary>A required native projection guard is absent.</summary>
+    public const string MissingRequiredGuard = "ETG2014";
+    /// <summary>A guard projection or version is unsupported.</summary>
+    public const string UnsupportedGuard = "ETG2015";
+    /// <summary>Native projection no longer matches preservation metadata.</summary>
+    public const string StaleNativeProjection = "ETG2016";
+    /// <summary>Informational provenance does not match the claimed source.</summary>
+    public const string ProvenanceMismatch = "ETG2017";
+    /// <summary>The graph contains unknown semantics required for safe interpretation.</summary>
+    public const string UnknownRequiredSemantics = "ETG2018";
+    /// <summary>The bounded conflict inventory was truncated.</summary>
+    public const string TooManyMetadataConflicts = "ETG2019";
+    /// <summary>The manifest inventory or identity high-water marks are invalid.</summary>
+    public const string InvalidManifestInventory = "ETG2020";
+  }
+
+  /// <summary>Defines the closed version-1 metadata conflict action identifiers.</summary>
+  public static class GltfMetadataConflictActions
+  {
+    public const string Abort = "abort";
+    public const string RetryWithMetadata = "retryWithMetadata";
+    public const string AcceptBranch = "acceptBranch";
+    public const string MapScope = "mapScope";
+    public const string AcceptDeletion = "acceptDeletion";
+    public const string AdoptAsNew = "adoptAsNew";
+    public const string ForkScope = "forkScope";
+    public const string DiscardAffectedState = "discardAffectedState";
+    public const string RegenerateDerivedState = "regenerateDerivedState";
+    public const string RepairNativeExternally = "repairNativeExternally";
+    public const string DiscardLineage = "discardLineage";
+  }
+
+  /// <summary>Exposes the complete allowed-action set for each version-1 metadata conflict.</summary>
+  public static class GltfMetadataConflictCatalog
+  {
+    public static IReadOnlyDictionary<string, IReadOnlyList<string>> ActionsByCode { get; } =
+      new ReadOnlyDictionary<string, IReadOnlyList<string>>(
+        new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
+        {
+          [GltfDiagnosticCodes.MissingManifest] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.DiscardLineage),
+          [GltfDiagnosticCodes.InvalidSceneContract] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RepairNativeExternally),
+          [GltfDiagnosticCodes.InvalidMetadataCarrier] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.DiscardLineage),
+          [GltfDiagnosticCodes.MalformedMetadata] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.DiscardAffectedState,
+            GltfMetadataConflictActions.DiscardLineage),
+          [GltfDiagnosticCodes.UnsupportedMetadataVersion] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.DiscardLineage),
+          [GltfDiagnosticCodes.MetadataResourceLimitExceeded] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata),
+          [GltfDiagnosticCodes.AssetLineageMismatch] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.AdoptAsNew,
+            GltfMetadataConflictActions.DiscardLineage),
+          [GltfDiagnosticCodes.DocumentMismatch] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.AcceptBranch),
+          [GltfDiagnosticCodes.KindCarrierMismatch] = ScopeActions(),
+          [GltfDiagnosticCodes.DuplicateScopeIdentity] = ScopeActions(),
+          [GltfDiagnosticCodes.MissingExpectedScope] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.AcceptDeletion),
+          [GltfDiagnosticCodes.OrphanEnvelope] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.MapScope,
+            GltfMetadataConflictActions.ForkScope,
+            GltfMetadataConflictActions.DiscardAffectedState,
+            GltfMetadataConflictActions.DiscardLineage),
+          [GltfDiagnosticCodes.AmbiguousPartitionCorrespondence] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.MapScope,
+            GltfMetadataConflictActions.ForkScope,
+            GltfMetadataConflictActions.RepairNativeExternally),
+          [GltfDiagnosticCodes.DanglingMetadataReference] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.MapScope,
+            GltfMetadataConflictActions.DiscardAffectedState),
+          [GltfDiagnosticCodes.MissingRequiredGuard] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RegenerateDerivedState,
+            GltfMetadataConflictActions.DiscardAffectedState,
+            GltfMetadataConflictActions.RepairNativeExternally),
+          [GltfDiagnosticCodes.UnsupportedGuard] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.DiscardAffectedState),
+          [GltfDiagnosticCodes.StaleNativeProjection] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RegenerateDerivedState,
+            GltfMetadataConflictActions.DiscardAffectedState,
+            GltfMetadataConflictActions.RepairNativeExternally),
+          [GltfDiagnosticCodes.ProvenanceMismatch] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.AcceptBranch,
+            GltfMetadataConflictActions.DiscardAffectedState),
+          [GltfDiagnosticCodes.UnknownRequiredSemantics] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.DiscardAffectedState,
+            GltfMetadataConflictActions.DiscardLineage),
+          [GltfDiagnosticCodes.TooManyMetadataConflicts] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata),
+          [GltfDiagnosticCodes.InvalidManifestInventory] = Actions(
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.DiscardLineage)
+        });
+
+    private static IReadOnlyList<string> ScopeActions()
+    {
+      return Actions(
+        GltfMetadataConflictActions.Abort,
+        GltfMetadataConflictActions.MapScope,
+        GltfMetadataConflictActions.ForkScope,
+        GltfMetadataConflictActions.DiscardAffectedState);
+    }
+
+    private static IReadOnlyList<string> Actions(params string[] actions)
+    {
+      return Array.AsReadOnly(actions);
+    }
   }
 
   /// <summary>Defines finite resource limits for one glTF operation.</summary>
@@ -109,6 +265,21 @@ namespace EarthTool.GLTF
     /// <summary>Gets the maximum directory entries examined during TEX lookup.</summary>
     public int MaxTextureDirectoryEntries { get; }
 
+    /// <summary>Gets the cumulative decoded metadata byte limit.</summary>
+    public int MaxTotalMetadataBytes { get; }
+
+    /// <summary>Gets the maximum number of metadata envelopes.</summary>
+    public int MaxMetadataEnvelopes { get; }
+
+    /// <summary>Gets the cumulative non-bulk metadata element limit.</summary>
+    public int MaxMetadataElements { get; }
+
+    /// <summary>Gets the cumulative unknown additive member limit.</summary>
+    public int MaxUnknownMetadataMembers { get; }
+
+    /// <summary>Gets the maximum guards accepted in one envelope.</summary>
+    public int MaxMetadataGuards { get; }
+
     /// <summary>Initializes finite glTF operation limits.</summary>
     public GltfOperationProfile(
       int maxInputBytes = 32 * 1024 * 1024,
@@ -125,7 +296,14 @@ namespace EarthTool.GLTF
         4096,
         15,
         16 * 1024 * 1024,
-        16 * 1024 * 1024)
+        16 * 1024 * 1024,
+        64,
+        65536,
+        32 * 1024 * 1024,
+        262144,
+        4194304,
+        262144,
+        64)
     {
     }
 
@@ -147,7 +325,14 @@ namespace EarthTool.GLTF
         maxNodes,
         maxHierarchyDepth,
         16 * 1024 * 1024,
-        16 * 1024 * 1024)
+        16 * 1024 * 1024,
+        64,
+        65536,
+        32 * 1024 * 1024,
+        262144,
+        4194304,
+        262144,
+        64)
     {
     }
 
@@ -173,7 +358,12 @@ namespace EarthTool.GLTF
         maxTextureBytes,
         maxPreviewPixels,
         64,
-        65536)
+        65536,
+        32 * 1024 * 1024,
+        262144,
+        4194304,
+        262144,
+        64)
     {
     }
 
@@ -189,7 +379,12 @@ namespace EarthTool.GLTF
       int maxTextureBytes,
       int maxPreviewPixels,
       int maxTextureSearchRoots,
-      int maxTextureDirectoryEntries)
+      int maxTextureDirectoryEntries,
+      int maxTotalMetadataBytes = 32 * 1024 * 1024,
+      int maxMetadataEnvelopes = 262144,
+      int maxMetadataElements = 4194304,
+      int maxUnknownMetadataMembers = 262144,
+      int maxMetadataGuards = 64)
     {
       MaxInputBytes = RequirePositive(maxInputBytes, nameof(maxInputBytes));
       MaxOutputBytes = RequirePositive(maxOutputBytes, nameof(maxOutputBytes));
@@ -206,6 +401,13 @@ namespace EarthTool.GLTF
       MaxTextureDirectoryEntries = RequirePositive(
         maxTextureDirectoryEntries,
         nameof(maxTextureDirectoryEntries));
+      MaxTotalMetadataBytes = RequirePositive(maxTotalMetadataBytes, nameof(maxTotalMetadataBytes));
+      MaxMetadataEnvelopes = RequirePositive(maxMetadataEnvelopes, nameof(maxMetadataEnvelopes));
+      MaxMetadataElements = RequirePositive(maxMetadataElements, nameof(maxMetadataElements));
+      MaxUnknownMetadataMembers = RequirePositive(
+        maxUnknownMetadataMembers,
+        nameof(maxUnknownMetadataMembers));
+      MaxMetadataGuards = RequirePositive(maxMetadataGuards, nameof(maxMetadataGuards));
     }
 
     private static int RequirePositive(int value, string parameterName)
@@ -226,13 +428,14 @@ namespace EarthTool.GLTF
     /// <summary>Initializes an interchange baseline.</summary>
     public InterchangeBaseline(Guid assetLineageId, Guid documentId)
     {
-      AssetLineageId = assetLineageId != Guid.Empty
+      AssetLineageId = GltfMetadataIdentity.IsVersion4(assetLineageId)
         ? assetLineageId
-        : throw new ArgumentException("Asset lineage identity cannot be empty.", nameof(assetLineageId));
-      DocumentId = documentId != Guid.Empty
+        : throw new ArgumentException("Asset lineage identity must be a version-4 UUID.", nameof(assetLineageId));
+      DocumentId = GltfMetadataIdentity.IsVersion4(documentId)
         ? documentId
-        : throw new ArgumentException("Document identity cannot be empty.", nameof(documentId));
+        : throw new ArgumentException("Document identity must be a version-4 UUID.", nameof(documentId));
     }
+
   }
 
   /// <summary>Describes a named and versioned SHA-256 native projection fingerprint.</summary>
@@ -267,20 +470,26 @@ namespace EarthTool.GLTF
     /// <summary>Gets ordered absolute roots used only to resolve decoded TEX previews.</summary>
     public IReadOnlyList<string> TextureSearchRoots { get; }
 
+    /// <summary>Gets exact unknown additive metadata tokens to carry into the next baseline.</summary>
+    public IReadOnlyDictionary<string, string> PreservedUnknownMetadata { get; }
+
+    internal IReadOnlyDictionary<string, int> MetadataNextIds { get; }
+
     /// <summary>Initializes GLB export options.</summary>
     public GltfExportOptions(
       Guid? assetLineageId = null,
       Guid? documentId = null,
-      IEnumerable<string>? textureSearchRoots = null)
+      IEnumerable<string>? textureSearchRoots = null,
+      IReadOnlyDictionary<string, string>? preservedUnknownMetadata = null)
     {
-      if (assetLineageId == Guid.Empty)
+      if (assetLineageId.HasValue && !GltfMetadataIdentity.IsVersion4(assetLineageId.Value))
       {
-        throw new ArgumentException("Asset lineage identity cannot be empty.", nameof(assetLineageId));
+        throw new ArgumentException("Asset lineage identity must be a version-4 UUID.", nameof(assetLineageId));
       }
 
-      if (documentId == Guid.Empty)
+      if (documentId.HasValue && !GltfMetadataIdentity.IsVersion4(documentId.Value))
       {
-        throw new ArgumentException("Document identity cannot be empty.", nameof(documentId));
+        throw new ArgumentException("Document identity must be a version-4 UUID.", nameof(documentId));
       }
 
       AssetLineageId = assetLineageId;
@@ -291,7 +500,69 @@ namespace EarthTool.GLTF
         throw new ArgumentException("TEX search roots must be absolute paths.", nameof(textureSearchRoots));
       }
       TextureSearchRoots = Array.AsReadOnly(roots.Select(System.IO.Path.GetFullPath).ToArray());
+      var unknownMetadata = preservedUnknownMetadata?.ToDictionary(
+        pair => pair.Key,
+        pair => pair.Value,
+        StringComparer.Ordinal) ?? new Dictionary<string, string>(StringComparer.Ordinal);
+      foreach (var member in unknownMetadata)
+      {
+        ValidateUnknownMetadata(member.Key, member.Value, nameof(preservedUnknownMetadata));
+      }
+      PreservedUnknownMetadata = new ReadOnlyDictionary<string, string>(unknownMetadata);
+      MetadataNextIds = new ReadOnlyDictionary<string, int>(new Dictionary<string, int>());
     }
+
+    internal GltfExportOptions(
+      Guid assetLineageId,
+      Guid documentId,
+      IReadOnlyDictionary<string, string> preservedUnknownMetadata,
+      IReadOnlyDictionary<string, int> metadataNextIds)
+      : this(assetLineageId, documentId, preservedUnknownMetadata: preservedUnknownMetadata)
+    {
+      MetadataNextIds = new ReadOnlyDictionary<string, int>(
+        metadataNextIds.ToDictionary(pair => pair.Key, pair => pair.Value));
+    }
+
+    private static void ValidateUnknownMetadata(string key, string value, string parameterName)
+    {
+      var firstSeparator = key.IndexOf(':');
+      var secondSeparator = firstSeparator < 0 ? -1 : key.IndexOf(':', firstSeparator + 1);
+      if (firstSeparator <= 0 || secondSeparator <= firstSeparator + 1
+        || !int.TryParse(
+          key.Substring(firstSeparator + 1, secondSeparator - firstSeparator - 1),
+          System.Globalization.NumberStyles.None,
+          System.Globalization.CultureInfo.InvariantCulture,
+          out var localId))
+      {
+        throw new ArgumentException("Unknown metadata keys must contain a scope kind, local ID, and JSON Pointer.",
+          parameterName);
+      }
+      var scopeKind = key.Substring(0, firstSeparator);
+      var localIdText = key.Substring(firstSeparator + 1, secondSeparator - firstSeparator - 1);
+      var path = key.Substring(secondSeparator + 1);
+      if (scopeKind is not ("manifest" or "object" or "mesh" or "material" or "light")
+        || localIdText != localId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        || (scopeKind == "manifest" ? localId != 0 : localId <= 0)
+        || !Internal.GlbDocument.IsSupportedUnknownMetadataPath(scopeKind, path))
+      {
+        throw new ArgumentException("Unknown metadata key does not identify an additive version-1 member.",
+          parameterName);
+      }
+      try
+      {
+        using var _ = JsonDocument.Parse(value, new JsonDocumentOptions
+        {
+          MaxDepth = int.MaxValue,
+          CommentHandling = JsonCommentHandling.Disallow,
+          AllowTrailingCommas = false
+        });
+      }
+      catch (Exception ex) when (ex is JsonException || ex is ArgumentException)
+      {
+        throw new ArgumentException("Unknown metadata values must contain one valid JSON token.", parameterName, ex);
+      }
+    }
+
   }
 
   /// <summary>Supplies explicit game-authoritative TEX bindings for generic material indices.</summary>
@@ -348,12 +619,20 @@ namespace EarthTool.GLTF
     /// <summary>Gets exact retained, regenerated, invalidated, and canonicalized MSH paths.</summary>
     public PreservationReport Preservation { get; }
 
+    /// <summary>Gets exact raw JSON tokens for unknown additive version-1 members.</summary>
+    public IReadOnlyDictionary<string, string> PreservedUnknownMetadata { get; }
+
+    /// <summary>Gets export options that retain the next baseline and unknown additive tokens.</summary>
+    public GltfExportOptions NextExportOptions { get; }
+
     internal GltfEditImportResult(
       StaticMeshAsset asset,
       InterchangeBaseline nextBaseline,
       NativeProjectionFingerprint appliedFingerprint,
       PreservationReport preservation,
-      IEnumerable<string> restoredSerializedRepresentationPaths)
+      IEnumerable<string> restoredSerializedRepresentationPaths,
+      IReadOnlyDictionary<string, string>? preservedUnknownMetadata = null,
+      IReadOnlyDictionary<string, int>? metadataNextIds = null)
     {
       Asset = asset;
       NextBaseline = nextBaseline;
@@ -361,6 +640,14 @@ namespace EarthTool.GLTF
       Preservation = preservation;
       RestoredSerializedRepresentationPaths = Array.AsReadOnly(
         new List<string>(restoredSerializedRepresentationPaths).ToArray());
+      PreservedUnknownMetadata = new ReadOnlyDictionary<string, string>(
+        preservedUnknownMetadata?.ToDictionary(pair => pair.Key, pair => pair.Value)
+        ?? new Dictionary<string, string>());
+      NextExportOptions = new GltfExportOptions(
+        nextBaseline.AssetLineageId,
+        nextBaseline.DocumentId,
+        PreservedUnknownMetadata,
+        metadataNextIds ?? new Dictionary<string, int>());
     }
   }
 
