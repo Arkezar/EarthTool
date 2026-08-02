@@ -4,9 +4,12 @@ using EarthTool.Common.Operations;
 using EarthTool.GLTF;
 using EarthTool.MSH.Assets;
 using EarthTool.MSH.Authoring;
+using EarthTool.MSH.Operations;
 using EarthTool.MSH.Services;
+using Microsoft.Extensions.DependencyInjection;
 using System.Buffers.Binary;
 using System.Numerics;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -27,7 +30,7 @@ public sealed class InternalMshCommandHostTests
       ["msh", "export", fixture.MshPath, "--report", reportPath],
       output);
 
-    exitCode.Should().Be(CliExitCode.Success);
+    exitCode.Should().Be(0);
     File.Exists(fixture.GlbPath).Should().BeTrue();
     File.Exists(Path.ChangeExtension(fixture.MshPath, ".gltf")).Should().BeFalse();
     using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
@@ -59,6 +62,171 @@ public sealed class InternalMshCommandHostTests
     exitCode.Should().Be(CliExitCode.Success);
     File.Exists(Path.ChangeExtension(fixture.MshPath, ".gltf")).Should().BeTrue();
     File.Exists(fixture.GlbPath).Should().BeFalse();
+  }
+
+  [Fact]
+  public async Task ExportRetainsRepeatedTexRootArgumentOrder()
+  {
+    using var fixture = await CliFixture.CreateAsync("Textures\\preview.tex");
+    var firstRoot = Path.Combine(fixture.Directory, "first-root");
+    var secondRoot = Path.Combine(fixture.Directory, "second-root");
+    var firstPixels = new byte[] { 0xFF, 0x00, 0x00, 0xFF };
+    var secondPixels = new byte[] { 0x00, 0x00, 0xFF, 0xFF };
+    System.IO.Directory.CreateDirectory(Path.Combine(firstRoot, "Textures"));
+    System.IO.Directory.CreateDirectory(Path.Combine(secondRoot, "Textures"));
+    await File.WriteAllBytesAsync(
+      Path.Combine(firstRoot, "Textures", "preview.tex"),
+      CliFixture.CreateRgbaTex(firstPixels));
+    await File.WriteAllBytesAsync(
+      Path.Combine(secondRoot, "Textures", "preview.tex"),
+      CliFixture.CreateRgbaTex(secondPixels));
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "export", fixture.MshPath,
+      "--format", "gltf",
+      "--tex-root", firstRoot,
+      "--tex-root", secondRoot
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(CliExitCode.Success);
+    using var package = JsonDocument.Parse(
+      await File.ReadAllBytesAsync(Path.ChangeExtension(fixture.MshPath, ".gltf")));
+    package.RootElement.GetProperty("images")[0].GetProperty("uri").GetString().Should()
+      .Be(CliFixture.GetPreviewContentAddress(firstPixels) + ".png");
+  }
+
+  [Fact]
+  public async Task ExportExpandsPatternsDeterministicallyIntoOneInvocationReport()
+  {
+    using var fixture = await CliFixture.CreateAsync();
+    var inputDirectory = Path.Combine(fixture.Directory, "inputs");
+    var outputDirectory = Path.Combine(fixture.Directory, "exports");
+    System.IO.Directory.CreateDirectory(inputDirectory);
+    System.IO.Directory.CreateDirectory(outputDirectory);
+    var alpha = Path.Combine(inputDirectory, "alpha.msh");
+    var zeta = Path.Combine(inputDirectory, "zeta.msh");
+    File.Copy(fixture.MshPath, zeta);
+    File.Copy(fixture.MshPath, alpha);
+    var reportPath = Path.Combine(fixture.Directory, "batch-report.json");
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "export", Path.Combine(inputDirectory, "*.msh"),
+      "--output", outputDirectory,
+      "--report", reportPath
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(CliExitCode.Success);
+    File.Exists(Path.Combine(outputDirectory, "alpha.glb")).Should().BeTrue();
+    File.Exists(Path.Combine(outputDirectory, "zeta.glb")).Should().BeTrue();
+    using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+    report.RootElement.GetProperty("operations").EnumerateArray()
+      .Select(operation => operation.GetProperty("input").GetString()).Should()
+      .Equal(Path.GetFullPath(alpha), Path.GetFullPath(zeta));
+  }
+
+  [Fact]
+  public async Task BatchDestinationCollisionsFailBeforeAnyOutputIsWritten()
+  {
+    using var fixture = await CliFixture.CreateAsync();
+    var firstDirectory = Path.Combine(fixture.Directory, "first");
+    var secondDirectory = Path.Combine(fixture.Directory, "second");
+    var outputDirectory = Path.Combine(fixture.Directory, "exports");
+    System.IO.Directory.CreateDirectory(firstDirectory);
+    System.IO.Directory.CreateDirectory(secondDirectory);
+    System.IO.Directory.CreateDirectory(outputDirectory);
+    var first = Path.Combine(firstDirectory, "shared.msh");
+    var second = Path.Combine(secondDirectory, "shared.msh");
+    File.Copy(fixture.MshPath, first);
+    File.Copy(fixture.MshPath, second);
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "export", first, second,
+      "--output", outputDirectory
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(CliExitCode.Failure);
+    System.IO.Directory.EnumerateFileSystemEntries(outputDirectory).Should().BeEmpty();
+  }
+
+  [Fact]
+  public async Task SeparateGltfReportCannotCollideWithAContentAddressedSidecar()
+  {
+    using var fixture = await CliFixture.CreateAsync();
+    var probeDirectory = Path.Combine(fixture.Directory, "probe");
+    var outputDirectory = Path.Combine(fixture.Directory, "exports");
+    System.IO.Directory.CreateDirectory(probeDirectory);
+    System.IO.Directory.CreateDirectory(outputDirectory);
+    var probeExitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "export", fixture.MshPath,
+      "--format", "gltf",
+      "--output", probeDirectory
+    ], TextWriter.Null);
+    probeExitCode.Should().Be(0);
+    using var probe = JsonDocument.Parse(
+      await File.ReadAllBytesAsync(Path.Combine(probeDirectory, "model.gltf")));
+    var bufferFileName = probe.RootElement.GetProperty("buffers")[0]
+      .GetProperty("uri").GetString()!;
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "export", fixture.MshPath,
+      "--format", "gltf",
+      "--output", outputDirectory,
+      "--report", Path.Combine(outputDirectory, bufferFileName)
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(1);
+    System.IO.Directory.EnumerateFileSystemEntries(outputDirectory).Should().BeEmpty();
+  }
+
+  [Fact]
+  public async Task BatchContinuesAfterAFileFailureAndReportsEveryAttempt()
+  {
+    using var fixture = await CliFixture.CreateAsync();
+    var invalid = Path.Combine(fixture.Directory, "invalid.msh");
+    var valid = Path.Combine(fixture.Directory, "valid.msh");
+    await File.WriteAllBytesAsync(invalid, [0x00, 0x01, 0x02]);
+    File.Copy(fixture.MshPath, valid);
+    var outputDirectory = Path.Combine(fixture.Directory, "exports");
+    System.IO.Directory.CreateDirectory(outputDirectory);
+    var reportPath = Path.Combine(fixture.Directory, "batch-report.json");
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "export", invalid, valid,
+      "--output", outputDirectory,
+      "--report", reportPath
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(CliExitCode.Failure);
+    File.Exists(Path.Combine(outputDirectory, "invalid.glb")).Should().BeFalse();
+    File.Exists(Path.Combine(outputDirectory, "valid.glb")).Should().BeTrue();
+    using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+    report.RootElement.GetProperty("operations").EnumerateArray()
+      .Select(operation => operation.GetProperty("status").GetString()).Should()
+      .Equal("failed", "succeeded");
+  }
+
+  [Fact]
+  public async Task EmptyPatternFailsPreflightAndPreservesTheExistingReport()
+  {
+    using var fixture = await CliFixture.CreateAsync();
+    var reportPath = Path.Combine(fixture.Directory, "report.json");
+    var originalReport = "existing report"u8.ToArray();
+    await File.WriteAllBytesAsync(reportPath, originalReport);
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "export", Path.Combine(fixture.Directory, "missing-*.msh"),
+      "--report", reportPath
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(CliExitCode.Failure);
+    (await File.ReadAllBytesAsync(reportPath)).Should().Equal(originalReport);
   }
 
   [Fact]
@@ -124,6 +292,92 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
+  public async Task NewModelImportBatchesPatternMatchesIntoOneReport()
+  {
+    using var fixture = await CliFixture.CreateAsync();
+    await fixture.CreateMetadataFreeGlbAsync();
+    var inputDirectory = Path.Combine(fixture.Directory, "new-models");
+    var outputDirectory = Path.Combine(fixture.Directory, "authored");
+    System.IO.Directory.CreateDirectory(inputDirectory);
+    System.IO.Directory.CreateDirectory(outputDirectory);
+    File.Copy(fixture.GlbPath, Path.Combine(inputDirectory, "alpha.glb"));
+    File.Copy(fixture.GlbPath, Path.Combine(inputDirectory, "zeta.glb"));
+    var reportPath = Path.Combine(fixture.Directory, "new-batch-report.json");
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "import", "new", Path.Combine(inputDirectory, "*.glb"),
+      "--output", outputDirectory,
+      "--report", reportPath
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(CliExitCode.Success);
+    File.Exists(Path.Combine(outputDirectory, "alpha.msh")).Should().BeTrue();
+    File.Exists(Path.Combine(outputDirectory, "zeta.msh")).Should().BeTrue();
+    using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+    report.RootElement.GetProperty("operations").EnumerateArray()
+      .Select(operation => operation.GetProperty("input").GetString()).Should()
+      .Equal(
+        Path.Combine(inputDirectory, "alpha.glb"),
+        Path.Combine(inputDirectory, "zeta.glb"));
+  }
+
+  [Fact]
+  public async Task NewModelImportRejectsDestinationCollisionsBeforeWriting()
+  {
+    using var fixture = await CliFixture.CreateAsync();
+    await fixture.CreateMetadataFreeGlbAsync();
+    var firstDirectory = Path.Combine(fixture.Directory, "first-new");
+    var secondDirectory = Path.Combine(fixture.Directory, "second-new");
+    var outputDirectory = Path.Combine(fixture.Directory, "authored");
+    System.IO.Directory.CreateDirectory(firstDirectory);
+    System.IO.Directory.CreateDirectory(secondDirectory);
+    System.IO.Directory.CreateDirectory(outputDirectory);
+    var first = Path.Combine(firstDirectory, "shared.glb");
+    var second = Path.Combine(secondDirectory, "shared.glb");
+    File.Copy(fixture.GlbPath, first);
+    File.Copy(fixture.GlbPath, second);
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "import", "new", first, second,
+      "--output", outputDirectory
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(1);
+    System.IO.Directory.EnumerateFileSystemEntries(outputDirectory).Should().BeEmpty();
+  }
+
+  [Fact]
+  public async Task NewModelImportContinuesAfterAFileFailure()
+  {
+    using var fixture = await CliFixture.CreateAsync();
+    await fixture.CreateMetadataFreeGlbAsync();
+    var invalid = Path.Combine(fixture.Directory, "invalid.glb");
+    var valid = Path.Combine(fixture.Directory, "valid.glb");
+    await File.WriteAllBytesAsync(invalid, [0x00, 0x01, 0x02]);
+    File.Copy(fixture.GlbPath, valid);
+    var outputDirectory = Path.Combine(fixture.Directory, "authored");
+    System.IO.Directory.CreateDirectory(outputDirectory);
+    var reportPath = Path.Combine(fixture.Directory, "new-continuation-report.json");
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "import", "new", invalid, valid,
+      "--output", outputDirectory,
+      "--report", reportPath
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(1);
+    File.Exists(Path.Combine(outputDirectory, "invalid.msh")).Should().BeFalse();
+    File.Exists(Path.Combine(outputDirectory, "valid.msh")).Should().BeTrue();
+    using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+    report.RootElement.GetProperty("operations").EnumerateArray()
+      .Select(operation => operation.GetProperty("status").GetString()).Should()
+      .Equal("failed", "succeeded");
+  }
+
+  [Fact]
   public async Task NewModelImportAppliesTypedPlanOptions()
   {
     using var fixture = await CliFixture.CreateAsync();
@@ -160,7 +414,7 @@ public sealed class InternalMshCommandHostTests
       ["msh", "export", fixture.MshPath, "--report", reportPath],
       output);
 
-    exitCode.Should().Be(CliExitCode.Failure);
+    exitCode.Should().Be(1);
     File.Exists(fixture.GlbPath).Should().BeFalse();
     using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
     var operation = report.RootElement.GetProperty("operations")[0];
@@ -222,10 +476,17 @@ public sealed class InternalMshCommandHostTests
     var relativeTexRoot = await InternalMshCommandHost.RunAsync(
       ["msh", "export", fixture.MshPath, "--tex-root", "relative"],
       TextWriter.Null);
+    var multipleEditInputs = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "import", "edit", fixture.GlbPath, fixture.GlbPath,
+      "--expected-lineage", expectedLineage,
+      "--expected-document", expectedDocument
+    ], TextWriter.Null);
 
-    missingIdentities.Should().Be(CliExitCode.Usage);
-    patternedEdit.Should().Be(CliExitCode.Usage);
-    relativeTexRoot.Should().Be(CliExitCode.Usage);
+    missingIdentities.Should().Be(2);
+    patternedEdit.Should().Be(2);
+    relativeTexRoot.Should().Be(2);
+    multipleEditInputs.Should().Be(2);
   }
 
   [Fact]
@@ -241,7 +502,7 @@ public sealed class InternalMshCommandHostTests
       TextWriter.Null,
       cancellation.Token);
 
-    exitCode.Should().Be(CliExitCode.Cancellation);
+    exitCode.Should().Be(130);
     File.Exists(fixture.GlbPath).Should().BeFalse();
     using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
     report.RootElement.GetProperty("status").GetString().Should().Be("cancelled");
@@ -252,16 +513,130 @@ public sealed class InternalMshCommandHostTests
   {
     using var fixture = await CliFixture.CreateAsync();
     using var output = new StringWriter();
+    var reportDirectory = Path.Combine(fixture.Directory, "report-target");
+    System.IO.Directory.CreateDirectory(reportDirectory);
 
     var exitCode = await InternalMshCommandHost.RunAsync(
-      ["msh", "export", fixture.MshPath, "--report", fixture.Directory],
+      ["msh", "export", fixture.MshPath, "--report", reportDirectory],
       output);
 
     exitCode.Should().Be(CliExitCode.Failure);
     File.Exists(fixture.GlbPath).Should().BeTrue();
+    System.IO.Directory.EnumerateFiles(fixture.Directory, ".report-target.*.tmp").Should().BeEmpty();
     output.ToString().Should()
       .Contain($"diagnostic code={GltfDiagnosticCodes.IoFailure}")
       .And.Contain("summary total=1 succeeded=0 failed=1 cancelled=0");
+  }
+
+  [Fact]
+  public async Task InjectedReportCommitFailurePreservesTheExistingReport()
+  {
+    using var fixture = await CliFixture.CreateAsync();
+    var reportPath = Path.Combine(fixture.Directory, "report.json");
+    var original = "existing report"u8.ToArray();
+    await File.WriteAllBytesAsync(reportPath, original);
+    var fileSystem = new CommitFailingReportFileSystem();
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+      ["msh", "export", fixture.MshPath, "--report", reportPath],
+      TextWriter.Null,
+      configureServices: services => services.AddSingleton<ICliReportFileSystem>(fileSystem));
+
+    exitCode.Should().Be(1);
+    File.Exists(fixture.GlbPath).Should().BeTrue();
+    (await File.ReadAllBytesAsync(reportPath)).Should().Equal(original);
+    fileSystem.DeleteAttempted.Should().BeTrue();
+  }
+
+  [Fact]
+  public async Task InjectedMshWriteFailurePreservesTheDestinationAndIsReported()
+  {
+    using var fixture = await CliFixture.CreateAsync();
+    await fixture.CreateMetadataFreeGlbAsync();
+    var outputDirectory = Path.Combine(fixture.Directory, "authored");
+    System.IO.Directory.CreateDirectory(outputDirectory);
+    var destination = Path.Combine(outputDirectory, "model.msh");
+    var original = new byte[] { 9, 8, 7 };
+    await File.WriteAllBytesAsync(destination, original);
+    var reportPath = Path.Combine(fixture.Directory, "write-failure-report.json");
+    var writer = new FailingMshWriter();
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "import", "new", fixture.GlbPath,
+      "--output", outputDirectory,
+      "--report", reportPath
+    ], TextWriter.Null, configureServices: services => services.AddSingleton<IMshWriter>(writer));
+
+    exitCode.Should().Be(1);
+    writer.WriteAttempted.Should().BeTrue();
+    (await File.ReadAllBytesAsync(destination)).Should().Equal(original);
+    using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+    report.RootElement.GetProperty("operations")[0].GetProperty("diagnostics")
+      .EnumerateArray().Select(diagnostic => diagnostic.GetProperty("code").GetString()).Should()
+      .Contain(MshDiagnosticCodes.IoFailure);
+  }
+
+  private sealed class CommitFailingReportFileSystem : ICliReportFileSystem
+  {
+    public bool DeleteAttempted { get; private set; }
+
+    public string GetTemporaryPath(string destinationPath)
+    {
+      return "injected-report.tmp";
+    }
+
+    public Stream CreateTemporary(string temporaryPath)
+    {
+      return new MemoryStream();
+    }
+
+    public void Commit(string temporaryPath, string destinationPath)
+    {
+      throw new IOException("Injected report commit failure.");
+    }
+
+    public void TryDelete(string temporaryPath)
+    {
+      DeleteAttempted = true;
+    }
+  }
+
+  private sealed class FailingMshWriter : IMshWriter
+  {
+    public bool WriteAttempted { get; private set; }
+
+    public Task<OperationResult> WriteAsync(
+      MeshAsset asset,
+      Stream destination,
+      MshOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      return Task.FromResult(Failure());
+    }
+
+    public Task<OperationResult> WriteFileAsync(
+      MeshAsset asset,
+      string destinationPath,
+      MshOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      WriteAttempted = true;
+      return Task.FromResult(Failure());
+    }
+
+    private static OperationResult Failure()
+    {
+      return new OperationResult(OperationStatus.Failed,
+      [
+        new OperationDiagnostic(
+          MshDiagnosticCodes.IoFailure,
+          1007,
+          DiagnosticSeverity.Error,
+          "$",
+          "Injected MSH write failure.")
+      ]);
+    }
   }
 
   private sealed class CliFixture : IDisposable
@@ -275,21 +650,26 @@ public sealed class InternalMshCommandHostTests
       Directory = directory;
     }
 
-    public static async Task<CliFixture> CreateAsync()
+    public static async Task<CliFixture> CreateAsync(string? textureResource = null)
     {
       var fixture = new CliFixture(Path.Combine(Path.GetTempPath(), $"earthtool-cli-{Guid.NewGuid():N}"));
       System.IO.Directory.CreateDirectory(fixture.Directory);
-      var build = StaticMeshBuilder.Create(
+      var builder = StaticMeshBuilder.Create(
           Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"),
-          new MeshAssetLineageId(Guid.Parse("11111111-2222-4333-8444-555555555555")))
-        .SetRenderObject(
+          new MeshAssetLineageId(Guid.Parse("11111111-2222-4333-8444-555555555555")));
+      var vertices = new[]
+      {
+        new CanonicalStaticVertex(Vector3.Zero, Vector3.UnitZ, Vector2.Zero),
+        new CanonicalStaticVertex(Vector3.UnitX, Vector3.UnitZ, Vector2.UnitX),
+        new CanonicalStaticVertex(Vector3.UnitY, Vector3.UnitZ, Vector2.UnitY)
+      };
+      var triangles = new[] { new CanonicalTriangle(0, 1, 2) };
+      var build = textureResource is null
+        ? builder.SetRenderObject(vertices, triangles).Build()
+        : builder.SetRootSourceObject(new CanonicalStaticSourceObject(
         [
-          new CanonicalStaticVertex(Vector3.Zero, Vector3.UnitZ, Vector2.Zero),
-          new CanonicalStaticVertex(Vector3.UnitX, Vector3.UnitZ, Vector2.UnitX),
-          new CanonicalStaticVertex(Vector3.UnitY, Vector3.UnitZ, Vector2.UnitY)
-        ],
-        [new CanonicalTriangle(0, 1, 2)])
-        .Build();
+          new CanonicalStaticRenderObject(vertices, triangles, textureResource)
+        ])).Build();
       build.TryGetValue(out var asset).Should().BeTrue();
       var write = await new MshWriter().WriteFileAsync(asset!, fixture.MshPath);
       write.Succeeded.Should().BeTrue();
@@ -350,6 +730,27 @@ public sealed class InternalMshCommandHostTests
       result.AsSpan(20 + json.Length, paddedLength - json.Length).Fill(0x20);
       glb.AsSpan(oldBinaryOffset, binaryLength).CopyTo(result.AsSpan(20 + paddedLength));
       return result;
+    }
+
+    public static byte[] CreateRgbaTex(byte[] pixels)
+    {
+      var result = new byte[24 + pixels.Length];
+      "TEX\0\x01\0\0\0"u8.CopyTo(result);
+      BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(8), 0x03000012);
+      BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(12), 0x8888);
+      BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(16), 1);
+      BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(20), 1);
+      pixels.CopyTo(result, 24);
+      return result;
+    }
+
+    public static string GetPreviewContentAddress(byte[] pixels)
+    {
+      var preimage = new byte[sizeof(int) * 2 + pixels.Length];
+      BinaryPrimitives.WriteInt32LittleEndian(preimage, 1);
+      BinaryPrimitives.WriteInt32LittleEndian(preimage.AsSpan(sizeof(int)), 1);
+      pixels.CopyTo(preimage, sizeof(int) * 2);
+      return Convert.ToHexString(SHA256.HashData(preimage)).ToLowerInvariant();
     }
 
     private static void RemoveMetadata(JsonNode node)

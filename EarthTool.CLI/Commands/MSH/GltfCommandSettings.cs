@@ -9,10 +9,6 @@ namespace EarthTool.CLI.Commands.MSH;
 
 internal abstract class GltfCommandSettings : CommandSettings
 {
-  [CommandArgument(0, "<INPUT>")]
-  [Description("One concrete input file.")]
-  public string Input { get; init; } = string.Empty;
-
   [CommandOption("-o|--output <DIRECTORY>")]
   [Description("Destination directory. Defaults to the input directory.")]
   public string? OutputDirectory { get; init; }
@@ -24,6 +20,10 @@ internal abstract class GltfCommandSettings : CommandSettings
 
 internal sealed class ExportGltfSettings : GltfCommandSettings
 {
+  [CommandArgument(0, "<INPUT>")]
+  [Description("One or more concrete input files or file patterns.")]
+  public string[] Inputs { get; init; } = [];
+
   [CommandOption("--format <FORMAT>")]
   [Description("Package form: Glb (default) or Gltf.")]
   [DefaultValue(GltfPackageKind.Glb)]
@@ -43,6 +43,10 @@ internal abstract class ImportGltfSettings : GltfCommandSettings
 
 internal sealed class ImportEditGltfSettings : ImportGltfSettings
 {
+  [CommandArgument(0, "<INPUT>")]
+  [Description("One concrete input file.")]
+  public string Input { get; init; } = string.Empty;
+
   [CommandOption("--expected-lineage <UUID>")]
   public Guid ExpectedLineageId { get; init; }
 
@@ -50,4 +54,9 @@ internal sealed class ImportEditGltfSettings : ImportGltfSettings
   public Guid ExpectedDocumentId { get; init; }
 }
 
-internal sealed class ImportNewGltfSettings : ImportGltfSettings;
+internal sealed class ImportNewGltfSettings : ImportGltfSettings
+{
+  [CommandArgument(0, "<INPUT>")]
+  [Description("One or more concrete input files or file patterns.")]
+  public string[] Inputs { get; init; } = [];
+}

@@ -20,6 +20,7 @@ internal sealed class GltfCommandExecutor
   private readonly GltfInterchange _interchange;
   private readonly GltfImportPlanSerializer _planSerializer;
   private readonly GltfCliReportSerializer _reportSerializer;
+  private readonly ICliReportFileSystem _reportFileSystem;
   private readonly TextWriter _output;
 
   public GltfCommandExecutor(
@@ -27,12 +28,14 @@ internal sealed class GltfCommandExecutor
     GltfInterchange interchange,
     GltfImportPlanSerializer planSerializer,
     GltfCliReportSerializer reportSerializer,
+    ICliReportFileSystem reportFileSystem,
     CliOutput output)
   {
     _scopeFactory = scopeFactory;
     _interchange = interchange;
     _planSerializer = planSerializer;
     _reportSerializer = reportSerializer;
+    _reportFileSystem = reportFileSystem;
     _output = output.Writer;
   }
 
@@ -49,6 +52,12 @@ internal sealed class GltfCommandExecutor
 
     var input = Path.GetFullPath(settings.Input);
     var destination = GetImportDestination(input, settings.OutputDirectory);
+    if (HasWritePathCollision([destination], settings.ReportPath))
+    {
+      await WritePreflightFailureAsync("The report path collides with the derived destination.")
+        .ConfigureAwait(false);
+      return CliExitCode.Failure;
+    }
     var plan = await ReadPlanAsync(settings.PlanPath, cancellationToken).ConfigureAwait(false);
     OperationResult<GltfEditImportResult> imported;
     if (plan is not null && !plan.Succeeded)
@@ -106,30 +115,70 @@ internal sealed class GltfCommandExecutor
       packageKind,
       expectedBaseline!,
       complete);
-    var report = await WriteReportAsync(settings.ReportPath, operation)
-      .ConfigureAwait(false);
-    var finalStatus = AggregateStatus(complete.Status, report.Status);
-    await WriteSummaryAsync(
-      input,
-      destination,
-      finalStatus,
-      complete.Diagnostics.Concat(report.Diagnostics).ToArray())
-      .ConfigureAwait(false);
-    return ToExitCode(finalStatus);
+    await WriteOutcomeAsync(operation).ConfigureAwait(false);
+    return await CompleteInvocationAsync(settings.ReportPath, [operation]).ConfigureAwait(false);
   }
 
   public async Task<int> ImportNewAsync(
     ImportNewGltfSettings settings,
     CancellationToken cancellationToken)
   {
-    if (!TryGetPackageKind(settings.Input, out var packageKind))
+    if (settings.Inputs.Length == 0)
     {
       return CliExitCode.Usage;
     }
 
-    var input = Path.GetFullPath(settings.Input);
-    var destination = GetImportDestination(input, settings.OutputDirectory);
+    var expansion = ExpandInputs(settings.Inputs);
+    if (!expansion.Succeeded)
+    {
+      await WritePreflightFailureAsync(expansion.Error!).ConfigureAwait(false);
+      return CliExitCode.Failure;
+    }
+    var inputs = expansion.Inputs!;
+    var packageKinds = new GltfPackageKind[inputs.Count];
+    for (var index = 0; index < inputs.Count; index++)
+    {
+      if (!TryGetPackageKind(inputs[index], out packageKinds[index]))
+      {
+        return CliExitCode.Usage;
+      }
+    }
+    var destinations = inputs.Select(input =>
+      GetImportDestination(input, settings.OutputDirectory)).ToArray();
+    if (HasWritePathCollision(destinations, settings.ReportPath))
+    {
+      await WritePreflightFailureAsync("Derived destinations collide.").ConfigureAwait(false);
+      return CliExitCode.Failure;
+    }
+
     var plan = await ReadPlanAsync(settings.PlanPath, cancellationToken).ConfigureAwait(false);
+    var operations = new List<GltfCliReportOperation>(inputs.Count);
+    for (var index = 0; index < inputs.Count; index++)
+    {
+      var operation = await ImportNewOneAsync(
+        inputs[index],
+        destinations[index],
+        packageKinds[index],
+        plan,
+        cancellationToken).ConfigureAwait(false);
+      operations.Add(operation);
+      await WriteOutcomeAsync(operation).ConfigureAwait(false);
+      if (operation.Status == OperationStatus.Cancelled)
+      {
+        break;
+      }
+    }
+
+    return await CompleteInvocationAsync(settings.ReportPath, operations).ConfigureAwait(false);
+  }
+
+  private async Task<GltfCliReportOperation> ImportNewOneAsync(
+    string input,
+    string destination,
+    GltfPackageKind packageKind,
+    OperationResult<GltfImportPlan>? plan,
+    CancellationToken cancellationToken)
+  {
     OperationResult<GltfNewModelImportResult> imported;
     if (plan is not null && !plan.Succeeded)
     {
@@ -181,16 +230,7 @@ internal sealed class GltfCommandExecutor
       destination,
       packageKind,
       complete);
-    var report = await WriteReportAsync(settings.ReportPath, operation)
-      .ConfigureAwait(false);
-    var finalStatus = AggregateStatus(complete.Status, report.Status);
-    await WriteSummaryAsync(
-      input,
-      destination,
-      finalStatus,
-      complete.Diagnostics.Concat(report.Diagnostics).ToArray())
-      .ConfigureAwait(false);
-    return ToExitCode(finalStatus);
+    return operation;
   }
 
   public async Task<int> ExportAsync(
@@ -198,13 +238,56 @@ internal sealed class GltfCommandExecutor
     CancellationToken cancellationToken)
   {
     if (!Enum.IsDefined(typeof(GltfPackageKind), settings.Format)
-      || settings.TextureSearchRoots.Any(root => !Path.IsPathRooted(root)))
+      || settings.TextureSearchRoots.Any(root => !Path.IsPathFullyQualified(root))
+      || settings.Inputs.Length == 0)
     {
       return CliExitCode.Usage;
     }
 
-    var input = Path.GetFullPath(settings.Input);
-    var destination = GetDestination(input, settings.OutputDirectory, settings.Format);
+    var expansion = ExpandInputs(settings.Inputs);
+    if (!expansion.Succeeded)
+    {
+      await WritePreflightFailureAsync(expansion.Error!).ConfigureAwait(false);
+      return CliExitCode.Failure;
+    }
+
+    var inputs = expansion.Inputs!;
+    var destinations = inputs.Select(input =>
+      GetDestination(input, settings.OutputDirectory, settings.Format)).ToArray();
+    if (HasWritePathCollision(
+      destinations,
+      settings.ReportPath,
+      reservesContentAddressedSidecars: settings.Format == GltfPackageKind.Gltf))
+    {
+      await WritePreflightFailureAsync("Derived destinations collide.").ConfigureAwait(false);
+      return CliExitCode.Failure;
+    }
+
+    var operations = new List<GltfCliReportOperation>(inputs.Count);
+    for (var index = 0; index < inputs.Count; index++)
+    {
+      var operation = await ExportOneAsync(
+        inputs[index],
+        destinations[index],
+        settings,
+        cancellationToken).ConfigureAwait(false);
+      operations.Add(operation);
+      await WriteOutcomeAsync(operation).ConfigureAwait(false);
+      if (operation.Status == OperationStatus.Cancelled)
+      {
+        break;
+      }
+    }
+
+    return await CompleteInvocationAsync(settings.ReportPath, operations).ConfigureAwait(false);
+  }
+
+  private async Task<GltfCliReportOperation> ExportOneAsync(
+    string input,
+    string destination,
+    ExportGltfSettings settings,
+    CancellationToken cancellationToken)
+  {
     using var scope = _scopeFactory.CreateScope();
     var read = await scope.ServiceProvider.GetRequiredService<IMshReader>()
       .ReadFileAsync(input, cancellationToken: cancellationToken)
@@ -233,16 +316,7 @@ internal sealed class GltfCommandExecutor
         destination,
         settings.Format,
         failed);
-      var failedReport = await WriteReportAsync(settings.ReportPath, failedOperation)
-        .ConfigureAwait(false);
-      var finalStatus = AggregateStatus(failed.Status, failedReport.Status);
-      await WriteSummaryAsync(
-        input,
-        destination,
-        finalStatus,
-        failed.Diagnostics.Concat(failedReport.Diagnostics).ToArray())
-        .ConfigureAwait(false);
-      return ToExitCode(finalStatus);
+      return failedOperation;
     }
 
     var options = new GltfExportOptions(textureSearchRoots: settings.TextureSearchRoots);
@@ -267,38 +341,93 @@ internal sealed class GltfCommandExecutor
       settings.Format,
       asset,
       combined);
-    var report = await WriteReportAsync(settings.ReportPath, operation)
+    return operation;
+  }
+
+  private async Task<int> CompleteInvocationAsync(
+    string? reportPath,
+    IReadOnlyList<GltfCliReportOperation> operations)
+  {
+    var invocationReport = new GltfCliReport(operations);
+    var report = await WriteReportAsync(reportPath, invocationReport).ConfigureAwait(false);
+    foreach (var diagnostic in report.Diagnostics)
+    {
+      await WriteDiagnosticAsync(diagnostic).ConfigureAwait(false);
+    }
+    var finalStatus = AggregateStatus(invocationReport.Status, report.Status);
+    await WriteAggregateSummaryAsync(operations, finalStatus, report)
       .ConfigureAwait(false);
-    var completeStatus = AggregateStatus(combined.Status, report.Status);
-    await WriteSummaryAsync(
-      input,
-      destination,
-      completeStatus,
-      combined.Diagnostics.Concat(report.Diagnostics).ToArray())
+    return ToExitCode(finalStatus);
+  }
+
+  private async Task WriteOutcomeAsync(GltfCliReportOperation operation)
+  {
+    await _output.WriteLineAsync(
+      $"outcome status={StatusName(operation.Status)} input={operation.Input} destination={operation.Destination} diagnostics={operation.Diagnostics.Count}")
       .ConfigureAwait(false);
-    return ToExitCode(completeStatus);
+    foreach (var diagnostic in operation.Diagnostics)
+    {
+      await WriteDiagnosticAsync(diagnostic).ConfigureAwait(false);
+    }
+  }
+
+  private Task WriteDiagnosticAsync(OperationDiagnostic diagnostic)
+  {
+    return _output.WriteLineAsync(
+      $"diagnostic code={diagnostic.Code} eventId={diagnostic.EventId} severity={diagnostic.Severity} path={diagnostic.Path}");
+  }
+
+  private async Task WriteAggregateSummaryAsync(
+    IReadOnlyList<GltfCliReportOperation> operations,
+    OperationStatus finalStatus,
+    OperationResult report)
+  {
+    var reportFailed = report.Status == OperationStatus.Failed;
+    var succeeded = reportFailed ? 0 : operations.Count(operation => operation.Status == OperationStatus.Succeeded);
+    var failed = reportFailed ? Math.Max(1, operations.Count) : operations.Count(operation => operation.Status == OperationStatus.Failed);
+    var cancelled = reportFailed ? 0 : operations.Count(operation => operation.Status == OperationStatus.Cancelled);
+    var warnings = operations.SelectMany(operation => operation.Diagnostics)
+      .Concat(report.Diagnostics)
+      .Count(diagnostic => diagnostic.Severity == DiagnosticSeverity.Warning);
+    await _output.WriteLineAsync(
+      $"summary total={operations.Count} succeeded={succeeded} failed={failed} cancelled={cancelled} warnings={warnings} status={StatusName(finalStatus)}")
+      .ConfigureAwait(false);
+  }
+
+  private async Task WritePreflightFailureAsync(string message)
+  {
+    await _output.WriteLineAsync($"preflight status=failed message={message}").ConfigureAwait(false);
+    await _output.WriteLineAsync("summary total=0 succeeded=0 failed=1 cancelled=0 warnings=0 status=failed")
+      .ConfigureAwait(false);
   }
 
   private async Task<OperationResult> WriteReportAsync(
     string? reportPath,
-    GltfCliReportOperation operation)
+    GltfCliReport report)
   {
     if (reportPath is null)
     {
       return new OperationResult(OperationStatus.Succeeded);
     }
 
+    string? temporaryPath = null;
     try
     {
-      await using var destination = new FileStream(
-        Path.GetFullPath(reportPath),
-        FileMode.Create,
-        FileAccess.Write,
-        FileShare.None);
+      var destinationPath = Path.GetFullPath(reportPath);
+      temporaryPath = _reportFileSystem.GetTemporaryPath(destinationPath);
+      await using var destination = _reportFileSystem.CreateTemporary(temporaryPath);
       var result = await _reportSerializer.SerializeAsync(
-        new GltfCliReport([operation]),
+        report,
         destination,
         cancellationToken: CancellationToken.None).ConfigureAwait(false);
+      if (!result.Succeeded)
+      {
+        return result;
+      }
+      await destination.FlushAsync(CancellationToken.None).ConfigureAwait(false);
+      destination.Close();
+      _reportFileSystem.Commit(temporaryPath, destinationPath);
+      temporaryPath = null;
       return result;
     }
     catch (OperationCanceledException)
@@ -308,6 +437,13 @@ internal sealed class GltfCommandExecutor
     catch (Exception ex)
     {
       return IoFailure(ex);
+    }
+    finally
+    {
+      if (temporaryPath is not null)
+      {
+        _reportFileSystem.TryDelete(temporaryPath);
+      }
     }
   }
 
@@ -365,30 +501,6 @@ internal sealed class GltfCommandExecutor
     }
   }
 
-  private async Task WriteSummaryAsync(
-    string input,
-    string destination,
-    OperationStatus status,
-    IReadOnlyList<OperationDiagnostic> diagnostics)
-  {
-    await _output.WriteLineAsync(
-      $"outcome status={StatusName(status)} input={input} destination={destination} diagnostics={diagnostics.Count}")
-      .ConfigureAwait(false);
-    foreach (var diagnostic in diagnostics)
-    {
-      await _output.WriteLineAsync(
-        $"diagnostic code={diagnostic.Code} eventId={diagnostic.EventId} severity={diagnostic.Severity} path={diagnostic.Path}")
-        .ConfigureAwait(false);
-    }
-    var succeeded = status == OperationStatus.Succeeded ? 1 : 0;
-    var failed = status == OperationStatus.Failed ? 1 : 0;
-    var cancelled = status == OperationStatus.Cancelled ? 1 : 0;
-    var warnings = diagnostics.Count(diagnostic => diagnostic.Severity == DiagnosticSeverity.Warning);
-    await _output.WriteLineAsync(
-      $"summary total=1 succeeded={succeeded} failed={failed} cancelled={cancelled} warnings={warnings}")
-      .ConfigureAwait(false);
-  }
-
   private static string GetDestination(
     string input,
     string? outputDirectory,
@@ -440,6 +552,103 @@ internal sealed class GltfCommandExecutor
       baseline = null;
       return false;
     }
+  }
+
+  private static (
+    bool Succeeded,
+    IReadOnlyList<string>? Inputs,
+    string? Error) ExpandInputs(IEnumerable<string> inputs)
+  {
+    var expanded = new List<string>();
+    foreach (var value in inputs)
+    {
+      try
+      {
+        if (!ContainsPattern(value))
+        {
+          expanded.Add(Path.GetFullPath(value));
+          continue;
+        }
+
+        var directory = Path.GetDirectoryName(value);
+        var pattern = Path.GetFileName(value);
+        if (string.IsNullOrEmpty(directory))
+        {
+          directory = Directory.GetCurrentDirectory();
+        }
+        if (string.IsNullOrEmpty(pattern)
+          || ContainsPattern(directory)
+          || !Directory.Exists(directory))
+        {
+          return (false, null, $"Input pattern matched no files: {value}");
+        }
+
+        var matches = Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly)
+          .Select(Path.GetFullPath)
+          .OrderBy(path => path, StringComparer.Ordinal)
+          .ToArray();
+        if (matches.Length == 0)
+        {
+          return (false, null, $"Input pattern matched no files: {value}");
+        }
+        expanded.AddRange(matches);
+      }
+      catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+      {
+        return (false, null, $"Input expansion failed for {value}: {ex.Message}");
+      }
+    }
+
+    return expanded.Count == 0
+      ? (false, null, "No input files were specified.")
+      : (true, expanded, null);
+  }
+
+  private static bool HasWritePathCollision(
+    IEnumerable<string> destinations,
+    string? reportPath,
+    bool reservesContentAddressedSidecars = false)
+  {
+    var comparer = OperatingSystem.IsWindows()
+      ? StringComparer.OrdinalIgnoreCase
+      : StringComparer.Ordinal;
+    var paths = new HashSet<string>(comparer);
+    var directories = new HashSet<string>(comparer);
+    foreach (var destination in destinations)
+    {
+      var fullPath = Path.GetFullPath(destination);
+      if (!paths.Add(fullPath))
+      {
+        return true;
+      }
+      directories.Add(Path.GetDirectoryName(fullPath) ?? Directory.GetCurrentDirectory());
+    }
+    if (reportPath is null)
+    {
+      return false;
+    }
+
+    var reportFullPath = Path.GetFullPath(reportPath);
+    return !paths.Add(reportFullPath)
+      || reservesContentAddressedSidecars
+      && directories.Contains(Path.GetDirectoryName(reportFullPath) ?? Directory.GetCurrentDirectory())
+      && IsContentAddressedSidecar(Path.GetFileName(reportFullPath));
+  }
+
+  private static bool IsContentAddressedSidecar(string fileName)
+  {
+    var extension = Path.GetExtension(fileName);
+    if (!extension.Equals(".bin", StringComparison.OrdinalIgnoreCase)
+      && !extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
+    {
+      return false;
+    }
+
+    var contentAddress = Path.GetFileNameWithoutExtension(fileName);
+    return contentAddress.Length == 64 && contentAddress.All(character =>
+      character is >= '0' and <= '9'
+        or >= 'a' and <= 'f'
+        or >= 'A' and <= 'F');
   }
 
   private static bool ContainsPattern(string input)

@@ -36,16 +36,22 @@ internal static class InternalMshCommandHost
   public static async Task<int> RunAsync(
     IEnumerable<string> args,
     TextWriter? output = null,
-    CancellationToken cancellationToken = default)
+    CancellationToken cancellationToken = default,
+    Action<IServiceCollection>? configureServices = null)
   {
     var hostBuilder = Host.CreateDefaultBuilder()
-      .ConfigureServices(services => services
-        .AddMshServices()
-        .AddSingleton<GltfInterchange>()
-        .AddSingleton<GltfImportPlanSerializer>()
-        .AddSingleton<GltfCliReportSerializer>()
-        .AddSingleton(new CliOutput(output ?? Console.Out))
-        .AddSingleton<GltfCommandExecutor>());
+      .ConfigureServices(services =>
+      {
+        services
+          .AddMshServices()
+          .AddSingleton<GltfInterchange>()
+          .AddSingleton<GltfImportPlanSerializer>()
+          .AddSingleton<GltfCliReportSerializer>()
+          .AddSingleton<ICliReportFileSystem, CliReportFileSystem>()
+          .AddSingleton(new CliOutput(output ?? Console.Out))
+          .AddSingleton<GltfCommandExecutor>();
+        configureServices?.Invoke(services);
+      });
     var app = new CommandApp(new CommandTypeRegistrar(hostBuilder));
     app.Configure(config =>
     {
