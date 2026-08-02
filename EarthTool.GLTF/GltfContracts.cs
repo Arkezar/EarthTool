@@ -104,6 +104,16 @@ namespace EarthTool.GLTF
     public const string TooManyMetadataConflicts = "ETG2019";
     /// <summary>The manifest inventory or identity high-water marks are invalid.</summary>
     public const string InvalidManifestInventory = "ETG2020";
+    /// <summary>The import plan is malformed or contains forbidden state.</summary>
+    public const string MalformedImportPlan = "ETG3000";
+    /// <summary>The import-plan protocol version is unsupported.</summary>
+    public const string UnsupportedImportPlanVersion = "ETG3001";
+    /// <summary>The import plan exceeds its finite operation profile.</summary>
+    public const string ImportPlanResourceLimitExceeded = "ETG3002";
+    /// <summary>A conflict action no longer matches the current conflict inventory.</summary>
+    public const string StaleImportPlan = "ETG3003";
+    /// <summary>The plan does not match the selected import or source package.</summary>
+    public const string ImportPlanMismatch = "ETG3004";
   }
 
   /// <summary>Defines the closed version-1 metadata conflict action identifiers.</summary>

@@ -471,6 +471,63 @@ namespace EarthTool.GLTF
         cancellationToken);
     }
 
+    /// <summary>Imports a GLB using one validated, source-bound edit plan.</summary>
+    public async Task<OperationResult<GltfEditImportResult>> ImportEditGlbWithPlanAsync(
+      Stream source,
+      InterchangeBaseline expectedBaseline,
+      GltfImportPlan plan,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      if (source is null)
+      {
+        throw new ArgumentNullException(nameof(source));
+      }
+      if (expectedBaseline is null)
+      {
+        throw new ArgumentNullException(nameof(expectedBaseline));
+      }
+      if (plan is null)
+      {
+        throw new ArgumentNullException(nameof(plan));
+      }
+      profile ??= GltfOperationProfile.Default;
+      var mismatch = ValidatePlan(
+        plan,
+        GltfImportPlanKind.Edit,
+        GltfPackageKind.Glb,
+        expectedBaseline,
+        profile);
+      if (mismatch is not null)
+      {
+        return Failed<GltfEditImportResult>(mismatch);
+      }
+      try
+      {
+        var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken).ConfigureAwait(false);
+        if (!MatchesPlanSource(bytes, plan))
+        {
+          return Failed<GltfEditImportResult>(PlanMismatch("sourceSha256"));
+        }
+        using var captured = new MemoryStream(bytes, false);
+        var result = await ImportEditGlbWithResolutionsAsync(
+          captured,
+          expectedBaseline,
+          plan.EditOptions!,
+          profile,
+          cancellationToken).ConfigureAwait(false);
+        return TranslateStalePlan(result, plan);
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfEditImportResult>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfEditImportResult>(ToDiagnostic(ex));
+      }
+    }
+
     /// <summary>Imports a GLB and transactionally applies exact metadata conflict resolutions.</summary>
     public async Task<OperationResult<GltfEditImportResult>> ImportEditGlbWithResolutionsAsync(
       Stream source,
@@ -589,6 +646,64 @@ namespace EarthTool.GLTF
         cancellationToken);
     }
 
+    /// <summary>Imports separate glTF using one validated, source-bound edit plan.</summary>
+    public async Task<OperationResult<GltfEditImportResult>> ImportEditGltfFileWithPlanAsync(
+      string sourcePath,
+      InterchangeBaseline expectedBaseline,
+      GltfImportPlan plan,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      if (sourcePath is null)
+      {
+        throw new ArgumentNullException(nameof(sourcePath));
+      }
+      if (expectedBaseline is null)
+      {
+        throw new ArgumentNullException(nameof(expectedBaseline));
+      }
+      if (plan is null)
+      {
+        throw new ArgumentNullException(nameof(plan));
+      }
+      profile ??= GltfOperationProfile.Default;
+      var mismatch = ValidatePlan(
+        plan,
+        GltfImportPlanKind.Edit,
+        GltfPackageKind.Gltf,
+        expectedBaseline,
+        profile);
+      if (mismatch is not null)
+      {
+        return Failed<GltfEditImportResult>(mismatch);
+      }
+      try
+      {
+        var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
+          .ConfigureAwait(false);
+        if (!GltfImportPlanSerializer.MatchesSeparateSource(package, plan.SourceSha256))
+        {
+          return Failed<GltfEditImportResult>(PlanMismatch("sourceSha256"));
+        }
+        var result = await ImportEditSeparatePackageAsync(
+          package,
+          expectedBaseline,
+          plan.EditOptions!,
+          profile,
+          sourcePath,
+          cancellationToken).ConfigureAwait(false);
+        return TranslateStalePlan(result, plan);
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfEditImportResult>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfEditImportResult>(ToDiagnostic(ex, sourcePath));
+      }
+    }
+
     /// <summary>Imports separate glTF and transactionally applies exact metadata conflict resolutions.</summary>
     public async Task<OperationResult<GltfEditImportResult>> ImportEditGltfFileWithResolutionsAsync(
       string sourcePath,
@@ -612,16 +727,17 @@ namespace EarthTool.GLTF
         throw new ArgumentNullException(nameof(options));
       }
       profile ??= GltfOperationProfile.Default;
-      SeparateGltfPackage? package = null;
       try
       {
-        package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
+        var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
           .ConfigureAwait(false);
-        var parsed = GlbDocument.ParseSeparate(package.Json, package.Binary, profile);
-        GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri, package.Images);
-        ValidateGeometryProfile(parsed, profile);
-        return await ImportParsedAsync(parsed, expectedBaseline, options, profile, cancellationToken)
-          .ConfigureAwait(false);
+        return await ImportEditSeparatePackageAsync(
+          package,
+          expectedBaseline,
+          options,
+          profile,
+          sourcePath,
+          cancellationToken).ConfigureAwait(false);
       }
       catch (OperationCanceledException)
       {
@@ -629,8 +745,31 @@ namespace EarthTool.GLTF
       }
       catch (Exception ex)
       {
-        if (package is not null
-          && TryGetParseScopeResolution(
+        return Failed<GltfEditImportResult>(BindConflictToBaseline(
+          ToDiagnostic(ex, sourcePath),
+          expectedBaseline));
+      }
+    }
+
+    private static async Task<OperationResult<GltfEditImportResult>> ImportEditSeparatePackageAsync(
+      SeparateGltfPackage package,
+      InterchangeBaseline expectedBaseline,
+      GltfEditImportOptions options,
+      GltfOperationProfile profile,
+      string sourcePath,
+      CancellationToken cancellationToken)
+    {
+      try
+      {
+        var parsed = GlbDocument.ParseSeparate(package.Json, package.Binary, profile);
+        GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri, package.Images);
+        ValidateGeometryProfile(parsed, profile);
+        return await ImportParsedAsync(parsed, expectedBaseline, options, profile, cancellationToken)
+          .ConfigureAwait(false);
+      }
+      catch (Exception ex)
+      {
+        if (TryGetParseScopeResolution(
             ex,
             expectedBaseline,
             options,
@@ -670,8 +809,7 @@ namespace EarthTool.GLTF
               expectedBaseline));
           }
         }
-        if (package is not null
-          && TryGetWholeLineageResolution(
+        if (TryGetWholeLineageResolution(
             ex,
             expectedBaseline,
             options,
@@ -737,6 +875,56 @@ namespace EarthTool.GLTF
       }
     }
 
+    /// <summary>Imports a metadata-free GLB using one validated, source-bound semantic plan.</summary>
+    public async Task<OperationResult<GltfNewModelImportResult>> ImportNewModelGlbWithPlanAsync(
+      Stream source,
+      GltfImportPlan plan,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      if (source is null)
+      {
+        throw new ArgumentNullException(nameof(source));
+      }
+      if (plan is null)
+      {
+        throw new ArgumentNullException(nameof(plan));
+      }
+      profile ??= GltfOperationProfile.Default;
+      var mismatch = ValidatePlan(
+        plan,
+        GltfImportPlanKind.NewModel,
+        GltfPackageKind.Glb,
+        null,
+        profile);
+      if (mismatch is not null)
+      {
+        return Failed<GltfNewModelImportResult>(mismatch);
+      }
+      try
+      {
+        var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken).ConfigureAwait(false);
+        if (!MatchesPlanSource(bytes, plan))
+        {
+          return Failed<GltfNewModelImportResult>(PlanMismatch("sourceSha256"));
+        }
+        using var captured = new MemoryStream(bytes, false);
+        return await ImportNewModelGlbAsync(
+          captured,
+          plan.NewModelOptions,
+          profile,
+          cancellationToken).ConfigureAwait(false);
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfNewModelImportResult>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfNewModelImportResult>(ToDiagnostic(ex));
+      }
+    }
+
     /// <summary>Imports metadata-free separate glTF as a canonical authored static mesh representation.</summary>
     public async Task<OperationResult<GltfNewModelImportResult>> ImportNewModelGltfFileAsync(
       string sourcePath,
@@ -755,13 +943,7 @@ namespace EarthTool.GLTF
       {
         var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
           .ConfigureAwait(false);
-        var parsed = GlbDocument.ParseSeparateNewModel(
-          package.Json,
-          package.Binary,
-          profile);
-        GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri, package.Images);
-        ValidateGeometryProfile(parsed, profile);
-        return ImportNewModelParsed(parsed, profile, cancellationToken, options);
+        return ImportNewModelSeparatePackage(package, profile, cancellationToken, options);
       }
       catch (OperationCanceledException)
       {
@@ -771,6 +953,71 @@ namespace EarthTool.GLTF
       {
         return Failed<GltfNewModelImportResult>(ToDiagnostic(ex, sourcePath));
       }
+    }
+
+    /// <summary>Imports metadata-free separate glTF using one validated, source-bound semantic plan.</summary>
+    public async Task<OperationResult<GltfNewModelImportResult>> ImportNewModelGltfFileWithPlanAsync(
+      string sourcePath,
+      GltfImportPlan plan,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      if (sourcePath is null)
+      {
+        throw new ArgumentNullException(nameof(sourcePath));
+      }
+      if (plan is null)
+      {
+        throw new ArgumentNullException(nameof(plan));
+      }
+      profile ??= GltfOperationProfile.Default;
+      var mismatch = ValidatePlan(
+        plan,
+        GltfImportPlanKind.NewModel,
+        GltfPackageKind.Gltf,
+        null,
+        profile);
+      if (mismatch is not null)
+      {
+        return Failed<GltfNewModelImportResult>(mismatch);
+      }
+      try
+      {
+        var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
+          .ConfigureAwait(false);
+        if (!GltfImportPlanSerializer.MatchesSeparateSource(package, plan.SourceSha256))
+        {
+          return Failed<GltfNewModelImportResult>(PlanMismatch("sourceSha256"));
+        }
+        return ImportNewModelSeparatePackage(
+          package,
+          profile,
+          cancellationToken,
+          plan.NewModelOptions!);
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfNewModelImportResult>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfNewModelImportResult>(ToDiagnostic(ex, sourcePath));
+      }
+    }
+
+    private static OperationResult<GltfNewModelImportResult> ImportNewModelSeparatePackage(
+      SeparateGltfPackage package,
+      GltfOperationProfile profile,
+      CancellationToken cancellationToken,
+      GltfNewModelImportOptions options)
+    {
+      var parsed = GlbDocument.ParseSeparateNewModel(
+        package.Json,
+        package.Binary,
+        profile);
+      GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri, package.Images);
+      ValidateGeometryProfile(parsed, profile);
+      return ImportNewModelParsed(parsed, profile, cancellationToken, options);
     }
 
     /// <summary>Strictly validates one supported GLB without materializing MSH output.</summary>
@@ -847,7 +1094,7 @@ namespace EarthTool.GLTF
       }
     }
 
-    private static async Task<SeparateGltfPackage> ReadSeparatePackageAsync(
+    internal static async Task<SeparateGltfPackage> ReadSeparatePackageAsync(
       string sourcePath,
       GltfOperationProfile profile,
       CancellationToken cancellationToken)
@@ -913,7 +1160,7 @@ namespace EarthTool.GLTF
       return new SeparateGltfPackage(json, binary, bufferUri, images);
     }
 
-    private sealed class SeparateGltfPackage
+    internal sealed class SeparateGltfPackage
     {
       internal byte[] Json { get; }
 
@@ -5867,6 +6114,75 @@ namespace EarthTool.GLTF
     private static OperationDiagnostic Diagnostic(string code, int eventId, string path, string message)
     {
       return new OperationDiagnostic(code, eventId, DiagnosticSeverity.Error, path, message);
+    }
+
+    private static OperationDiagnostic? ValidatePlan(
+      GltfImportPlan plan,
+      GltfImportPlanKind kind,
+      GltfPackageKind packageKind,
+      InterchangeBaseline? expectedBaseline,
+      GltfOperationProfile profile)
+    {
+      var limit = plan.ValidateProfile(profile);
+      if (limit is not null)
+      {
+        return limit;
+      }
+      if (plan.Kind != kind)
+      {
+        return PlanMismatch("mode");
+      }
+      if (plan.PackageKind != packageKind)
+      {
+        return PlanMismatch("package");
+      }
+      if (kind == GltfImportPlanKind.Edit
+        && (plan.ExpectedBaseline is null
+          || expectedBaseline is null
+          || plan.ExpectedBaseline.AssetLineageId != expectedBaseline.AssetLineageId
+          || plan.ExpectedBaseline.DocumentId != expectedBaseline.DocumentId))
+      {
+        return PlanMismatch("expectedBaseline");
+      }
+      return null;
+    }
+
+    private static bool MatchesPlanSource(byte[] source, GltfImportPlan plan)
+    {
+      return string.Equals(
+        GltfImportPlanSerializer.Hash(source),
+        plan.SourceSha256,
+        StringComparison.Ordinal);
+    }
+
+    private static OperationDiagnostic PlanMismatch(string path)
+    {
+      return new OperationDiagnostic(
+        GltfDiagnosticCodes.ImportPlanMismatch,
+        3004,
+        DiagnosticSeverity.Error,
+        path,
+        "The import plan does not match the selected import or source package.",
+        data: new Dictionary<string, string> { ["dimension"] = path });
+    }
+
+    private static OperationResult<GltfEditImportResult> TranslateStalePlan(
+      OperationResult<GltfEditImportResult> result,
+      GltfImportPlan plan)
+    {
+      if (plan.EditOptions!.ConflictResolutions.Count == 0
+        || !result.Diagnostics.Any(diagnostic =>
+          diagnostic.Code == GltfDiagnosticCodes.MalformedMetadata
+          && diagnostic.Path == "metadata.actions"))
+      {
+        return result;
+      }
+      return Failed<GltfEditImportResult>(new OperationDiagnostic(
+        GltfDiagnosticCodes.StaleImportPlan,
+        3003,
+        DiagnosticSeverity.Error,
+        "conflictActions",
+        "A planned conflict action is stale or does not match the current conflict inventory."));
     }
 
     private static OperationDiagnostic MetadataDiagnostic(

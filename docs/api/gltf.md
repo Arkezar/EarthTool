@@ -39,6 +39,36 @@ winding and triangle multiplicity. The manifest records the preserved MSH byte
 length and SHA-256 as informational provenance; a contradiction reports
 `ETG2017` but never authorizes preservation state.
 
+Import plans and machine reports are separate protocols from embedded metadata.
+Version 1 plans use format `earthtool.msh.import-plan`; version 1 reports use
+format `earthtool.msh.cli-report`. `GltfImportPlanFormat` and
+`GltfCliReportFormat` expose their supported versions independently, so changing
+one protocol does not reinterpret either of the others.
+
+`GltfImportPlanSerializer` accepts only the closed typed values represented by
+`GltfNewModelImportOptions` or `GltfEditImportOptions`. New-model plans may carry
+TEX bindings, footprint and extent values, object roles, helper bindings,
+MSH-only light values, and animation classes. Edit plans may carry exact
+baseline-bound conflict actions. Unknown members and raw metadata, MSH bytes,
+adapter objects, guards, and expert state are rejected. A plan also binds its
+intent, package kind, and a lowercase SHA-256 source digest. GLB uses the exact
+file bytes. Separate glTF uses a domain-separated digest over the exact manifest,
+buffer, and referenced images, with sidecars ordered by ordinal URI. Use
+`ComputeGlbSourceSha256Async` or `ComputeGltfSourceSha256Async` to produce the
+binding. The `WithPlanAsync` import methods capture and verify those same bytes
+before opening an import transaction. Malformed, unsupported, excessive, stale,
+and mismatched plans report `ETG3000` through `ETG3004` without returning a
+partial asset.
+
+`GltfCliReport` collects complete export, edit-import, new-model-import, and
+validation outcomes. `GltfCliReportSerializer` writes fixed-order UTF-8 JSON with
+an invocation status and every operation's input, destination, package kind,
+status, diagnostics, identities, fingerprint, applied conflict actions, restored
+paths, and preservation effects. Operation order and diagnostic/preservation
+order are retained; diagnostic data keys are sorted ordinally. Reports contain
+no timestamps or host-generated paths, and repeated serialization of the same
+outcomes is byte-identical.
+
 Effective animation classes A through D export as `EarthTool A` through
 `EarthTool D` clips. Each participating source object has explicit dense
 translation, canonical-quaternion rotation, and scale channels sampled at

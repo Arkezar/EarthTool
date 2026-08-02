@@ -1,0 +1,396 @@
+{
+  "format": "earthtool.msh.cli-report",
+  "version": 1,
+  "status": "failed",
+  "operations": [
+    {
+      "index": 0,
+      "input": "input.msh",
+      "kind": "export",
+      "package": "glb",
+      "status": "succeeded",
+      "destination": "input.glb",
+      "diagnostics": [],
+      "identities": {
+        "meshAssetLineageId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        "meshCreationGuid": "11111111-2222-4333-8444-555555555555",
+        "expectedBaseline": null,
+        "baseline": {
+          "assetLineageId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          "documentId": "11111111-2222-4333-8444-555555555555"
+        },
+        "nextBaseline": null,
+        "fingerprint": {
+          "name": "static-geometry",
+          "version": 1,
+          "sha256": "c0cd8e558cf16d3f8a9971b5491ce8068d63febf92401cadcee0c788948b5094"
+        }
+      },
+      "lineageDisposition": null,
+      "appliedConflictActions": [],
+      "preservation": {
+        "restoredSerializedRepresentationPaths": [],
+        "changes": []
+      }
+    },
+    {
+      "index": 1,
+      "input": "authored.glb",
+      "kind": "importNewModel",
+      "package": "glb",
+      "status": "succeeded",
+      "destination": "authored.msh",
+      "diagnostics": [],
+      "identities": {
+        "meshAssetLineageId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        "meshCreationGuid": "11111111-2222-4333-8444-555555555555",
+        "expectedBaseline": null,
+        "baseline": {
+          "assetLineageId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          "documentId": "11111111-2222-4333-8444-555555555555"
+        },
+        "nextBaseline": null,
+        "fingerprint": null
+      },
+      "lineageDisposition": null,
+      "appliedConflictActions": [],
+      "preservation": {
+        "restoredSerializedRepresentationPaths": [],
+        "changes": [
+          {
+            "fieldPath": "ArchiveFraming",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader.AnimationLengths",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader.AnimationFrameIndices",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader.Footprint",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader.AttachmentTable",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader.CannonRenderPositions",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader.StaticLights",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader.HorizontalExtents",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "RootSourceObject",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "RootTrailingBytes",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].ObjectFlags",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].BarrelMaximumAngle",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].Pivot",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].RenderVertices",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].VertexBlockCount",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].VertexBlockPadding",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].Triangles",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].AnimationClassValue",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].AnimationTracks.ScaleFrames",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].AnimationTracks.TranslationFrames",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].AnimationTracks.Matrices",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].TexturePathBytes",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].NextRecordMarker",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StoredTrailingHierarchyUnwindCount",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          }
+        ]
+      }
+    },
+    {
+      "index": 2,
+      "input": "edited.glb",
+      "kind": "importEdit",
+      "package": "glb",
+      "status": "succeeded",
+      "destination": "edited.msh",
+      "diagnostics": [],
+      "identities": {
+        "meshAssetLineageId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        "meshCreationGuid": "11111111-2222-4333-8444-555555555555",
+        "expectedBaseline": {
+          "assetLineageId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          "documentId": "11111111-2222-4333-8444-555555555555"
+        },
+        "baseline": null,
+        "nextBaseline": {
+          "assetLineageId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          "documentId": "11111111-2222-4333-8444-555555555555"
+        },
+        "fingerprint": null
+      },
+      "lineageDisposition": "discarded",
+      "appliedConflictActions": [
+        {
+          "conflictKey": "v1:h1OLNEoTsmb1mXoC4mCdMxmnw9dqE1X2cTtStFechfA",
+          "action": "discardLineage",
+          "targetNativePath": null
+        }
+      ],
+      "preservation": {
+        "restoredSerializedRepresentationPaths": [],
+        "changes": [
+          {
+            "fieldPath": "ArchiveFraming",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader.AnimationLengths",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader.AnimationFrameIndices",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader.Footprint",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader.AttachmentTable",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader.CannonRenderPositions",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader.StaticLights",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "CommonBaseHeader.HorizontalExtents",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "RootSourceObject",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "RootTrailingBytes",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].ObjectFlags",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].BarrelMaximumAngle",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].Pivot",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].RenderVertices",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].VertexBlockCount",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].VertexBlockPadding",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].Triangles",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].AnimationClassValue",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].AnimationTracks.ScaleFrames",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].AnimationTracks.TranslationFrames",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].AnimationTracks.Matrices",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].TexturePathBytes",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StaticRenderObjectSequence[0].NextRecordMarker",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          },
+          {
+            "fieldPath": "StoredTrailingHierarchyUnwindCount",
+            "disposition": "canonicalized",
+            "reason": "NewModelImport"
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "input": "invalid.glb",
+      "kind": "validate",
+      "package": "glb",
+      "status": "failed",
+      "destination": null,
+      "diagnostics": [
+        {
+          "code": "ETG1006",
+          "eventId": 1106,
+          "severity": "error",
+          "path": "meshes[0].primitives[0]",
+          "byteOffset": 24,
+          "data": {
+            "alpha": "first",
+            "zeta": "last"
+          },
+          "message": "Non-contractual prose."
+        }
+      ],
+      "identities": {
+        "meshAssetLineageId": null,
+        "meshCreationGuid": null,
+        "expectedBaseline": null,
+        "baseline": null,
+        "nextBaseline": null,
+        "fingerprint": null
+      },
+      "lineageDisposition": null,
+      "appliedConflictActions": [],
+      "preservation": {
+        "restoredSerializedRepresentationPaths": [],
+        "changes": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "format": "earthtool.msh.import-plan",
+  "version": 1,
+  "mode": "newModel",
+  "package": "glb",
+  "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "semanticOverrides": {
+    "textureResourceBindings": [
+      {
+        "material": 1,
+        "resourceKey": "Textures\\authored\\hull.tex"
+      },
+      {
+        "material": 2,
+        "resourceKey": null
+      }
+    ],
+    "footprint": {
+      "presenceMask": 3,
+      "topElevations": [
+        1.5,
+        1.5,
+        1.5,
+        1.5,
+        1.5,
+        1.5,
+        1.5,
+        1.5,
+        1.5,
+        1.5,
+        1.5,
+        1.5,
+        1.5,
+        1.5,
+        1.5,
+        1.5
+      ],
+      "cornerPassageFlags": [
+        0,
+        1,
+        2,
+        3,
+        0,
+        1,
+        2,
+        3,
+        0,
+        1,
+        2,
+        3,
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    "horizontalExtents": {
+      "positiveY": 2,
+      "negativeY": 3,
+      "positiveX": 4,
+      "negativeX": 5
+    },
+    "objectRoles": [
+      {
+        "node": 2,
+        "roles": [
+          "viewerFaced",
+          "barrel"
+        ],
+        "barrelMaximumAngle": 32
+      }
+    ],
+    "helperBindings": [
+      {
+        "node": 3,
+        "kind": "attachment",
+        "physicalNumber": 21
+      }
+    ],
+    "staticLightOptions": [
+      {
+        "light": 1,
+        "targetDistance": 12.5,
+        "terrainLightAmplitude": 0.4
+      }
+    ],
+    "animationClasses": [
+      {
+        "animation": 1,
+        "class": "a"
+      }
+    ]
+  }
+}
