@@ -120,6 +120,8 @@ namespace EarthTool.GLTF.Internal
 
     private static readonly Matrix4x4 GltfToMshBasis = Matrix4x4.Transpose(MshToGltfBasis);
 
+    private static readonly Matrix4x4 StoredYAxisReflection = Matrix4x4.CreateScale(1, -1, 1);
+
     internal static AnimationProjectionSet Create(
       StaticMeshAsset asset,
       InterchangeBaseline baseline)
@@ -278,7 +280,9 @@ namespace EarthTool.GLTF.Internal
         }
         scales[index] = NormalizeZero(scale);
         translations[index] = NormalizeZero(translation);
-        matrices[index] = Matrix4x4.CreateFromQuaternion(Canonicalize(Quaternion.Normalize(rotation)));
+        var logicalRotation = Matrix4x4.CreateFromQuaternion(
+          Canonicalize(Quaternion.Normalize(rotation)));
+        matrices[index] = StoredYAxisReflection * logicalRotation * StoredYAxisReflection;
       }
       return new StaticAnimationTracks(scales, translations, matrices);
     }
@@ -314,7 +318,8 @@ namespace EarthTool.GLTF.Internal
 
       var scale = tracks.ScaleFrames.Count == 0 ? Vector3.One : tracks.ScaleFrames[frame];
       var translation = tracks.TranslationFrames.Count == 0 ? record.Pivot : tracks.TranslationFrames[frame];
-      var matrix = tracks.Matrices.Count == 0 ? Matrix4x4.Identity : tracks.Matrices[frame];
+      var storedMatrix = tracks.Matrices.Count == 0 ? Matrix4x4.Identity : tracks.Matrices[frame];
+      var matrix = StoredYAxisReflection * storedMatrix * StoredYAxisReflection;
       var mshTransform = Matrix4x4.CreateScale(scale)
         * matrix
         * Matrix4x4.CreateTranslation(translation);

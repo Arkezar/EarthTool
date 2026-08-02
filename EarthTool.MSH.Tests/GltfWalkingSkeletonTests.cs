@@ -1590,6 +1590,73 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
+  public async Task StoredXAxisAnimationRotationReflectsDecodedYAxisOnExport()
+  {
+    const float angle = 0.5f;
+    var asset = await ReadAssetAsync(StaticAnimationMshFixture.Create(
+      0,
+      new StaticAnimationMshFixture.AnimationLengths(1, 0, 0, 0),
+      matrices: [Matrix4x4.CreateRotationX(angle)]));
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+
+    var result = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+
+    result.Status.Should().Be(OperationStatus.Succeeded);
+    var bytes = glb.ToArray();
+    using var json = ReadGlbJson(bytes);
+    var animation = json.RootElement.GetProperty("animations")[0];
+    var rotationChannel = animation.GetProperty("channels").EnumerateArray()
+      .Single(channel => channel.GetProperty("target").GetProperty("path").GetString()
+        == "rotation");
+    var outputAccessor = animation.GetProperty("samplers")
+      [rotationChannel.GetProperty("sampler").GetInt32()].GetProperty("output").GetInt32();
+    var rotation = ReadFloatAccessor(bytes, json.RootElement, outputAccessor, 4);
+
+    rotation[0].Should().BeApproximately(-MathF.Sin(angle / 2), 1e-6f);
+    rotation[1].Should().BeApproximately(0, 1e-6f);
+    rotation[2].Should().BeApproximately(0, 1e-6f);
+    rotation[3].Should().BeApproximately(MathF.Cos(angle / 2), 1e-6f);
+
+    glb.Position = 0;
+    var import = await interchange.ImportEditGlbAsync(glb, result.Value!.Baseline);
+    import.Status.Should().Be(OperationStatus.Succeeded);
+    import.Value!.Asset.StaticRenderObjectSequence[0].AnimationTracks.Matrices.Should()
+      .Equal(asset.StaticRenderObjectSequence[0].AnimationTracks.Matrices);
+
+    const float editedAngle = 0.75f;
+    var editedRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, editedAngle);
+    var rotationOffset = GetFloatAccessorOffset(bytes, json.RootElement, outputAccessor);
+    var components = new[]
+    {
+      editedRotation.X,
+      editedRotation.Y,
+      editedRotation.Z,
+      editedRotation.W
+    };
+    for (var index = 0; index < components.Length; index++)
+    {
+      BinaryPrimitives.WriteInt32LittleEndian(
+        bytes.AsSpan(rotationOffset + index * sizeof(float)),
+        BitConverter.SingleToInt32Bits(components[index]));
+    }
+    await using var editedGlb = new MemoryStream(bytes);
+    var editedImport = await interchange.ImportEditGlbAsync(editedGlb, result.Value.Baseline);
+
+    editedImport.Status.Should().Be(OperationStatus.Succeeded);
+    var storedMatrix = editedImport.Value!.Asset.StaticRenderObjectSequence[0]
+      .AnimationTracks.Matrices.Single();
+    Matrix4x4.Decompose(storedMatrix, out _, out var storedRotation, out _).Should().BeTrue();
+    storedRotation.X.Should().BeApproximately(-MathF.Sin(editedAngle / 2), 1e-6f);
+    storedRotation.Y.Should().BeApproximately(0, 1e-6f);
+    storedRotation.Z.Should().BeApproximately(0, 1e-6f);
+    storedRotation.W.Should().BeApproximately(MathF.Cos(editedAngle / 2), 1e-6f);
+  }
+
+  [Fact]
   public async Task AbsentTracksDoNotEmitAnEmptyAnimation()
   {
     var asset = await ReadAssetAsync(StaticAnimationMshFixture.Create(
