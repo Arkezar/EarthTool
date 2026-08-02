@@ -1759,7 +1759,7 @@ public class GltfWalkingSkeletonTests
     var import = await interchange.ImportEditGlbAsync(
       source,
       export.Value!.Baseline,
-      new GltfOperationProfile(maxOutputBytes: asset.SerializedLength + 100));
+      profile: new GltfOperationProfile(maxOutputBytes: asset.SerializedLength + 100));
 
     import.Status.Should().Be(OperationStatus.Failed);
     import.Value.Should().BeNull();
@@ -4946,6 +4946,24 @@ public class GltfWalkingSkeletonTests
     import.Value.Should().BeNull();
     import.Diagnostics.Should().ContainSingle().Subject.Code.Should()
       .Be(GltfDiagnosticCodes.DuplicateScopeIdentity);
+
+    var resolution = new GltfMetadataConflictResolution(
+      import.Diagnostics.Single().Data["conflictKey"],
+      GltfMetadataConflictActions.ForkScope);
+    await using var retried = new MemoryStream(bytes);
+    var forked = await interchange.ImportEditGlbWithResolutionsAsync(
+      retried,
+      export.Value.Baseline,
+      options: new GltfEditImportOptions(new[] { resolution }));
+
+    forked.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", forked.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    forked.Value!.Asset.RootSourceObject.Children.Select(child => child.Id.Value)
+      .Should().Equal(2, 3, 4);
+    forked.Value.Asset.StaticRenderObjectSequence.Select(record => record.LocalId)
+      .Should().Equal(1, 2, 4, 5, 3);
+    forked.Value.AppliedConflictResolutions.Should().ContainSingle().Which.Should().BeSameAs(resolution);
   }
 
   [Fact]

@@ -228,6 +228,95 @@ namespace EarthTool.GLTF
     }
   }
 
+  /// <summary>Identifies how a successful edit import treated its metadata lineage.</summary>
+  public enum GltfMetadataLineageDisposition
+  {
+    /// <summary>The expected lineage and document branch were retained.</summary>
+    Retained,
+    /// <summary>A different document branch of the expected lineage was explicitly accepted.</summary>
+    BranchAccepted,
+    /// <summary>Native content was adopted into a new lineage.</summary>
+    AdoptedAsNew,
+    /// <summary>The claimed metadata lineage was discarded before native content was imported.</summary>
+    Discarded
+  }
+
+  /// <summary>Selects one allowed action for one exact metadata conflict.</summary>
+  public sealed class GltfMetadataConflictResolution
+  {
+    /// <summary>Gets the deterministic key of the exact conflict being resolved.</summary>
+    public string ConflictKey { get; }
+
+    /// <summary>Gets the selected closed version-1 action identifier.</summary>
+    public string Action { get; }
+
+    /// <summary>Gets the optional native carrier path used by scope mapping.</summary>
+    public string? TargetNativePath { get; }
+
+    /// <summary>Initializes one exact conflict resolution.</summary>
+    public GltfMetadataConflictResolution(
+      string conflictKey,
+      string action,
+      string? targetNativePath = null)
+    {
+      if (string.IsNullOrWhiteSpace(conflictKey))
+      {
+        throw new ArgumentException("A conflict key is required.", nameof(conflictKey));
+      }
+      if (!GltfMetadataConflictCatalog.ActionsByCode.Values.SelectMany(actions => actions)
+        .Contains(action, StringComparer.Ordinal))
+      {
+        throw new ArgumentOutOfRangeException(nameof(action));
+      }
+      if (action == GltfMetadataConflictActions.MapScope
+        && string.IsNullOrWhiteSpace(targetNativePath))
+      {
+        throw new ArgumentException("Scope mapping requires a target native path.", nameof(targetNativePath));
+      }
+      if (action != GltfMetadataConflictActions.MapScope && targetNativePath is not null)
+      {
+        throw new ArgumentException("Only scope mapping accepts a target native path.", nameof(targetNativePath));
+      }
+
+      ConflictKey = conflictKey;
+      Action = action;
+      TargetNativePath = targetNativePath;
+    }
+  }
+
+  /// <summary>Supplies operation-scoped metadata conflict resolutions for edit import.</summary>
+  public sealed class GltfEditImportOptions
+  {
+    /// <summary>Gets the exact conflict resolutions applied as one transaction.</summary>
+    public IReadOnlyList<GltfMetadataConflictResolution> ConflictResolutions { get; }
+
+    /// <summary>Initializes edit-import options.</summary>
+    public GltfEditImportOptions(IEnumerable<GltfMetadataConflictResolution>? conflictResolutions = null)
+    {
+      var resolutions = conflictResolutions?.ToArray()
+        ?? Array.Empty<GltfMetadataConflictResolution>();
+      if (resolutions.Any(resolution => resolution is null))
+      {
+        throw new ArgumentException("Conflict resolutions cannot contain null values.", nameof(conflictResolutions));
+      }
+      if (resolutions.Select(resolution => resolution.ConflictKey)
+        .Distinct(StringComparer.Ordinal).Count() != resolutions.Length)
+      {
+        throw new ArgumentException("A conflict can be resolved only once.", nameof(conflictResolutions));
+      }
+      if (resolutions.Count(resolution =>
+        resolution.Action == GltfMetadataConflictActions.AdoptAsNew
+        || resolution.Action == GltfMetadataConflictActions.DiscardLineage) > 1)
+      {
+        throw new ArgumentException(
+          "A transaction can contain only one whole-lineage action.",
+          nameof(conflictResolutions));
+      }
+
+      ConflictResolutions = Array.AsReadOnly(resolutions);
+    }
+  }
+
   /// <summary>Defines finite resource limits for one glTF operation.</summary>
   public sealed class GltfOperationProfile
   {
@@ -971,8 +1060,8 @@ namespace EarthTool.GLTF
     /// <summary>Gets the retained lineage and rotated document baseline.</summary>
     public InterchangeBaseline NextBaseline { get; }
 
-    /// <summary>Gets the fingerprint that proved metadata applicability.</summary>
-    public NativeProjectionFingerprint AppliedFingerprint { get; }
+    /// <summary>Gets the fingerprint that proved metadata applicability, or null after lineage discard.</summary>
+    public NativeProjectionFingerprint? AppliedFingerprint { get; }
 
     /// <summary>Gets the serialized representation paths restored from applicable metadata.</summary>
     public IReadOnlyList<string> RestoredSerializedRepresentationPaths { get; }
@@ -986,14 +1075,22 @@ namespace EarthTool.GLTF
     /// <summary>Gets export options that retain the next baseline and unknown additive tokens.</summary>
     public GltfExportOptions NextExportOptions { get; }
 
+    /// <summary>Gets how the successful transaction treated metadata lineage.</summary>
+    public GltfMetadataLineageDisposition LineageDisposition { get; }
+
+    /// <summary>Gets the exact conflict resolutions applied by the successful transaction.</summary>
+    public IReadOnlyList<GltfMetadataConflictResolution> AppliedConflictResolutions { get; }
+
     internal GltfEditImportResult(
       StaticMeshAsset asset,
       InterchangeBaseline nextBaseline,
-      NativeProjectionFingerprint appliedFingerprint,
+      NativeProjectionFingerprint? appliedFingerprint,
       PreservationReport preservation,
       IEnumerable<string> restoredSerializedRepresentationPaths,
       IReadOnlyDictionary<string, string>? preservedUnknownMetadata = null,
-      IReadOnlyDictionary<string, int>? metadataNextIds = null)
+      IReadOnlyDictionary<string, int>? metadataNextIds = null,
+      GltfMetadataLineageDisposition lineageDisposition = GltfMetadataLineageDisposition.Retained,
+      IEnumerable<GltfMetadataConflictResolution>? appliedConflictResolutions = null)
     {
       Asset = asset;
       NextBaseline = nextBaseline;
@@ -1009,6 +1106,9 @@ namespace EarthTool.GLTF
         nextBaseline.DocumentId,
         PreservedUnknownMetadata,
         metadataNextIds ?? new Dictionary<string, int>());
+      LineageDisposition = lineageDisposition;
+      AppliedConflictResolutions = Array.AsReadOnly(
+        appliedConflictResolutions?.ToArray() ?? Array.Empty<GltfMetadataConflictResolution>());
     }
   }
 

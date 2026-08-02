@@ -82,6 +82,10 @@ namespace EarthTool.GLTF.Internal
 
     internal IReadOnlyList<string> IgnoredInertPaths { get; }
 
+    internal ISet<string> DiscardedMetadataScopes { get; } = new HashSet<string>(StringComparer.Ordinal);
+
+    internal ISet<string> AcceptedDeletionScopes { get; } = new HashSet<string>(StringComparer.Ordinal);
+
     internal int[]? NewModelNodeOrder { get; set; }
 
     internal int[]? NewModelMaterialOrder { get; set; }
@@ -1217,6 +1221,125 @@ namespace EarthTool.GLTF.Internal
       {
         conflicts.Add(conflict);
       }
+    }
+
+    internal static void RevalidateParsedMetadataGraph(ParsedGlb parsed, GltfOperationProfile profile)
+    {
+      var graph = new List<(string Path, string CarrierKind, MetadataEnvelope Envelope)>();
+      if (parsed.ManifestMetadata is null)
+      {
+        throw new MetadataConflictException(
+          GltfDiagnosticCodes.MissingManifest,
+          2000,
+          "scenes[0]",
+          "The edit document has no EarthTool metadata manifest.",
+          GltfMetadataConflictActions.Abort,
+          GltfMetadataConflictActions.RetryWithMetadata,
+          GltfMetadataConflictActions.DiscardLineage);
+      }
+      AddParsedEnvelope(graph, "scenes[0]", "manifest", parsed.ManifestMetadata, profile);
+      for (var index = 0; index < parsed.Nodes.Count; index++)
+      {
+        AddParsedEnvelope(graph, $"nodes[{index}]", "object", parsed.Nodes[index].Metadata, profile);
+      }
+      for (var index = 0; index < parsed.Meshes.Count; index++)
+      {
+        AddParsedEnvelope(graph, $"meshes[{index}]", "mesh", parsed.Meshes[index].Metadata, profile);
+      }
+      for (var index = 0; index < parsed.Materials.Count; index++)
+      {
+        AddParsedEnvelope(graph, $"materials[{index}]", "material", parsed.Materials[index].Metadata, profile);
+      }
+      for (var index = 0; index < parsed.Lights.Count; index++)
+      {
+        AddParsedEnvelope(
+          graph,
+          $"extensions.KHR_lights_punctual.lights[{index}]",
+          "light",
+          parsed.Lights[index].Metadata,
+          profile);
+      }
+
+      var manifest = graph.Single(item => item.Path == "scenes[0]").Envelope;
+      foreach (var item in graph.Where(item => item.Path != "scenes[0]"))
+      {
+        if (item.Envelope.AssetLineageId != manifest.AssetLineageId)
+        {
+          parsed.MetadataConflicts.Add(IdentityConflict(
+            GltfDiagnosticCodes.AssetLineageMismatch,
+            2006,
+            item.Path,
+            item.Envelope,
+            "The metadata envelope belongs to a foreign asset lineage.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.AdoptAsNew,
+            GltfMetadataConflictActions.DiscardLineage));
+        }
+        if (item.Envelope.DocumentId != manifest.DocumentId)
+        {
+          parsed.MetadataConflicts.Add(IdentityConflict(
+            GltfDiagnosticCodes.DocumentMismatch,
+            2007,
+            item.Path,
+            item.Envelope,
+            "The metadata envelope belongs to another document branch.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.AcceptBranch));
+        }
+      }
+      foreach (var duplicate in graph.GroupBy(item =>
+        (item.Envelope.ScopeKind, item.Envelope.LocalId)).Where(group => group.Count() > 1))
+      {
+        foreach (var item in duplicate.OrderBy(value => value.Path, StringComparer.Ordinal).Skip(1))
+        {
+          parsed.MetadataConflicts.Add(IdentityConflict(
+            GltfDiagnosticCodes.DuplicateScopeIdentity,
+            2009,
+            item.Path,
+            item.Envelope,
+            "More than one metadata envelope claims the same scope identity.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.MapScope,
+            GltfMetadataConflictActions.ForkScope,
+            GltfMetadataConflictActions.DiscardAffectedState));
+        }
+      }
+      try
+      {
+        ValidateManifestInventory(manifest, graph, profile);
+      }
+      catch (MetadataConflictException conflict)
+      {
+        parsed.MetadataConflicts.Add(conflict);
+      }
+    }
+
+    private static void AddParsedEnvelope(
+      ICollection<(string Path, string CarrierKind, MetadataEnvelope Envelope)> graph,
+      string path,
+      string carrierKind,
+      string? value,
+      GltfOperationProfile profile)
+    {
+      if (value is null)
+      {
+        return;
+      }
+      var envelope = ParseMetadata(value, profile);
+      if (envelope.ScopeKind != carrierKind)
+      {
+        throw new MetadataConflictException(
+          GltfDiagnosticCodes.KindCarrierMismatch,
+          2008,
+          path,
+          "The metadata envelope kind does not match its glTF carrier.",
+          GltfMetadataConflictActions.Abort,
+          GltfMetadataConflictActions.MapScope,
+          GltfMetadataConflictActions.ForkScope,
+          GltfMetadataConflictActions.DiscardAffectedState);
+      }
+      graph.Add((path, carrierKind, envelope));
     }
 
     private static void AddAllowedCarriers(

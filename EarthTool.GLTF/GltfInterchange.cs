@@ -12,6 +12,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -453,10 +456,26 @@ namespace EarthTool.GLTF
       return stream.ReadByte() == -1;
     }
 
-    /// <summary>Imports an unchanged GLB into an expected lineage and document baseline.</summary>
-    public async Task<OperationResult<GltfEditImportResult>> ImportEditGlbAsync(
+    /// <summary>Imports a GLB into an expected lineage and document baseline.</summary>
+    public Task<OperationResult<GltfEditImportResult>> ImportEditGlbAsync(
       Stream source,
       InterchangeBaseline expectedBaseline,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      return ImportEditGlbWithResolutionsAsync(
+        source,
+        expectedBaseline,
+        new GltfEditImportOptions(),
+        profile,
+        cancellationToken);
+    }
+
+    /// <summary>Imports a GLB and transactionally applies exact metadata conflict resolutions.</summary>
+    public async Task<OperationResult<GltfEditImportResult>> ImportEditGlbWithResolutionsAsync(
+      Stream source,
+      InterchangeBaseline expectedBaseline,
+      GltfEditImportOptions options,
       GltfOperationProfile? profile = null,
       CancellationToken cancellationToken = default)
     {
@@ -470,15 +489,21 @@ namespace EarthTool.GLTF
         throw new ArgumentNullException(nameof(expectedBaseline));
       }
 
+      if (options is null)
+      {
+        throw new ArgumentNullException(nameof(options));
+      }
       profile ??= GltfOperationProfile.Default;
+      byte[]? bytes = null;
       try
       {
-        var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken).ConfigureAwait(false);
+        bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken).ConfigureAwait(false);
         var parsed = GlbDocument.Parse(bytes, profile);
         ValidateGeometryProfile(parsed, profile);
         return await ImportParsedAsync(
           parsed,
           expectedBaseline,
+          options,
           profile,
           cancellationToken).ConfigureAwait(false);
       }
@@ -488,14 +513,87 @@ namespace EarthTool.GLTF
       }
       catch (Exception ex)
       {
-        return Failed<GltfEditImportResult>(ToDiagnostic(ex));
+        if (bytes is not null
+          && TryGetParseScopeResolution(
+            ex,
+            expectedBaseline,
+            options,
+            out var scopeResolution,
+            out var scopeFailure))
+        {
+          if (scopeFailure is not null)
+          {
+            return Failed<GltfEditImportResult>(scopeFailure);
+          }
+          try
+          {
+            var rewritten = RewriteGlbMetadata(bytes, scopeResolution!.Diagnostic, scopeResolution.Resolution);
+            var reparsed = GlbDocument.Parse(rewritten, profile);
+            ValidateGeometryProfile(reparsed, profile);
+            var retried = await ImportParsedAsync(
+              reparsed,
+              expectedBaseline,
+              new GltfEditImportOptions(options.ConflictResolutions.Where(resolution =>
+                !ReferenceEquals(resolution, scopeResolution.Resolution))),
+              profile,
+              cancellationToken).ConfigureAwait(false);
+            return WithAppliedResolution(retried, scopeResolution.Resolution);
+          }
+          catch (Exception rewriteException)
+          {
+            return Failed<GltfEditImportResult>(BindConflictToBaseline(
+              ToDiagnostic(rewriteException),
+              expectedBaseline));
+          }
+        }
+        if (bytes is not null
+          && TryGetWholeLineageResolution(
+            ex,
+            expectedBaseline,
+            options,
+            out var resolution,
+            out var resolutionFailure))
+        {
+          if (resolutionFailure is not null)
+          {
+            return Failed<GltfEditImportResult>(resolutionFailure);
+          }
+          try
+          {
+            var stripped = RemoveGlbMetadata(bytes);
+            var parsed = GlbDocument.ParseNewModel(stripped, profile);
+            ValidateGeometryProfile(parsed, profile);
+            return ImportWithoutMetadata(parsed, profile, cancellationToken, resolution!);
+          }
+          catch (Exception discardException)
+          {
+            return Failed<GltfEditImportResult>(ToDiagnostic(discardException));
+          }
+        }
+        return Failed<GltfEditImportResult>(BindConflictToBaseline(ToDiagnostic(ex), expectedBaseline));
       }
     }
 
-    /// <summary>Imports an unchanged separate glTF package into an expected baseline.</summary>
-    public async Task<OperationResult<GltfEditImportResult>> ImportEditGltfFileAsync(
+    /// <summary>Imports separate glTF into an expected lineage and document baseline.</summary>
+    public Task<OperationResult<GltfEditImportResult>> ImportEditGltfFileAsync(
       string sourcePath,
       InterchangeBaseline expectedBaseline,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      return ImportEditGltfFileWithResolutionsAsync(
+        sourcePath,
+        expectedBaseline,
+        new GltfEditImportOptions(),
+        profile,
+        cancellationToken);
+    }
+
+    /// <summary>Imports separate glTF and transactionally applies exact metadata conflict resolutions.</summary>
+    public async Task<OperationResult<GltfEditImportResult>> ImportEditGltfFileWithResolutionsAsync(
+      string sourcePath,
+      InterchangeBaseline expectedBaseline,
+      GltfEditImportOptions options,
       GltfOperationProfile? profile = null,
       CancellationToken cancellationToken = default)
     {
@@ -509,15 +607,20 @@ namespace EarthTool.GLTF
         throw new ArgumentNullException(nameof(expectedBaseline));
       }
 
+      if (options is null)
+      {
+        throw new ArgumentNullException(nameof(options));
+      }
       profile ??= GltfOperationProfile.Default;
+      SeparateGltfPackage? package = null;
       try
       {
-        var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
+        package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
           .ConfigureAwait(false);
         var parsed = GlbDocument.ParseSeparate(package.Json, package.Binary, profile);
         GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri, package.Images);
         ValidateGeometryProfile(parsed, profile);
-        return await ImportParsedAsync(parsed, expectedBaseline, profile, cancellationToken)
+        return await ImportParsedAsync(parsed, expectedBaseline, options, profile, cancellationToken)
           .ConfigureAwait(false);
       }
       catch (OperationCanceledException)
@@ -526,7 +629,79 @@ namespace EarthTool.GLTF
       }
       catch (Exception ex)
       {
-        return Failed<GltfEditImportResult>(ToDiagnostic(ex, sourcePath));
+        if (package is not null
+          && TryGetParseScopeResolution(
+            ex,
+            expectedBaseline,
+            options,
+            out var scopeResolution,
+            out var scopeFailure))
+        {
+          if (scopeFailure is not null)
+          {
+            return Failed<GltfEditImportResult>(scopeFailure);
+          }
+          try
+          {
+            var rewritten = RewriteJsonScopeMetadata(
+              package.Json,
+              scopeResolution!.Diagnostic,
+              scopeResolution.Resolution);
+            var reparsed = GlbDocument.ParseSeparate(rewritten, package.Binary, profile);
+            GlbDocument.ValidateSeparate(
+              rewritten,
+              package.Binary,
+              package.BufferUri,
+              package.Images);
+            ValidateGeometryProfile(reparsed, profile);
+            var retried = await ImportParsedAsync(
+              reparsed,
+              expectedBaseline,
+              new GltfEditImportOptions(options.ConflictResolutions.Where(resolution =>
+                !ReferenceEquals(resolution, scopeResolution.Resolution))),
+              profile,
+              cancellationToken).ConfigureAwait(false);
+            return WithAppliedResolution(retried, scopeResolution.Resolution);
+          }
+          catch (Exception rewriteException)
+          {
+            return Failed<GltfEditImportResult>(BindConflictToBaseline(
+              ToDiagnostic(rewriteException, sourcePath),
+              expectedBaseline));
+          }
+        }
+        if (package is not null
+          && TryGetWholeLineageResolution(
+            ex,
+            expectedBaseline,
+            options,
+            out var resolution,
+            out var resolutionFailure))
+        {
+          if (resolutionFailure is not null)
+          {
+            return Failed<GltfEditImportResult>(resolutionFailure);
+          }
+          try
+          {
+            var stripped = RemoveJsonMetadata(package.Json);
+            var parsed = GlbDocument.ParseSeparateNewModel(stripped, package.Binary, profile);
+            GlbDocument.ValidateSeparate(
+              stripped,
+              package.Binary,
+              package.BufferUri,
+              package.Images);
+            ValidateGeometryProfile(parsed, profile);
+            return ImportWithoutMetadata(parsed, profile, cancellationToken, resolution!);
+          }
+          catch (Exception discardException)
+          {
+            return Failed<GltfEditImportResult>(ToDiagnostic(discardException, sourcePath));
+          }
+        }
+        return Failed<GltfEditImportResult>(BindConflictToBaseline(
+          ToDiagnostic(ex, sourcePath),
+          expectedBaseline));
       }
     }
 
@@ -672,11 +847,7 @@ namespace EarthTool.GLTF
       }
     }
 
-    private static async Task<(
-      byte[] Json,
-      byte[] Binary,
-      string BufferUri,
-      IReadOnlyDictionary<string, byte[]> Images)> ReadSeparatePackageAsync(
+    private static async Task<SeparateGltfPackage> ReadSeparatePackageAsync(
       string sourcePath,
       GltfOperationProfile profile,
       CancellationToken cancellationToken)
@@ -739,7 +910,30 @@ namespace EarthTool.GLTF
         remaining -= image.Length;
         images.Add(imageUri, image);
       }
-      return (json, binary, bufferUri, images);
+      return new SeparateGltfPackage(json, binary, bufferUri, images);
+    }
+
+    private sealed class SeparateGltfPackage
+    {
+      internal byte[] Json { get; }
+
+      internal byte[] Binary { get; }
+
+      internal string BufferUri { get; }
+
+      internal IReadOnlyDictionary<string, byte[]> Images { get; }
+
+      internal SeparateGltfPackage(
+        byte[] json,
+        byte[] binary,
+        string bufferUri,
+        IReadOnlyDictionary<string, byte[]> images)
+      {
+        Json = json;
+        Binary = binary;
+        BufferUri = bufferUri;
+        Images = images;
+      }
     }
 
     private static string ResolveContainedSidecar(string directory, string relativeUri)
@@ -1742,6 +1936,7 @@ namespace EarthTool.GLTF
     private static async Task<OperationResult<GltfEditImportResult>> ImportParsedAsync(
       ParsedGlb parsed,
       InterchangeBaseline expectedBaseline,
+      GltfEditImportOptions options,
       GltfOperationProfile profile,
       CancellationToken cancellationToken)
     {
@@ -1840,18 +2035,174 @@ namespace EarthTool.GLTF
         profile,
         parsed.MetadataConflicts);
       var metadataConflicts = parsed.MetadataConflicts.Build();
-      if (metadataConflicts.Count != 0)
+      var lineageResolution = options.ConflictResolutions.SingleOrDefault(resolution =>
+        resolution.Action == GltfMetadataConflictActions.AdoptAsNew
+        || resolution.Action == GltfMetadataConflictActions.DiscardLineage);
+      if (lineageResolution is not null)
       {
-        return Failed<GltfEditImportResult>(metadataConflicts.Select(conflict => ToDiagnostic(conflict)));
+        var conflictDiagnostics = metadataConflicts.Select(conflict =>
+          BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline)).ToArray();
+        var matching = conflictDiagnostics.SingleOrDefault(diagnostic =>
+          diagnostic.Data["conflictKey"] == lineageResolution.ConflictKey);
+        if (options.ConflictResolutions.Count != 1
+          || matching is null
+          || !matching.Data["actions"].Split(',').Contains(
+            lineageResolution.Action,
+            StringComparer.Ordinal))
+        {
+          return Failed<GltfEditImportResult>(InvalidConflictResolution(
+            "The whole-lineage action is stale or is not allowed for the matching conflict."));
+        }
+
+        return ImportWithoutMetadata(
+          parsed,
+          profile,
+          cancellationToken,
+          lineageResolution);
       }
+      var deletionResolution = options.ConflictResolutions.FirstOrDefault(resolution =>
+        resolution.Action == GltfMetadataConflictActions.AcceptDeletion);
+      if (deletionResolution is not null)
+      {
+        var conflictDiagnostics = metadataConflicts.Select(conflict =>
+          BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline)).ToArray();
+        var matching = conflictDiagnostics.SingleOrDefault(diagnostic =>
+          diagnostic.Data["conflictKey"] == deletionResolution.ConflictKey);
+        if (matching is null || matching.Code != GltfDiagnosticCodes.MissingExpectedScope)
+        {
+          return Failed<GltfEditImportResult>(InvalidConflictResolution(
+            "Deletion acceptance is stale or unsupported for the matching conflict."));
+        }
+        var accepted = matching.Data["carrierType"] == "material"
+          ? RestoreDeletedMaterialScope(parsed, matching, metadataBaseline, profile)
+          : matching.Data["carrierType"] == "mesh"
+            ? RestoreDeletedMeshScope(parsed, matching, metadataBaseline, asset, profile)
+            : AcceptDeletedNativeScope(parsed, matching, profile);
+        var retried = await ImportParsedAsync(
+          accepted,
+          expectedBaseline,
+          new GltfEditImportOptions(options.ConflictResolutions.Where(resolution =>
+            !ReferenceEquals(resolution, deletionResolution))),
+          profile,
+          cancellationToken).ConfigureAwait(false);
+        return WithAppliedResolution(retried, deletionResolution);
+      }
+      var guardResolution = options.ConflictResolutions.FirstOrDefault(resolution =>
+        resolution.Action == GltfMetadataConflictActions.RegenerateDerivedState
+        || resolution.Action == GltfMetadataConflictActions.DiscardAffectedState);
+      if (guardResolution is not null)
+      {
+        var conflictDiagnostics = metadataConflicts.Select(conflict =>
+          BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline)).ToArray();
+        var matching = conflictDiagnostics.SingleOrDefault(diagnostic =>
+          diagnostic.Data["conflictKey"] == guardResolution.ConflictKey);
+        if (matching is not null
+          && matching.Path.Contains(".guards.", StringComparison.Ordinal)
+          && matching.Data["actions"].Split(',').Contains(
+            guardResolution.Action,
+            StringComparer.Ordinal))
+        {
+          var discard = guardResolution.Action == GltfMetadataConflictActions.DiscardAffectedState;
+          var regenerated = matching.Data["carrierType"] switch
+          {
+            "mesh" => RewriteMeshGuard(parsed, matching, metadataBaseline, discard, profile),
+            "node" => RewriteNodeGuard(parsed, matching, metadataBaseline, asset, discard, profile),
+            "light" => RewriteLightGuard(parsed, matching, metadataBaseline, discard, profile),
+            _ => null
+          };
+          if (regenerated is null)
+          {
+            return Failed<GltfEditImportResult>(InvalidConflictResolution(
+              "The guard action is not supported for the matching carrier."));
+          }
+          var retried = await ImportParsedAsync(
+            regenerated,
+            expectedBaseline,
+            new GltfEditImportOptions(options.ConflictResolutions.Where(resolution =>
+              !ReferenceEquals(resolution, guardResolution))),
+            profile,
+            cancellationToken).ConfigureAwait(false);
+          return WithAppliedResolution(retried, guardResolution);
+        }
+      }
+      var mapResolution = options.ConflictResolutions.FirstOrDefault(resolution =>
+        resolution.Action == GltfMetadataConflictActions.MapScope);
+      if (mapResolution is not null)
+      {
+        var conflictDiagnostics = metadataConflicts.Select(conflict =>
+          BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline)).ToArray();
+        var matching = conflictDiagnostics.SingleOrDefault(diagnostic =>
+          diagnostic.Data["conflictKey"] == mapResolution.ConflictKey);
+        if (matching is null
+          || !matching.Data["actions"].Split(',').Contains(
+            GltfMetadataConflictActions.MapScope,
+            StringComparer.Ordinal))
+        {
+          return Failed<GltfEditImportResult>(InvalidConflictResolution(
+            "The scope mapping is stale, incomplete, or is not allowed for the matching conflict."));
+        }
+
+        ParsedGlb mapped;
+        try
+        {
+          mapped = MapScope(parsed, matching, mapResolution, profile);
+        }
+        catch (Exception ex) when (ex is ArgumentException || ex is InvalidDataException)
+        {
+          return Failed<GltfEditImportResult>(InvalidConflictResolution(ex.Message));
+        }
+        var retried = await ImportParsedAsync(
+          mapped,
+          expectedBaseline,
+          new GltfEditImportOptions(options.ConflictResolutions.Where(resolution =>
+            !ReferenceEquals(resolution, mapResolution))),
+          profile,
+          cancellationToken).ConfigureAwait(false);
+        return WithAppliedResolution(retried, mapResolution);
+      }
+      var forkResolution = options.ConflictResolutions.FirstOrDefault(resolution =>
+        resolution.Action == GltfMetadataConflictActions.ForkScope);
+      if (forkResolution is not null)
+      {
+        var conflictDiagnostics = metadataConflicts.Select(conflict =>
+          BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline)).ToArray();
+        var matching = conflictDiagnostics.SingleOrDefault(diagnostic =>
+          diagnostic.Data["conflictKey"] == forkResolution.ConflictKey);
+        if (matching is null
+          || !matching.Data["actions"].Split(',').Contains(
+            GltfMetadataConflictActions.ForkScope,
+            StringComparer.Ordinal))
+        {
+          return Failed<GltfEditImportResult>(InvalidConflictResolution(
+            "The scope fork is stale, incomplete, or is not allowed for the matching conflict."));
+        }
+
+        var forked = RemoveScopeMetadata(parsed, matching.Data["nativePath"], profile);
+        var retried = await ImportParsedAsync(
+          forked,
+          expectedBaseline,
+          new GltfEditImportOptions(options.ConflictResolutions.Where(resolution =>
+            !ReferenceEquals(resolution, forkResolution))),
+          profile,
+          cancellationToken).ConfigureAwait(false);
+        return WithAppliedResolution(retried, forkResolution);
+      }
+      var conflictResolution = ResolveMetadataConflicts(metadataConflicts, expectedBaseline, options);
+      if (conflictResolution.Diagnostics.Count != 0)
+      {
+        return Failed<GltfEditImportResult>(conflictResolution.Diagnostics);
+      }
+      var branchAccepted = conflictResolution.Applied.Any(resolution =>
+        resolution.Action == GltfMetadataConflictActions.AcceptBranch);
+      var reconciliationBaseline = branchAccepted ? metadataBaseline : expectedBaseline;
 
       var meshes = parsed.Meshes
         .Select(mesh => new
         {
           Parsed = mesh,
-          Metadata = GlbDocument.ParseMetadata(
-            mesh.Metadata ?? throw new MissingMetadataException("mesh"),
-            profile)
+          Metadata = mesh.Metadata is null
+            ? null
+            : GlbDocument.ParseMetadata(mesh.Metadata, profile)
         })
         .ToArray();
       var nodes = parsed.Nodes
@@ -1882,14 +2233,14 @@ namespace EarthTool.GLTF
         nodes.Select(node => (node.Parsed, node.Metadata)).ToArray(),
         lights.Select(light => (light.Parsed, light.Metadata)).ToArray(),
         asset,
-        expectedBaseline,
+        reconciliationBaseline,
         edit);
       var hierarchy = ReconcileHierarchy(
         parsed,
         nodes.Select(node => (node.Parsed, node.Metadata)).ToArray(),
         meshes.Select(mesh => (mesh.Parsed, mesh.Metadata)).ToArray(),
         asset,
-        expectedBaseline,
+        reconciliationBaseline,
         edit);
       try
       {
@@ -1902,7 +2253,7 @@ namespace EarthTool.GLTF
               && node.Metadata.StaticLightAttachmentRecord is null)
             .Select(node => node.Metadata).ToArray(),
           asset,
-          expectedBaseline,
+          reconciliationBaseline,
           profile.MaxOutputBytes);
         var sourcesByLocalId = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
           .ToDictionary(source => source.Id.Value);
@@ -1929,9 +2280,14 @@ namespace EarthTool.GLTF
       try
       {
         partitionMatches = MatchPartitions(meshes.Select((mesh, index) =>
-          (mesh.Parsed, mesh.Metadata, Index: index))
+          (mesh.Parsed,
+            mesh.Metadata,
+            Discarded: parsed.DiscardedMetadataScopes.Contains($"meshes[{index}]"),
+            Index: index))
           .Where(mesh => hierarchy.RetainedMeshIndices.Contains(mesh.Index))
-          .Select(mesh => (mesh.Parsed, mesh.Metadata)).ToArray(), asset, expectedBaseline);
+          .Select(mesh => (mesh.Parsed, Metadata: mesh.Metadata!, mesh.Discarded)).ToArray(),
+          asset,
+          reconciliationBaseline);
         partitionMatches = partitionMatches.Select(match =>
           hierarchy.Transforms.TryGetValue(match.SourceObjectId, out var transform)
             ? TransformPartition(match, transform)
@@ -1988,7 +2344,7 @@ namespace EarthTool.GLTF
       ApplyMaterialBindings(
         parsed,
         asset,
-        expectedBaseline,
+        reconciliationBaseline,
         partitionMatches.Select(match => match.Partition)
           .Concat(hierarchy.AddedPartitions)
           .ToArray(),
@@ -2002,7 +2358,7 @@ namespace EarthTool.GLTF
 
       var partitions = partitionMatches.Select(match => match.Partition)
         .Concat(hierarchy.AddedPartitions).ToArray();
-      var fingerprint = StaticGeometryFingerprint.Create(expectedBaseline, partitions);
+      var fingerprint = StaticGeometryFingerprint.Create(reconciliationBaseline, partitions);
       var committed = edit.Commit(new MshOperationProfile(
         maxOutputBytes: profile.MaxOutputBytes,
         maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
@@ -2013,7 +2369,7 @@ namespace EarthTool.GLTF
         return Failed<GltfEditImportResult>(InvalidGeometry("meshes", message));
       }
 
-      var nextBaseline = new InterchangeBaseline(expectedBaseline.AssetLineageId, Guid.NewGuid());
+      var nextBaseline = new InterchangeBaseline(reconciliationBaseline.AssetLineageId, Guid.NewGuid());
       var changedRecordPaths = committed.Preservation.Changes
         .Where(change => change.Disposition != PreservationDisposition.Retained)
         .Select(change => change.FieldPath)
@@ -2066,10 +2422,14 @@ namespace EarthTool.GLTF
           restoredPaths,
           CollectUnknownMetadata(
             new[] { manifest }
-              .Concat(meshes.Select(item => item.Metadata))
+              .Concat(meshes.Where(item => item.Metadata is not null).Select(item => item.Metadata!))
               .Concat(nodes.Where(item => item.Metadata is not null).Select(item => item.Metadata!))
               .Concat(lights.Where(item => item.Metadata is not null).Select(item => item.Metadata!))),
-          manifest.ScopeNextIds),
+          manifest.ScopeNextIds,
+          branchAccepted
+            ? GltfMetadataLineageDisposition.BranchAccepted
+            : GltfMetadataLineageDisposition.Retained,
+          conflictResolution.Applied),
         sceneLightDiagnostics.Concat(committed.Diagnostics));
     }
 
@@ -2083,6 +2443,538 @@ namespace EarthTool.GLTF
           member.Value
         }))
           .ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal));
+    }
+
+    private static OperationResult<GltfEditImportResult> ImportWithoutMetadata(
+      ParsedGlb parsed,
+      GltfOperationProfile profile,
+      CancellationToken cancellationToken,
+      GltfMetadataConflictResolution resolution)
+    {
+      var unclaimed = new ParsedGlb(
+        manifestMetadata: null,
+        hasReservedMetadata: false,
+        parsed.Meshes.Select(mesh => new ParsedGltfMesh(null, mesh.Primitives)).ToArray(),
+        parsed.Nodes.Select(node => new ParsedGltfNode(
+          node.Name,
+          metadata: null,
+          node.MeshIndex,
+          node.LightIndex,
+          node.CameraIndex,
+          node.Children,
+          node.LocalTransform)).ToArray(),
+        parsed.Materials.Select(material => new ParsedGltfMaterial(
+          metadata: null,
+          material.HasBaseColorTexture)).ToArray(),
+        parsed.Animations,
+        parsed.Lights.Select(light => new ParsedGltfLight(
+          light.Name,
+          metadata: null,
+          light.Type,
+          light.Color,
+          light.Intensity,
+          light.Range,
+          light.InnerConeAngle,
+          light.OuterConeAngle)).ToArray(),
+        parsed.RootNodeIndex,
+        new MetadataConflictCollector(profile.MaxMetadataConflicts),
+        parsed.IgnoredInertPaths);
+      var imported = ImportNewModelParsed(
+        unclaimed,
+        profile,
+        cancellationToken,
+        new GltfNewModelImportOptions());
+      if (imported.Value is not GltfNewModelImportResult value)
+      {
+        return Failed<GltfEditImportResult>(imported.Diagnostics);
+      }
+
+      var disposition = resolution.Action == GltfMetadataConflictActions.AdoptAsNew
+        ? GltfMetadataLineageDisposition.AdoptedAsNew
+        : GltfMetadataLineageDisposition.Discarded;
+      return new OperationResult<GltfEditImportResult>(
+        OperationStatus.Succeeded,
+        new GltfEditImportResult(
+          value.Asset,
+          value.Baseline,
+          appliedFingerprint: null,
+          value.Preservation,
+          Array.Empty<string>(),
+          lineageDisposition: disposition,
+          appliedConflictResolutions: new[] { resolution }),
+        imported.Diagnostics);
+    }
+
+    private static ParsedGlb RemoveScopeMetadata(
+      ParsedGlb parsed,
+      string nativePath,
+      GltfOperationProfile profile)
+    {
+      return RewriteScopeMetadata(parsed, nativePath, metadata: null, profile);
+    }
+
+    private static ParsedGlb MapScope(
+      ParsedGlb parsed,
+      OperationDiagnostic conflict,
+      GltfMetadataConflictResolution resolution,
+      GltfOperationProfile profile)
+    {
+      var targetMetadata = GetScopeMetadata(parsed, resolution.TargetNativePath!);
+      if (targetMetadata is null)
+      {
+        throw new InvalidDataException("The scope mapping target has no valid metadata envelope.");
+      }
+      var target = JsonNode.Parse(targetMetadata)?.AsObject()
+        ?? throw new InvalidDataException("The scope mapping target metadata is malformed.");
+      var targetId = target["id"]?.GetValue<int>()
+        ?? throw new InvalidDataException("The scope mapping target has no local ID.");
+      if (conflict.Data.TryGetValue("referencedScopeKind", out var referencedKind)
+        && target["kind"]?.GetValue<string>() != referencedKind)
+      {
+        throw new InvalidDataException("The scope mapping target kind does not match the reference.");
+      }
+
+      var nativePath = conflict.Data["nativePath"];
+      var sourceMetadata = GetScopeMetadata(parsed, nativePath);
+      if (sourceMetadata is null)
+      {
+        throw new InvalidDataException("The conflicted scope has no metadata envelope to map.");
+      }
+      var source = JsonNode.Parse(sourceMetadata)?.AsObject()
+        ?? throw new InvalidDataException("The conflicted scope metadata is malformed.");
+      if (conflict.Path.Contains(".payload.partitions[", StringComparison.Ordinal))
+      {
+        var marker = conflict.Path.IndexOf(".payload.partitions[", StringComparison.Ordinal)
+          + ".payload.partitions[".Length;
+        var end = conflict.Path.IndexOf(']', marker);
+        var partitionIndex = int.Parse(
+          conflict.Path.Substring(marker, end - marker),
+          System.Globalization.CultureInfo.InvariantCulture);
+        source["payload"]!["partitions"]![partitionIndex]!["localId"] = targetId;
+      }
+      else if (conflict.Path.EndsWith(
+        ".payload.staticLightInstance.definitionLocalId",
+        StringComparison.Ordinal))
+      {
+        source["payload"]!["staticLightInstance"]!["definitionLocalId"] = targetId;
+      }
+      else
+      {
+        throw new InvalidDataException("The conflict does not expose a supported scope reference mapping.");
+      }
+
+      return RewriteScopeMetadata(parsed, nativePath, source.ToJsonString(), profile);
+    }
+
+    private static ParsedGlb RewriteMeshGuard(
+      ParsedGlb parsed,
+      OperationDiagnostic conflict,
+      InterchangeBaseline baseline,
+      bool discardAffectedState,
+      GltfOperationProfile profile)
+    {
+      var nativePath = conflict.Data["nativePath"];
+      if (!TryReadIndex(nativePath, "meshes", out var meshIndex))
+      {
+        throw new InvalidDataException("The guard conflict is not owned by a mesh scope.");
+      }
+      var metadata = JsonNode.Parse(parsed.Meshes[meshIndex].Metadata!)?.AsObject()
+        ?? throw new InvalidDataException("The mesh metadata envelope is malformed.");
+      var localId = metadata["id"]!.GetValue<int>();
+      var partitions = parsed.Meshes[meshIndex].Primitives.Select((primitive, index) =>
+        new GeometryPartition(
+          metadata["payload"]!["partitions"]![index]!["localId"]!.GetValue<int>(),
+          primitive.Vertices,
+          primitive.Triangles)).ToArray();
+      var fingerprint = StaticGeometryFingerprint.CreateMesh(baseline, localId, partitions);
+      metadata["guards"]!["nativeProjection"] = new JsonObject
+      {
+        ["projection"] = "static-geometry",
+        ["version"] = 1,
+        ["algorithm"] = "sha256",
+        ["digest"] = EncodeSha256(fingerprint.Sha256)
+      };
+      if (discardAffectedState)
+      {
+        const string discarded = "0000000000000000000000000000000000000000000000000000000000000000";
+        foreach (var partition in metadata["payload"]!["partitions"]!.AsArray())
+        {
+          partition!["sha256"] = discarded;
+        }
+      }
+      var rewritten = RewriteScopeMetadata(parsed, nativePath, metadata.ToJsonString(), profile);
+      if (discardAffectedState)
+      {
+        rewritten.DiscardedMetadataScopes.Add(nativePath);
+      }
+      return rewritten;
+    }
+
+    private static ParsedGlb RewriteNodeGuard(
+      ParsedGlb parsed,
+      OperationDiagnostic conflict,
+      InterchangeBaseline baseline,
+      StaticMeshAsset asset,
+      bool discardAffectedState,
+      GltfOperationProfile profile)
+    {
+      var nativePath = conflict.Data["nativePath"];
+      if (discardAffectedState)
+      {
+        return RemoveScopeMetadata(parsed, nativePath, profile);
+      }
+      var value = GetScopeMetadata(parsed, nativePath)
+        ?? throw new InvalidDataException("The node guard carrier has no metadata.");
+      var envelope = GlbDocument.ParseMetadata(value, profile);
+      string digest;
+      if (envelope.AttachmentRecord is not null)
+      {
+        var number = GlbDocument.GetAttachmentPhysicalNumber(
+          GlbDocument.GetFirstArtistObjectLocalId(asset),
+          envelope.LocalId);
+        digest = GlbDocument.CreateAttachmentPoseFingerprint(
+          baseline,
+          envelope.LocalId,
+          number,
+          envelope.AttachmentRecord);
+      }
+      else if (envelope.CannonRenderPosition is not null
+        && envelope.CannonRenderPositionNumber is int cannonNumber)
+      {
+        digest = GlbDocument.CreateCannonRenderPositionFingerprint(
+          baseline,
+          envelope.LocalId,
+          cannonNumber,
+          envelope.CannonRenderPosition);
+      }
+      else
+      {
+        throw new InvalidDataException("The node scope has no regenerable derived guard.");
+      }
+      var metadata = JsonNode.Parse(value)!.AsObject();
+      var projection = envelope.AttachmentRecord is not null
+        ? "attachment.pose"
+        : "cannonRenderPosition.position";
+      metadata["guards"]!["nativeProjection"] = CreateGuard(projection, digest);
+      return RewriteScopeMetadata(parsed, nativePath, metadata.ToJsonString(), profile);
+    }
+
+    private static ParsedGlb RewriteLightGuard(
+      ParsedGlb parsed,
+      OperationDiagnostic conflict,
+      InterchangeBaseline baseline,
+      bool discardAffectedState,
+      GltfOperationProfile profile)
+    {
+      var nativePath = conflict.Data["nativePath"];
+      if (!TryReadIndex(nativePath, "extensions.KHR_lights_punctual.lights", out var lightIndex))
+      {
+        throw new InvalidDataException("The light guard conflict has no light carrier.");
+      }
+      if (discardAffectedState)
+      {
+        var discarded = RemoveScopeMetadata(parsed, nativePath, profile);
+        for (var index = 0; index < discarded.Nodes.Count; index++)
+        {
+          if (discarded.Nodes[index].LightIndex == lightIndex
+            && discarded.Nodes[index].Metadata is not null)
+          {
+            discarded = RewriteScopeMetadata(discarded, $"nodes[{index}]", null, profile);
+          }
+        }
+        discarded.DiscardedMetadataScopes.Add(nativePath);
+        return discarded;
+      }
+      var value = parsed.Lights[lightIndex].Metadata
+        ?? throw new InvalidDataException("The light guard carrier has no metadata.");
+      var envelope = GlbDocument.ParseMetadata(value, profile);
+      var instance = parsed.Nodes.Where(node => node.LightIndex == lightIndex && node.Metadata is not null)
+        .Select(node => GlbDocument.ParseMetadata(node.Metadata!, profile))
+        .Single(node => node.StaticLightDefinitionLocalId == envelope.LocalId);
+      var guards = GlbDocument.CreateStaticLightGuards(
+        baseline,
+        envelope.StaticLightType!,
+        envelope.StaticLightPhysicalNumber!.Value,
+        envelope.LocalId,
+        envelope.StaticLightRecord!.ToArray(),
+        instance.StaticLightAttachmentRecord!.ToArray());
+      var guardName = conflict.Path.Substring(
+        conflict.Path.IndexOf(".guards.", StringComparison.Ordinal) + ".guards.".Length);
+      var metadata = JsonNode.Parse(value)!.AsObject();
+      metadata["guards"]![guardName] = CreateGuard(guardName, guards[guardName]);
+      return RewriteScopeMetadata(parsed, nativePath, metadata.ToJsonString(), profile);
+    }
+
+    private static JsonObject CreateGuard(string projection, string hexadecimal)
+    {
+      return new JsonObject
+      {
+        ["projection"] = projection,
+        ["version"] = 1,
+        ["algorithm"] = "sha256",
+        ["digest"] = EncodeSha256(hexadecimal)
+      };
+    }
+
+    private static ParsedGlb RestoreDeletedMaterialScope(
+      ParsedGlb parsed,
+      OperationDiagnostic conflict,
+      InterchangeBaseline baseline,
+      GltfOperationProfile profile)
+    {
+      var localId = int.Parse(
+        conflict.Data["localId"],
+        System.Globalization.CultureInfo.InvariantCulture);
+      var metadata = new JsonObject
+      {
+        ["format"] = "earthtool.msh.gltf",
+        ["version"] = 1,
+        ["kind"] = "material",
+        ["lineage"] = baseline.AssetLineageId.ToString("D"),
+        ["document"] = baseline.DocumentId.ToString("D"),
+        ["id"] = localId,
+        ["guards"] = new JsonObject(),
+        ["payload"] = new JsonObject
+        {
+          ["textureBinding"] = string.Empty
+        }
+      };
+      return RewriteScopeMetadata(
+        parsed,
+        conflict.Data["nativePath"],
+        metadata.ToJsonString(),
+        profile);
+    }
+
+    private static ParsedGlb AcceptDeletedNativeScope(
+      ParsedGlb parsed,
+      OperationDiagnostic conflict,
+      GltfOperationProfile profile)
+    {
+      var nativePath = conflict.Data["nativePath"];
+      var current = parsed;
+      if (TryReadIndex(nativePath, "meshes", out var meshIndex))
+      {
+        for (var index = 0; index < current.Nodes.Count; index++)
+        {
+          if (current.Nodes[index].MeshIndex == meshIndex && current.Nodes[index].Metadata is not null)
+          {
+            current = RewriteScopeMetadata(current, $"nodes[{index}]", metadata: null, profile);
+          }
+        }
+      }
+      else
+      {
+        const string lights = "extensions.KHR_lights_punctual.lights";
+        if (!TryReadIndex(nativePath, lights, out var lightIndex))
+        {
+          throw new InvalidDataException("Deletion acceptance requires a mesh, material, or light scope.");
+        }
+        for (var index = 0; index < current.Nodes.Count; index++)
+        {
+          if (current.Nodes[index].LightIndex == lightIndex && current.Nodes[index].Metadata is not null)
+          {
+            current = RewriteScopeMetadata(current, $"nodes[{index}]", metadata: null, profile);
+          }
+        }
+      }
+      current.AcceptedDeletionScopes.Add(nativePath);
+      return current;
+    }
+
+    private static ParsedGlb RestoreDeletedMeshScope(
+      ParsedGlb parsed,
+      OperationDiagnostic conflict,
+      InterchangeBaseline baseline,
+      StaticMeshAsset asset,
+      GltfOperationProfile profile)
+    {
+      var nativePath = conflict.Data["nativePath"];
+      if (!TryReadIndex(nativePath, "meshes", out var meshIndex))
+      {
+        throw new InvalidDataException("Deletion acceptance does not identify a mesh scope.");
+      }
+      var localId = int.Parse(
+        conflict.Data["localId"],
+        System.Globalization.CultureInfo.InvariantCulture);
+      var source = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
+        .Single(item => item.Id.Value == localId);
+      var primitives = parsed.Meshes[meshIndex].Primitives;
+      if (primitives.Count != source.StaticRenderObjectIds.Count)
+      {
+        throw new InvalidDataException(
+          "Deletion acceptance requires one native partition per source render object.");
+      }
+      var partitions = primitives.Select((primitive, index) => new GeometryPartition(
+        source.StaticRenderObjectIds[index].Value,
+        primitive.Vertices,
+        primitive.Triangles)).ToArray();
+      var fingerprint = StaticGeometryFingerprint.CreateMesh(baseline, localId, partitions);
+      var metadataPartitions = new JsonArray(partitions.Select(partition => new JsonObject
+      {
+        ["localId"] = partition.LocalId,
+        ["sha256"] = StaticGeometryFingerprint.CreatePartition(
+          baseline,
+          partition.LocalId,
+          partition.Vertices,
+          partition.Triangles)
+      }).ToArray());
+      var metadata = new JsonObject
+      {
+        ["format"] = "earthtool.msh.gltf",
+        ["version"] = 1,
+        ["kind"] = "mesh",
+        ["lineage"] = baseline.AssetLineageId.ToString("D"),
+        ["document"] = baseline.DocumentId.ToString("D"),
+        ["id"] = localId,
+        ["guards"] = new JsonObject
+        {
+          ["nativeProjection"] = new JsonObject
+          {
+            ["projection"] = "static-geometry",
+            ["version"] = 1,
+            ["algorithm"] = "sha256",
+            ["digest"] = EncodeSha256(fingerprint.Sha256)
+          }
+        },
+        ["payload"] = new JsonObject
+        {
+          ["partitions"] = metadataPartitions
+        }
+      };
+      var restored = RewriteScopeMetadata(parsed, nativePath, metadata.ToJsonString(), profile);
+      restored.DiscardedMetadataScopes.Add(nativePath);
+      return restored;
+    }
+
+    private static string EncodeSha256(string hexadecimal)
+    {
+      var bytes = Enumerable.Range(0, 32).Select(index => byte.Parse(
+        hexadecimal.Substring(index * 2, 2),
+        System.Globalization.NumberStyles.HexNumber,
+        System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+      return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    }
+
+    private static string? GetScopeMetadata(ParsedGlb parsed, string nativePath)
+    {
+      if (TryReadIndex(nativePath, "nodes", out var nodeIndex))
+      {
+        return parsed.Nodes[nodeIndex].Metadata;
+      }
+      if (TryReadIndex(nativePath, "meshes", out var meshIndex))
+      {
+        return parsed.Meshes[meshIndex].Metadata;
+      }
+      if (TryReadIndex(nativePath, "materials", out var materialIndex))
+      {
+        return parsed.Materials[materialIndex].Metadata;
+      }
+      const string lights = "extensions.KHR_lights_punctual.lights";
+      return TryReadIndex(nativePath, lights, out var lightIndex)
+        ? parsed.Lights[lightIndex].Metadata
+        : null;
+    }
+
+    private static bool TryReadIndex(string path, string collection, out int index)
+    {
+      var prefix = collection + "[";
+      if (path.StartsWith(prefix, StringComparison.Ordinal)
+        && path.EndsWith("]", StringComparison.Ordinal)
+        && int.TryParse(
+          path.Substring(prefix.Length, path.Length - prefix.Length - 1),
+          System.Globalization.NumberStyles.None,
+          System.Globalization.CultureInfo.InvariantCulture,
+          out index))
+      {
+        return true;
+      }
+      index = -1;
+      return false;
+    }
+
+    private static ParsedGlb RewriteScopeMetadata(
+      ParsedGlb parsed,
+      string nativePath,
+      string? metadata,
+      GltfOperationProfile profile)
+    {
+      var nodes = parsed.Nodes.Select((node, index) => new ParsedGltfNode(
+        node.Name,
+        nativePath == $"nodes[{index}]" ? metadata : node.Metadata,
+        node.MeshIndex,
+        node.LightIndex,
+        node.CameraIndex,
+        node.Children,
+        node.LocalTransform)).ToArray();
+      var meshes = parsed.Meshes.Select((mesh, index) => new ParsedGltfMesh(
+        nativePath == $"meshes[{index}]" ? metadata : mesh.Metadata,
+        mesh.Primitives)).ToArray();
+      var materials = parsed.Materials.Select((material, index) => new ParsedGltfMaterial(
+        nativePath == $"materials[{index}]" ? metadata : material.Metadata,
+        material.HasBaseColorTexture)).ToArray();
+      var lights = parsed.Lights.Select((light, index) => new ParsedGltfLight(
+        light.Name,
+        nativePath == $"extensions.KHR_lights_punctual.lights[{index}]"
+          ? metadata
+          : light.Metadata,
+        light.Type,
+        light.Color,
+        light.Intensity,
+        light.Range,
+        light.InnerConeAngle,
+        light.OuterConeAngle)).ToArray();
+      return CopyDiscardedScopes(parsed, new ParsedGlb(
+        parsed.ManifestMetadata,
+        parsed.HasReservedMetadata,
+        meshes,
+        nodes,
+        materials,
+        parsed.Animations,
+        lights,
+        parsed.RootNodeIndex,
+        new MetadataConflictCollector(profile.MaxMetadataConflicts),
+        parsed.IgnoredInertPaths), profile);
+    }
+
+    private static ParsedGlb CopyDiscardedScopes(
+      ParsedGlb source,
+      ParsedGlb destination,
+      GltfOperationProfile profile)
+    {
+      foreach (var path in source.DiscardedMetadataScopes)
+      {
+        destination.DiscardedMetadataScopes.Add(path);
+      }
+      foreach (var path in source.AcceptedDeletionScopes)
+      {
+        destination.AcceptedDeletionScopes.Add(path);
+      }
+      GlbDocument.RevalidateParsedMetadataGraph(destination, profile);
+      return destination;
+    }
+
+    private static OperationResult<GltfEditImportResult> WithAppliedResolution(
+      OperationResult<GltfEditImportResult> result,
+      GltfMetadataConflictResolution resolution)
+    {
+      if (result.Value is not GltfEditImportResult value)
+      {
+        return result;
+      }
+      return new OperationResult<GltfEditImportResult>(
+        result.Status,
+        new GltfEditImportResult(
+          value.Asset,
+          value.NextBaseline,
+          value.AppliedFingerprint,
+          value.Preservation,
+          value.RestoredSerializedRepresentationPaths,
+          value.PreservedUnknownMetadata,
+          value.NextExportOptions.MetadataNextIds,
+          value.LineageDisposition,
+          new[] { resolution }.Concat(value.AppliedConflictResolutions)),
+        result.Diagnostics);
     }
 
     private static IReadOnlyList<OperationDiagnostic> CreateIgnoredSceneLightDiagnostics(
@@ -2520,7 +3412,7 @@ namespace EarthTool.GLTF
     }
 
     private static IReadOnlyList<PartitionMatch> MatchPartitions(
-      IReadOnlyList<(ParsedGltfMesh Parsed, MetadataEnvelope Metadata)> meshes,
+      IReadOnlyList<(ParsedGltfMesh Parsed, MetadataEnvelope Metadata, bool Discarded)> meshes,
       StaticMeshAsset asset,
       InterchangeBaseline expected)
     {
@@ -2568,6 +3460,24 @@ namespace EarthTool.GLTF
           primitive.Vertices,
           primitive.Triangles,
           primitive.MaterialIndex)).ToArray();
+        if (mesh.Discarded)
+        {
+          if (currentGeometry.Length != metadata.Partitions.Count)
+          {
+            throw new AmbiguousPartitionCorrespondenceException(
+              "Discarding affected geometry requires one native partition per preserved identity.");
+          }
+          result.AddRange(currentGeometry.Select((partition, index) => new PartitionMatch(
+            new GeometryPartition(
+              metadata.Partitions[index].LocalId,
+              partition.Vertices,
+              partition.Triangles,
+              partition.MaterialIndex),
+            source.Id,
+            retained: false,
+            added: false)));
+          continue;
+        }
         if (string.Equals(
           StaticGeometryFingerprint.CreateSurfaceKey(sourceGeometry),
           StaticGeometryFingerprint.CreateSurfaceKey(currentGeometry),
@@ -2905,7 +3815,22 @@ namespace EarthTool.GLTF
         }
       }
 
-      ReconcileStaticLights(nodes, lights, transforms, asset, expected, edit);
+      var replacementLightIndices = parsed.AcceptedDeletionScopes
+        .Concat(parsed.DiscardedMetadataScopes)
+        .Select(path => TryReadIndex(
+          path,
+          "extensions.KHR_lights_punctual.lights",
+          out var index) ? index : -1)
+        .Where(index => index >= 0)
+        .ToHashSet();
+      ReconcileStaticLights(
+        nodes,
+        lights,
+        transforms,
+        asset,
+        expected,
+        replacementLightIndices,
+        edit);
     }
 
     private static void ReconcileStaticLights(
@@ -2914,6 +3839,7 @@ namespace EarthTool.GLTF
       IReadOnlyDictionary<int, Matrix4x4> transforms,
       StaticMeshAsset asset,
       InterchangeBaseline expected,
+      ISet<int> replacementLightIndices,
       StaticMeshEditSession edit)
     {
       var definitionReferenceCounts = new int[lights.Count];
@@ -3245,7 +4171,8 @@ namespace EarthTool.GLTF
           : candidate.Key.Number + 16;
         var sourceAttachment = asset.CommonBaseHeader.AttachmentTable
           .Skip((attachmentNumber - 1) * 8).Take(8).ToArray();
-        if (BinaryPrimitives.ReadInt16LittleEndian(sourceAttachment) != short.MinValue)
+        var replacing = replacementLightIndices.Contains(lightIndex);
+        if (BinaryPrimitives.ReadInt16LittleEndian(sourceAttachment) != short.MinValue && !replacing)
         {
           throw ArtistObjectConflict(
             "A canonically named static light targets an occupied physical record.",
@@ -3283,7 +4210,7 @@ namespace EarthTool.GLTF
           lights[lightIndex].Parsed,
           transform,
           $"nodes[{candidate.Value}]");
-        if (inactiveGuards.Any(guard => !string.Equals(
+        if (replacing || inactiveGuards.Any(guard => !string.Equals(
           guard.Value,
           currentGuards[guard.Key],
           StringComparison.Ordinal)))
@@ -3295,7 +4222,7 @@ namespace EarthTool.GLTF
               lights[lightIndex].Parsed,
               transform,
               $"extensions.KHR_lights_punctual.lights[{lightIndex}]"),
-            new[] { "Addition" });
+            new[] { replacing ? "Regeneration" : "Addition" });
         }
       }
 
@@ -3839,7 +4766,7 @@ namespace EarthTool.GLTF
     private static StaticHierarchyPlan ReconcileHierarchy(
       ParsedGlb parsed,
       IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
-      IReadOnlyList<(ParsedGltfMesh Parsed, MetadataEnvelope Metadata)> meshes,
+      IReadOnlyList<(ParsedGltfMesh Parsed, MetadataEnvelope? Metadata)> meshes,
       StaticMeshAsset asset,
       InterchangeBaseline expected,
       StaticMeshEditSession edit)
@@ -3862,6 +4789,10 @@ namespace EarthTool.GLTF
 
       var identifiedSourceIds = nodes.Where(node => node.Parsed.MeshIndex.HasValue && node.Metadata is not null)
         .Select(node => node.Metadata!.LocalId).ToArray();
+      var acceptedDeletionMeshIndices = parsed.AcceptedDeletionScopes
+        .Select(path => TryReadIndex(path, "meshes", out var index) ? index : -1)
+        .Where(index => index >= 0)
+        .ToHashSet();
       if (identifiedSourceIds.Distinct().Count() != identifiedSourceIds.Length)
       {
         throw new MetadataIdentityException(
@@ -3869,7 +4800,9 @@ namespace EarthTool.GLTF
           2012,
           "Duplicate object scope identities require an explicit fork resolution.");
       }
-      if (nodes.Any(node => node.Parsed.MeshIndex.HasValue && node.Metadata is null)
+      if (nodes.Any(node => node.Parsed.MeshIndex.HasValue
+          && node.Metadata is null
+          && !acceptedDeletionMeshIndices.Contains(node.Parsed.MeshIndex.Value))
         && sources.Keys.Any(id => !identifiedSourceIds.Contains(id)))
       {
         throw new MetadataIdentityException(
@@ -3877,14 +4810,17 @@ namespace EarthTool.GLTF
           2012,
           "An untagged object cannot be distinguished from a missing expected object scope.");
       }
-      if (nodes.Count(node => node.Parsed.MeshIndex.HasValue && node.Metadata is null) > 1)
+      if (nodes.Count(node => node.Parsed.MeshIndex.HasValue
+        && node.Metadata is null
+        && !acceptedDeletionMeshIndices.Contains(node.Parsed.MeshIndex.Value)) > 1)
       {
         throw new MetadataIdentityException(
           GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
           2012,
           "Multiple untagged objects require explicit scope identities.");
       }
-      var meshLocalIds = meshes.Select(mesh => mesh.Metadata.LocalId).ToArray();
+      var meshLocalIds = meshes.Where(mesh => mesh.Metadata is not null)
+        .Select(mesh => mesh.Metadata!.LocalId).ToArray();
       if (meshLocalIds.Distinct().Count() != meshLocalIds.Length)
       {
         throw new MetadataIdentityException(
@@ -3923,7 +4859,8 @@ namespace EarthTool.GLTF
 
         if (!node.Parsed.MeshIndex.HasValue
           || node.Parsed.MeshIndex.Value >= meshes.Count
-          || meshes[node.Parsed.MeshIndex.Value].Metadata.ScopeKind != "mesh")
+          || metadata is not null
+            && meshes[node.Parsed.MeshIndex.Value].Metadata?.ScopeKind != "mesh")
         {
           throw new UnsupportedGltfDomainException("HierarchyEdits");
         }
@@ -3941,7 +4878,7 @@ namespace EarthTool.GLTF
 
         if (metadata is not null)
         {
-          if (meshes[node.Parsed.MeshIndex.Value].Metadata.LocalId != metadata.LocalId)
+          if (meshes[node.Parsed.MeshIndex.Value].Metadata!.LocalId != metadata.LocalId)
           {
             throw new UnsupportedGltfDomainException("HierarchyEdits");
           }
@@ -4226,6 +5163,7 @@ namespace EarthTool.GLTF
         AddDiagnosticData(data, "metadataPath", conflict.Path);
         AddDiagnosticData(data, "nativePath", GetMetadataCarrierPath(conflict.Path));
         AddDiagnosticData(data, "affectedPayloadPaths", conflict.Path);
+        data["conflictKey"] = CreateConflictKey(conflict.Code, conflict.Path, data);
         return new OperationDiagnostic(
           conflict.Code,
           conflict.EventId,
@@ -4366,6 +5304,313 @@ namespace EarthTool.GLTF
       {
         data.Add(key, value);
       }
+    }
+
+    private static MetadataConflictResolutionResult ResolveMetadataConflicts(
+      IReadOnlyList<MetadataConflictException> conflicts,
+      InterchangeBaseline expectedBaseline,
+      GltfEditImportOptions options)
+    {
+      var diagnostics = conflicts.Select(conflict =>
+        BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline)).ToArray();
+      var byKey = diagnostics.ToDictionary(
+        diagnostic => diagnostic.Data["conflictKey"],
+        StringComparer.Ordinal);
+      var unmatched = options.ConflictResolutions.FirstOrDefault(resolution =>
+        !byKey.ContainsKey(resolution.ConflictKey));
+      if (unmatched is not null)
+      {
+        return MetadataConflictResolutionResult.Failed(InvalidConflictResolution(
+          "The conflict resolution is stale or does not match this input."));
+      }
+
+      foreach (var resolution in options.ConflictResolutions)
+      {
+        var diagnostic = byKey[resolution.ConflictKey];
+        var actions = diagnostic.Data["actions"].Split(',');
+        if (!actions.Contains(resolution.Action, StringComparer.Ordinal))
+        {
+          return MetadataConflictResolutionResult.Failed(InvalidConflictResolution(
+            "The selected action is not allowed for the matching conflict."));
+        }
+        if (resolution.Action == GltfMetadataConflictActions.MapScope
+          && resolution.TargetNativePath != diagnostic.Data["nativePath"])
+        {
+          return MetadataConflictResolutionResult.Failed(InvalidConflictResolution(
+            "The scope mapping target does not match the conflicted native scope."));
+        }
+      }
+
+      var applied = new List<GltfMetadataConflictResolution>();
+      var unresolved = new List<OperationDiagnostic>();
+      foreach (var diagnostic in diagnostics)
+      {
+        var resolution = options.ConflictResolutions.SingleOrDefault(item =>
+          item.ConflictKey == diagnostic.Data["conflictKey"]);
+        if (resolution is null || !ResolvesInProcess(resolution.Action))
+        {
+          unresolved.Add(diagnostic);
+        }
+        else
+        {
+          applied.Add(resolution);
+        }
+      }
+
+      return unresolved.Count == 0
+        ? MetadataConflictResolutionResult.Succeeded(applied)
+        : MetadataConflictResolutionResult.Failed(unresolved);
+    }
+
+    private static bool TryGetWholeLineageResolution(
+      Exception exception,
+      InterchangeBaseline expectedBaseline,
+      GltfEditImportOptions options,
+      out GltfMetadataConflictResolution? resolution,
+      out OperationDiagnostic? failure)
+    {
+      resolution = options.ConflictResolutions.SingleOrDefault(item =>
+        item.Action == GltfMetadataConflictActions.AdoptAsNew
+        || item.Action == GltfMetadataConflictActions.DiscardLineage);
+      failure = null;
+      if (resolution is null)
+      {
+        return false;
+      }
+
+      var diagnostic = BindConflictToBaseline(ToDiagnostic(exception), expectedBaseline);
+      if (options.ConflictResolutions.Count != 1
+        || !diagnostic.Data.TryGetValue("conflictKey", out var conflictKey)
+        || conflictKey != resolution.ConflictKey
+        || !diagnostic.Data.TryGetValue("actions", out var actions)
+        || !actions.Split(',').Contains(resolution.Action, StringComparer.Ordinal))
+      {
+        failure = InvalidConflictResolution(
+          "The whole-lineage action is stale or is not allowed for the matching conflict.");
+      }
+      return true;
+    }
+
+    private static bool TryGetParseScopeResolution(
+      Exception exception,
+      InterchangeBaseline expectedBaseline,
+      GltfEditImportOptions options,
+      out ParseScopeResolution? result,
+      out OperationDiagnostic? failure)
+    {
+      var resolution = options.ConflictResolutions.FirstOrDefault(item =>
+        item.Action == GltfMetadataConflictActions.MapScope
+        || item.Action == GltfMetadataConflictActions.ForkScope
+        || item.Action == GltfMetadataConflictActions.DiscardAffectedState);
+      result = null;
+      failure = null;
+      if (resolution is null)
+      {
+        return false;
+      }
+      var diagnostic = BindConflictToBaseline(ToDiagnostic(exception), expectedBaseline);
+      if (!diagnostic.Data.TryGetValue("conflictKey", out var conflictKey)
+        || conflictKey != resolution.ConflictKey
+        || !diagnostic.Data.TryGetValue("actions", out var actions)
+        || !actions.Split(',').Contains(resolution.Action, StringComparer.Ordinal))
+      {
+        failure = InvalidConflictResolution(
+          "The scope action is stale or is not allowed for the matching parse conflict.");
+        return true;
+      }
+      result = new ParseScopeResolution(diagnostic, resolution);
+      return true;
+    }
+
+    private static OperationDiagnostic BindConflictToBaseline(
+      OperationDiagnostic diagnostic,
+      InterchangeBaseline expectedBaseline)
+    {
+      if (!diagnostic.Data.ContainsKey("conflictKey"))
+      {
+        return diagnostic;
+      }
+      var data = new Dictionary<string, string>(diagnostic.Data, StringComparer.Ordinal)
+      {
+        ["expectedLineage"] = expectedBaseline.AssetLineageId.ToString("D"),
+        ["expectedDocument"] = expectedBaseline.DocumentId.ToString("D")
+      };
+      data["conflictKey"] = CreateConflictKey(diagnostic.Code, diagnostic.Path, data);
+      return new OperationDiagnostic(
+        diagnostic.Code,
+        diagnostic.EventId,
+        diagnostic.Severity,
+        diagnostic.Path,
+        diagnostic.Message,
+        diagnostic.ByteOffset,
+        data);
+    }
+
+    private static byte[] RemoveGlbMetadata(byte[] glb)
+    {
+      var jsonLength = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(12, 4)));
+      var json = RemoveJsonMetadata(glb.AsSpan(20, jsonLength).ToArray());
+      return ReplaceGlbJson(glb, jsonLength, json);
+    }
+
+    private static byte[] RewriteGlbMetadata(
+      byte[] glb,
+      OperationDiagnostic diagnostic,
+      GltfMetadataConflictResolution resolution)
+    {
+      var jsonLength = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(12, 4)));
+      var json = RewriteJsonScopeMetadata(
+        glb.AsSpan(20, jsonLength).ToArray(),
+        diagnostic,
+        resolution);
+      return ReplaceGlbJson(glb, jsonLength, json);
+    }
+
+    private static byte[] ReplaceGlbJson(byte[] glb, int oldJsonLength, byte[] json)
+    {
+      var binaryHeader = checked(20 + oldJsonLength);
+      var paddedJsonLength = checked((json.Length + 3) & ~3);
+      var binaryChunkLength = glb.Length - binaryHeader;
+      var result = new byte[checked(20 + paddedJsonLength + binaryChunkLength)];
+      glb.AsSpan(0, 8).CopyTo(result);
+      BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(8), checked((uint)result.Length));
+      BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(12), checked((uint)paddedJsonLength));
+      BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(16), 0x4E4F534A);
+      json.CopyTo(result.AsSpan(20));
+      result.AsSpan(20 + json.Length, paddedJsonLength - json.Length).Fill(0x20);
+      glb.AsSpan(binaryHeader, binaryChunkLength).CopyTo(result.AsSpan(20 + paddedJsonLength));
+      return result;
+    }
+
+    private static byte[] RewriteJsonScopeMetadata(
+      byte[] json,
+      OperationDiagnostic diagnostic,
+      GltfMetadataConflictResolution resolution)
+    {
+      var root = JsonNode.Parse(Encoding.UTF8.GetString(json))?.AsObject()
+        ?? throw new InvalidDataException("The glTF JSON document is empty.");
+      var source = GetJsonCarrier(root, diagnostic.Data["nativePath"]);
+      if (source["extras"] is not JsonObject sourceExtras
+        || sourceExtras["earthtool"] is not JsonNode metadata)
+      {
+        throw new InvalidDataException("The conflicted metadata carrier no longer exists.");
+      }
+      if (resolution.Action == GltfMetadataConflictActions.MapScope)
+      {
+        var target = GetJsonCarrier(root, resolution.TargetNativePath!);
+        var targetExtras = target["extras"] as JsonObject;
+        if (targetExtras?["earthtool"] is not null)
+        {
+          throw new InvalidDataException("The scope mapping target already owns EarthTool metadata.");
+        }
+        if (targetExtras is null)
+        {
+          targetExtras = new JsonObject();
+          target["extras"] = targetExtras;
+        }
+        targetExtras["earthtool"] = metadata.DeepClone();
+      }
+      sourceExtras.Remove("earthtool");
+      if (sourceExtras.Count == 0)
+      {
+        source.Remove("extras");
+      }
+      return Encoding.UTF8.GetBytes(root.ToJsonString());
+    }
+
+    private static JsonObject GetJsonCarrier(JsonObject root, string nativePath)
+    {
+      if (TryReadIndex(nativePath, "nodes", out var nodeIndex))
+      {
+        return root["nodes"]![nodeIndex]!.AsObject();
+      }
+      if (TryReadIndex(nativePath, "meshes", out var meshIndex))
+      {
+        return root["meshes"]![meshIndex]!.AsObject();
+      }
+      if (TryReadIndex(nativePath, "materials", out var materialIndex))
+      {
+        return root["materials"]![materialIndex]!.AsObject();
+      }
+      const string lights = "extensions.KHR_lights_punctual.lights";
+      if (TryReadIndex(nativePath, lights, out var lightIndex))
+      {
+        return root["extensions"]!["KHR_lights_punctual"]!["lights"]![lightIndex]!.AsObject();
+      }
+      if (nativePath == "scenes[0]")
+      {
+        return root["scenes"]![0]!.AsObject();
+      }
+      throw new InvalidDataException("The metadata conflict does not identify a supported carrier.");
+    }
+
+    private static byte[] RemoveJsonMetadata(byte[] json)
+    {
+      var root = JsonNode.Parse(Encoding.UTF8.GetString(json))
+        ?? throw new InvalidDataException("The glTF JSON document is empty.");
+      RemoveMetadata(root);
+      return Encoding.UTF8.GetBytes(root.ToJsonString());
+    }
+
+    private static void RemoveMetadata(JsonNode node)
+    {
+      if (node is JsonObject value)
+      {
+        if (value["extras"] is JsonObject extras)
+        {
+          extras.Remove("earthtool");
+          if (extras.Count == 0)
+          {
+            value.Remove("extras");
+          }
+        }
+        foreach (var child in value.Select(item => item.Value).Where(child => child is not null).ToArray())
+        {
+          RemoveMetadata(child!);
+        }
+      }
+      else if (node is JsonArray array)
+      {
+        foreach (var child in array.Where(child => child is not null))
+        {
+          RemoveMetadata(child!);
+        }
+      }
+    }
+
+    private static bool ResolvesInProcess(string action)
+    {
+      return action == GltfMetadataConflictActions.AcceptBranch
+        || action == GltfMetadataConflictActions.MapScope
+        || action == GltfMetadataConflictActions.AcceptDeletion
+        || action == GltfMetadataConflictActions.DiscardAffectedState
+        || action == GltfMetadataConflictActions.RegenerateDerivedState;
+    }
+
+    private static OperationDiagnostic InvalidConflictResolution(string message)
+    {
+      return new OperationDiagnostic(
+        GltfDiagnosticCodes.MalformedMetadata,
+        2003,
+        DiagnosticSeverity.Error,
+        "metadata.actions",
+        message);
+    }
+
+    private static string CreateConflictKey(
+      string code,
+      string path,
+      IReadOnlyDictionary<string, string> data)
+    {
+      var canonical = new StringBuilder(code).Append('\n').Append(path);
+      foreach (var item in data.Where(item => item.Key is not ("conflictKey" or "actions"))
+        .OrderBy(item => item.Key, StringComparer.Ordinal))
+      {
+        canonical.Append('\n').Append(item.Key).Append('=').Append(item.Value);
+      }
+      using var sha256 = SHA256.Create();
+      var digest = sha256.ComputeHash(Encoding.UTF8.GetBytes(canonical.ToString()));
+      return "v1:" + Convert.ToBase64String(digest).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 
     private static string GetMetadataCarrierPath(string path)
@@ -4635,22 +5880,23 @@ namespace EarthTool.GLTF
       {
         actions = catalogActions.ToArray();
       }
+      var data = new Dictionary<string, string>
+      {
+        ["importMode"] = "edit",
+        ["actions"] = string.Join(",", actions),
+        ["carrierType"] = GetMetadataCarrierType(path),
+        ["metadataPath"] = path,
+        ["nativePath"] = GetMetadataCarrierPath(path),
+        ["affectedPayloadPaths"] = path
+      };
+      data["conflictKey"] = CreateConflictKey(code, path, data);
       return new OperationDiagnostic(
         code,
         eventId,
         DiagnosticSeverity.Error,
         path,
         message,
-        data: new Dictionary<string, string>
-        {
-          ["conflictKey"] = $"{code}:{path}",
-          ["importMode"] = "edit",
-          ["actions"] = string.Join(",", actions),
-          ["carrierType"] = GetMetadataCarrierType(path),
-          ["metadataPath"] = path,
-          ["nativePath"] = GetMetadataCarrierPath(path),
-          ["affectedPayloadPaths"] = path
-        });
+        data: data);
     }
 
     private static OperationResult<T> Failed<T>(OperationDiagnostic diagnostic)
@@ -4679,6 +5925,55 @@ namespace EarthTool.GLTF
     private static OperationDiagnostic CancelledDiagnostic()
     {
       return Diagnostic(GltfDiagnosticCodes.Cancelled, 1105, "$", "The glTF operation was cancelled.");
+    }
+
+    private sealed class MetadataConflictResolutionResult
+    {
+      internal IReadOnlyList<GltfMetadataConflictResolution> Applied { get; }
+
+      internal IReadOnlyList<OperationDiagnostic> Diagnostics { get; }
+
+      private MetadataConflictResolutionResult(
+        IReadOnlyList<GltfMetadataConflictResolution> applied,
+        IReadOnlyList<OperationDiagnostic> diagnostics)
+      {
+        Applied = applied;
+        Diagnostics = diagnostics;
+      }
+
+      internal static MetadataConflictResolutionResult Succeeded(
+        IReadOnlyList<GltfMetadataConflictResolution> applied)
+      {
+        return new MetadataConflictResolutionResult(applied, Array.Empty<OperationDiagnostic>());
+      }
+
+      internal static MetadataConflictResolutionResult Failed(OperationDiagnostic diagnostic)
+      {
+        return Failed(new[] { diagnostic });
+      }
+
+      internal static MetadataConflictResolutionResult Failed(
+        IReadOnlyList<OperationDiagnostic> diagnostics)
+      {
+        return new MetadataConflictResolutionResult(
+          Array.Empty<GltfMetadataConflictResolution>(),
+          diagnostics);
+      }
+    }
+
+    private sealed class ParseScopeResolution
+    {
+      internal OperationDiagnostic Diagnostic { get; }
+
+      internal GltfMetadataConflictResolution Resolution { get; }
+
+      internal ParseScopeResolution(
+        OperationDiagnostic diagnostic,
+        GltfMetadataConflictResolution resolution)
+      {
+        Diagnostic = diagnostic;
+        Resolution = resolution;
+      }
     }
   }
 

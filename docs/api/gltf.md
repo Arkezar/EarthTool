@@ -126,7 +126,21 @@ inventory. If additional conflicts would be hidden, the final retained entry is
 Malformed carriers, envelopes, identities, kinds, duplicates, and inventories
 use their assigned `ETG2000` through `ETG2020` conflicts. Diagnostics expose a
 deterministic conflict key and the complete allowed action identifiers from
-`GltfMetadataConflictCatalog`. Unknown additive version-1 members retain their
+`GltfMetadataConflictCatalog`. Pass exact keyed
+`GltfMetadataConflictResolution` values through `GltfEditImportOptions` to
+`ImportEditGlbWithResolutionsAsync` or `ImportEditGltfFileWithResolutionsAsync`
+and retry the same input. Keys bind the complete conflict and caller-expected
+baseline; stale, duplicate, mismatched, disallowed, incomplete, or replayed
+resolutions fail before an edit session is opened. Scope mapping requires an
+explicit native carrier path. Forking drops identity-bound metadata and lets
+native-addition reconciliation allocate fresh IDs. Branch acceptance retains
+lineage, while adopt-as-new and discard-lineage remove all metadata authority
+and canonically admit native content under fresh identities. `abort`,
+`retryWithMetadata`, and `repairNativeExternally` remain non-committing
+instructions until the caller supplies changed input. Successful results report
+applied actions and lineage disposition; `AppliedFingerprint` is null when the
+old lineage was discarded.
+Unknown additive version-1 members retain their
 exact raw JSON tokens in `GltfEditImportResult.PreservedUnknownMetadata` but do
 not gain identity, guard, reference, action, or trust semantics. Passing
 `NextExportOptions` to the next export rewrites those tokens into the rotated

@@ -46,9 +46,14 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String UnsupportedDomain = "ETG1002"
   field System.String UnsupportedGuard = "ETG2015"
   field System.String UnsupportedMetadataVersion = "ETG2004"
+public sealed class EarthTool.GLTF.GltfEditImportOptions
+  constructor GltfEditImportOptions(System.Collections.Generic.IEnumerable<EarthTool.GLTF.GltfMetadataConflictResolution>? conflictResolutions = null)
+  property System.Collections.Generic.IReadOnlyList<EarthTool.GLTF.GltfMetadataConflictResolution> ConflictResolutions { get; }
 public sealed class EarthTool.GLTF.GltfEditImportResult
-  property EarthTool.GLTF.NativeProjectionFingerprint AppliedFingerprint { get; }
+  property System.Collections.Generic.IReadOnlyList<EarthTool.GLTF.GltfMetadataConflictResolution> AppliedConflictResolutions { get; }
+  property EarthTool.GLTF.NativeProjectionFingerprint? AppliedFingerprint { get; }
   property EarthTool.MSH.Assets.StaticMeshAsset Asset { get; }
+  property EarthTool.GLTF.GltfMetadataLineageDisposition LineageDisposition { get; }
   property EarthTool.GLTF.InterchangeBaseline NextBaseline { get; }
   property EarthTool.GLTF.GltfExportOptions NextExportOptions { get; }
   property EarthTool.MSH.Authoring.PreservationReport Preservation { get; }
@@ -69,7 +74,9 @@ public sealed class EarthTool.GLTF.GltfInterchange
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfExportReceipt>> ExportGlbFileAsync(EarthTool.MSH.Assets.StaticMeshAsset asset, System.String destinationPath, EarthTool.GLTF.GltfExportOptions? options = null, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfExportReceipt>> ExportGltfFileAsync(EarthTool.MSH.Assets.StaticMeshAsset asset, System.String destinationPath, EarthTool.GLTF.GltfExportOptions? options = null, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfEditImportResult>> ImportEditGlbAsync(System.IO.Stream source, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
+  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfEditImportResult>> ImportEditGlbWithResolutionsAsync(System.IO.Stream source, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfEditImportOptions options, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfEditImportResult>> ImportEditGltfFileAsync(System.String sourcePath, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
+  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfEditImportResult>> ImportEditGltfFileWithResolutionsAsync(System.String sourcePath, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfEditImportOptions options, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfNewModelImportResult>> ImportNewModelGlbAsync(System.IO.Stream source, EarthTool.GLTF.GltfNewModelImportOptions? options = null, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfNewModelImportResult>> ImportNewModelGltfFileAsync(System.String sourcePath, EarthTool.GLTF.GltfNewModelImportOptions? options = null, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult> ValidateGlbAsync(System.IO.Stream source, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
@@ -100,6 +107,16 @@ public static class EarthTool.GLTF.GltfMetadataConflictActions
   field System.String RetryWithMetadata = "retryWithMetadata"
 public static class EarthTool.GLTF.GltfMetadataConflictCatalog
   property System.Collections.Generic.IReadOnlyDictionary<System.String, System.Collections.Generic.IReadOnlyList<System.String>> ActionsByCode { get; }
+public sealed class EarthTool.GLTF.GltfMetadataConflictResolution
+  constructor GltfMetadataConflictResolution(System.String conflictKey, System.String action, System.String? targetNativePath = null)
+  property System.String Action { get; }
+  property System.String ConflictKey { get; }
+  property System.String? TargetNativePath { get; }
+public enum EarthTool.GLTF.GltfMetadataLineageDisposition : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
+  field EarthTool.GLTF.GltfMetadataLineageDisposition AdoptedAsNew = 2
+  field EarthTool.GLTF.GltfMetadataLineageDisposition BranchAccepted = 1
+  field EarthTool.GLTF.GltfMetadataLineageDisposition Discarded = 3
+  field EarthTool.GLTF.GltfMetadataLineageDisposition Retained = 0
 public enum EarthTool.GLTF.GltfNewModelAnimationClass : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
   field EarthTool.GLTF.GltfNewModelAnimationClass A = 0
   field EarthTool.GLTF.GltfNewModelAnimationClass B = 1
