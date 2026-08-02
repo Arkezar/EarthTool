@@ -615,6 +615,13 @@ namespace EarthTool.GLTF
         var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken).ConfigureAwait(false);
         var parsed = GlbDocument.Parse(bytes, profile);
         ValidateGeometryProfile(parsed, profile);
+        var metadataConflicts = parsed.MetadataConflicts.Build();
+        if (metadataConflicts.Count != 0)
+        {
+          return new OperationResult(
+            OperationStatus.Failed,
+            metadataConflicts.Select(conflict => ToDiagnostic(conflict)));
+        }
         return new OperationResult(OperationStatus.Succeeded);
       }
       catch (OperationCanceledException)
@@ -646,6 +653,13 @@ namespace EarthTool.GLTF
         var parsed = GlbDocument.ParseSeparate(package.Json, package.Binary, profile);
         ValidateGeometryProfile(parsed, profile);
         GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri, package.Images);
+        var metadataConflicts = parsed.MetadataConflicts.Build();
+        if (metadataConflicts.Count != 0)
+        {
+          return new OperationResult(
+            OperationStatus.Failed,
+            metadataConflicts.Select(conflict => ToDiagnostic(conflict, sourcePath)));
+        }
         return new OperationResult(OperationStatus.Succeeded);
       }
       catch (OperationCanceledException)
@@ -1415,7 +1429,8 @@ namespace EarthTool.GLTF
       var manifest = GlbDocument.ParseMetadata(
         parsed.ManifestMetadata ?? throw new MissingMetadataException("scene"),
         profile);
-      ValidateManifestMetadata(manifest, expectedBaseline);
+      ValidateManifestMetadata(manifest, expectedBaseline, parsed.MetadataConflicts);
+      var metadataBaseline = new InterchangeBaseline(manifest.AssetLineageId, manifest.DocumentId);
 
       byte[] sourceMsh;
       try
@@ -1473,7 +1488,7 @@ namespace EarthTool.GLTF
           sourceMsh,
           MshOperationProfile.Default,
           cancellationToken,
-          new MeshAssetLineageId(expectedBaseline.AssetLineageId),
+          new MeshAssetLineageId(manifest.AssetLineageId),
           MeshAssetOrigin.Loaded,
           rootSourceObjectLocalId: manifest.SourceObjectLocalIds[0],
           staticRenderObjectLocalIds: manifest.StaticRenderObjectLocalIds,
@@ -1494,7 +1509,20 @@ namespace EarthTool.GLTF
           ex.Message,
           GltfMetadataConflictActions.Abort,
           GltfMetadataConflictActions.RetryWithMetadata,
-          GltfMetadataConflictActions.DiscardLineage));
+            GltfMetadataConflictActions.DiscardLineage));
+      }
+
+      MetadataGraphDetector.Detect(
+        parsed,
+        manifest,
+        asset,
+        metadataBaseline,
+        profile,
+        parsed.MetadataConflicts);
+      var metadataConflicts = parsed.MetadataConflicts.Build();
+      if (metadataConflicts.Count != 0)
+      {
+        return Failed<GltfEditImportResult>(metadataConflicts.Select(conflict => ToDiagnostic(conflict)));
       }
 
       var meshes = parsed.Meshes
@@ -1908,7 +1936,8 @@ namespace EarthTool.GLTF
 
     private static void ValidateManifestMetadata(
       MetadataEnvelope manifest,
-      InterchangeBaseline expected)
+      InterchangeBaseline expected,
+      MetadataConflictCollector conflicts)
     {
       if (manifest.ScopeKind != "manifest" || manifest.LocalId != 0 || manifest.SourceMsh is null)
       {
@@ -1917,13 +1946,25 @@ namespace EarthTool.GLTF
 
       if (manifest.AssetLineageId != expected.AssetLineageId)
       {
-        throw new MetadataIdentityException(GltfDiagnosticCodes.AssetLineageMismatch, 2006,
-          "The GLB belongs to a different asset lineage.");
+        conflicts.Add(new MetadataConflictException(
+          GltfDiagnosticCodes.AssetLineageMismatch,
+          2006,
+          "scenes[0]",
+          "The GLB belongs to a different asset lineage.",
+          GltfMetadataConflictActions.Abort,
+          GltfMetadataConflictActions.AdoptAsNew,
+          GltfMetadataConflictActions.DiscardLineage));
       }
       if (manifest.DocumentId != expected.DocumentId)
       {
-        throw new MetadataIdentityException(GltfDiagnosticCodes.DocumentMismatch, 2007,
-          "The GLB belongs to a different interchange document.");
+        conflicts.Add(new MetadataConflictException(
+          GltfDiagnosticCodes.DocumentMismatch,
+          2007,
+          "scenes[0]",
+          "The GLB belongs to a different interchange document.",
+          GltfMetadataConflictActions.Abort,
+          GltfMetadataConflictActions.RetryWithMetadata,
+          GltfMetadataConflictActions.AcceptBranch));
       }
 
     }
@@ -3156,6 +3197,7 @@ namespace EarthTool.GLTF
       if (!sourceRecord.SequenceEqual(metadata.AttachmentRecord)
         || metadata.Fingerprint != GlbDocument.CreateAttachmentPoseFingerprint(
           expected,
+          metadata.LocalId,
           sourcePhysicalNumber,
           sourceRecord.ToArray())
         || BinaryPrimitives.ReadInt16LittleEndian(metadata.AttachmentRecord.ToArray()) == short.MinValue)
@@ -3197,6 +3239,7 @@ namespace EarthTool.GLTF
       if (!sourceRecord.SequenceEqual(metadata.CannonRenderPosition)
         || metadata.Fingerprint != GlbDocument.CreateCannonRenderPositionFingerprint(
           expected,
+          metadata.LocalId,
           physicalNumber.Value,
           sourceRecord.ToArray()))
       {
@@ -3813,12 +3856,14 @@ namespace EarthTool.GLTF
           out var catalogActions)
           ? catalogActions
           : conflict.Actions;
-        var data = new Dictionary<string, string>(conflict.ConflictData, StringComparer.Ordinal)
-        {
-          ["conflictKey"] = $"{conflict.Code}:{conflict.Path}",
-          ["importMode"] = "edit",
-          ["actions"] = string.Join(",", actions)
-        };
+        var data = new Dictionary<string, string>(conflict.ConflictData, StringComparer.Ordinal);
+        data["conflictKey"] = $"{conflict.Code}:{conflict.Path}";
+        data["importMode"] = "edit";
+        data["actions"] = string.Join(",", actions);
+        AddDiagnosticData(data, "carrierType", GetMetadataCarrierType(conflict.Path));
+        AddDiagnosticData(data, "metadataPath", conflict.Path);
+        AddDiagnosticData(data, "nativePath", GetMetadataCarrierPath(conflict.Path));
+        AddDiagnosticData(data, "affectedPayloadPaths", conflict.Path);
         return new OperationDiagnostic(
           conflict.Code,
           conflict.EventId,
@@ -3926,6 +3971,47 @@ namespace EarthTool.GLTF
       }
 
       return Diagnostic(GltfDiagnosticCodes.InvalidGlb, 1100, path, exception.Message);
+    }
+
+    private static string GetMetadataCarrierType(string path)
+    {
+      if (path.StartsWith("scenes[", StringComparison.Ordinal))
+      {
+        return "scene";
+      }
+      if (path.StartsWith("nodes[", StringComparison.Ordinal))
+      {
+        return "node";
+      }
+      if (path.StartsWith("meshes[", StringComparison.Ordinal))
+      {
+        return "mesh";
+      }
+      if (path.StartsWith("materials[", StringComparison.Ordinal))
+      {
+        return "material";
+      }
+      if (path.StartsWith("extensions.KHR_lights_punctual.lights[", StringComparison.Ordinal))
+      {
+        return "light";
+      }
+      return "metadata";
+    }
+
+    private static void AddDiagnosticData(IDictionary<string, string> data, string key, string value)
+    {
+      if (!data.ContainsKey(key))
+      {
+        data.Add(key, value);
+      }
+    }
+
+    private static string GetMetadataCarrierPath(string path)
+    {
+      var payload = path.IndexOf(".payload", StringComparison.Ordinal);
+      var guards = path.IndexOf(".guards", StringComparison.Ordinal);
+      var separator = payload < 0 ? guards : guards < 0 ? payload : Math.Min(payload, guards);
+      return separator < 0 ? path : path.Substring(0, separator);
     }
 
     private static OperationDiagnostic Limit(string path, long actual, int maximum)
@@ -4197,7 +4283,11 @@ namespace EarthTool.GLTF
         {
           ["conflictKey"] = $"{code}:{path}",
           ["importMode"] = "edit",
-          ["actions"] = string.Join(",", actions)
+          ["actions"] = string.Join(",", actions),
+          ["carrierType"] = GetMetadataCarrierType(path),
+          ["metadataPath"] = path,
+          ["nativePath"] = GetMetadataCarrierPath(path),
+          ["affectedPayloadPaths"] = path
         });
     }
 
@@ -4205,6 +4295,12 @@ namespace EarthTool.GLTF
       where T : class
     {
       return new OperationResult<T>(OperationStatus.Failed, diagnostics: new[] { diagnostic });
+    }
+
+    private static OperationResult<T> Failed<T>(IEnumerable<OperationDiagnostic> diagnostics)
+      where T : class
+    {
+      return new OperationResult<T>(OperationStatus.Failed, diagnostics: diagnostics);
     }
 
     private static OperationResult<T> Cancelled<T>()

@@ -280,6 +280,9 @@ namespace EarthTool.GLTF
     /// <summary>Gets the maximum guards accepted in one envelope.</summary>
     public int MaxMetadataGuards { get; }
 
+    /// <summary>Gets the maximum metadata conflicts returned by one operation.</summary>
+    public int MaxMetadataConflicts { get; }
+
     /// <summary>Initializes finite glTF operation limits.</summary>
     public GltfOperationProfile(
       int maxInputBytes = 32 * 1024 * 1024,
@@ -303,7 +306,8 @@ namespace EarthTool.GLTF
         262144,
         4194304,
         262144,
-        64)
+        64,
+        1024)
     {
     }
 
@@ -332,7 +336,8 @@ namespace EarthTool.GLTF
         262144,
         4194304,
         262144,
-        64)
+        64,
+        1024)
     {
     }
 
@@ -363,7 +368,8 @@ namespace EarthTool.GLTF
         262144,
         4194304,
         262144,
-        64)
+        64,
+        1024)
     {
     }
 
@@ -384,7 +390,8 @@ namespace EarthTool.GLTF
       int maxMetadataEnvelopes = 262144,
       int maxMetadataElements = 4194304,
       int maxUnknownMetadataMembers = 262144,
-      int maxMetadataGuards = 64)
+      int maxMetadataGuards = 64,
+      int maxMetadataConflicts = 1024)
     {
       MaxInputBytes = RequirePositive(maxInputBytes, nameof(maxInputBytes));
       MaxOutputBytes = RequirePositive(maxOutputBytes, nameof(maxOutputBytes));
@@ -408,6 +415,7 @@ namespace EarthTool.GLTF
         maxUnknownMetadataMembers,
         nameof(maxUnknownMetadataMembers));
       MaxMetadataGuards = RequirePositive(maxMetadataGuards, nameof(maxMetadataGuards));
+      MaxMetadataConflicts = RequirePositive(maxMetadataConflicts, nameof(maxMetadataConflicts));
     }
 
     private static int RequirePositive(int value, string parameterName)

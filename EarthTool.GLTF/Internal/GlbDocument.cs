@@ -78,6 +78,8 @@ namespace EarthTool.GLTF.Internal
 
     internal int RootNodeIndex { get; }
 
+    internal MetadataConflictCollector MetadataConflicts { get; }
+
     internal ParsedGlb(
       string? manifestMetadata,
       bool hasReservedMetadata,
@@ -86,7 +88,8 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyList<ParsedGltfMaterial> materials,
       IReadOnlyList<ParsedGltfAnimation> animations,
       IReadOnlyList<ParsedGltfLight> lights,
-      int rootNodeIndex)
+      int rootNodeIndex,
+      MetadataConflictCollector metadataConflicts)
     {
       ManifestMetadata = manifestMetadata;
       HasReservedMetadata = hasReservedMetadata;
@@ -96,6 +99,7 @@ namespace EarthTool.GLTF.Internal
       Animations = animations;
       Lights = lights;
       RootNodeIndex = rootNodeIndex;
+      MetadataConflicts = metadataConflicts;
     }
   }
 
@@ -444,6 +448,19 @@ namespace EarthTool.GLTF.Internal
     }
   }
 
+  internal sealed class MetadataSourceProvenance
+  {
+    internal int ByteLength { get; }
+
+    internal string Sha256 { get; }
+
+    internal MetadataSourceProvenance(int byteLength, string sha256)
+    {
+      ByteLength = byteLength;
+      Sha256 = sha256;
+    }
+  }
+
   internal sealed class MetadataEnvelope
   {
     internal Guid AssetLineageId { get; }
@@ -506,9 +523,13 @@ namespace EarthTool.GLTF.Internal
 
     internal IReadOnlyDictionary<string, string> Guards { get; }
 
+    internal IReadOnlyDictionary<string, (string Projection, int Version)> GuardProjections { get; }
+
     internal IReadOnlyDictionary<string, IReadOnlyList<int>> ScopeInventory { get; }
 
     internal IReadOnlyDictionary<string, int> ScopeNextIds { get; }
+
+    internal MetadataSourceProvenance? SourceProvenance { get; }
 
     internal IReadOnlyDictionary<string, string> UnknownMembers { get; }
 
@@ -545,8 +566,10 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyList<byte>? staticLightRecord,
       IReadOnlyList<byte>? staticLightAttachmentRecord,
       IReadOnlyDictionary<string, string> guards,
+      IReadOnlyDictionary<string, (string Projection, int Version)> guardProjections,
       IReadOnlyDictionary<string, IReadOnlyList<int>> scopeInventory,
       IReadOnlyDictionary<string, int> scopeNextIds,
+      MetadataSourceProvenance? sourceProvenance,
       IReadOnlyDictionary<string, string> unknownMembers,
       int elementCount)
     {
@@ -580,8 +603,10 @@ namespace EarthTool.GLTF.Internal
       StaticLightRecord = staticLightRecord;
       StaticLightAttachmentRecord = staticLightAttachmentRecord;
       Guards = guards;
+      GuardProjections = guardProjections;
       ScopeInventory = scopeInventory;
       ScopeNextIds = scopeNextIds;
+      SourceProvenance = sourceProvenance;
       UnknownMembers = unknownMembers;
       ElementCount = elementCount;
     }
@@ -893,8 +918,9 @@ namespace EarthTool.GLTF.Internal
       GltfOperationProfile profile,
       GltfImportIntent intent)
     {
+      var metadataConflicts = new MetadataConflictCollector(profile.MaxMetadataConflicts);
       ValidateSupportedGraph(root, profile, intent);
-      ValidateMetadataGraph(root, profile, intent);
+      ValidateMetadataGraph(root, profile, intent, metadataConflicts);
       var manifest = intent == GltfImportIntent.Edit
         ? GetMetadata(root.GetProperty("scenes")[0], "scene")
         : TryGetMetadata(root.GetProperty("scenes")[0]);
@@ -923,16 +949,14 @@ namespace EarthTool.GLTF.Internal
         }
 
         meshes.Add(new ParsedGltfMesh(
-          intent == GltfImportIntent.Edit ? GetMetadata(mesh, "mesh") : TryGetMetadata(mesh),
+          TryGetMetadata(mesh),
           primitives.AsReadOnly()));
       }
 
       var materials = root.TryGetProperty("materials", out var materialArray)
         ? materialArray.EnumerateArray()
           .Select(material => new ParsedGltfMaterial(
-            intent == GltfImportIntent.Edit
-              ? GetMetadata(material, "material")
-              : TryGetMetadata(material),
+            TryGetMetadata(material),
             material.TryGetProperty("pbrMetallicRoughness", out var pbr)
               && pbr.TryGetProperty("baseColorTexture", out _)))
           .ToArray()
@@ -948,13 +972,15 @@ namespace EarthTool.GLTF.Internal
         Array.AsReadOnly(materials),
         animations,
         lights,
-        root.GetProperty("scenes")[0].GetProperty("nodes")[0].GetInt32());
+        root.GetProperty("scenes")[0].GetProperty("nodes")[0].GetInt32(),
+        metadataConflicts);
     }
 
     private static void ValidateMetadataGraph(
       JsonElement root,
       GltfOperationProfile profile,
-      GltfImportIntent intent)
+      GltfImportIntent intent,
+      MetadataConflictCollector conflicts)
     {
       var allowedCarriers = new Dictionary<string, string>(StringComparer.Ordinal)
       {
@@ -1120,7 +1146,7 @@ namespace EarthTool.GLTF.Internal
       {
         if (item.Envelope.AssetLineageId != manifest.AssetLineageId)
         {
-          throw IdentityConflict(
+          conflicts.Add(IdentityConflict(
             GltfDiagnosticCodes.AssetLineageMismatch,
             2006,
             item.Path,
@@ -1128,11 +1154,11 @@ namespace EarthTool.GLTF.Internal
             "The metadata envelope belongs to a foreign asset lineage.",
             GltfMetadataConflictActions.Abort,
             GltfMetadataConflictActions.AdoptAsNew,
-            GltfMetadataConflictActions.DiscardLineage);
+            GltfMetadataConflictActions.DiscardLineage));
         }
         if (item.Envelope.DocumentId != manifest.DocumentId)
         {
-          throw IdentityConflict(
+          conflicts.Add(IdentityConflict(
             GltfDiagnosticCodes.DocumentMismatch,
             2007,
             item.Path,
@@ -1140,29 +1166,37 @@ namespace EarthTool.GLTF.Internal
             "The metadata envelope belongs to another document branch.",
             GltfMetadataConflictActions.Abort,
             GltfMetadataConflictActions.RetryWithMetadata,
-            GltfMetadataConflictActions.AcceptBranch);
+            GltfMetadataConflictActions.AcceptBranch));
         }
       }
 
-      var duplicate = parsed.GroupBy(
+      foreach (var duplicate in parsed.GroupBy(
           item => (item.Envelope.ScopeKind, item.Envelope.LocalId))
-        .FirstOrDefault(group => group.Count() > 1);
-      if (duplicate is not null)
+        .Where(group => group.Count() > 1))
       {
-        var item = duplicate.OrderBy(value => value.Path, StringComparer.Ordinal).Skip(1).First();
-        throw IdentityConflict(
-          GltfDiagnosticCodes.DuplicateScopeIdentity,
-          2009,
-          item.Path,
-          item.Envelope,
-          "More than one metadata envelope claims the same scope identity.",
-          GltfMetadataConflictActions.Abort,
-          GltfMetadataConflictActions.MapScope,
-          GltfMetadataConflictActions.ForkScope,
-          GltfMetadataConflictActions.DiscardAffectedState);
+        foreach (var item in duplicate.OrderBy(value => value.Path, StringComparer.Ordinal).Skip(1))
+        {
+          conflicts.Add(IdentityConflict(
+            GltfDiagnosticCodes.DuplicateScopeIdentity,
+            2009,
+            item.Path,
+            item.Envelope,
+            "More than one metadata envelope claims the same scope identity.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.MapScope,
+            GltfMetadataConflictActions.ForkScope,
+            GltfMetadataConflictActions.DiscardAffectedState));
+        }
       }
 
-      ValidateManifestInventory(manifest, parsed, profile);
+      try
+      {
+        ValidateManifestInventory(manifest, parsed, profile);
+      }
+      catch (MetadataConflictException conflict)
+      {
+        conflicts.Add(conflict);
+      }
     }
 
     private static void AddAllowedCarriers(
@@ -1615,6 +1649,7 @@ namespace EarthTool.GLTF.Internal
           throw new MalformedMetadataException("The metadata payload member must be an object.");
         }
         var envelopePayload = payload;
+        MetadataSourceProvenance? sourceProvenance = null;
         if (kind == "manifest")
         {
           if (!payload.TryGetProperty("origin", out var origin)
@@ -1637,6 +1672,21 @@ namespace EarthTool.GLTF.Internal
               GltfMetadataConflictActions.Abort,
               GltfMetadataConflictActions.RetryWithMetadata,
               GltfMetadataConflictActions.DiscardLineage);
+          }
+          if (origin.TryGetProperty("source", out var originSource))
+          {
+            if (originSource.ValueKind != JsonValueKind.Object
+              || !originSource.TryGetProperty("byteLength", out var sourceByteLength)
+              || !sourceByteLength.TryGetInt32(out var sourceLength)
+              || sourceLength < 0
+              || !originSource.TryGetProperty("sha256", out var sourceSha256)
+              || sourceSha256.ValueKind != JsonValueKind.String)
+            {
+              throw new MalformedMetadataException("The manifest source provenance is malformed.");
+            }
+            sourceProvenance = new MetadataSourceProvenance(
+              sourceLength,
+              DecodeSha256(sourceSha256.GetString()!));
           }
           envelopePayload = assetPayload;
         }
@@ -1778,8 +1828,11 @@ namespace EarthTool.GLTF.Internal
             ? ReadBase64(staticLightInstance, "attachmentRecord", profile.MaxMetadataBytes)
             : null,
           new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(domainGuards),
+          new System.Collections.ObjectModel.ReadOnlyDictionary<string, (string Projection, int Version)>(
+            guardProjections),
           scopeInventory,
           scopeNextIds,
+          sourceProvenance,
           unknownMembers,
           elementCount);
       }
@@ -2044,7 +2097,7 @@ namespace EarthTool.GLTF.Internal
       if (scopeKind == "manifest")
       {
         return parent is "/payload/origin" or "/payload/asset" or "/payload/inventory"
-          or "/payload/nextIds" or "/payload/asset/staticAnimation"
+          or "/payload/nextIds" or "/payload/origin/source" or "/payload/asset/staticAnimation"
           || segments.Length == 6 && segments[1] == "payload" && segments[2] == "asset"
             && segments[3] == "staticAnimation" && segments[4] == "classes"
             && IsCanonicalArrayIndex(segments[5]);
@@ -2086,7 +2139,8 @@ namespace EarthTool.GLTF.Internal
       var path = string.Join("/", segments);
       if (path is "/payload/origin" or "/payload/asset" or "/payload/inventory" or "/payload/nextIds"
         or "/payload/origin/kind" or "/payload/origin/source" or "/payload/origin/parentLineage"
-        or "/payload/origin/parentDocument")
+        or "/payload/origin/parentDocument" or "/payload/origin/source/byteLength"
+        or "/payload/origin/source/sha256")
       {
         return true;
       }
@@ -2953,8 +3007,22 @@ namespace EarthTool.GLTF.Internal
         writer.WriteStartObject("payload");
         if (sourceAsset is not null)
         {
+          var serializedSource = sourceAsset.GetSerializedRepresentation().ToArray();
           writer.WriteStartObject("origin");
           writer.WriteString("kind", "mshExport");
+          writer.WriteStartObject("source");
+          writer.WriteNumber("byteLength", serializedSource.Length);
+          using (var sha256 = SHA256.Create())
+          {
+            writer.WriteString("sha256", EncodeBase64Url(sha256.ComputeHash(serializedSource)));
+          }
+          WriteUnknownMetadata(
+            writer,
+            unknownMetadata,
+            scopeKind,
+            localId,
+            "/payload/origin/source/");
+          writer.WriteEndObject();
           WriteUnknownMetadata(writer, unknownMetadata, scopeKind, localId, "/payload/origin/");
           writer.WriteEndObject();
           writer.WriteStartObject("asset");
@@ -3217,6 +3285,7 @@ namespace EarthTool.GLTF.Internal
         writer.WriteStartObject("guards");
         WriteGuard(writer, "nativeProjection", "attachment.pose", 1, CreateAttachmentPoseFingerprint(
           baseline,
+          attachment.LocalId,
           attachment.PhysicalNumber,
           attachment.Record), unknownMetadata, "object", attachment.LocalId);
         WriteUnknownMetadata(writer, unknownMetadata, "object", attachment.LocalId, "/guards/");
@@ -3253,6 +3322,7 @@ namespace EarthTool.GLTF.Internal
         WriteGuard(writer, "nativeProjection", "cannonRenderPosition.position", 1,
           CreateCannonRenderPositionFingerprint(
           baseline,
+          cannon.LocalId,
           cannon.PhysicalNumber,
           cannon.Record), unknownMetadata, "object", cannon.LocalId);
         WriteUnknownMetadata(writer, unknownMetadata, "object", cannon.LocalId, "/guards/");
@@ -3444,6 +3514,7 @@ namespace EarthTool.GLTF.Internal
 
     internal static string CreateAttachmentPoseFingerprint(
       InterchangeBaseline baseline,
+      int localId,
       int physicalNumber,
       IReadOnlyList<byte> record)
     {
@@ -3451,7 +3522,7 @@ namespace EarthTool.GLTF.Internal
       using var preimage = new MemoryStream();
       using (var writer = new BinaryWriter(preimage, Encoding.UTF8, true))
       {
-        WriteFingerprintHeader(writer, baseline, "attachment.pose", "object", physicalNumber);
+        WriteFingerprintHeader(writer, baseline, "attachment.pose", "object", localId);
         writer.Write(physicalNumber);
         writer.Write(BinaryPrimitives.ReadInt16LittleEndian(bytes));
         writer.Write(BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)));
@@ -3463,6 +3534,7 @@ namespace EarthTool.GLTF.Internal
 
     internal static string CreateCannonRenderPositionFingerprint(
       InterchangeBaseline baseline,
+      int localId,
       int physicalNumber,
       IReadOnlyList<byte> record)
     {
@@ -3475,7 +3547,7 @@ namespace EarthTool.GLTF.Internal
           baseline,
           "cannonRenderPosition.position",
           "object",
-          physicalNumber);
+          localId);
         writer.Write(physicalNumber);
         WriteCanonicalFloat(writer, ReadFinitePreview(bytes, 0));
         WriteCanonicalFloat(writer, ReadFinitePreview(bytes, 8));

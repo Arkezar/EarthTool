@@ -5,6 +5,7 @@ using EarthTool.MSH.Assets;
 using EarthTool.MSH.Operations;
 using EarthTool.MSH.Services;
 using System.Buffers.Binary;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -70,6 +71,43 @@ public class MetadataGraphValidationTests
       "EarthTool.MSH.Tests",
       "Approvals",
       "gltf-metadata-conflicts.approved.json")).ReplaceLineEndings("\n");
+
+    actual.Should().Be(approved);
+  }
+
+  [Fact]
+  public void MetadataConflictCatalogCoversTheCompleteReservedRange()
+  {
+    GltfMetadataConflictCatalog.ActionsByCode.Keys.Should().Equal(
+      Enumerable.Range(2000, 21).Select(eventId => $"ETG{eventId}"));
+    GltfMetadataConflictCatalog.ActionsByCode.Values.Should().AllSatisfy(actions =>
+    {
+      actions.Should().NotBeEmpty();
+      actions.Should().OnlyHaveUniqueItems();
+    });
+  }
+
+  [Fact]
+  public async Task CanonicalMetadataGraphMatchesSerializedApproval()
+  {
+    var (bytes, _) = await ExportFixtureAsync();
+    var root = ReadJson(bytes);
+    var graph = new List<JsonObject>
+    {
+      DescribeEnvelope("scenes[0]", root["scenes"]![0]!)
+    };
+    AddEnvelopeDescriptions(graph, root, "nodes");
+    AddEnvelopeDescriptions(graph, root, "meshes");
+    AddEnvelopeDescriptions(graph, root, "materials");
+    var actual = JsonSerializer.Serialize(
+      graph,
+      new JsonSerializerOptions { WriteIndented = true }) + "\n";
+    var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../.."));
+    var approved = File.ReadAllText(Path.Combine(
+      repositoryRoot,
+      "EarthTool.MSH.Tests",
+      "Approvals",
+      "gltf-metadata-graph.approved.json")).ReplaceLineEndings("\n");
 
     actual.Should().Be(approved);
   }
@@ -231,6 +269,321 @@ public class MetadataGraphValidationTests
   }
 
   [Fact]
+  public async Task MissingExpectedMeshEnvelopeProducesTheAssignedConflict()
+  {
+    var (bytes, baseline) = await ExportFixtureAsync();
+    var edited = RewriteJson(bytes, root => root["meshes"]![0]!.AsObject().Remove("extras"));
+
+    var result = await ImportAsync(edited, baseline);
+
+    AssertConflict(result, GltfDiagnosticCodes.MissingExpectedScope, 2010);
+    result.Diagnostics[0].Path.Should().Be("meshes[0]");
+  }
+
+  [Fact]
+  public async Task PartitionReferenceToAnUnknownMaterialProducesTheAssignedConflict()
+  {
+    var (bytes, baseline) = await ExportFixtureAsync();
+    var edited = RewriteJson(bytes, root =>
+    {
+      var metadata = ReadEnvelope(root["meshes"]![0]!);
+      metadata["payload"]!["partitions"]![0]!["localId"] = int.MaxValue;
+      WriteEnvelope(root["meshes"]![0]!, metadata);
+    });
+
+    var result = await ImportAsync(edited, baseline);
+
+    AssertConflict(result, GltfDiagnosticCodes.DanglingMetadataReference, 2013);
+    result.Diagnostics[0].Path.Should().Be("meshes[0].payload.partitions[0].localId");
+  }
+
+  [Fact]
+  public async Task MissingReferencedMaterialReportsScopeAndDanglingReferenceConflicts()
+  {
+    var (bytes, baseline) = await ExportFixtureAsync();
+    var edited = RewriteJson(bytes, root => root["materials"]![0]!.AsObject().Remove("extras"));
+
+    var result = await ImportAsync(edited, baseline);
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Value.Should().BeNull();
+    result.Diagnostics.Select(diagnostic => (diagnostic.Code, diagnostic.Path)).Should().Equal(
+      (GltfDiagnosticCodes.MissingExpectedScope, "materials[0]"),
+      (GltfDiagnosticCodes.DanglingMetadataReference, "meshes[0].payload.partitions[0].localId"));
+    result.Diagnostics[1].Data["nativePath"].Should().Be("materials");
+  }
+
+  [Fact]
+  public async Task ObjectAndMeshIdentityMismatchProducesAmbiguousCorrespondence()
+  {
+    var (bytes, baseline) = await ExportFixtureAsync();
+    var edited = RewriteJson(bytes, root =>
+    {
+      var nodeMetadata = ReadEnvelope(root["nodes"]![0]!);
+      nodeMetadata["id"] = 2;
+      WriteEnvelope(root["nodes"]![0]!, nodeMetadata);
+      var manifest = ReadEnvelope(root["scenes"]![0]!);
+      manifest["payload"]!["inventory"]!["object"]![0] = 2;
+      WriteEnvelope(root["scenes"]![0]!, manifest);
+    });
+
+    var result = await ImportAsync(edited, baseline);
+
+    AssertConflict(result, GltfDiagnosticCodes.AmbiguousPartitionCorrespondence, 2012);
+    result.Diagnostics[0].Path.Should().Be("nodes[0]");
+  }
+
+  [Fact]
+  public async Task MissingRequiredNativeProjectionGuardProducesTheAssignedConflict()
+  {
+    var (bytes, baseline) = await ExportFixtureAsync();
+    var edited = RewriteJson(bytes, root =>
+    {
+      var metadata = ReadEnvelope(root["meshes"]![0]!);
+      metadata["guards"]!.AsObject().Remove("nativeProjection");
+      WriteEnvelope(root["meshes"]![0]!, metadata);
+    });
+
+    var result = await ImportAsync(edited, baseline);
+
+    AssertConflict(result, GltfDiagnosticCodes.MissingRequiredGuard, 2014);
+    result.Diagnostics[0].Path.Should().Be("meshes[0].guards.nativeProjection");
+  }
+
+  [Fact]
+  public async Task WrongGuardProjectionProducesTheAssignedConflict()
+  {
+    var (bytes, baseline) = await ExportFixtureAsync();
+    var edited = RewriteJson(bytes, root =>
+    {
+      var metadata = ReadEnvelope(root["meshes"]![0]!);
+      metadata["guards"]!["nativeProjection"]!["projection"] = "foreign-geometry";
+      WriteEnvelope(root["meshes"]![0]!, metadata);
+    });
+
+    var result = await ImportAsync(edited, baseline);
+
+    AssertConflict(result, GltfDiagnosticCodes.UnsupportedGuard, 2015);
+    result.Diagnostics[0].Path.Should().Be("meshes[0].guards.nativeProjection");
+  }
+
+  [Fact]
+  public async Task StaleGuardWithUnchangedNativeProjectionProducesTheAssignedConflict()
+  {
+    var (bytes, baseline) = await ExportFixtureAsync();
+    var edited = RewriteJson(bytes, root =>
+    {
+      var metadata = ReadEnvelope(root["meshes"]![0]!);
+      metadata["guards"]!["nativeProjection"]!["digest"] =
+        Convert.ToBase64String(new byte[32]).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+      WriteEnvelope(root["meshes"]![0]!, metadata);
+    });
+
+    var result = await ImportAsync(edited, baseline);
+
+    AssertConflict(result, GltfDiagnosticCodes.StaleNativeProjection, 2016);
+    result.Diagnostics[0].Path.Should().Be("meshes[0].guards.nativeProjection");
+  }
+
+  [Fact]
+  public async Task ArtistObjectGuardBindsTheEnvelopeScopeIdentity()
+  {
+    var (bytes, baseline) = await ExportFixtureAsync();
+    var edited = RewriteJson(bytes, root =>
+    {
+      var cannonMetadata = ReadEnvelope(root["nodes"]![4]!);
+      cannonMetadata["id"] = 55;
+      WriteEnvelope(root["nodes"]![4]!, cannonMetadata);
+      var manifest = ReadEnvelope(root["scenes"]![0]!);
+      manifest["payload"]!["inventory"]!["object"]![4] = 55;
+      manifest["payload"]!["nextIds"]!["object"] = 56;
+      WriteEnvelope(root["scenes"]![0]!, manifest);
+    });
+
+    var result = await ImportAsync(edited, baseline);
+
+    AssertConflict(result, GltfDiagnosticCodes.StaleNativeProjection, 2016);
+    result.Diagnostics[0].Path.Should().Be("nodes[4].guards.nativeProjection");
+  }
+
+  [Fact]
+  public async Task GeometryFingerprintDoesNotApplyAGlobalEpsilonToBinary32Edits()
+  {
+    var (bytes, baseline) = await ExportFixtureAsync();
+    var binaryHeader = 20 + BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(12));
+    var positionOffset = binaryHeader + 8;
+    var originalBits = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(positionOffset));
+    BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(positionOffset), originalBits + 1);
+
+    var result = await ImportAsync(bytes, baseline);
+
+    result.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    result.Value!.RestoredSerializedRepresentationPaths.Should().NotContain(
+      "StaticRenderObjectSequence[0]");
+    result.Value.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath.StartsWith("StaticRenderObjectSequence[0].RenderVertices", StringComparison.Ordinal));
+  }
+
+  [Fact]
+  public async Task ContradictorySourceProvenanceProducesTheAssignedConflict()
+  {
+    var (bytes, baseline) = await ExportFixtureAsync();
+    var root = ReadJson(bytes);
+    var manifest = ReadEnvelope(root["scenes"]![0]!);
+    var sourceMsh = DecodeBase64Url(manifest["payload"]!["asset"]!["sourceMsh"]!.GetValue<string>());
+    manifest["payload"]!["origin"]!["source"]!["byteLength"] = sourceMsh.Length + 1;
+    WriteEnvelope(root["scenes"]![0]!, manifest);
+
+    var result = await ImportAsync(PackJson(bytes, root.ToJsonString()), baseline);
+
+    AssertConflict(result, GltfDiagnosticCodes.ProvenanceMismatch, 2017);
+    result.Diagnostics[0].Path.Should().Be("scenes[0].payload.origin.source");
+  }
+
+  [Fact]
+  public async Task ExportedSourceProvenanceMatchesThePreservedMsh()
+  {
+    var (bytes, _) = await ExportFixtureAsync();
+    var manifest = ReadEnvelope(ReadJson(bytes)["scenes"]![0]!);
+    var sourceMsh = DecodeBase64Url(manifest["payload"]!["asset"]!["sourceMsh"]!.GetValue<string>());
+    var source = manifest["payload"]!["origin"]!["source"]!;
+
+    source["byteLength"]!.GetValue<int>().Should().Be(sourceMsh.Length);
+    DecodeBase64Url(source["sha256"]!.GetValue<string>()).Should().Equal(SHA256.HashData(sourceMsh));
+  }
+
+  [Fact]
+  public async Task UnknownRequiredScopeKindProducesTheAssignedConflict()
+  {
+    var (bytes, baseline) = await ExportFixtureAsync();
+    var edited = RewriteJson(bytes, root =>
+    {
+      var metadata = ReadEnvelope(root["meshes"]![0]!);
+      metadata["kind"] = "futureRequiredScope";
+      WriteEnvelope(root["meshes"]![0]!, metadata);
+    });
+
+    var result = await ImportAsync(edited, baseline);
+
+    AssertConflict(result, GltfDiagnosticCodes.UnknownRequiredSemantics, 2018);
+  }
+
+  [Fact]
+  public async Task IndependentConflictsReturnOneStableInventoryBeforeReconciliation()
+  {
+    var fixture = StaticMeshSequenceFixture.CreateInterleaved();
+    var (bytes, baseline) = await ExportAssetAsync(fixture.Data);
+    var edited = RewriteJson(bytes, root =>
+    {
+      foreach (var mesh in root["meshes"]!.AsArray().Take(2))
+      {
+        var metadata = ReadEnvelope(mesh!);
+        metadata["guards"]!.AsObject().Remove("nativeProjection");
+        WriteEnvelope(mesh!, metadata);
+      }
+    });
+
+    var result = await ImportAsync(edited, baseline);
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Value.Should().BeNull();
+    result.Diagnostics.Select(diagnostic => (diagnostic.Code, diagnostic.Path)).Should().Equal(
+      (GltfDiagnosticCodes.MissingRequiredGuard, "meshes[0].guards.nativeProjection"),
+      (GltfDiagnosticCodes.MissingRequiredGuard, "meshes[1].guards.nativeProjection"));
+    result.Diagnostics.Should().AllSatisfy(diagnostic => diagnostic.Data["actions"].Should().Be(
+      string.Join(",", GltfMetadataConflictCatalog.ActionsByCode[diagnostic.Code])));
+  }
+
+  [Fact]
+  public async Task StructuralAndApplicabilityConflictsShareOneStableInventory()
+  {
+    var (bytes, baseline) = await ExportFixtureAsync();
+    var edited = RewriteJson(bytes, root =>
+    {
+      var nodeMetadata = ReadEnvelope(root["nodes"]![0]!);
+      nodeMetadata["lineage"] = Guid.NewGuid().ToString();
+      WriteEnvelope(root["nodes"]![0]!, nodeMetadata);
+      RemoveFirstMeshGuard(root);
+    });
+
+    var result = await ImportAsync(edited, baseline);
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Value.Should().BeNull();
+    result.Diagnostics.Select(diagnostic => (diagnostic.Code, diagnostic.Path)).Should().Equal(
+      (GltfDiagnosticCodes.AssetLineageMismatch, "nodes[0]"),
+      (GltfDiagnosticCodes.MissingRequiredGuard, "meshes[0].guards.nativeProjection"));
+  }
+
+  [Fact]
+  public async Task ConflictInventoryLimitEndsWithTheAssignedTruncationConflict()
+  {
+    var fixture = StaticMeshSequenceFixture.CreateInterleaved();
+    var (bytes, baseline) = await ExportAssetAsync(fixture.Data);
+    var edited = RewriteJson(bytes, root =>
+    {
+      foreach (var mesh in root["meshes"]!.AsArray().Take(3))
+      {
+        var metadata = ReadEnvelope(mesh!);
+        metadata["guards"]!.AsObject().Remove("nativeProjection");
+        WriteEnvelope(mesh!, metadata);
+      }
+    });
+
+    var result = await ImportAsync(edited, baseline, CreateProfile(maxMetadataConflicts: 2));
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Value.Should().BeNull();
+    result.Diagnostics.Select(diagnostic => diagnostic.Code).Should().Equal(
+      GltfDiagnosticCodes.MissingRequiredGuard,
+      GltfDiagnosticCodes.TooManyMetadataConflicts);
+    result.Diagnostics[^1].Data["actions"].Should().Be("abort,retryWithMetadata");
+  }
+
+  [Fact]
+  public async Task GlbAndSeparateGltfReturnTheSameMetadataConflictInventory()
+  {
+    await using var source = new MemoryStream(OneTriangleMshFixture.Create());
+    var read = await new MshReader().ReadAsync(source);
+    var asset = read.Value.Should().BeOfType<StaticMeshAsset>().Subject;
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var glbExport = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(_lineageId, _documentId));
+    var editedGlb = RewriteJson(glb.ToArray(), RemoveFirstMeshGuard);
+    var directory = Directory.CreateTempSubdirectory("earthtool-metadata-");
+    try
+    {
+      var path = Path.Combine(directory.FullName, "model.gltf");
+      var separateExport = await interchange.ExportGltfFileAsync(
+        asset,
+        path,
+        new GltfExportOptions(_lineageId, _documentId));
+      separateExport.Status.Should().Be(OperationStatus.Succeeded);
+      var separateRoot = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+      RemoveFirstMeshGuard(separateRoot);
+      await File.WriteAllTextAsync(path, separateRoot.ToJsonString());
+      await using var editedInput = new MemoryStream(editedGlb);
+
+      var glbResult = await interchange.ImportEditGlbAsync(editedInput, glbExport.Value!.Baseline);
+      var separateResult = await interchange.ImportEditGltfFileAsync(path, separateExport.Value!.Baseline);
+
+      glbResult.Value.Should().BeNull();
+      separateResult.Value.Should().BeNull();
+      separateResult.Diagnostics.Select(diagnostic => (diagnostic.Code, diagnostic.Path)).Should().Equal(
+        glbResult.Diagnostics.Select(diagnostic => (diagnostic.Code, diagnostic.Path)));
+    }
+    finally
+    {
+      directory.Delete(true);
+    }
+  }
+
+  [Fact]
   public async Task MetadataJsonDepthFailsBeforeEnvelopeMaterialization()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
@@ -277,6 +630,24 @@ public class MetadataGraphValidationTests
     var result = await ImportAsync(edited, baseline);
 
     AssertConflict(result, GltfDiagnosticCodes.DocumentMismatch, 2007);
+  }
+
+  [Theory]
+  [InlineData(true, GltfDiagnosticCodes.AssetLineageMismatch, 2006)]
+  [InlineData(false, GltfDiagnosticCodes.DocumentMismatch, 2007)]
+  public async Task ExpectedBaselineAuthorizesEditImport(
+    bool replaceLineage,
+    string expectedCode,
+    int expectedEventId)
+  {
+    var (bytes, _) = await ExportFixtureAsync();
+    var expected = new InterchangeBaseline(
+      replaceLineage ? Guid.NewGuid() : _lineageId,
+      replaceLineage ? _documentId : Guid.NewGuid());
+
+    var result = await ImportAsync(bytes, expected);
+
+    AssertConflict(result, expectedCode, expectedEventId);
   }
 
   [Fact]
@@ -365,6 +736,7 @@ public class MetadataGraphValidationTests
       metadata["futureMember"] = JsonNode.Parse(raw);
       metadata["future.member/name"] = JsonNode.Parse(raw);
       metadata["guards"]!["futureGuard"] = JsonNode.Parse(raw);
+      metadata["payload"]!["origin"]!["source"]!["futureSourceMember"] = JsonNode.Parse(raw);
       metadata["payload"]!["asset"]!["futureAssetMember"] = JsonNode.Parse(raw);
       metadata["payload"]!["inventory"]!["futureInventoryMember"] = JsonNode.Parse(raw);
       WriteEnvelope(scene, metadata);
@@ -378,6 +750,8 @@ public class MetadataGraphValidationTests
     result.Value!.PreservedUnknownMetadata["manifest:0:/futureMember"].Should().Be(raw);
     result.Value.PreservedUnknownMetadata["manifest:0:/future.member~1name"].Should().Be(raw);
     result.Value.PreservedUnknownMetadata["manifest:0:/guards/futureGuard"].Should().Be(raw);
+    result.Value.PreservedUnknownMetadata["manifest:0:/payload/origin/source/futureSourceMember"]
+      .Should().Be(raw);
     result.Value.PreservedUnknownMetadata["manifest:0:/payload/asset/futureAssetMember"].Should().Be(raw);
     result.Value.PreservedUnknownMetadata["manifest:0:/payload/inventory/futureInventoryMember"].Should().Be(raw);
     await using var rewritten = new MemoryStream();
@@ -395,6 +769,8 @@ public class MetadataGraphValidationTests
       .ToJsonString().Should().Be(raw);
     ReadEnvelope(rewrittenRoot["scenes"]![0]!)["future.member/name"]!.ToJsonString().Should().Be(raw);
     ReadEnvelope(rewrittenRoot["scenes"]![0]!)["guards"]!["futureGuard"]!
+      .ToJsonString().Should().Be(raw);
+    ReadEnvelope(rewrittenRoot["scenes"]![0]!)["payload"]!["origin"]!["source"]!["futureSourceMember"]!
       .ToJsonString().Should().Be(raw);
     ReadEnvelope(rewrittenRoot["scenes"]![0]!)["payload"]!["inventory"]!["futureInventoryMember"]!
       .ToJsonString().Should().Be(raw);
@@ -485,6 +861,10 @@ public class MetadataGraphValidationTests
     diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
     diagnostic.Path.Should().NotBe("$");
     diagnostic.Data.Should().ContainKey("conflictKey");
+    diagnostic.Data.Should().ContainKey("carrierType");
+    diagnostic.Data["metadataPath"].Should().Be(diagnostic.Path);
+    diagnostic.Data.Should().ContainKey("nativePath");
+    diagnostic.Data.Should().ContainKey("affectedPayloadPaths");
     diagnostic.Data["actions"].Should().Be(string.Join(
       ",",
       GltfMetadataConflictCatalog.ActionsByCode[code]));
@@ -492,7 +872,12 @@ public class MetadataGraphValidationTests
 
   private static async Task<(byte[] Bytes, InterchangeBaseline Baseline)> ExportFixtureAsync()
   {
-    await using var source = new MemoryStream(OneTriangleMshFixture.Create());
+    return await ExportAssetAsync(OneTriangleMshFixture.Create());
+  }
+
+  private static async Task<(byte[] Bytes, InterchangeBaseline Baseline)> ExportAssetAsync(byte[] sourceBytes)
+  {
+    await using var source = new MemoryStream(sourceBytes);
     var read = await new MshReader().ReadAsync(source);
     var asset = read.Value.Should().BeOfType<StaticMeshAsset>().Subject;
     await using var destination = new MemoryStream();
@@ -518,7 +903,8 @@ public class MetadataGraphValidationTests
     int maxMetadataEnvelopes = 262144,
     int maxMetadataElements = 4194304,
     int maxUnknownMetadataMembers = 262144,
-    int maxMetadataGuards = 64)
+    int maxMetadataGuards = 64,
+    int maxMetadataConflicts = 1024)
   {
     return new GltfOperationProfile(
       maxInputBytes: 32 * 1024 * 1024,
@@ -536,7 +922,75 @@ public class MetadataGraphValidationTests
       maxMetadataEnvelopes,
       maxMetadataElements,
       maxUnknownMetadataMembers,
-      maxMetadataGuards);
+      maxMetadataGuards,
+      maxMetadataConflicts);
+  }
+
+  private static byte[] DecodeBase64Url(string value)
+  {
+    return Convert.FromBase64String(value.Replace('-', '+').Replace('_', '/') +
+      new string('=', (4 - value.Length % 4) % 4));
+  }
+
+  private static void RemoveFirstMeshGuard(JsonObject root)
+  {
+    var metadata = ReadEnvelope(root["meshes"]![0]!);
+    metadata["guards"]!.AsObject().Remove("nativeProjection");
+    WriteEnvelope(root["meshes"]![0]!, metadata);
+  }
+
+  private static void AddEnvelopeDescriptions(
+    ICollection<JsonObject> graph,
+    JsonObject root,
+    string collectionName)
+  {
+    if (root[collectionName] is not JsonArray collection)
+    {
+      return;
+    }
+    for (var index = 0; index < collection.Count; index++)
+    {
+      var owner = collection[index]!;
+      if (owner["extras"]?["earthtool"] is not null)
+      {
+        graph.Add(DescribeEnvelope($"{collectionName}[{index}]", owner));
+      }
+    }
+  }
+
+  private static JsonObject DescribeEnvelope(string path, JsonNode owner)
+  {
+    var envelope = ReadEnvelope(owner);
+    var description = new JsonObject
+    {
+      ["path"] = path,
+      ["kind"] = envelope["kind"]!.GetValue<string>(),
+      ["id"] = envelope["id"]!.GetValue<int>(),
+      ["guards"] = new JsonArray(envelope["guards"]!.AsObject().Select(guard => new JsonObject
+      {
+        ["name"] = guard.Key,
+        ["projection"] = guard.Value!["projection"]!.GetValue<string>(),
+        ["version"] = guard.Value["version"]!.GetValue<int>()
+      }).ToArray()),
+      ["payload"] = new JsonArray(envelope["payload"]!.AsObject().Select(member =>
+        JsonValue.Create(member.Key)).ToArray())
+    };
+    if (envelope["kind"]!.GetValue<string>() == "manifest")
+    {
+      description["inventory"] = envelope["payload"]!["inventory"]!.DeepClone();
+      description["nextIds"] = envelope["payload"]!["nextIds"]!.DeepClone();
+    }
+    else if (envelope["kind"]!.GetValue<string>() == "mesh")
+    {
+      description["references"] = new JsonArray(envelope["payload"]!["partitions"]!.AsArray()
+        .Select(partition => JsonValue.Create(partition!["localId"]!.GetValue<int>())).ToArray());
+    }
+    else if (envelope["payload"]!["staticLightInstance"] is JsonNode staticLightInstance)
+    {
+      description["references"] = new JsonArray(
+        staticLightInstance["definitionLocalId"]!.GetValue<int>());
+    }
+    return description;
   }
 
   private static JsonObject ReadJson(byte[] glb)

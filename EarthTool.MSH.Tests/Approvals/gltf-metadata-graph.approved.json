@@ -1,0 +1,132 @@
+[
+  {
+    "path": "scenes[0]",
+    "kind": "manifest",
+    "id": 0,
+    "guards": [],
+    "payload": [
+      "origin",
+      "asset",
+      "inventory",
+      "nextIds"
+    ],
+    "inventory": {
+      "object": [
+        1,
+        51,
+        52,
+        53,
+        54
+      ],
+      "mesh": [
+        1
+      ],
+      "material": [
+        1
+      ],
+      "light": []
+    },
+    "nextIds": {
+      "object": 55,
+      "mesh": 2,
+      "material": 2,
+      "light": 9
+    }
+  },
+  {
+    "path": "nodes[0]",
+    "kind": "object",
+    "id": 1,
+    "guards": [],
+    "payload": [
+      "staticAnimation"
+    ]
+  },
+  {
+    "path": "nodes[1]",
+    "kind": "object",
+    "id": 51,
+    "guards": [
+      {
+        "name": "nativeProjection",
+        "projection": "cannonRenderPosition.position",
+        "version": 1
+      }
+    ],
+    "payload": [
+      "cannonRenderPosition"
+    ]
+  },
+  {
+    "path": "nodes[2]",
+    "kind": "object",
+    "id": 52,
+    "guards": [
+      {
+        "name": "nativeProjection",
+        "projection": "cannonRenderPosition.position",
+        "version": 1
+      }
+    ],
+    "payload": [
+      "cannonRenderPosition"
+    ]
+  },
+  {
+    "path": "nodes[3]",
+    "kind": "object",
+    "id": 53,
+    "guards": [
+      {
+        "name": "nativeProjection",
+        "projection": "cannonRenderPosition.position",
+        "version": 1
+      }
+    ],
+    "payload": [
+      "cannonRenderPosition"
+    ]
+  },
+  {
+    "path": "nodes[4]",
+    "kind": "object",
+    "id": 54,
+    "guards": [
+      {
+        "name": "nativeProjection",
+        "projection": "cannonRenderPosition.position",
+        "version": 1
+      }
+    ],
+    "payload": [
+      "cannonRenderPosition"
+    ]
+  },
+  {
+    "path": "meshes[0]",
+    "kind": "mesh",
+    "id": 1,
+    "guards": [
+      {
+        "name": "nativeProjection",
+        "projection": "static-geometry",
+        "version": 1
+      }
+    ],
+    "payload": [
+      "partitions"
+    ],
+    "references": [
+      1
+    ]
+  },
+  {
+    "path": "materials[0]",
+    "kind": "material",
+    "id": 1,
+    "guards": [],
+    "payload": [
+      "textureBinding"
+    ]
+  }
+]

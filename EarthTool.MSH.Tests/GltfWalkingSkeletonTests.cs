@@ -5303,7 +5303,7 @@ public class GltfWalkingSkeletonTests
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
-    result.Diagnostics.Should().ContainSingle().Subject.Code.Should().Be(GltfDiagnosticCodes.MalformedMetadata);
+    result.Diagnostics.Should().ContainSingle().Subject.Code.Should().Be(GltfDiagnosticCodes.UnsupportedGuard);
   }
 
   [Fact]

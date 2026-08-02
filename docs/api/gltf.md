@@ -35,7 +35,9 @@ kind-specific `payload`. The scene manifest owns strictly increasing scope
 inventories and retained identity high-water marks. Opaque metadata bytes use
 unpadded base64url. Partition fingerprints ignore index width, vertex
 numbering, cyclic triangle-index rotation, and triangle order. They retain
-winding and triangle multiplicity.
+winding and triangle multiplicity. The manifest records the preserved MSH byte
+length and SHA-256 as informational provenance; a contradiction reports
+`ETG2017` but never authorizes preservation state.
 
 Effective animation classes A through D export as `EarthTool A` through
 `EarthTool D` clips. Each participating source object has explicit dense
@@ -118,8 +120,9 @@ topology; valid unsigned-byte, unsigned-short, or unsigned-int indices; required
 texture coordinates; and `GltfOperationProfile.MaxActiveRenderVertices`.
 The profile also bounds decoded bytes per envelope and cumulatively, envelope
 count, JSON depth and elements, guards, unknown additive members, and retained
-metadata. Validation fails fast with one bounded conflict diagnostic. Metadata
-exhaustion reports `ETG2005` before reconciliation.
+metadata. `MaxMetadataConflicts` bounds the stable pre-reconciliation conflict
+inventory. If additional conflicts would be hidden, the final retained entry is
+`ETG2019`. Metadata exhaustion reports `ETG2005` before reconciliation.
 Malformed carriers, envelopes, identities, kinds, duplicates, and inventories
 use their assigned `ETG2000` through `ETG2020` conflicts. Diagnostics expose a
 deterministic conflict key and the complete allowed action identifiers from
@@ -129,7 +132,11 @@ not gain identity, guard, reference, action, or trust semantics. Passing
 `NextExportOptions` to the next export rewrites those tokens into the rotated
 baseline. Dictionary keys combine scope identity with an escaped JSON Pointer
 to the additive member. Unsupported versions remain opaque and are never
-partially salvaged.
+partially salvaged. Missing expected scopes, dangling references, unsupported
+or stale guards, and ambiguous native correspondence are inventoried before an
+edit session is opened, so any conflict returns no partial MSH asset. Native
+projection normalization remains domain-specific; no global floating-point
+epsilon is applied.
 
 Path-based exports stage sibling temporary files and replace the destination
 only after conversion and validation succeed. SharpGLTF strict validation runs
