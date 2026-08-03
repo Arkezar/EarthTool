@@ -1300,9 +1300,9 @@
     "semantic_hash": ""
   },
   ".github/actions/setup-dotnet-env/action.yml": {
-    "mtime": 1764196843.834257,
-    "ast_hash": "f32d2f3afb566fc419125e055a4ed17e",
-    "semantic_hash": "f32d2f3afb566fc419125e055a4ed17e"
+    "mtime": 1785752390.6088443,
+    "ast_hash": "ae04c977ff4700ddc8ce2ece48eb7d00",
+    "semantic_hash": ""
   },
   ".github/dependabot.yml": {
     "mtime": 1764497969.724962,
@@ -1315,18 +1315,18 @@
     "semantic_hash": ""
   },
   ".github/workflows/README.md": {
-    "mtime": 1785748359.99302,
-    "ast_hash": "867f44f82607ad88aa150b351c17be72",
+    "mtime": 1785752390.6158445,
+    "ast_hash": "c04e010151a9b3dca503ea9128745f99",
     "semantic_hash": ""
   },
   ".github/workflows/ci-unified.yml": {
-    "mtime": 1785749247.4696836,
-    "ast_hash": "29a106301cbd0f384e02324055aec7d1",
+    "mtime": 1785752349.7373824,
+    "ast_hash": "ffe452554be6d058becab8cea371fe91",
     "semantic_hash": ""
   },
   ".github/workflows/release.yml": {
-    "mtime": 1785748359.99302,
-    "ast_hash": "208d5cfc9b6fb7aebe9cc5524b301f80",
+    "mtime": 1785752409.170508,
+    "ast_hash": "2b171389dad8c76f4368b80487fc79c5",
     "semantic_hash": ""
   },
   "AGENTS.md": {
@@ -1685,8 +1685,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/MetadataGraphValidationTests.cs": {
-    "mtime": 1785678730.2190363,
-    "ast_hash": "d7955757b7ed0e22810fa88da9ed0697",
+    "mtime": 1785752390.6398454,
+    "ast_hash": "747ab066480626b472e1af5d4b5da674",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/MetadataGraphDetector.cs": {
@@ -1755,8 +1755,8 @@
     "semantic_hash": ""
   },
   "EarthTool.CLI.Tests/PublicCutoverAcceptanceTests.cs": {
-    "mtime": 1785751527.7462587,
-    "ast_hash": "3e817c73bd0bea6e866d68e55c547cbb",
+    "mtime": 1785752390.626845,
+    "ast_hash": "985628a6031ad1947b52c71c9018dfae",
     "semantic_hash": ""
   },
   "EarthTool.CLI/Commands/MSH/MshCommandComposition.cs": {
@@ -1800,8 +1800,8 @@
     "semantic_hash": ""
   },
   ".github/workflows/blender-qualification.yml": {
-    "mtime": 1785690767.5448446,
-    "ast_hash": "74a5ddea427f96aa16e7059a6e730000",
+    "mtime": 1785752390.515841,
+    "ast_hash": "7d6f1ee0863349eb8e499ea740c30ec7",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/OfficialCorpusQualification.cs": {
@@ -1830,13 +1830,13 @@
     "semantic_hash": ""
   },
   "test-tools/validate-glb.test.mjs": {
-    "mtime": 1785693261.232801,
-    "ast_hash": "5bde87ec1a8d3ede9e9eb0ebd37f6ffd",
+    "mtime": 1785752390.6488457,
+    "ast_hash": "3c260db852382c3027e5c0a9255a121f",
     "semantic_hash": ""
   },
   ".github/workflows/official-msh-corpus-qualification.yml": {
-    "mtime": 1785692904.201397,
-    "ast_hash": "27a46d392b4f9e63954289e6ba48a1f6",
+    "mtime": 1785752486.689276,
+    "ast_hash": "60d6657ea274a26327b8f664b75f6071",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/OfficialCorpusCliOracle.cs": {
@@ -1857,6 +1857,11 @@
   "test-tools/release-qualification.test.mjs": {
     "mtime": 1785749344.9531302,
     "ast_hash": "1d5e5b549d962cc75fa53690ce39b3b1",
+    "semantic_hash": ""
+  },
+  ".github/actionlint.yaml": {
+    "mtime": 1785752486.7032764,
+    "ast_hash": "df2c891b422485faf9d9528b64d029cd",
     "semantic_hash": ""
   }
 }

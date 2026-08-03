@@ -66,7 +66,7 @@ public class MetadataGraphValidationTests
   {
     var actual = JsonSerializer.Serialize(
       GltfMetadataConflictCatalog.ActionsByCode,
-      new JsonSerializerOptions { WriteIndented = true }) + "\n";
+      new JsonSerializerOptions { WriteIndented = true }).ReplaceLineEndings("\n") + "\n";
     var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../.."));
     var approved = File.ReadAllText(Path.Combine(
       root,
@@ -103,7 +103,7 @@ public class MetadataGraphValidationTests
     AddEnvelopeDescriptions(graph, root, "materials");
     var actual = JsonSerializer.Serialize(
       graph,
-      new JsonSerializerOptions { WriteIndented = true }) + "\n";
+      new JsonSerializerOptions { WriteIndented = true }).ReplaceLineEndings("\n") + "\n";
     var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../.."));
     var approved = File.ReadAllText(Path.Combine(
       repositoryRoot,

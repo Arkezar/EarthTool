@@ -14,7 +14,7 @@ This directory contains GitHub Actions workflows for building, testing, and publ
 
 **Features**:
 - 🎯 **Smart change detection** - Only builds what changed (CLI, GUI, or both)
-- 🌍 **Multi-platform builds** - Windows, Linux, macOS for both CLI and GUI
+- 🌍 **Multi-platform builds** - Windows and Linux for both CLI and GUI
 - ✅ **Comprehensive testing** with test reports
 - 🔍 **Code quality analysis** with dotnet-format
 - 🔒 **Security checks** for vulnerable packages
@@ -202,10 +202,12 @@ Use workflow dispatch for custom runs:
 Downloads available from Actions runs for 7 days:
 - `EarthTool.CLI-Windows-x64.zip`
 - `EarthTool.CLI-Linux-x64.tar.gz`
-- `EarthTool.CLI-macOS-x64.tar.gz`
 - `EarthTool.WD.GUI-Windows-x64.zip`
 - `EarthTool.WD.GUI-Linux-x64.tar.gz`
-- `EarthTool.WD.GUI-macOS-x64.tar.gz`
+- `EarthTool.PAR.GUI-Windows-x64.zip`
+- `EarthTool.PAR.GUI-Linux-x64.tar.gz`
+- `EarthTool.TEX.GUI-Windows-x64.zip`
+- `EarthTool.TEX.GUI-Linux-x64.tar.gz`
 
 #### Preview Builds (dev branch)
 Downloads available from Actions runs for 30 days:

@@ -8,11 +8,12 @@ using EarthTool.MSH.Operations;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace EarthTool.CLI.Tests;
 
-public sealed class PublicCutoverAcceptanceTests
+public sealed partial class PublicCutoverAcceptanceTests
 {
   [Fact]
   public async Task CliProcessExposesOnlyTheGltfMshCommandTreeAndStableExitStatuses()
@@ -115,7 +116,7 @@ public sealed class PublicCutoverAcceptanceTests
     await process.WaitForExitAsync();
     var output = await outputTask;
     var error = await errorTask;
-    return new CliResult(process.ExitCode, output + error);
+    return new CliResult(process.ExitCode, AnsiEscapeSequence().Replace(output + error, string.Empty));
   }
 
   private static void VerifyHelpApproval(string rootHelp, string mshHelp, string importHelp)
@@ -147,6 +148,9 @@ public sealed class PublicCutoverAcceptanceTests
       .Replace("EarthTool.CLI.dll", "earthtool")
       .Replace("EarthTool.CLI", "earthtool");
   }
+
+  [GeneratedRegex(@"\x1B\[[0-?]*[ -/]*[@-~]")]
+  private static partial Regex AnsiEscapeSequence();
 
   private sealed record CliResult(int ExitCode, string Output);
 }

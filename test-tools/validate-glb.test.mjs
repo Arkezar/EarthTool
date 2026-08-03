@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { hasIssues, parseOptions, summarizeValidatorReport, validateFile } from "./validate-glb.mjs";
 
@@ -55,7 +56,7 @@ test("validator file and private server failures remain path-free", async () => 
   await assert.rejects(validateFile("missing-private-package.glb", { summaryOnly: true }));
 
   const child = spawn(process.execPath, [
-    new URL("./validate-glb.mjs", import.meta.url).pathname,
+    fileURLToPath(new URL("./validate-glb.mjs", import.meta.url)),
     "--server", "true",
     "--summary-only", "true"
   ]);
