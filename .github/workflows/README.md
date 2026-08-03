@@ -36,11 +36,11 @@ This directory contains GitHub Actions workflows for building, testing, and publ
 - Manual workflow dispatch with release flag
 
 **Features**:
-- 🌍 **Multi-platform builds** - Windows, Linux, macOS for both applications
+- 🌍 **Release builds** - Windows and Linux for all applications
 - ✅ **Comprehensive testing** and quality checks
 - 🔒 **Security scanning** with dotnet-outdated
 - 📝 **Unified changelog generation** based on conventional commits
-- 🎁 **Single release** with all 6 artifacts (3 platforms × 2 apps)
+- 🎁 **Single release** with Windows and Linux artifacts for all applications
 - 🔄 **Semantic versioning** support
 - ⚠️ **Breaking change detection** and migration guides
 - 👥 **Contributor attribution**
@@ -122,8 +122,8 @@ The project uses a **unified workflow architecture** for simplified management:
 1. **Ensure all tests pass** on main branch
 2. **Create a version tag**: `git tag v1.0.0`
 3. **Push the tag**: `git push origin v1.0.0`
-4. **Release workflow** builds both CLI and GUI
-5. **GitHub release** created with all 6 artifacts and unified changelog
+4. **Release workflow** builds the CLI and GUIs for Windows and Linux
+5. **GitHub release** created with all 8 artifacts and unified changelog
 
 ### Commit Message Convention
 
@@ -214,7 +214,7 @@ Downloads available from Actions runs for 30 days:
 
 #### Release Builds (`release.yml`)
 Downloads available from GitHub Releases page:
-- All 6 platform-specific builds for both CLI and GUI
+- Windows and Linux builds for the CLI, WD GUI, PAR GUI, and TEX GUI
 - Retention: Permanent (GitHub Releases)
 
 ## Environment Variables

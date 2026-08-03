@@ -146,10 +146,11 @@ jobs:
       - name: Verify expected test discovery
         shell: bash
         run: |
+          read -r EXPECTED_MSH_TESTS EXPECTED_CLI_TESTS <<< "$(node --input-type=module -e 'import("./test-tools/release-qualification.mjs").then(({ expectedTestCounts }) => console.log(expectedTestCounts.msh, expectedTestCounts.cli))')"
           MSH_TESTS=$(dotnet test EarthTool.MSH.Tests/EarthTool.MSH.Tests.csproj --configuration Release --no-restore --list-tests | grep -c '^    ')
           CLI_TESTS=$(dotnet test EarthTool.CLI.Tests/EarthTool.CLI.Tests.csproj --configuration Release --no-restore --list-tests | grep -c '^    ')
-          test "$MSH_TESTS" -eq 350
-          test "$CLI_TESTS" -eq 24
+          test "$MSH_TESTS" -eq "$EXPECTED_MSH_TESTS"
+          test "$CLI_TESTS" -eq "$EXPECTED_CLI_TESTS"
 
       - name: Run MSH/glTF contract tests
         run: dotnet test EarthTool.MSH.Tests/EarthTool.MSH.Tests.csproj --configuration Release --no-restore --filter "Category!=BlenderQualification"

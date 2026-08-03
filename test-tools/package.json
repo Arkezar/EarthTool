@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "qualify:corpus": "node official-corpus-qualification.mjs"
+    "qualify:corpus": "node official-corpus-qualification.mjs",
+    "qualify:release": "node release-qualification.mjs"
   },
   "devDependencies": {
     "gltf-validator": "2.0.0-dev.3.10"

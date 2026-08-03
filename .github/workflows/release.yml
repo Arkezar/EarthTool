@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        os: [windows-latest, ubuntu-latest]
         project: [cli, wd-gui, par-gui, tex-gui]
         include:
           # CLI configurations
@@ -51,9 +51,6 @@ jobs:
           - os: ubuntu-latest
             runtime: linux-x64
             platform_name: Linux-x64
-          - os: macos-latest
-            runtime: osx-x64
-            platform_name: macOS-x64
 
     steps:
       - name: Display build context
@@ -725,22 +722,18 @@ jobs:
           echo "#### CLI (Command Line)" >> CHANGELOG.md
           echo "- **Windows (x64)**: \`EarthTool.CLI-Windows-x64.zip\`" >> CHANGELOG.md
           echo "- **Linux (x64)**: \`EarthTool.CLI-Linux-x64.tar.gz\`" >> CHANGELOG.md
-          echo "- **macOS (x64)**: \`EarthTool.CLI-macOS-x64.tar.gz\`" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
           echo "#### WD GUI (Archive Manager)" >> CHANGELOG.md
           echo "- **Windows (x64)**: \`EarthTool.WD.GUI-Windows-x64.zip\`" >> CHANGELOG.md
           echo "- **Linux (x64)**: \`EarthTool.WD.GUI-Linux-x64.tar.gz\`" >> CHANGELOG.md
-          echo "- **macOS (x64)**: \`EarthTool.WD.GUI-macOS-x64.tar.gz\`" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
           echo "#### PAR GUI (Parameter Editor)" >> CHANGELOG.md
           echo "- **Windows (x64)**: \`EarthTool.PAR.GUI-Windows-x64.zip\`" >> CHANGELOG.md
           echo "- **Linux (x64)**: \`EarthTool.PAR.GUI-Linux-x64.tar.gz\`" >> CHANGELOG.md
-          echo "- **macOS (x64)**: \`EarthTool.PAR.GUI-macOS-x64.tar.gz\`" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
           echo "#### TEX GUI (Texture Viewer)" >> CHANGELOG.md
           echo "- **Windows (x64)**: \`EarthTool.TEX.GUI-Windows-x64.zip\`" >> CHANGELOG.md
           echo "- **Linux (x64)**: \`EarthTool.TEX.GUI-Linux-x64.tar.gz\`" >> CHANGELOG.md
-          echo "- **macOS (x64)**: \`EarthTool.TEX.GUI-macOS-x64.tar.gz\`" >> CHANGELOG.md
           echo "" >> CHANGELOG.md
           
           echo "### 💿 Installation" >> CHANGELOG.md
@@ -754,7 +747,7 @@ jobs:
           echo "" >> CHANGELOG.md
           
           echo "### 💻 System Requirements" >> CHANGELOG.md
-          echo "- **OS**: Windows 10/11, Ubuntu 20.04+, or macOS 10.15+" >> CHANGELOG.md
+          echo "- **OS**: Windows 10/11 or Ubuntu 20.04+" >> CHANGELOG.md
           echo "- **Runtime**: .NET 8.0 (included in self-contained builds)" >> CHANGELOG.md
           echo "- **RAM**: 512MB minimum, 1GB recommended" >> CHANGELOG.md
           echo "- **Disk**: ~50MB per application" >> CHANGELOG.md
@@ -795,15 +788,11 @@ jobs:
           files: |
             artifacts/EarthTool.CLI-Windows-x64/EarthTool.CLI-Windows-x64.zip
             artifacts/EarthTool.CLI-Linux-x64/EarthTool.CLI-Linux-x64.tar.gz
-            artifacts/EarthTool.CLI-macOS-x64/EarthTool.CLI-macOS-x64.tar.gz
             artifacts/EarthTool.WD.GUI-Windows-x64/EarthTool.WD.GUI-Windows-x64.zip
             artifacts/EarthTool.WD.GUI-Linux-x64/EarthTool.WD.GUI-Linux-x64.tar.gz
-            artifacts/EarthTool.WD.GUI-macOS-x64/EarthTool.WD.GUI-macOS-x64.tar.gz
             artifacts/EarthTool.PAR.GUI-Windows-x64/EarthTool.PAR.GUI-Windows-x64.zip
             artifacts/EarthTool.PAR.GUI-Linux-x64/EarthTool.PAR.GUI-Linux-x64.tar.gz
-            artifacts/EarthTool.PAR.GUI-macOS-x64/EarthTool.PAR.GUI-macOS-x64.tar.gz
             artifacts/EarthTool.TEX.GUI-Windows-x64/EarthTool.TEX.GUI-Windows-x64.zip
             artifacts/EarthTool.TEX.GUI-Linux-x64/EarthTool.TEX.GUI-Linux-x64.tar.gz
-            artifacts/EarthTool.TEX.GUI-macOS-x64/EarthTool.TEX.GUI-macOS-x64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

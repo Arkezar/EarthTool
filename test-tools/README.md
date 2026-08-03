@@ -3,6 +3,33 @@
 `gltf-validator` is pinned here as the independent package oracle used by the
 MSH/glTF contract tests.
 
+## Aggregate release qualification
+
+The maintainer release gate is Linux x64 only and must start from a clean Git
+worktree. It requires the private official MSH corpus, resolves and runs every
+Blender lane, runs the complete reproducible test and approval contract, packs
+and consumes the public libraries, publishes all Linux release applications,
+and checks the GLTF-present and DAE-absent package, repository, CLI,
+documentation, migration, and artifact boundary.
+
+Installations, validator failures, missing corpus data, failed tests, incomplete
+test discovery, unapproved snapshots, missing artifacts, and omitted Blender or
+corpus evidence are failures. The version-1 aggregate evidence file is written
+only after every required gate passes:
+
+```bash
+EARTHTOOL_OFFICIAL_MSH_CORPUS=/absolute/private/corpus \
+  npm run qualify:release --prefix test-tools -- \
+  --workers 4 \
+  --evidence artifacts/release-qualification-v1.json
+```
+
+Use `--blender-cache /absolute/cache` to control where the exact official
+Blender archives and installations are retained. The report records the commit,
+host, tools, operation profiles, complete gate inventory, Blender evidence, and
+privacy-safe aggregate corpus evidence. It never records the corpus root, asset
+names, relative paths, or TEX resource keys.
+
 ## Blender matrix
 
 `blender-matrix.v1.json` names the required compatibility lanes and their
