@@ -33,8 +33,9 @@ Replace the former implicit conversion commands with an explicit intent:
 Export defaults to GLB. Export and new-model import accept deterministic input
 patterns. Edit import accepts exactly one concrete package because it binds one
 expected asset lineage and document identity. Use `--tex-root` repeatedly to
-supply ordered absolute TEX preview roots, `--plan` for a versioned typed import
-plan, and `--report` for a transactional versioned machine report.
+supply ordered absolute TEX preview roots and `--msh-root` repeatedly for
+`ScalableObject` resource previews. Use `--plan` for a versioned typed import
+plan and `--report` for a transactional versioned machine report.
 
 The stable exit statuses are `0` for success, `1` for content or operation
 failure, `2` for usage failure, and `130` for cancellation.

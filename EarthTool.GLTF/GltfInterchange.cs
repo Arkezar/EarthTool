@@ -463,11 +463,17 @@ namespace EarthTool.GLTF
           return Failed<GltfExportReceipt>(previewResult.Diagnostics.First(diagnostic =>
             diagnostic.Severity == DiagnosticSeverity.Error));
         }
+        var meshPreviewResult = MshPreviewLoader.Load(
+          asset,
+          options,
+          profile,
+          cancellationToken);
         var glb = DynamicGltfDocument.Create(
           asset,
           baseline,
           profile,
           previewResult.Previews,
+          meshPreviewResult.Previews,
           options.DynamicObjectIds,
           out var fingerprint);
         DynamicGltfDocument.ValidateGlb(glb, profile);
@@ -476,7 +482,7 @@ namespace EarthTool.GLTF
         return new OperationResult<GltfExportReceipt>(
           OperationStatus.Succeeded,
           new GltfExportReceipt(baseline, fingerprint),
-          previewResult.Diagnostics);
+          previewResult.Diagnostics.Concat(meshPreviewResult.Diagnostics));
       }
       catch (OperationCanceledException)
       {
@@ -578,11 +584,17 @@ namespace EarthTool.GLTF
           return Failed<GltfExportReceipt>(previewResult.Diagnostics.First(diagnostic =>
             diagnostic.Severity == DiagnosticSeverity.Error));
         }
+        var meshPreviewResult = MshPreviewLoader.Load(
+          asset,
+          options,
+          profile,
+          cancellationToken);
         var package = DynamicGltfDocument.CreateSeparate(
           asset,
           baseline,
           profile,
           previewResult.Previews,
+          meshPreviewResult.Previews,
           options.DynamicObjectIds,
           out var fingerprint);
         GlbDocument.ValidateSeparate(
@@ -630,7 +642,7 @@ namespace EarthTool.GLTF
         return new OperationResult<GltfExportReceipt>(
           OperationStatus.Succeeded,
           new GltfExportReceipt(baseline, fingerprint),
-          previewResult.Diagnostics);
+          previewResult.Diagnostics.Concat(meshPreviewResult.Diagnostics));
       }
       catch (OperationCanceledException)
       {

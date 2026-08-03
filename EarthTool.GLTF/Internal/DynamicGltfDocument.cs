@@ -60,10 +60,12 @@ namespace EarthTool.GLTF.Internal
       InterchangeBaseline baseline,
       GltfOperationProfile profile,
       IReadOnlyDictionary<int, TexPreview> previews,
+      IReadOnlyDictionary<int, ReferencedMeshPreview> meshPreviews,
       IReadOnlyList<int> objectIds,
       out NativeProjectionFingerprint fingerprint)
     {
-      var package = CreatePackage(asset, baseline, profile, false, previews, objectIds, out fingerprint);
+      var package = CreatePackage(
+        asset, baseline, profile, false, previews, meshPreviews, objectIds, out fingerprint);
       return Pack(package.Json, package.Binary);
     }
 
@@ -72,10 +74,12 @@ namespace EarthTool.GLTF.Internal
       InterchangeBaseline baseline,
       GltfOperationProfile profile,
       IReadOnlyDictionary<int, TexPreview> previews,
+      IReadOnlyDictionary<int, ReferencedMeshPreview> meshPreviews,
       IReadOnlyList<int> objectIds,
       out NativeProjectionFingerprint fingerprint)
     {
-      return CreatePackage(asset, baseline, profile, true, previews, objectIds, out fingerprint);
+      return CreatePackage(
+        asset, baseline, profile, true, previews, meshPreviews, objectIds, out fingerprint);
     }
 
     internal static DynamicGltfImport ImportGlb(
@@ -192,12 +196,13 @@ namespace EarthTool.GLTF.Internal
       GltfOperationProfile profile,
       bool separate,
       IReadOnlyDictionary<int, TexPreview> previews,
+      IReadOnlyDictionary<int, ReferencedMeshPreview> meshPreviews,
       IReadOnlyList<int> objectIds,
       out NativeProjectionFingerprint fingerprint)
     {
       var objects = Flatten(asset.RootDynamicObject, profile, objectIds);
       ValidateSupportedEffects(objects);
-      var effectPreviews = CreateEffectPreviews(objects, profile);
+      var effectPreviews = CreateEffectPreviews(objects, profile, meshPreviews);
       var binary = CreateBinary(objects, effectPreviews, out var layouts);
       var previewImages = objects
         .Where(scope => previews.ContainsKey(scope.Id))
@@ -309,7 +314,10 @@ namespace EarthTool.GLTF.Internal
         profile,
         ReadObjectIds(root, profile));
       ValidateSupportedEffects(objects);
-      var effectPreviews = CreateEffectPreviews(objects, profile);
+      var effectPreviews = CreateEffectPreviews(
+        objects,
+        profile,
+        new Dictionary<int, ReferencedMeshPreview>());
       var inventory = payload.GetProperty("objectInventory").EnumerateArray()
         .Select(item => item.GetInt32()).ToArray();
       if (!inventory.SequenceEqual(objects.Select(item => item.Id).OrderBy(id => id))
@@ -370,6 +378,7 @@ namespace EarthTool.GLTF.Internal
       }
       var seen = new HashSet<int>();
       var nodeIndicesById = new Dictionary<int, int>();
+      var meshNamesById = new Dictionary<int, IReadOnlyList<byte>>();
       for (var nodeIndex = 0; nodeIndex < nodes.GetArrayLength(); nodeIndex++)
       {
         var node = nodes[nodeIndex];
@@ -395,6 +404,9 @@ namespace EarthTool.GLTF.Internal
         nodeIndicesById.Add(localId, nodeIndex);
         var source = sourceObjects.Single(item => item.Id == localId);
         var payload = metadataRoot.GetProperty("payload");
+        meshNamesById.Add(
+          localId,
+          DecodeMetadataBytes(payload, "meshName", profile.MaxInputBytes));
         if (payload.GetProperty("effectType").GetUInt32() != source.Object.Extension.EffectType)
         {
           throw new DynamicMetadataGraphException(
@@ -500,8 +512,18 @@ namespace EarthTool.GLTF.Internal
           }
           var primitive = primitives[0];
           var attributes = primitive.GetProperty("attributes");
+          var positionAccessorIndex = attributes.GetProperty("POSITION").GetInt32();
+          var positionCount = root.GetProperty("accessors")[positionAccessorIndex]
+            .GetProperty("count").GetInt32();
+          var maximumPositions = source.KnownEffectType == DynamicEffectType.ScalableObject
+            ? profile.MaxMeshPreviewVertices
+            : profile.MaxActiveRenderVertices;
+          if (positionCount <= 0 || positionCount > maximumPositions)
+          {
+            throw new ResourceLimitException(positionCount, maximumPositions);
+          }
           ValidateOwnedAccessor(root, pair.Value,
-            attributes.GetProperty("POSITION").GetInt32(), 5126, "VEC3", 12,
+            positionAccessorIndex, 5126, "VEC3", 12,
             ownedAccessors, ownedViews, ownedRanges);
           ValidateOwnedAccessor(root, pair.Value,
             attributes.GetProperty("NORMAL").GetInt32(), 5126, "VEC3", 12,
@@ -509,19 +531,34 @@ namespace EarthTool.GLTF.Internal
           ValidateOwnedAccessor(root, pair.Value,
             attributes.GetProperty("TEXCOORD_0").GetInt32(), 5126, "VEC2", 8,
             ownedAccessors, ownedViews, ownedRanges);
+          var indexAccessorIndex = primitive.GetProperty("indices").GetInt32();
+          var indexComponentType = root.GetProperty("accessors")[indexAccessorIndex]
+            .GetProperty("componentType").GetInt32();
+          if (indexComponentType is not 5123 and not 5125
+            || indexComponentType == 5125
+              && source.KnownEffectType != DynamicEffectType.ScalableObject)
+          {
+            throw AmbiguousPreview(pair.Value,
+              "A dynamic preview index accessor has an unsupported component type.");
+          }
           ValidateOwnedAccessor(root, pair.Value,
-            primitive.GetProperty("indices").GetInt32(), 5123, "SCALAR", 2,
+            indexAccessorIndex, indexComponentType, "SCALAR", indexComponentType == 5125 ? 4 : 2,
             ownedAccessors, ownedViews, ownedRanges);
         }
         else if (node.TryGetProperty("mesh", out _))
         {
           throw AmbiguousPreview(pair.Value, "A metadata-only dynamic scope cannot own preview geometry.");
         }
+        var transform = ReadNodeTransform(
+          node,
+          source.KnownEffectType == DynamicEffectType.ScalableObject);
         scopes.Add(pair.Key, new NativeObjectScope(
           pair.Key,
           pair.Value,
           Array.AsReadOnly(childIds),
-          ReadNodeTranslation(node)));
+          transform.Translation,
+          transform.ModelScale,
+          meshNamesById[pair.Key]));
       }
       return new NativeObjectGraph(scopes);
     }
@@ -597,7 +634,8 @@ namespace EarthTool.GLTF.Internal
       var texturePath = DecodeMetadataBytes(payload, "texturePath", profile.MaxInputBytes);
       if (!common.SequenceEqual(source.CommonBaseHeader.SerializedRepresentation)
         || !effect.SequenceEqual(source.Extension.SerializedRepresentation)
-        || !meshName.SequenceEqual(source.Extension.MeshNameBytes)
+        || source.Extension.KnownEffectType != DynamicEffectType.ScalableObject
+          && !meshName.SequenceEqual(source.Extension.MeshNameBytes)
         || !texturePath.SequenceEqual(source.Extension.TexturePathBytes))
       {
         throw new DynamicMetadataGraphException(
@@ -647,7 +685,10 @@ namespace EarthTool.GLTF.Internal
         || payload.GetProperty("previewGlobalTick").GetUInt32() != PreviewGlobalTick
         || payload.GetProperty("previewTextureScale").GetSingle() != PreviewTextureScale
         || payload.GetProperty("previewLifetimeProgress").GetSingle() != PreviewLifetimeProgress
-        || payload.GetProperty("previewParentPhase").GetSingle() != _previewParentPhase)
+        || payload.GetProperty("previewParentPhase").GetSingle() != _previewParentPhase
+        || source.KnownEffectType == DynamicEffectType.ScalableObject
+          && payload.GetProperty("previewModelScalePhase").GetSingle()
+            != GetScalablePreviewPhase(source))
       {
         throw new DynamicMetadataGraphException(
           GltfDiagnosticCodes.StaleNativeProjection,
@@ -835,6 +876,7 @@ namespace EarthTool.GLTF.Internal
         or "previewTextureScale"
         or "previewLifetimeProgress"
         or "previewParentPhase"
+        or "previewModelScalePhase"
         or "orderedChildIds"
         or "commonBaseHeader"
         or "effectRepresentation"
@@ -976,10 +1018,8 @@ namespace EarthTool.GLTF.Internal
     {
       var source = sourceObjects.Single(item => item.Id == id).Object.Extension;
       var native = nativeGraph.Scopes[id];
-      var prefix = (byte[])slices[id].Prefix.Clone();
-      BinaryPrimitives.WriteUInt32LittleEndian(
-        prefix.AsSpan(prefix.Length - sizeof(uint)),
-        checked((uint)native.ChildIds.Count));
+      var slice = slices[id];
+      var prefix = (byte[])slice.FixedPrefix.Clone();
       if (id != 1 && native.Translation != source.ChildStartTranslation)
       {
         WriteMshVector(prefix, 0x3EC, native.Translation);
@@ -987,6 +1027,29 @@ namespace EarthTool.GLTF.Internal
           $"DynamicObjectScopes[{id}].Extension.ChildStartTranslation",
           PreservationDisposition.Regenerated,
           "dynamic-native-transform-edit"));
+      }
+      if (source.KnownEffectType == DynamicEffectType.ScalableObject
+        && !native.ModelScale.Equals(effectPreviews[id].ModelScale))
+      {
+        var startScale = SolveStartValue(
+          native.ModelScale,
+          source.EndModelScale,
+          effectPreviews[id].ModelScalePhase,
+          id,
+          "model scale");
+        WriteSingle(prefix, 0x3E8, startScale);
+        changes.Add(new PreservationChange(
+          $"DynamicObjectScopes[{id}].Extension.StartModelScale",
+          PreservationDisposition.Regenerated,
+          "dynamic-scalable-transform-edit"));
+      }
+      if (source.KnownEffectType == DynamicEffectType.ScalableObject
+        && !native.MeshNameBytes.SequenceEqual(source.MeshNameBytes))
+      {
+        changes.Add(new PreservationChange(
+          $"DynamicObjectScopes[{id}].Extension.MeshNameBytes",
+          PreservationDisposition.Regenerated,
+          "dynamic-scalable-binding-edit"));
       }
       if (effectPreviews.TryGetValue(id, out var sourcePreview))
       {
@@ -1019,7 +1082,8 @@ namespace EarthTool.GLTF.Internal
               "dynamic-runtime-preview-input"));
           }
         }
-        else if (!preview.Rectangle.Equals(sourcePreview.Rectangle))
+        else if (!sourcePreview.IsScalable
+          && !preview.Rectangle.Equals(sourcePreview.Rectangle))
         {
           var rectangle = SolveStartRectangle(
             preview.Rectangle,
@@ -1068,6 +1132,15 @@ namespace EarthTool.GLTF.Internal
         }
       }
       destination.Write(prefix, 0, prefix.Length);
+      WriteLengthPrefixed(
+        destination,
+        source.KnownEffectType == DynamicEffectType.ScalableObject
+          ? native.MeshNameBytes
+          : source.MeshNameBytes);
+      WriteLengthPrefixed(destination, slice.TexturePathBytes);
+      var childCount = new byte[sizeof(uint)];
+      BinaryPrimitives.WriteUInt32LittleEndian(childCount, checked((uint)native.ChildIds.Count));
+      destination.Write(childCount, 0, childCount.Length);
       foreach (var childId in native.ChildIds)
       {
         WriteReconciledRecord(
@@ -1099,6 +1172,26 @@ namespace EarthTool.GLTF.Internal
       }
       var primitive = root.GetProperty("meshes")[meshIndexElement.GetInt32()]
         .GetProperty("primitives")[0];
+      if (sourcePreview.IsScalable)
+      {
+        var scalableMaterialIndex = primitive.GetProperty("material").GetInt32();
+        var scalableBaseColorFactor = root.GetProperty("materials")[scalableMaterialIndex]
+          .GetProperty("pbrMetallicRoughness").GetProperty("baseColorFactor")
+          .EnumerateArray().Select(item => item.GetSingle()).ToArray();
+        if (scalableBaseColorFactor.Length != 4
+          || scalableBaseColorFactor.Any(value => !float.IsFinite(value)))
+        {
+          throw new InvalidDataException(
+            "A scalable-object preview base color must contain four finite values.");
+        }
+        return new DynamicEditedPreview(
+          new Vector3(
+            scalableBaseColorFactor[0],
+            scalableBaseColorFactor[1],
+            scalableBaseColorFactor[2]),
+          scalableBaseColorFactor[3],
+          false);
+      }
       var positions = ReadVector3Accessor(
         root,
         binary,
@@ -1199,7 +1292,7 @@ namespace EarthTool.GLTF.Internal
       if (normals.Length != positions.Count
         || normals.Any(value => !IsFinite(value))
         || !textureCoordinates.SequenceEqual(sourcePreview.TextureCoordinates)
-        || !indices.SequenceEqual(sourcePreview.Indices))
+        || !indices.Select(value => (uint)value).SequenceEqual(sourcePreview.Indices))
       {
         throw SphereEditFailure(id,
           "A Sphere preview must retain finite normals, texture coordinates, and guarded topology.");
@@ -1263,7 +1356,7 @@ namespace EarthTool.GLTF.Internal
           || value.LengthSquared() < 0.99f
           || Vector3.Dot(Vector3.Normalize(value), sourcePreview.Normals[index]) < 0.9999f).Any()
         || !textureCoordinates.SequenceEqual(sourcePreview.TextureCoordinates)
-        || !indices.SequenceEqual(sourcePreview.Indices))
+        || !indices.Select(value => (uint)value).SequenceEqual(sourcePreview.Indices))
       {
         throw RibbonEditFailure(id,
           "A ribbon preview must retain finite normals, atlas-side UVs, and guarded winding topology.");
@@ -1458,6 +1551,7 @@ namespace EarthTool.GLTF.Internal
       var meshLength = checked((int)ReadUInt32(source, cursor));
       cursor = checked(cursor + sizeof(uint) + meshLength);
       var textureLength = checked((int)ReadUInt32(source, cursor));
+      var textureOffset = checked(cursor + sizeof(uint));
       cursor = checked(cursor + sizeof(uint) + textureLength);
       var childCount = checked((int)ReadUInt32(source, cursor));
       cursor += sizeof(uint);
@@ -1465,12 +1559,23 @@ namespace EarthTool.GLTF.Internal
       {
         throw new InvalidDataException("Dynamic source object structure is inconsistent.");
       }
-      result.Add(scope.Id, new DynamicRecordSlice(source.AsSpan(offset, cursor - offset).ToArray()));
+      result.Add(scope.Id, new DynamicRecordSlice(
+        source.AsSpan(offset, 0x404).ToArray(),
+        source.AsSpan(textureOffset, textureLength).ToArray()));
       foreach (var child in scope.Object.Children)
       {
         cursor = ReadRecordSlices(source, cursor, sourceObjects, ref sourceIndex, result);
       }
       return cursor;
+    }
+
+    private static void WriteLengthPrefixed(Stream destination, IReadOnlyList<byte> value)
+    {
+      var length = new byte[sizeof(uint)];
+      BinaryPrimitives.WriteUInt32LittleEndian(length, checked((uint)value.Count));
+      destination.Write(length, 0, length.Length);
+      var bytes = value as byte[] ?? value.ToArray();
+      destination.Write(bytes, 0, bytes.Length);
     }
 
     private static int GetRootOffset(byte[] source)
@@ -1481,24 +1586,43 @@ namespace EarthTool.GLTF.Internal
         + ((declaration & 0x20000000) != 0 ? 16 : 0);
     }
 
-    private static Vector3 ReadNodeTranslation(JsonElement node)
+    private static (Vector3 Translation, float ModelScale) ReadNodeTransform(
+      JsonElement node,
+      bool supportsScale)
     {
       if (node.TryGetProperty("matrix", out _)
-        || node.TryGetProperty("rotation", out _)
-        || node.TryGetProperty("scale", out _))
+        || node.TryGetProperty("rotation", out _))
       {
-        throw new InvalidDataException("Dynamic object nodes support translation edits only.");
+        throw new InvalidDataException("Dynamic object nodes do not support matrix or rotation edits.");
       }
-      if (!node.TryGetProperty("translation", out var translation))
+      var result = Vector3.Zero;
+      if (node.TryGetProperty("translation", out var translation))
       {
-        return Vector3.Zero;
+        var values = translation.EnumerateArray().Select(item => item.GetSingle()).ToArray();
+        if (values.Length != 3 || values.Any(value => !float.IsFinite(value)))
+        {
+          throw new InvalidDataException("Dynamic node translation must contain three finite values.");
+        }
+        result = new Vector3(values[0], -values[2], values[1]);
       }
-      var values = translation.EnumerateArray().Select(item => item.GetSingle()).ToArray();
-      if (values.Length != 3 || values.Any(value => !float.IsFinite(value)))
+      var modelScale = 1f;
+      if (node.TryGetProperty("scale", out var scale))
       {
-        throw new InvalidDataException("Dynamic node translation must contain three finite values.");
+        if (!supportsScale)
+        {
+          throw new InvalidDataException("Only ScalableObject nodes support scale edits.");
+        }
+        var values = scale.EnumerateArray().Select(item => item.GetSingle()).ToArray();
+        if (values.Length != 3
+          || values.Any(value => !float.IsFinite(value))
+          || values[0] != values[1]
+          || values[0] != values[2])
+        {
+          throw new InvalidDataException("ScalableObject node scale must be finite and uniform.");
+        }
+        modelScale = values[0];
       }
-      return new Vector3(values[0], -values[2], values[1]);
+      return (result, modelScale);
     }
 
     private static bool IsFinite(Vector3 value)
@@ -1652,15 +1776,26 @@ namespace EarthTool.GLTF.Internal
           writer.Write(uv.Y);
         }
         var indexOffset = checked((int)stream.Position);
+        var indexComponentType = preview.Indices.Any(index => index >= ushort.MaxValue)
+          ? 5125
+          : 5123;
         foreach (var index in preview.Indices)
         {
-          writer.Write(index);
+          if (indexComponentType == 5125)
+          {
+            writer.Write(index);
+          }
+          else
+          {
+            writer.Write(checked((ushort)index));
+          }
         }
         result.Add(scope.Id, new DynamicMeshLayout(
           positionOffset,
           normalOffset,
           uvOffset,
-          indexOffset));
+          indexOffset,
+          indexComponentType));
       }
       layouts = result;
       return stream.ToArray();
@@ -1753,6 +1888,15 @@ namespace EarthTool.GLTF.Internal
             writer.WriteNumberValue(translation.X);
             writer.WriteNumberValue(translation.Y);
             writer.WriteNumberValue(translation.Z);
+            writer.WriteEndArray();
+          }
+          if (effectPreviews.TryGetValue(scope.Id, out var nodePreview)
+            && nodePreview.IsScalable)
+          {
+            writer.WriteStartArray("scale");
+            writer.WriteNumberValue(nodePreview.ModelScale);
+            writer.WriteNumberValue(nodePreview.ModelScale);
+            writer.WriteNumberValue(nodePreview.ModelScale);
             writer.WriteEndArray();
           }
           WriteExtras(writer, CreateObjectMetadata(baseline, scope));
@@ -1858,7 +2002,8 @@ namespace EarthTool.GLTF.Internal
             WriteBufferView(writer, layout.NormalOffset, preview.Normals.Count * 12, 34962);
             WriteBufferView(writer, layout.TextureCoordinateOffset,
               preview.TextureCoordinates.Count * 8, 34962);
-            WriteBufferView(writer, layout.IndexOffset, preview.Indices.Count * 2, 34963);
+            WriteBufferView(writer, layout.IndexOffset, preview.Indices.Count
+              * (layout.IndexComponentType == 5125 ? 4 : 2), 34963);
           }
           foreach (var preview in previewImages)
           {
@@ -1872,6 +2017,7 @@ namespace EarthTool.GLTF.Internal
           foreach (var scope in objects.Where(item => layouts.ContainsKey(item.Id)))
           {
             var preview = effectPreviews[scope.Id];
+            var layout = layouts[scope.Id];
             var positions = preview.Positions;
             WriteAccessor(writer, bufferViewIndex, 5126, positions.Count, "VEC3",
               new[]
@@ -1901,7 +2047,8 @@ namespace EarthTool.GLTF.Internal
               });
             WriteAccessor(writer, bufferViewIndex + 2, 5126,
               preview.TextureCoordinates.Count, "VEC2", null, null);
-            WriteAccessor(writer, bufferViewIndex + 3, 5123, preview.Indices.Count, "SCALAR",
+            WriteAccessor(writer, bufferViewIndex + 3, layout.IndexComponentType,
+              preview.Indices.Count, "SCALAR",
               new[] { 0f }, new[] { (float)preview.Positions.Count - 1 });
             bufferViewIndex += 4;
           }
@@ -1982,6 +2129,12 @@ namespace EarthTool.GLTF.Internal
           writer.WriteNumber("previewTextureScale", PreviewTextureScale);
           writer.WriteNumber("previewLifetimeProgress", PreviewLifetimeProgress);
           writer.WriteNumber("previewParentPhase", _previewParentPhase);
+          if (scope.Object.Extension.KnownEffectType == DynamicEffectType.ScalableObject)
+          {
+            writer.WriteNumber(
+              "previewModelScalePhase",
+              GetScalablePreviewPhase(scope.Object.Extension));
+          }
         }
         writer.WriteStartArray("orderedChildIds");
         foreach (var childId in scope.ChildIds)
@@ -2144,9 +2297,11 @@ namespace EarthTool.GLTF.Internal
 
     private static IReadOnlyDictionary<int, DynamicEffectPreview> CreateEffectPreviews(
       IReadOnlyList<DynamicObjectScope> objects,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile,
+      IReadOnlyDictionary<int, ReferencedMeshPreview> meshPreviews)
     {
       var result = new Dictionary<int, DynamicEffectPreview>();
+      var scalableVertexCount = 0;
       foreach (var scope in objects)
       {
         var extension = scope.Object.Extension;
@@ -2160,12 +2315,28 @@ namespace EarthTool.GLTF.Internal
         {
           continue;
         }
-        var preview = CreateEffectPreview(scope.Id, extension);
-        if (preview.Positions.Count > profile.MaxActiveRenderVertices)
+        var preview = CreateEffectPreview(
+          scope.Id,
+          extension,
+          meshPreviews.TryGetValue(scope.Id, out var meshPreview) ? meshPreview : null);
+        var maximumVertices = extension.KnownEffectType == DynamicEffectType.ScalableObject
+          ? profile.MaxMeshPreviewVertices
+          : profile.MaxActiveRenderVertices;
+        if (preview.Positions.Count > maximumVertices)
         {
           throw new ResourceLimitException(
             preview.Positions.Count,
-            profile.MaxActiveRenderVertices);
+            maximumVertices);
+        }
+        if (extension.KnownEffectType == DynamicEffectType.ScalableObject)
+        {
+          scalableVertexCount = checked(scalableVertexCount + preview.Positions.Count);
+          if (scalableVertexCount > profile.MaxMeshPreviewVertices)
+          {
+            throw new ResourceLimitException(
+              scalableVertexCount,
+              profile.MaxMeshPreviewVertices);
+          }
         }
         result.Add(scope.Id, preview);
       }
@@ -2174,8 +2345,59 @@ namespace EarthTool.GLTF.Internal
 
     private static DynamicEffectPreview CreateEffectPreview(
       int id,
-      DynamicEffectExtension extension)
+      DynamicEffectExtension extension,
+      ReferencedMeshPreview? meshPreview)
     {
+      if (extension.KnownEffectType == DynamicEffectType.ScalableObject)
+      {
+        if (!DynamicEffectSemantics.TrySelectFrame(
+          extension,
+          DynamicEffectEvaluationContext.Primary,
+          PreviewTotalLifetimeTicks,
+          PreviewRemainingLifetimeTicks,
+          PreviewGlobalTick,
+          out var scalableFrame,
+          out var scalableFrameFailure))
+        {
+          throw PreviewFailure(id, "Frames", scalableFrameFailure);
+        }
+        if (!DynamicEffectSemantics.TryInterpolateModelScale(
+          extension,
+          scalableFrame.Phase,
+          out var modelScale,
+          out var scaleFailure))
+        {
+          throw PreviewFailure(id, "ModelScale", scaleFailure);
+        }
+        if (!DynamicEffectSemantics.TryInterpolateAlpha(
+          extension,
+          DynamicEffectEvaluationContext.Primary,
+          scalableFrame.Phase,
+          PreviewLifetimeProgress,
+          out var scalableAlpha,
+          out var scalableAlphaFailure))
+        {
+          throw PreviewFailure(id, "Alpha", scalableAlphaFailure);
+        }
+        if (!float.IsFinite(modelScale))
+        {
+          throw PreviewFailure(id, "ModelScale", DynamicSemanticFailure.NonFiniteInput);
+        }
+        ValidateFiniteMaterial(id, extension.VisibleEffectColor, scalableAlpha);
+        meshPreview ??= CreateDiagnosticMeshPreview();
+        return new DynamicEffectPreview(
+          meshPreview.Positions,
+          meshPreview.Normals,
+          meshPreview.TextureCoordinates,
+          meshPreview.Indices,
+          Clamp(extension.VisibleEffectColor),
+          Clamp(scalableAlpha),
+          modelScale,
+          scalableFrame.Phase,
+          IsUnitRange(extension.VisibleEffectColor),
+          IsUnitRange(scalableAlpha));
+      }
+
       if (extension.KnownEffectType == DynamicEffectType.Explosion)
       {
         ValidateFiniteMaterial(id, extension.VisibleEffectColor, extension.StartAlpha);
@@ -2571,6 +2793,11 @@ namespace EarthTool.GLTF.Internal
       return new[] { new Vector2(0, 1), Vector2.One, new Vector2(1, 0), Vector2.Zero };
     }
 
+    private static ReferencedMeshPreview CreateDiagnosticMeshPreview()
+    {
+      return MshPreviewLoader.CreateDiagnosticPreview();
+    }
+
     private static void ValidateFiniteMaterial(int id, Vector3 color, float alpha)
     {
       if (!IsFinite(color) || !float.IsFinite(alpha))
@@ -2614,6 +2841,7 @@ namespace EarthTool.GLTF.Internal
     internal static bool HasNativePreview(DynamicEffectType? effectType)
     {
       return effectType is DynamicEffectType.Explosion
+        or DynamicEffectType.ScalableObject
         or DynamicEffectType.Track
         or DynamicEffectType.MappedExplosion
         or DynamicEffectType.FlatExplosion
@@ -2637,7 +2865,8 @@ namespace EarthTool.GLTF.Internal
 
     private static bool HasExplicitPreviewContract(DynamicEffectType? effectType)
     {
-      return IsAttachedPreview(effectType) || effectType == DynamicEffectType.Sphere;
+      return IsAttachedPreview(effectType)
+        || effectType is DynamicEffectType.Sphere or DynamicEffectType.ScalableObject;
     }
 
     private static string PreviewContextName(DynamicEffectType? effectType)
@@ -2683,6 +2912,20 @@ namespace EarthTool.GLTF.Internal
         out _)
         ? frame.SourceFrame
         : throw new InvalidOperationException("The fixed dynamic preview frame domain is invalid.");
+    }
+
+    private static float GetScalablePreviewPhase(DynamicEffectExtension extension)
+    {
+      return DynamicEffectSemantics.TrySelectFrame(
+        extension,
+        DynamicEffectEvaluationContext.Primary,
+        PreviewTotalLifetimeTicks,
+        PreviewRemainingLifetimeTicks,
+        PreviewGlobalTick,
+        out var frame,
+        out _)
+        ? frame.Phase
+        : throw new InvalidOperationException("The fixed ScalableObject preview frame domain is invalid.");
     }
 
     private static EffectRectangle SolveStartRectangle(
@@ -2841,6 +3084,16 @@ namespace EarthTool.GLTF.Internal
           writer.Write(extension.ChildStartTranslation.Z);
           if (effectPreviews.TryGetValue(scope.Id, out var preview))
           {
+            if (preview.IsScalable)
+            {
+              writer.Write(preview.ModelScale);
+              writer.Write(preview.ModelScalePhase);
+              writer.Write(preview.Color.X);
+              writer.Write(preview.Color.Y);
+              writer.Write(preview.Color.Z);
+              writer.Write(preview.Alpha);
+              continue;
+            }
             writer.Write(preview.Rectangle.X0);
             writer.Write(preview.Rectangle.Y1);
             writer.Write(preview.Rectangle.X1);
@@ -2995,27 +3248,35 @@ namespace EarthTool.GLTF.Internal
       internal int NodeIndex { get; }
       internal IReadOnlyList<int> ChildIds { get; }
       internal Vector3 Translation { get; }
+      internal float ModelScale { get; }
+      internal IReadOnlyList<byte> MeshNameBytes { get; }
 
       internal NativeObjectScope(
         int id,
         int nodeIndex,
         IReadOnlyList<int> childIds,
-        Vector3 translation)
+        Vector3 translation,
+        float modelScale,
+        IReadOnlyList<byte> meshNameBytes)
       {
         Id = id;
         NodeIndex = nodeIndex;
         ChildIds = childIds;
         Translation = translation;
+        ModelScale = modelScale;
+        MeshNameBytes = meshNameBytes;
       }
     }
 
     private sealed class DynamicRecordSlice
     {
-      internal byte[] Prefix { get; }
+      internal byte[] FixedPrefix { get; }
+      internal byte[] TexturePathBytes { get; }
 
-      internal DynamicRecordSlice(byte[] prefix)
+      internal DynamicRecordSlice(byte[] fixedPrefix, byte[] texturePathBytes)
       {
-        Prefix = prefix;
+        FixedPrefix = fixedPrefix;
+        TexturePathBytes = texturePathBytes;
       }
     }
 
@@ -3028,11 +3289,14 @@ namespace EarthTool.GLTF.Internal
       internal IReadOnlyList<Vector3> Positions { get; }
       internal IReadOnlyList<Vector3> Normals { get; }
       internal IReadOnlyList<Vector2> TextureCoordinates { get; }
-      internal IReadOnlyList<ushort> Indices { get; }
+      internal IReadOnlyList<uint> Indices { get; }
       internal bool Horizontal { get; }
       internal bool IsRibbon { get; }
       internal bool IsSphere { get; }
+      internal bool IsScalable { get; }
       internal float RibbonHalfWidth { get; }
+      internal float ModelScale { get; }
+      internal float ModelScalePhase { get; }
       internal bool OwnsDepth { get; }
       internal bool OwnsColor { get; }
       internal bool OwnsAlpha { get; }
@@ -3074,11 +3338,14 @@ namespace EarthTool.GLTF.Internal
         var normal = horizontal ? Vector3.UnitY : Vector3.UnitZ;
         Normals = Array.AsReadOnly(new[] { normal, normal, normal, normal });
         TextureCoordinates = textureCoordinates;
-        Indices = Array.AsReadOnly(new ushort[] { 0, 1, 2, 0, 2, 3 });
+        Indices = Array.AsReadOnly(new uint[] { 0, 1, 2, 0, 2, 3 });
         Horizontal = horizontal;
         IsRibbon = false;
         IsSphere = false;
+        IsScalable = false;
         RibbonHalfWidth = 0;
+        ModelScale = 1;
+        ModelScalePhase = 0;
         OwnsDepth = ownsDepth;
         OwnsColor = ownsColor;
         OwnsAlpha = ownsAlpha;
@@ -3105,11 +3372,14 @@ namespace EarthTool.GLTF.Internal
         Positions = positions;
         Normals = normals;
         TextureCoordinates = textureCoordinates;
-        Indices = indices;
+        Indices = Array.AsReadOnly(indices.Select(value => (uint)value).ToArray());
         Horizontal = false;
         IsRibbon = true;
         IsSphere = false;
+        IsScalable = false;
         RibbonHalfWidth = ribbonHalfWidth;
+        ModelScale = 1;
+        ModelScalePhase = 0;
         OwnsDepth = false;
         OwnsColor = ownsColor;
         OwnsAlpha = ownsAlpha;
@@ -3133,16 +3403,53 @@ namespace EarthTool.GLTF.Internal
         Positions = positions;
         Normals = normals;
         TextureCoordinates = textureCoordinates;
-        Indices = indices;
+        Indices = Array.AsReadOnly(indices.Select(value => (uint)value).ToArray());
         Horizontal = false;
         IsRibbon = false;
         IsSphere = true;
+        IsScalable = false;
         RibbonHalfWidth = 0;
+        ModelScale = 1;
+        ModelScalePhase = 0;
         OwnsDepth = false;
         OwnsColor = ownsColor;
         OwnsAlpha = false;
         RectanglePhase = 0;
         AlphaPhase = 0;
+      }
+
+      internal DynamicEffectPreview(
+        IReadOnlyList<Vector3> positions,
+        IReadOnlyList<Vector3> normals,
+        IReadOnlyList<Vector2> textureCoordinates,
+        IReadOnlyList<uint> indices,
+        Vector3 color,
+        float alpha,
+        float modelScale,
+        float modelScalePhase,
+        bool ownsColor,
+        bool ownsAlpha)
+      {
+        Rectangle = default;
+        Depth = 0;
+        Color = color;
+        Alpha = alpha;
+        Positions = positions;
+        Normals = normals;
+        TextureCoordinates = textureCoordinates;
+        Indices = indices;
+        Horizontal = false;
+        IsRibbon = false;
+        IsSphere = false;
+        IsScalable = true;
+        RibbonHalfWidth = 0;
+        ModelScale = modelScale;
+        ModelScalePhase = modelScalePhase;
+        OwnsDepth = false;
+        OwnsColor = ownsColor;
+        OwnsAlpha = ownsAlpha;
+        RectanglePhase = 0;
+        AlphaPhase = modelScalePhase;
       }
     }
 
@@ -3219,17 +3526,20 @@ namespace EarthTool.GLTF.Internal
       internal int NormalOffset { get; }
       internal int TextureCoordinateOffset { get; }
       internal int IndexOffset { get; }
+      internal int IndexComponentType { get; }
 
       internal DynamicMeshLayout(
         int positionOffset,
         int normalOffset,
         int textureCoordinateOffset,
-        int indexOffset)
+        int indexOffset,
+        int indexComponentType)
       {
         PositionOffset = positionOffset;
         NormalOffset = normalOffset;
         TextureCoordinateOffset = textureCoordinateOffset;
         IndexOffset = indexOffset;
+        IndexComponentType = indexComponentType;
       }
     }
   }

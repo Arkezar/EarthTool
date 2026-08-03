@@ -48,6 +48,7 @@ public sealed class EarthTool.GLTF.GltfCliReportSerializer
   constructor GltfCliReportSerializer()
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult> SerializeAsync(EarthTool.GLTF.GltfCliReport report, System.IO.Stream destination, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
 public static class EarthTool.GLTF.GltfDiagnosticCodes
+  field System.String AmbiguousMeshResource = "ETG1021"
   field System.String AmbiguousPartitionCorrespondence = "ETG2012"
   field System.String AmbiguousTextureResource = "ETG1008"
   field System.String AnimationClassUnrecognized = "ETG1015"
@@ -70,6 +71,11 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String KindCarrierMismatch = "ETG2008"
   field System.String MalformedImportPlan = "ETG3000"
   field System.String MalformedMetadata = "ETG2003"
+  field System.String MeshDiagnosticPreviewUsed = "ETG1024"
+  field System.String MeshPreviewUnavailable = "ETG1022"
+  field System.String MeshResourceCycle = "ETG1026"
+  field System.String MeshResourceMissing = "ETG1020"
+  field System.String MeshResourceShadowed = "ETG1023"
   field System.String MetadataResourceLimitExceeded = "ETG2005"
   field System.String MissingExpectedScope = "ETG2010"
   field System.String MissingManifest = "ETG2000"
@@ -93,6 +99,7 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String UnsupportedDomain = "ETG1002"
   field System.String UnsupportedGuard = "ETG2015"
   field System.String UnsupportedImportPlanVersion = "ETG3001"
+  field System.String UnsupportedMeshResource = "ETG1025"
   field System.String UnsupportedMetadataVersion = "ETG2004"
 public sealed class EarthTool.GLTF.GltfDynamicEditImportResult
   property EarthTool.GLTF.NativeProjectionFingerprint AppliedFingerprint { get; }
@@ -116,8 +123,10 @@ public sealed class EarthTool.GLTF.GltfEditImportResult
   property System.Collections.Generic.IReadOnlyList<System.String> RestoredSerializedRepresentationPaths { get; }
 public sealed class EarthTool.GLTF.GltfExportOptions
   constructor GltfExportOptions(System.Guid? assetLineageId = null, System.Guid? documentId = null, System.Collections.Generic.IEnumerable<System.String>? textureSearchRoots = null, System.Collections.Generic.IReadOnlyDictionary<System.String, System.String>? preservedUnknownMetadata = null)
+  constructor GltfExportOptions(System.Guid? assetLineageId, System.Guid? documentId, System.Collections.Generic.IEnumerable<System.String>? textureSearchRoots, System.Collections.Generic.IReadOnlyDictionary<System.String, System.String>? preservedUnknownMetadata, System.Collections.Generic.IEnumerable<System.String>? meshResourceSearchRoots)
   property System.Guid? AssetLineageId { get; }
   property System.Guid? DocumentId { get; }
+  property System.Collections.Generic.IReadOnlyList<System.String> MeshResourceSearchRoots { get; }
   property System.Collections.Generic.IReadOnlyDictionary<System.String, System.String> PreservedUnknownMetadata { get; }
   property System.Collections.Generic.IReadOnlyList<System.String> TextureSearchRoots { get; }
 public sealed class EarthTool.GLTF.GltfExportReceipt
@@ -193,6 +202,15 @@ public sealed class EarthTool.GLTF.GltfMeshEditImportResult
   property EarthTool.GLTF.InterchangeBaseline NextBaseline { get; }
   property EarthTool.MSH.Authoring.PreservationReport Preservation { get; }
   property System.Collections.Generic.IReadOnlyList<System.String> RestoredSerializedRepresentationPaths { get; }
+public sealed class EarthTool.GLTF.GltfMeshResourceLimits
+  constructor GltfMeshResourceLimits(System.Int32 maxResourceBytes = 16777216, System.Int32 maxSearchRoots = 64, System.Int32 maxDirectoryEntries = 65536, System.Int32 maxResources = 256, System.Int32 maxPreviewVertices = 262144, System.Int32 maxDepth = 8)
+  property EarthTool.GLTF.GltfMeshResourceLimits Default { get; }
+  property System.Int32 MaxDepth { get; }
+  property System.Int32 MaxDirectoryEntries { get; }
+  property System.Int32 MaxPreviewVertices { get; }
+  property System.Int32 MaxResourceBytes { get; }
+  property System.Int32 MaxResources { get; }
+  property System.Int32 MaxSearchRoots { get; }
 public static class EarthTool.GLTF.GltfMetadataConflictActions
   field System.String Abort = "abort"
   field System.String AcceptBranch = "acceptBranch"
@@ -270,15 +288,23 @@ public struct EarthTool.GLTF.GltfNodeHandle : System.IEquatable<EarthTool.GLTF.G
   method System.Boolean Equals(System.Object? obj)
   method System.Int32 GetHashCode()
 public sealed class EarthTool.GLTF.GltfOperationProfile
+  constructor GltfOperationProfile(EarthTool.GLTF.GltfMeshResourceLimits meshResourceLimits, System.Int32 maxInputBytes = 33554432, System.Int32 maxOutputBytes = 33554432, System.Int32 maxMetadataBytes = 4194304, System.Int32 maxJsonDepth = 32, System.Int32 maxActiveRenderVertices = 65536)
   constructor GltfOperationProfile(System.Int32 maxInputBytes = 33554432, System.Int32 maxOutputBytes = 33554432, System.Int32 maxMetadataBytes = 4194304, System.Int32 maxJsonDepth = 32, System.Int32 maxActiveRenderVertices = 65536)
   constructor GltfOperationProfile(System.Int32 maxInputBytes, System.Int32 maxOutputBytes, System.Int32 maxMetadataBytes, System.Int32 maxJsonDepth, System.Int32 maxActiveRenderVertices, System.Int32 maxNodes, System.Int32 maxHierarchyDepth)
   constructor GltfOperationProfile(System.Int32 maxInputBytes, System.Int32 maxOutputBytes, System.Int32 maxMetadataBytes, System.Int32 maxJsonDepth, System.Int32 maxActiveRenderVertices, System.Int32 maxNodes, System.Int32 maxHierarchyDepth, System.Int32 maxTextureBytes, System.Int32 maxPreviewPixels)
   constructor GltfOperationProfile(System.Int32 maxInputBytes, System.Int32 maxOutputBytes, System.Int32 maxMetadataBytes, System.Int32 maxJsonDepth, System.Int32 maxActiveRenderVertices, System.Int32 maxNodes, System.Int32 maxHierarchyDepth, System.Int32 maxTextureBytes, System.Int32 maxPreviewPixels, System.Int32 maxTextureSearchRoots, System.Int32 maxTextureDirectoryEntries, System.Int32 maxTotalMetadataBytes = 33554432, System.Int32 maxMetadataEnvelopes = 262144, System.Int32 maxMetadataElements = 4194304, System.Int32 maxUnknownMetadataMembers = 262144, System.Int32 maxMetadataGuards = 64, System.Int32 maxMetadataConflicts = 1024)
+  constructor GltfOperationProfile(System.Int32 maxInputBytes, System.Int32 maxOutputBytes, System.Int32 maxMetadataBytes, System.Int32 maxJsonDepth, System.Int32 maxActiveRenderVertices, System.Int32 maxNodes, System.Int32 maxHierarchyDepth, System.Int32 maxTextureBytes, System.Int32 maxPreviewPixels, System.Int32 maxTextureSearchRoots, System.Int32 maxTextureDirectoryEntries, System.Int32 maxTotalMetadataBytes, System.Int32 maxMetadataEnvelopes, System.Int32 maxMetadataElements, System.Int32 maxUnknownMetadataMembers, System.Int32 maxMetadataGuards, System.Int32 maxMetadataConflicts, EarthTool.GLTF.GltfMeshResourceLimits meshResourceLimits)
   property EarthTool.GLTF.GltfOperationProfile Default { get; }
   property System.Int32 MaxActiveRenderVertices { get; }
   property System.Int32 MaxHierarchyDepth { get; }
   property System.Int32 MaxInputBytes { get; }
   property System.Int32 MaxJsonDepth { get; }
+  property System.Int32 MaxMeshPreviewVertices { get; }
+  property System.Int32 MaxMeshResourceBytes { get; }
+  property System.Int32 MaxMeshResourceDepth { get; }
+  property System.Int32 MaxMeshResourceDirectoryEntries { get; }
+  property System.Int32 MaxMeshResourceSearchRoots { get; }
+  property System.Int32 MaxMeshResources { get; }
   property System.Int32 MaxMetadataBytes { get; }
   property System.Int32 MaxMetadataConflicts { get; }
   property System.Int32 MaxMetadataElements { get; }

@@ -239,6 +239,7 @@ internal sealed class GltfCommandExecutor
   {
     if (!Enum.IsDefined(typeof(GltfPackageKind), settings.Format)
       || settings.TextureSearchRoots.Any(root => !Path.IsPathFullyQualified(root))
+      || settings.MeshResourceSearchRoots.Any(root => !Path.IsPathFullyQualified(root))
       || settings.Inputs.Length == 0)
     {
       return CliExitCode.Usage;
@@ -303,7 +304,12 @@ internal sealed class GltfCommandExecutor
       return failedOperation;
     }
 
-    var options = new GltfExportOptions(textureSearchRoots: settings.TextureSearchRoots);
+    var options = new GltfExportOptions(
+      null,
+      null,
+      settings.TextureSearchRoots,
+      null,
+      settings.MeshResourceSearchRoots);
     var asset = read.Value;
     var exported = await asset.Match(
       onStatic: staticAsset => settings.Format == GltfPackageKind.Glb

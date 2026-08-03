@@ -32,6 +32,10 @@ internal sealed class ExportGltfSettings : GltfCommandSettings
   [CommandOption("--tex-root <DIRECTORY>")]
   [Description("Ordered absolute TEX preview search root. Repeat to add roots.")]
   public string[] TextureSearchRoots { get; init; } = [];
+
+  [CommandOption("--msh-root <DIRECTORY>")]
+  [Description("Ordered absolute MSH preview search root. Repeat to add roots.")]
+  public string[] MeshResourceSearchRoots { get; init; } = [];
 }
 
 internal abstract class ImportGltfSettings : GltfCommandSettings

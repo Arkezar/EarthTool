@@ -18,8 +18,8 @@ supports the complete static contract plus the available dynamic slices: ordered
 `Group` hierarchies and deterministic `Explosion`, `Track`, `MappedExplosion`,
 `FlatExplosion`, `Smoke`, `Laser`, `LaserWall`, `ElectricalCannon`, and
 `Lightning` previews, attached-context `Shockwave`, `Line`, and `Keelwater`
-previews, and the built-in `Sphere` preview. `ScalableObject` remains binary-only
-until its dedicated slice lands.
+previews, the built-in `Sphere` preview, and resource-backed `ScalableObject`
+previews with owned dynamic scale and binding edits.
 
 ## Blender workflow
 

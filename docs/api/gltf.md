@@ -27,6 +27,20 @@ resources use their first highest-resolution image and report that variants are
 not represented. `GltfOperationProfile` bounds aggregate TEX bytes and decoded
 pixels as well as the number of search roots and directory entries examined.
 
+`GltfExportOptions.MeshResourceSearchRoots` separately supplies ordered absolute
+roots for `ScalableObject` preview lookup. A binding `name` is resolved with the
+game-compatible `Meshes\name.msh` spelling by ASCII case-insensitive component
+matching. Empty, rooted, non-ASCII, slash-containing, and traversal bindings are
+never used as host paths. Linked roots and linked path components are skipped,
+the first unambiguous root wins, and later matches are reported as shadowed.
+`GltfOperationProfile` independently bounds MSH roots, examined directory
+entries, resolved resources, aggregate bytes, and aggregate preview vertices.
+Dynamic-to-dynamic references are not preview geometry; EarthTool traverses only
+their referenced-binding graph to diagnose cycles, bounded by the configured MSH
+resource depth, then emits the deterministic placeholder. Supply non-default
+values through `GltfMeshResourceLimits`; existing operation-profile constructor
+signatures remain unchanged.
+
 Both exports assign asset-lineage and document identities and write compact
 version-1 EarthTool envelopes as string-valued `extras["earthtool"]`. Each
 envelope declares `format`, `version`, `kind`, lowercase version-4 `lineage` and
@@ -51,9 +65,10 @@ and ribbon families plus attached-particle and procedural previews. Every
 object node has one stable local scope ID, its exact effect declaration, its
 ordered child IDs, exact inherited header and effect bytes, resource bindings,
 and a named/versioned ordered-child guard. `Shockwave`, `Line`, `Sphere`, and
-`Keelwater` preview scopes additionally record and guard their evaluation
+`Keelwater`, and `ScalableObject` preview scopes additionally record and guard their evaluation
 context, frame domain and selected frame, total and remaining lifetime, global
-tick, texture scale, lifetime progress, and parent phase.
+tick, texture scale, lifetime progress, and parent phase. `ScalableObject` also
+records the selected model-scale phase.
 
 `Group` is a native transform node with ordered children and no mesh, material,
 or synthetic effect geometry. `Explosion`, `Track`, `MappedExplosion`,
@@ -68,6 +83,13 @@ remaining lifetime 100 ticks, global tick 0, texture scale 1, lifetime alpha
 progress 0, sampled terrain light `(1,1,1)`, output color scale 1, and terrain
 light random sample 0. The `Keelwater` preview uses fixed water RGB
 `(0.2,0.45,0.7)`. A parent preview phase of 0 selects child start translation.
+`ScalableObject` receives the flattened static geometry of its referenced MSH as
+one borrowed, unlit preview primitive and applies its selected uniform model
+scale on the dynamic node. Referenced static animation, hierarchy, attachments,
+lights, metadata, and geometry authority are not imported into the dynamic
+asset. Missing, ambiguous, unsafe, malformed, or dynamic references retain the
+exact binding and use a deterministic triangle placeholder with scoped
+diagnostics.
 
 Core glTF material factors are limited to zero through one. Finite MSH colors,
 alpha, or gains that evaluate outside that range are clamped only in the preview
@@ -87,6 +109,7 @@ The native preview behavior is effect-specific:
 | `Line` | Same attached-particle billboard contract as `Shockwave` | Explicitly uses attached-particle RGB modulation and frame-phase alpha; primary dispatch has no own geometry or terrain light; ordered children still use normal hierarchy dispatch |
 | `Keelwater` | Vertical XY billboard snapshot at the camera-depth offset; UVs use its dedicated attached-particle frame selection | Uses fixed preview water RGB and frame-phase alpha; primary dispatch has no own geometry or terrain light; serialized visible RGB/gain remain inactive and exact |
 | `Sphere` | Generated unit sphere with full decoded TEX preview; metadata identifies the selected `builtIn16` lifetime frame | Serialized visible RGB and additive selection are represented; ordinary frame, rectangle, alpha, and scale declarations remain inactive and exact; ordered children participate normally |
+| `ScalableObject` | Borrowed referenced static MSH geometry with the selected atlas texture and uniform interpolated model scale | Exact mesh-name binding remains dynamic authority; referenced geometry is preview-only; scale, material, ordered children, and child translation participate in the dynamic edit contract |
 
 The attached-particle billboards are metadata-backed demonstrations of the
 confirmed attached route. A dynamic hierarchy still invokes these records by
@@ -146,9 +169,12 @@ fields, resource bytes, inherited headers, and trailing bytes. Unchanged import
 returns the exact source representation. Invalid active frame or atlas capacity,
 and non-finite active value domains report scoped `ETG1006` diagnostics without
 partial output. Duplicate, missing, foreign, stale, dangling, or ambiguous
-scopes fail before a dynamic snapshot is returned. `ScalableObject` reports
-`ETG1002`; unknown serialized values remain exact and are never converted to
-catch-all enum values.
+scopes fail before a dynamic snapshot is returned. `ScalableObject` uniform
+scale edits regenerate only the selected start-scale representation, and an
+explicit scoped `meshName` metadata edit replaces only the exact variable-length
+binding. Borrowed preview geometry is never written to the referenced MSH.
+Unknown serialized values remain exact and are never converted to catch-all enum
+values.
 
 Ribbon material edits own representable visible RGB and alpha start values.
 Ribbon pair spacing owns the signed `RibbonHalfWidth`; import requires one

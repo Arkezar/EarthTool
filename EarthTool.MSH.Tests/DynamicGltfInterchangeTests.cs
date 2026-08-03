@@ -905,6 +905,30 @@ public class DynamicGltfInterchangeTests
       imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
       imported.Value!.Asset.GetSerializedRepresentation().Should()
         .Equal(asset.GetSerializedRepresentation());
+
+      var gltfPath = Path.Combine(directory, "scalable.gltf");
+      var separateExport = await interchange.ExportGltfFileAsync(
+        asset,
+        gltfPath,
+        new GltfExportOptions(
+          _lineageId,
+          _documentId,
+          textureSearchRoots: null,
+          preservedUnknownMetadata: null,
+          meshResourceSearchRoots: [directory]));
+      separateExport.Status.Should().Be(
+        OperationStatus.Succeeded,
+        Diagnostics(separateExport.Diagnostics));
+
+      var separateImport = await interchange.ImportEditDynamicGltfFileAsync(
+        gltfPath,
+        separateExport.Value!.Baseline);
+
+      separateImport.Status.Should().Be(
+        OperationStatus.Succeeded,
+        Diagnostics(separateImport.Diagnostics));
+      separateImport.Value!.Asset.GetSerializedRepresentation().Should()
+        .Equal(asset.GetSerializedRepresentation());
       imported.Value.NextExportOptions.DynamicObjectIds.Should().Equal(1, 2, 3, 4, 5);
     }
     finally
@@ -1406,38 +1430,356 @@ public class DynamicGltfInterchangeTests
   [Fact]
   public async Task UnsupportedEffectAndObjectLimitFailWithoutOutput()
   {
-    var frames = new CanonicalDynamicFrameSequence(0, 1, 0);
-    var unsupportedEffect = DynamicEffectRecipes.ScalableObject(
-      frames,
-      "Objects\\fx\\scalable.msh",
-      "Textures\\fx\\track.tex",
-      1,
-      2,
-      Vector3.One,
-      new CanonicalDynamicAlpha(1, 0, DynamicAlphaTiming.FramePhase),
-      false,
-      new CanonicalDynamicTerrainLight(DynamicLightType.Constant, Vector3.Zero));
-    var unsupportedBuild = DynamicMeshBuilder.Create()
-      .SetRoot(DynamicEffectRecipes.Group([unsupportedEffect]))
-      .Build();
-    unsupportedBuild.TryGetValue(out var unsupported).Should().BeTrue();
-    await using var unsupportedOutput = new MemoryStream();
-
-    var unsupportedResult = await new GltfInterchange().ExportGlbAsync(
-      unsupported!,
-      unsupportedOutput);
     var limitedResult = await new GltfInterchange().ExportGlbAsync(
       CreateSpriteEffectsAsset(),
       new MemoryStream(),
       profile: new GltfOperationProfile(maxOutputBytes: 1024));
 
-    unsupportedResult.Status.Should().Be(OperationStatus.Failed);
-    unsupportedResult.Diagnostics.Select(item => item.Code).Should()
-      .Contain(GltfDiagnosticCodes.UnsupportedDomain);
-    unsupportedOutput.Length.Should().Be(0);
     limitedResult.Status.Should().Be(OperationStatus.Failed);
     limitedResult.Diagnostics.Select(item => item.Code).Should()
       .Contain(GltfDiagnosticCodes.ResourceLimitExceeded);
+  }
+
+  [Fact]
+  public async Task ScalableObjectUsesAReferencedStaticMeshPreviewAndRoundTripsExactly()
+  {
+    var directory = Path.Combine(Path.GetTempPath(), $"earthtool-scalable-{Guid.NewGuid():N}");
+    var meshes = Path.Combine(directory, "mEsHeS", "EfFeCtS");
+    Directory.CreateDirectory(meshes);
+    try
+    {
+      var referenced = CreateReferencedStaticAsset();
+      await File.WriteAllBytesAsync(
+        Path.Combine(meshes, "PrEvIeW.MsH"),
+        referenced.GetSerializedRepresentation());
+      var asset = CreateScalableAsset("effects\\preview", 2, 5);
+      await using var package = new MemoryStream();
+      var interchange = new GltfInterchange();
+
+      var export = await interchange.ExportGlbAsync(
+        asset,
+        package,
+        new GltfExportOptions(
+          _lineageId,
+          _documentId,
+          textureSearchRoots: null,
+          preservedUnknownMetadata: null,
+          meshResourceSearchRoots: [directory]));
+
+      export.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(export.Diagnostics));
+      export.Diagnostics.Should().NotContain(item => item.Code == GltfDiagnosticCodes.UnsupportedDomain);
+      using var json = ReadGlbJson(package.ToArray());
+      var scalableNode = json.RootElement.GetProperty("nodes")[1];
+      scalableNode.GetProperty("scale").EnumerateArray().Select(item => item.GetSingle())
+        .Should().OnlyContain(item => Math.Abs(item - 2.03f) < 0.0001f);
+      var primitive = json.RootElement.GetProperty("meshes")[0].GetProperty("primitives")[0];
+      var positionAccessor = primitive.GetProperty("attributes").GetProperty("POSITION").GetInt32();
+      json.RootElement.GetProperty("accessors")[positionAccessor].GetProperty("count").GetInt32()
+        .Should().Be(3);
+      package.Position = 0;
+
+      var imported = await interchange.ImportEditDynamicGlbAsync(package, export.Value!.Baseline);
+
+      imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
+      imported.Value!.Asset.GetSerializedRepresentation().Should()
+        .Equal(asset.GetSerializedRepresentation());
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task MissingAndShadowedScalableResourcesKeepTheirExactBinding()
+  {
+    var firstRoot = Path.Combine(Path.GetTempPath(), $"earthtool-scalable-first-{Guid.NewGuid():N}");
+    var secondRoot = Path.Combine(Path.GetTempPath(), $"earthtool-scalable-second-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(Path.Combine(firstRoot, "Meshes"));
+    Directory.CreateDirectory(Path.Combine(secondRoot, "Meshes"));
+    try
+    {
+      var referenced = CreateReferencedStaticAsset().GetSerializedRepresentation();
+      await File.WriteAllBytesAsync(Path.Combine(firstRoot, "Meshes", "shared.msh"), referenced);
+      await File.WriteAllBytesAsync(Path.Combine(secondRoot, "Meshes", "SHARED.MSH"), referenced);
+      var shadowed = CreateScalableAsset("shared", 1, 2);
+
+      var shadowedResult = await new GltfInterchange().ExportGlbAsync(
+        shadowed,
+        new MemoryStream(),
+        new GltfExportOptions(
+          _lineageId,
+          _documentId,
+          textureSearchRoots: null,
+          preservedUnknownMetadata: null,
+          meshResourceSearchRoots: [firstRoot, secondRoot]));
+      var missing = CreateScalableAsset("..\\outside", 1, 2);
+      var missingResult = await new GltfInterchange().ExportGlbAsync(
+        missing,
+        new MemoryStream(),
+        new GltfExportOptions(
+          _lineageId,
+          _documentId,
+          textureSearchRoots: null,
+          preservedUnknownMetadata: null,
+          meshResourceSearchRoots: [firstRoot]));
+
+      shadowedResult.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(shadowedResult.Diagnostics));
+      shadowedResult.Diagnostics.Should().ContainSingle(item =>
+        item.Code == GltfDiagnosticCodes.MeshResourceShadowed);
+      missingResult.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(missingResult.Diagnostics));
+      missingResult.Diagnostics.Select(item => item.Code).Should()
+        .Contain(GltfDiagnosticCodes.MeshPreviewUnavailable)
+        .And.Contain(GltfDiagnosticCodes.MeshDiagnosticPreviewUsed);
+      missing.RootDynamicObject.Children[0].Extension.MeshNameBytes.Should()
+        .Equal(Encoding.ASCII.GetBytes("..\\outside"));
+    }
+    finally
+    {
+      Directory.Delete(firstRoot, true);
+      Directory.Delete(secondRoot, true);
+    }
+  }
+
+  [Fact]
+  public async Task AmbiguousAndDynamicScalableResourcesUseDeterministicPlaceholders()
+  {
+    var root = Path.Combine(Path.GetTempPath(), $"earthtool-scalable-hazards-{Guid.NewGuid():N}");
+    var meshes = Path.Combine(root, "Meshes");
+    Directory.CreateDirectory(meshes);
+    try
+    {
+      var staticBytes = CreateReferencedStaticAsset().GetSerializedRepresentation();
+      await File.WriteAllBytesAsync(Path.Combine(meshes, "ambiguous.msh"), staticBytes);
+      await File.WriteAllBytesAsync(Path.Combine(meshes, "AMBIGUOUS.MSH"), staticBytes);
+      await File.WriteAllBytesAsync(
+        Path.Combine(meshes, "dynamic.msh"),
+        CreateAsset().GetSerializedRepresentation());
+      var interchange = new GltfInterchange();
+
+      var ambiguous = await interchange.ExportGlbAsync(
+        CreateScalableAsset("ambiguous", 1, 2),
+        new MemoryStream(),
+        new GltfExportOptions(null, null, null, null, [root]));
+      var dynamic = await interchange.ExportGlbAsync(
+        CreateScalableAsset("dynamic", 1, 2),
+        new MemoryStream(),
+        new GltfExportOptions(null, null, null, null, [root]));
+
+      ambiguous.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(ambiguous.Diagnostics));
+      ambiguous.Diagnostics.Select(item => item.Code).Should()
+        .Contain(GltfDiagnosticCodes.AmbiguousMeshResource)
+        .And.Contain(GltfDiagnosticCodes.MeshDiagnosticPreviewUsed);
+      dynamic.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(dynamic.Diagnostics));
+      dynamic.Diagnostics.Select(item => item.Code).Should()
+        .Contain(GltfDiagnosticCodes.UnsupportedMeshResource)
+        .And.Contain(GltfDiagnosticCodes.MeshDiagnosticPreviewUsed);
+    }
+    finally
+    {
+      Directory.Delete(root, true);
+    }
+  }
+
+  [Fact]
+  public async Task CyclicScalableResourceChainsAreBoundedAndDiagnosed()
+  {
+    var root = Path.Combine(Path.GetTempPath(), $"earthtool-scalable-cycle-{Guid.NewGuid():N}");
+    var meshes = Path.Combine(root, "Meshes");
+    Directory.CreateDirectory(meshes);
+    try
+    {
+      await File.WriteAllBytesAsync(
+        Path.Combine(meshes, "first.msh"),
+        CreateScalableAsset("second", 1, 2).GetSerializedRepresentation());
+      await File.WriteAllBytesAsync(
+        Path.Combine(meshes, "second.msh"),
+        CreateScalableAsset("first", 1, 2).GetSerializedRepresentation());
+
+      var cyclic = await new GltfInterchange().ExportGlbAsync(
+        CreateScalableAsset("first", 1, 2),
+        new MemoryStream(),
+        new GltfExportOptions(null, null, null, null, [root]));
+      await using var limitedOutput = new MemoryStream();
+      var limited = await new GltfInterchange().ExportGlbAsync(
+        CreateScalableAsset("first", 1, 2),
+        limitedOutput,
+        new GltfExportOptions(null, null, null, null, [root]),
+        new GltfOperationProfile(new GltfMeshResourceLimits(maxDepth: 1)));
+
+      cyclic.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(cyclic.Diagnostics));
+      cyclic.Diagnostics.Select(item => item.Code).Should()
+        .Contain(GltfDiagnosticCodes.MeshResourceCycle)
+        .And.Contain(GltfDiagnosticCodes.MeshDiagnosticPreviewUsed);
+      limited.Status.Should().Be(OperationStatus.Failed);
+      limited.Diagnostics.Select(item => item.Code).Should()
+        .Contain(GltfDiagnosticCodes.ResourceLimitExceeded);
+      limitedOutput.Length.Should().Be(0);
+    }
+    finally
+    {
+      Directory.Delete(root, true);
+    }
+  }
+
+  [Fact]
+  public async Task ScalableResourceLimitsFailWithoutPartialOutput()
+  {
+    var roots = new[]
+    {
+      Path.GetFullPath(Path.Combine(Path.GetTempPath(), "earthtool-root-a")),
+      Path.GetFullPath(Path.Combine(Path.GetTempPath(), "earthtool-root-b"))
+    };
+    await using var destination = new MemoryStream();
+
+    var result = await new GltfInterchange().ExportGlbAsync(
+      CreateScalableAsset("preview", 1, 2),
+      destination,
+      new GltfExportOptions(null, null, null, null, roots),
+      new GltfOperationProfile(new GltfMeshResourceLimits(maxSearchRoots: 1)));
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Diagnostics.Select(item => item.Code).Should()
+      .Contain(GltfDiagnosticCodes.ResourceLimitExceeded);
+    destination.Length.Should().Be(0);
+  }
+
+  [Fact]
+  public async Task AggregateScalablePreviewVertexLimitCountsEveryEmittedScope()
+  {
+    var root = Path.Combine(Path.GetTempPath(), $"earthtool-scalable-vertices-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(Path.Combine(root, "Meshes"));
+    try
+    {
+      await File.WriteAllBytesAsync(
+        Path.Combine(root, "Meshes", "preview.msh"),
+        CreateReferencedStaticAsset().GetSerializedRepresentation());
+      var build = DynamicMeshBuilder.Create()
+        .SetRoot(DynamicEffectRecipes.Group(
+        [
+          CreateScalableRecipe("preview", 1, 2),
+          CreateScalableRecipe("preview", 1, 2)
+        ]))
+        .Build();
+      build.TryGetValue(out var asset).Should().BeTrue();
+      await using var destination = new MemoryStream();
+
+      var result = await new GltfInterchange().ExportGlbAsync(
+        asset!,
+        destination,
+        new GltfExportOptions(null, null, null, null, [root]),
+        new GltfOperationProfile(new GltfMeshResourceLimits(maxPreviewVertices: 5)));
+
+      result.Status.Should().Be(OperationStatus.Failed);
+      result.Diagnostics.Select(item => item.Code).Should()
+        .Contain(GltfDiagnosticCodes.ResourceLimitExceeded);
+      destination.Length.Should().Be(0);
+    }
+    finally
+    {
+      Directory.Delete(root, true);
+    }
+  }
+
+  [Fact]
+  public async Task ScalableLookupRejectsRelativeRootsAndLinkedComponents()
+  {
+    var createRelativeOptions = () => new GltfExportOptions(
+      null, null, null, null, ["relative"]);
+    createRelativeOptions.Should().Throw<ArgumentException>();
+
+    var directory = Path.Combine(Path.GetTempPath(), $"earthtool-scalable-link-{Guid.NewGuid():N}");
+    var outside = Path.Combine(Path.GetTempPath(), $"earthtool-scalable-outside-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(directory);
+    Directory.CreateDirectory(Path.Combine(outside, "Meshes"));
+    try
+    {
+      await File.WriteAllBytesAsync(
+        Path.Combine(outside, "Meshes", "preview.msh"),
+        CreateReferencedStaticAsset().GetSerializedRepresentation());
+      Directory.CreateSymbolicLink(
+        Path.Combine(directory, "Meshes"),
+        Path.Combine(outside, "Meshes"));
+
+      var result = await new GltfInterchange().ExportGlbAsync(
+        CreateScalableAsset("preview", 1, 2),
+        new MemoryStream(),
+        new GltfExportOptions(null, null, null, null, [directory]));
+
+      result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
+      result.Diagnostics.Select(item => item.Code).Should()
+        .Contain(GltfDiagnosticCodes.MeshResourceMissing)
+        .And.Contain(GltfDiagnosticCodes.MeshDiagnosticPreviewUsed);
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+      Directory.Delete(outside, true);
+    }
+  }
+
+  [Fact]
+  public async Task ScalableScaleAndBindingEditsRegenerateOnlyTheDynamicRecord()
+  {
+    var directory = Path.Combine(Path.GetTempPath(), $"earthtool-scalable-edit-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(Path.Combine(directory, "Meshes"));
+    try
+    {
+      var resourcePath = Path.Combine(directory, "Meshes", "preview.msh");
+      await File.WriteAllBytesAsync(
+        resourcePath,
+        CreateReferencedStaticAsset().GetSerializedRepresentation());
+      var resourceBefore = await File.ReadAllBytesAsync(resourcePath);
+      var asset = CreateScalableAsset("preview", 2, 5);
+      await using var package = new MemoryStream();
+      var interchange = new GltfInterchange();
+      var export = await interchange.ExportGlbAsync(
+        asset,
+        package,
+        new GltfExportOptions(
+          _lineageId,
+          _documentId,
+          textureSearchRoots: null,
+          preservedUnknownMetadata: null,
+          meshResourceSearchRoots: [directory]));
+      var edited = RewriteGlb(package.ToArray(), (root, binary) =>
+      {
+        root["nodes"]![1]!["scale"] = new JsonArray(3.02f, 3.02f, 3.02f);
+        var metadata = JsonNode.Parse(
+          root["nodes"]![1]!["extras"]!["earthtool"]!.GetValue<string>())!;
+        metadata["payload"]!["meshName"] = Convert.ToBase64String(
+          Encoding.ASCII.GetBytes("renamed"))
+          .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        root["nodes"]![1]!["extras"]!["earthtool"] = metadata.ToJsonString();
+        var accessor = root["accessors"]![0]!;
+        var view = root["bufferViews"]![accessor["bufferView"]!.GetValue<int>()]!;
+        WriteSingle(binary, view["byteOffset"]!.GetValue<int>(), 42);
+        accessor["min"] = new JsonArray(0, 0, -1);
+        accessor["max"] = new JsonArray(42, 0, 0);
+      });
+      await using var editedStream = new MemoryStream(edited);
+
+      var imported = await interchange.ImportEditDynamicGlbAsync(
+        editedStream,
+        export.Value!.Baseline);
+
+      imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
+      var scalable = imported.Value!.Asset.RootDynamicObject.Children[0].Extension;
+      scalable.StartModelScale.Should().BeApproximately(3, 0.0001f);
+      scalable.EndModelScale.Should().Be(5);
+      scalable.MeshNameBytes.Should().Equal(Encoding.ASCII.GetBytes("renamed"));
+      (await File.ReadAllBytesAsync(resourcePath)).Should().Equal(resourceBefore);
+      imported.Value.Preservation.Changes.Should().Contain(item =>
+        item.FieldPath.EndsWith("StartModelScale", StringComparison.Ordinal)
+        && item.Disposition == PreservationDisposition.Regenerated);
+      imported.Value.Preservation.Changes.Should().Contain(item =>
+        item.FieldPath.EndsWith("MeshNameBytes", StringComparison.Ordinal)
+        && item.Disposition == PreservationDisposition.Regenerated);
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
   }
 
   [Fact]
@@ -1549,6 +1891,8 @@ public class DynamicGltfInterchangeTests
       var ribbonGltfPath = Path.Combine(directory, "ribbons.gltf");
       var attachedGlbPath = Path.Combine(directory, "attached.glb");
       var attachedGltfPath = Path.Combine(directory, "attached.gltf");
+      var scalableGlbPath = Path.Combine(directory, "scalable.glb");
+      var scalableGltfPath = Path.Combine(directory, "scalable.gltf");
       var groupPath = Path.Combine(directory, "group.glb");
       var asset = CreateSpriteEffectsAsset();
       var interchange = new GltfInterchange();
@@ -1565,6 +1909,17 @@ public class DynamicGltfInterchangeTests
         .Be(OperationStatus.Succeeded);
       (await interchange.ExportGltfFileAsync(
         CreateAttachedAndProceduralEffectsAsset(), attachedGltfPath)).Status.Should()
+        .Be(OperationStatus.Succeeded);
+      Directory.CreateDirectory(Path.Combine(directory, "Meshes"));
+      await File.WriteAllBytesAsync(
+        Path.Combine(directory, "Meshes", "preview.msh"),
+        CreateReferencedStaticAsset().GetSerializedRepresentation());
+      var scalableOptions = new GltfExportOptions(null, null, null, null, [directory]);
+      (await interchange.ExportGlbFileAsync(
+        CreateScalableAsset("preview", -2, 3), scalableGlbPath, scalableOptions)).Status.Should()
+        .Be(OperationStatus.Succeeded);
+      (await interchange.ExportGltfFileAsync(
+        CreateScalableAsset("preview", -2, 3), scalableGltfPath, scalableOptions)).Status.Should()
         .Be(OperationStatus.Succeeded);
       var groupBuild = DynamicMeshBuilder.Create()
         .SetRoot(DynamicEffectRecipes.Group([DynamicEffectRecipes.Group()]))
@@ -1592,6 +1947,13 @@ public class DynamicGltfInterchangeTests
       }
       (await interchange.ValidateGltfFileAsync(attachedGltfPath)).Status.Should()
         .Be(OperationStatus.Succeeded);
+      await using (var scalableGlb = File.OpenRead(scalableGlbPath))
+      {
+        (await interchange.ValidateGlbAsync(scalableGlb)).Status.Should()
+          .Be(OperationStatus.Succeeded);
+      }
+      (await interchange.ValidateGltfFileAsync(scalableGltfPath)).Status.Should()
+        .Be(OperationStatus.Succeeded);
 
       await AssertKhronosValidAsync(glbPath);
       await AssertKhronosValidAsync(gltfPath);
@@ -1599,6 +1961,8 @@ public class DynamicGltfInterchangeTests
       await AssertKhronosValidAsync(ribbonGltfPath);
       await AssertKhronosValidAsync(attachedGlbPath);
       await AssertKhronosValidAsync(attachedGltfPath);
+      await AssertKhronosValidAsync(scalableGlbPath);
+      await AssertKhronosValidAsync(scalableGltfPath);
       await AssertKhronosValidAsync(groupPath);
     }
     finally
@@ -1869,6 +2233,49 @@ public class DynamicGltfInterchangeTests
         Guid.Parse("12345678-9abc-4ef0-9234-56789abcdef0"),
         new MeshAssetLineageId(Guid.Parse("99999999-8888-4777-a666-555555555555")))
       .SetRoot(DynamicEffectRecipes.Group([first, second]))
+      .Build();
+    build.TryGetValue(out var asset).Should().BeTrue();
+    return asset!;
+  }
+
+  private static DynamicMeshAsset CreateScalableAsset(
+    string meshResourceKey,
+    float startScale,
+    float endScale)
+  {
+    return CreateSingleEffectAsset(CreateScalableRecipe(meshResourceKey, startScale, endScale));
+  }
+
+  private static CanonicalDynamicObject CreateScalableRecipe(
+    string meshResourceKey,
+    float startScale,
+    float endScale)
+  {
+    return DynamicEffectRecipes.ScalableObject(
+      new CanonicalDynamicFrameSequence(0, 1, 0),
+      meshResourceKey,
+      "Textures\\fx\\scalable.tex",
+      startScale,
+      endScale,
+      new Vector3(0.4f, 0.5f, 0.6f),
+      new CanonicalDynamicAlpha(0.8f, 0.2f, DynamicAlphaTiming.FramePhase),
+      false,
+      new CanonicalDynamicTerrainLight(DynamicLightType.Constant, Vector3.Zero));
+  }
+
+  private static StaticMeshAsset CreateReferencedStaticAsset()
+  {
+    var vertices = new[]
+    {
+      new CanonicalStaticVertex(Vector3.Zero, Vector3.UnitZ, Vector2.Zero),
+      new CanonicalStaticVertex(Vector3.UnitX, Vector3.UnitZ, Vector2.UnitX),
+      new CanonicalStaticVertex(Vector3.UnitY, Vector3.UnitZ, Vector2.UnitY)
+    };
+    var build = StaticMeshBuilder.Create()
+      .SetRootSourceObject(new CanonicalStaticSourceObject(
+      [
+        new CanonicalStaticRenderObject(vertices, [new CanonicalTriangle(0, 1, 2)])
+      ]))
       .Build();
     build.TryGetValue(out var asset).Should().BeTrue();
     return asset!;

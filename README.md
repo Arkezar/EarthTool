@@ -12,7 +12,8 @@ A comprehensive suite of tools for working with Earth 2150 game data files.
 - **TEX Textures** - Convert TEX format to PNG and other image formats
 - **MSH Models** - Safely read, validate, write, and author framed MSH assets
 - **glTF Interchange** - Export static MSH and supported Group, sprite, ribbon,
-  attached-particle, and procedural dynamic MSH to GLB or glTF
+  attached-particle, procedural, and resource-backed ScalableObject dynamic MSH
+  to GLB or glTF
 - **PAR Parameters** - Parse and edit game parameter files
 - **GUI Applications** - User-friendly graphical interfaces for archive and parameter management
 

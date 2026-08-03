@@ -488,83 +488,15 @@ namespace EarthTool.GLTF.Internal
           : null;
     }
 
-    private static (string? Path, string? Root, bool Ambiguous, bool Shadowed) Resolve(
+    private static SafeResourceMatch Resolve(
       string relativePath,
       IReadOnlyList<string> roots,
       TexResolutionBudget budget)
     {
-      var segments = relativePath.Split(Path.DirectorySeparatorChar);
-      string? selected = null;
-      string? selectedRoot = null;
-      var shadowed = false;
-      foreach (var root in roots)
-      {
-        if (!Directory.Exists(root) || HasLinkInAncestry(root))
-        {
-          continue;
-        }
-        var candidates = new[] { root };
-        foreach (var segment in segments)
-        {
-          candidates = candidates.SelectMany(current =>
-              Directory.Exists(current)
-                ? budget.EnumerateFileSystemEntries(current)
-                .Where(path => string.Equals(
-                  Path.GetFileName(path),
-                  segment,
-                  StringComparison.OrdinalIgnoreCase))
-                : Array.Empty<string>())
-            .Where(path => !IsLink(path))
-            .ToArray();
-          if (candidates.Length == 0)
-          {
-            break;
-          }
-        }
-        var completeMatches = candidates.Where(File.Exists).ToArray();
-        if (completeMatches.Length == 0)
-        {
-          continue;
-        }
-        if (completeMatches.Length > 1)
-        {
-          if (selected is null)
-          {
-            return (null, null, true, false);
-          }
-          shadowed = true;
-          continue;
-        }
-        if (selected is null)
-        {
-          selected = completeMatches[0];
-          selectedRoot = root;
-        }
-        else
-        {
-          shadowed = true;
-        }
-      }
-      return (selected, selectedRoot, false, shadowed);
-    }
-
-    private static bool IsLink(string path)
-    {
-      return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
-    }
-
-    private static bool HasLinkInAncestry(string path)
-    {
-      for (DirectoryInfo? current = new DirectoryInfo(Path.GetFullPath(path));
-        current is not null;
-        current = current.Parent)
-      {
-        if (IsLink(current.FullName))
-        {
-          return true;
-        }
-      }
-      return false;
+      return SafeResourceLookup.Resolve(
+        relativePath,
+        roots,
+        budget.EnumerateFileSystemEntries);
     }
 
     private static (TexPreview Preview, bool HasVariants) Decode(
@@ -574,9 +506,7 @@ namespace EarthTool.GLTF.Internal
       TexResolutionBudget budget)
     {
       using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-      if (IsLink(path)
-        || HasLinkInAncestry(path)
-        || !IsContainedBy(root, path))
+      if (!SafeResourceLookup.IsSafeContainedPath(root, path))
       {
         throw new InvalidDataException("The TEX resource escaped its configured search root.");
       }
@@ -762,13 +692,6 @@ namespace EarthTool.GLTF.Internal
     private static string BindingPath(int recordIndex)
     {
       return $"StaticRenderObjectSequence[{recordIndex}].TexturePathBytes";
-    }
-
-    private static bool IsContainedBy(string root, string path)
-    {
-      var rootPath = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar)
-        + Path.DirectorySeparatorChar;
-      return Path.GetFullPath(path).StartsWith(rootPath, StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class TexResolutionBudget

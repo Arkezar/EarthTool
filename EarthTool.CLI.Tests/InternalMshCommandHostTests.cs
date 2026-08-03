@@ -155,6 +155,33 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
+  public async Task DynamicExportRetainsRepeatedMshRootOrderAndReportsShadowing()
+  {
+    using var fixture = await CliFixture.CreateDynamicAsync();
+    var firstRoot = Path.Combine(fixture.Directory, "first-msh-root");
+    var secondRoot = Path.Combine(fixture.Directory, "second-msh-root");
+    await CliFixture.CreateReferencedMshAsync(firstRoot, "preview.msh");
+    await CliFixture.CreateReferencedMshAsync(secondRoot, "PREVIEW.MSH");
+    var reportPath = Path.Combine(fixture.Directory, "scalable-report.json");
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "export", fixture.MshPath,
+      "--msh-root", firstRoot,
+      "--msh-root", secondRoot,
+      "--report", reportPath
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(CliExitCode.Success);
+    using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+    var diagnostics = report.RootElement.GetProperty("operations")[0]
+      .GetProperty("diagnostics").EnumerateArray()
+      .Select(item => item.GetProperty("code").GetString()).ToArray();
+    diagnostics.Should().Contain(GltfDiagnosticCodes.MeshResourceShadowed);
+    diagnostics.Should().NotContain(GltfDiagnosticCodes.UnsupportedDomain);
+  }
+
+  [Fact]
   public async Task ExportExpandsPatternsDeterministicallyIntoOneInvocationReport()
   {
     using var fixture = await CliFixture.CreateAsync();
@@ -563,6 +590,9 @@ public sealed class InternalMshCommandHostTests
     var relativeTexRoot = await InternalMshCommandHost.RunAsync(
       ["msh", "export", fixture.MshPath, "--tex-root", "relative"],
       TextWriter.Null);
+    var relativeMshRoot = await InternalMshCommandHost.RunAsync(
+      ["msh", "export", fixture.MshPath, "--msh-root", "relative"],
+      TextWriter.Null);
     var multipleEditInputs = await InternalMshCommandHost.RunAsync(
     [
       "msh", "import", "edit", fixture.GlbPath, fixture.GlbPath,
@@ -573,6 +603,7 @@ public sealed class InternalMshCommandHostTests
     missingIdentities.Should().Be(2);
     patternedEdit.Should().Be(2);
     relativeTexRoot.Should().Be(2);
+    relativeMshRoot.Should().Be(2);
     multipleEditInputs.Should().Be(2);
   }
 
@@ -873,16 +904,44 @@ public sealed class InternalMshCommandHostTests
         new Vector3(0.7f, 0.8f, 0.9f),
         true,
         [keelwater]);
+      var scalable = DynamicEffectRecipes.ScalableObject(
+        frames,
+        "preview",
+        "Textures\\fx\\scalable.tex",
+        1,
+        2,
+        new Vector3(0.6f, 0.7f, 0.8f),
+        alpha,
+        false,
+        light);
       var build = DynamicMeshBuilder.Create(
           Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"),
           new MeshAssetLineageId(Guid.Parse("11111111-2222-4333-8444-555555555555")))
         .SetRoot(DynamicEffectRecipes.Group(
-          [track, mapped, laser, laserWall, shockwave, sphere]))
+          [track, mapped, laser, laserWall, shockwave, sphere, scalable]))
         .Build();
       build.TryGetValue(out var asset).Should().BeTrue();
       var write = await new MshWriter().WriteFileAsync(asset!, fixture.MshPath);
       write.Succeeded.Should().BeTrue();
       return fixture;
+    }
+
+    public static async Task CreateReferencedMshAsync(string root, string fileName)
+    {
+      var meshes = Path.Combine(root, "Meshes");
+      System.IO.Directory.CreateDirectory(meshes);
+      var vertices = new[]
+      {
+        new CanonicalStaticVertex(Vector3.Zero, Vector3.UnitZ, Vector2.Zero),
+        new CanonicalStaticVertex(Vector3.UnitX, Vector3.UnitZ, Vector2.UnitX),
+        new CanonicalStaticVertex(Vector3.UnitY, Vector3.UnitZ, Vector2.UnitY)
+      };
+      var build = StaticMeshBuilder.Create()
+        .SetRenderObject(vertices, [new CanonicalTriangle(0, 1, 2)])
+        .Build();
+      build.TryGetValue(out var asset).Should().BeTrue();
+      var write = await new MshWriter().WriteFileAsync(asset!, Path.Combine(meshes, fileName));
+      write.Succeeded.Should().BeTrue();
     }
 
     public async Task<InterchangeBaseline> CreateEditGlbAsync()

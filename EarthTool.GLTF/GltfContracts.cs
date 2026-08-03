@@ -62,6 +62,20 @@ namespace EarthTool.GLTF
     public const string SceneLightIgnored = "ETG1018";
     /// <summary>Inert native glTF data was deliberately excluded from canonical MSH state.</summary>
     public const string InertDataIgnored = "ETG1019";
+    /// <summary>An explicit MSH resource could not be resolved from the configured roots.</summary>
+    public const string MeshResourceMissing = "ETG1020";
+    /// <summary>MSH resource resolution was ambiguous in the winning root.</summary>
+    public const string AmbiguousMeshResource = "ETG1021";
+    /// <summary>A referenced MSH resource could not be decoded into a bounded preview.</summary>
+    public const string MeshPreviewUnavailable = "ETG1022";
+    /// <summary>A later MSH root contains a resource shadowed by the winning root.</summary>
+    public const string MeshResourceShadowed = "ETG1023";
+    /// <summary>An unresolved MSH resource uses EarthTool's deterministic diagnostic preview.</summary>
+    public const string MeshDiagnosticPreviewUsed = "ETG1024";
+    /// <summary>A referenced MSH is valid but has an unsupported dynamic payload.</summary>
+    public const string UnsupportedMeshResource = "ETG1025";
+    /// <summary>A referenced dynamic MSH resource chain contains a cycle.</summary>
+    public const string MeshResourceCycle = "ETG1026";
     /// <summary>Required EarthTool manifest metadata is absent.</summary>
     public const string MissingManifest = "ETG2000";
     /// <summary>The edit-import scene contract is invalid.</summary>
@@ -327,6 +341,48 @@ namespace EarthTool.GLTF
     }
   }
 
+  /// <summary>Defines finite limits for referenced MSH preview lookup.</summary>
+  public sealed class GltfMeshResourceLimits
+  {
+    /// <summary>Gets the default finite referenced MSH limits.</summary>
+    public static GltfMeshResourceLimits Default { get; } = new GltfMeshResourceLimits();
+
+    /// <summary>Gets the maximum aggregate referenced MSH bytes.</summary>
+    public int MaxResourceBytes { get; }
+    /// <summary>Gets the maximum ordered search roots.</summary>
+    public int MaxSearchRoots { get; }
+    /// <summary>Gets the maximum examined directory entries.</summary>
+    public int MaxDirectoryEntries { get; }
+    /// <summary>Gets the maximum resolved resources.</summary>
+    public int MaxResources { get; }
+    /// <summary>Gets the maximum aggregate emitted preview vertices.</summary>
+    public int MaxPreviewVertices { get; }
+    /// <summary>Gets the maximum dynamic resource-chain traversal depth.</summary>
+    public int MaxDepth { get; }
+
+    /// <summary>Initializes finite referenced MSH preview limits.</summary>
+    public GltfMeshResourceLimits(
+      int maxResourceBytes = 16 * 1024 * 1024,
+      int maxSearchRoots = 64,
+      int maxDirectoryEntries = 65536,
+      int maxResources = 256,
+      int maxPreviewVertices = 262144,
+      int maxDepth = 8)
+    {
+      MaxResourceBytes = RequirePositive(maxResourceBytes, nameof(maxResourceBytes));
+      MaxSearchRoots = RequirePositive(maxSearchRoots, nameof(maxSearchRoots));
+      MaxDirectoryEntries = RequirePositive(maxDirectoryEntries, nameof(maxDirectoryEntries));
+      MaxResources = RequirePositive(maxResources, nameof(maxResources));
+      MaxPreviewVertices = RequirePositive(maxPreviewVertices, nameof(maxPreviewVertices));
+      MaxDepth = RequirePositive(maxDepth, nameof(maxDepth));
+    }
+
+    private static int RequirePositive(int value, string parameterName)
+    {
+      return value > 0 ? value : throw new ArgumentOutOfRangeException(parameterName);
+    }
+  }
+
   /// <summary>Defines finite resource limits for one glTF operation.</summary>
   public sealed class GltfOperationProfile
   {
@@ -366,6 +422,24 @@ namespace EarthTool.GLTF
     /// <summary>Gets the maximum directory entries examined during TEX lookup.</summary>
     public int MaxTextureDirectoryEntries { get; }
 
+    /// <summary>Gets the maximum aggregate referenced MSH resource bytes read.</summary>
+    public int MaxMeshResourceBytes { get; }
+
+    /// <summary>Gets the maximum ordered MSH resource search roots.</summary>
+    public int MaxMeshResourceSearchRoots { get; }
+
+    /// <summary>Gets the maximum directory entries examined during MSH lookup.</summary>
+    public int MaxMeshResourceDirectoryEntries { get; }
+
+    /// <summary>Gets the maximum referenced MSH resources resolved by one operation.</summary>
+    public int MaxMeshResources { get; }
+
+    /// <summary>Gets the maximum aggregate emitted referenced-MSH preview vertices.</summary>
+    public int MaxMeshPreviewVertices { get; }
+
+    /// <summary>Gets the maximum referenced dynamic MSH traversal depth.</summary>
+    public int MaxMeshResourceDepth { get; }
+
     /// <summary>Gets the cumulative decoded metadata byte limit.</summary>
     public int MaxTotalMetadataBytes { get; }
 
@@ -392,6 +466,24 @@ namespace EarthTool.GLTF
       int maxJsonDepth = 32,
       int maxActiveRenderVertices = 65536)
       : this(
+        GltfMeshResourceLimits.Default,
+        maxInputBytes,
+        maxOutputBytes,
+        maxMetadataBytes,
+        maxJsonDepth,
+        maxActiveRenderVertices)
+    {
+    }
+
+    /// <summary>Initializes finite glTF operation limits including referenced MSH previews.</summary>
+    public GltfOperationProfile(
+      GltfMeshResourceLimits meshResourceLimits,
+      int maxInputBytes = 32 * 1024 * 1024,
+      int maxOutputBytes = 32 * 1024 * 1024,
+      int maxMetadataBytes = 4 * 1024 * 1024,
+      int maxJsonDepth = 32,
+      int maxActiveRenderVertices = 65536)
+      : this(
         maxInputBytes,
         maxOutputBytes,
         maxMetadataBytes,
@@ -408,7 +500,8 @@ namespace EarthTool.GLTF
         4194304,
         262144,
         64,
-        1024)
+        1024,
+        meshResourceLimits)
     {
     }
 
@@ -493,7 +586,53 @@ namespace EarthTool.GLTF
       int maxUnknownMetadataMembers = 262144,
       int maxMetadataGuards = 64,
       int maxMetadataConflicts = 1024)
+      : this(
+        maxInputBytes,
+        maxOutputBytes,
+        maxMetadataBytes,
+        maxJsonDepth,
+        maxActiveRenderVertices,
+        maxNodes,
+        maxHierarchyDepth,
+        maxTextureBytes,
+        maxPreviewPixels,
+        maxTextureSearchRoots,
+        maxTextureDirectoryEntries,
+        maxTotalMetadataBytes,
+        maxMetadataEnvelopes,
+        maxMetadataElements,
+        maxUnknownMetadataMembers,
+        maxMetadataGuards,
+        maxMetadataConflicts,
+        GltfMeshResourceLimits.Default)
     {
+    }
+
+    /// <summary>Initializes every finite glTF operation and resource lookup limit.</summary>
+    public GltfOperationProfile(
+      int maxInputBytes,
+      int maxOutputBytes,
+      int maxMetadataBytes,
+      int maxJsonDepth,
+      int maxActiveRenderVertices,
+      int maxNodes,
+      int maxHierarchyDepth,
+      int maxTextureBytes,
+      int maxPreviewPixels,
+      int maxTextureSearchRoots,
+      int maxTextureDirectoryEntries,
+      int maxTotalMetadataBytes,
+      int maxMetadataEnvelopes,
+      int maxMetadataElements,
+      int maxUnknownMetadataMembers,
+      int maxMetadataGuards,
+      int maxMetadataConflicts,
+      GltfMeshResourceLimits meshResourceLimits)
+    {
+      if (meshResourceLimits is null)
+      {
+        throw new ArgumentNullException(nameof(meshResourceLimits));
+      }
       MaxInputBytes = RequirePositive(maxInputBytes, nameof(maxInputBytes));
       MaxOutputBytes = RequirePositive(maxOutputBytes, nameof(maxOutputBytes));
       MaxMetadataBytes = RequirePositive(maxMetadataBytes, nameof(maxMetadataBytes));
@@ -509,6 +648,12 @@ namespace EarthTool.GLTF
       MaxTextureDirectoryEntries = RequirePositive(
         maxTextureDirectoryEntries,
         nameof(maxTextureDirectoryEntries));
+      MaxMeshResourceBytes = meshResourceLimits.MaxResourceBytes;
+      MaxMeshResourceSearchRoots = meshResourceLimits.MaxSearchRoots;
+      MaxMeshResourceDirectoryEntries = meshResourceLimits.MaxDirectoryEntries;
+      MaxMeshResources = meshResourceLimits.MaxResources;
+      MaxMeshPreviewVertices = meshResourceLimits.MaxPreviewVertices;
+      MaxMeshResourceDepth = meshResourceLimits.MaxDepth;
       MaxTotalMetadataBytes = RequirePositive(maxTotalMetadataBytes, nameof(maxTotalMetadataBytes));
       MaxMetadataEnvelopes = RequirePositive(maxMetadataEnvelopes, nameof(maxMetadataEnvelopes));
       MaxMetadataElements = RequirePositive(maxMetadataElements, nameof(maxMetadataElements));
@@ -579,6 +724,9 @@ namespace EarthTool.GLTF
     /// <summary>Gets ordered absolute roots used only to resolve decoded TEX previews.</summary>
     public IReadOnlyList<string> TextureSearchRoots { get; }
 
+    /// <summary>Gets ordered absolute roots used only to resolve referenced MSH previews.</summary>
+    public IReadOnlyList<string> MeshResourceSearchRoots { get; }
+
     /// <summary>Gets exact unknown additive metadata tokens to carry into the next baseline.</summary>
     public IReadOnlyDictionary<string, string> PreservedUnknownMetadata { get; }
 
@@ -591,6 +739,22 @@ namespace EarthTool.GLTF
       Guid? documentId = null,
       IEnumerable<string>? textureSearchRoots = null,
       IReadOnlyDictionary<string, string>? preservedUnknownMetadata = null)
+      : this(
+        assetLineageId,
+        documentId,
+        textureSearchRoots,
+        preservedUnknownMetadata,
+        null)
+    {
+    }
+
+    /// <summary>Initializes GLB export options including referenced MSH preview roots.</summary>
+    public GltfExportOptions(
+      Guid? assetLineageId,
+      Guid? documentId,
+      IEnumerable<string>? textureSearchRoots,
+      IReadOnlyDictionary<string, string>? preservedUnknownMetadata,
+      IEnumerable<string>? meshResourceSearchRoots)
     {
       if (assetLineageId.HasValue && !GltfMetadataIdentity.IsVersion4(assetLineageId.Value))
       {
@@ -605,11 +769,21 @@ namespace EarthTool.GLTF
       AssetLineageId = assetLineageId;
       DocumentId = documentId;
       var roots = (textureSearchRoots ?? Array.Empty<string>()).ToArray();
-      if (roots.Any(root => string.IsNullOrWhiteSpace(root) || !System.IO.Path.IsPathRooted(root)))
+      if (roots.Any(root => string.IsNullOrWhiteSpace(root)
+        || !System.IO.Path.IsPathFullyQualified(root)))
       {
         throw new ArgumentException("TEX search roots must be absolute paths.", nameof(textureSearchRoots));
       }
       TextureSearchRoots = Array.AsReadOnly(roots.Select(System.IO.Path.GetFullPath).ToArray());
+      var meshRoots = (meshResourceSearchRoots ?? Array.Empty<string>()).ToArray();
+      if (meshRoots.Any(root => string.IsNullOrWhiteSpace(root)
+        || !System.IO.Path.IsPathFullyQualified(root)))
+      {
+        throw new ArgumentException("MSH resource search roots must be absolute paths.",
+          nameof(meshResourceSearchRoots));
+      }
+      MeshResourceSearchRoots = Array.AsReadOnly(
+        meshRoots.Select(System.IO.Path.GetFullPath).ToArray());
       var unknownMetadata = preservedUnknownMetadata?.ToDictionary(
         pair => pair.Key,
         pair => pair.Value,
