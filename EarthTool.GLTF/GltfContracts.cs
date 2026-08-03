@@ -727,6 +727,9 @@ namespace EarthTool.GLTF
     /// <summary>Gets ordered absolute roots used only to resolve referenced MSH previews.</summary>
     public IReadOnlyList<string> MeshResourceSearchRoots { get; }
 
+    /// <summary>Gets the optional source-file basename used for artist-facing object names.</summary>
+    public string? SourceBaseName { get; }
+
     /// <summary>Gets exact unknown additive metadata tokens to carry into the next baseline.</summary>
     public IReadOnlyDictionary<string, string> PreservedUnknownMetadata { get; }
 
@@ -744,6 +747,7 @@ namespace EarthTool.GLTF
         documentId,
         textureSearchRoots,
         preservedUnknownMetadata,
+        null,
         null)
     {
     }
@@ -755,6 +759,24 @@ namespace EarthTool.GLTF
       IEnumerable<string>? textureSearchRoots,
       IReadOnlyDictionary<string, string>? preservedUnknownMetadata,
       IEnumerable<string>? meshResourceSearchRoots)
+      : this(
+        assetLineageId,
+        documentId,
+        textureSearchRoots,
+        preservedUnknownMetadata,
+        meshResourceSearchRoots,
+        null)
+    {
+    }
+
+    /// <summary>Initializes GLB export options including artist-facing source naming.</summary>
+    public GltfExportOptions(
+      Guid? assetLineageId,
+      Guid? documentId,
+      IEnumerable<string>? textureSearchRoots,
+      IReadOnlyDictionary<string, string>? preservedUnknownMetadata,
+      IEnumerable<string>? meshResourceSearchRoots,
+      string? sourceBaseName)
     {
       if (assetLineageId.HasValue && !GltfMetadataIdentity.IsVersion4(assetLineageId.Value))
       {
@@ -784,6 +806,11 @@ namespace EarthTool.GLTF
       }
       MeshResourceSearchRoots = Array.AsReadOnly(
         meshRoots.Select(System.IO.Path.GetFullPath).ToArray());
+      if (sourceBaseName is not null && string.IsNullOrWhiteSpace(sourceBaseName))
+      {
+        throw new ArgumentException("Source basename must contain a visible character.", nameof(sourceBaseName));
+      }
+      SourceBaseName = sourceBaseName;
       var unknownMetadata = preservedUnknownMetadata?.ToDictionary(
         pair => pair.Key,
         pair => pair.Value,

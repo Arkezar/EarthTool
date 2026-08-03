@@ -25,17 +25,23 @@ namespace EarthTool.GLTF.Internal
     internal NativeProjectionFingerprint Fingerprint { get; }
     internal PreservationReport Preservation { get; }
     internal IReadOnlyList<int> ObjectIds { get; }
+    internal bool PlacementDataIgnored { get; }
+    internal int? PlacementRootIndex { get; }
 
     internal DynamicGltfImport(
       DynamicMeshAsset asset,
       NativeProjectionFingerprint fingerprint,
       PreservationReport preservation,
-      IReadOnlyList<int> objectIds)
+      IReadOnlyList<int> objectIds,
+      bool placementDataIgnored,
+      int? placementRootIndex)
     {
       Asset = asset;
       Fingerprint = fingerprint;
       Preservation = preservation;
       ObjectIds = objectIds;
+      PlacementDataIgnored = placementDataIgnored;
+      PlacementRootIndex = placementRootIndex;
     }
   }
 
@@ -62,10 +68,11 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyDictionary<int, TexPreview> previews,
       IReadOnlyDictionary<int, ReferencedMeshPreview> meshPreviews,
       IReadOnlyList<int> objectIds,
+      string? sourceBaseName,
       out NativeProjectionFingerprint fingerprint)
     {
       var package = CreatePackage(
-        asset, baseline, profile, false, previews, meshPreviews, objectIds, out fingerprint);
+        asset, baseline, profile, false, previews, meshPreviews, objectIds, sourceBaseName, out fingerprint);
       return Pack(package.Json, package.Binary);
     }
 
@@ -76,10 +83,11 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyDictionary<int, TexPreview> previews,
       IReadOnlyDictionary<int, ReferencedMeshPreview> meshPreviews,
       IReadOnlyList<int> objectIds,
+      string? sourceBaseName,
       out NativeProjectionFingerprint fingerprint)
     {
       return CreatePackage(
-        asset, baseline, profile, true, previews, meshPreviews, objectIds, out fingerprint);
+        asset, baseline, profile, true, previews, meshPreviews, objectIds, sourceBaseName, out fingerprint);
     }
 
     internal static DynamicGltfImport ImportGlb(
@@ -198,9 +206,14 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyDictionary<int, TexPreview> previews,
       IReadOnlyDictionary<int, ReferencedMeshPreview> meshPreviews,
       IReadOnlyList<int> objectIds,
+      string? sourceBaseName,
       out NativeProjectionFingerprint fingerprint)
     {
-      var objects = Flatten(asset.RootDynamicObject, profile, objectIds);
+      var objects = Flatten(asset.RootDynamicObject, profile, objectIds, 2);
+      if (objects.Count >= profile.MaxNodes)
+      {
+        throw new ResourceLimitException(objects.Count + 1, profile.MaxNodes);
+      }
       ValidateSupportedEffects(objects);
       var effectPreviews = CreateEffectPreviews(objects, profile, meshPreviews);
       var binary = CreateBinary(objects, effectPreviews, out var layouts);
@@ -232,7 +245,8 @@ namespace EarthTool.GLTF.Internal
         previews,
         previewImages,
         previewLayouts,
-        effectPreviews);
+        effectPreviews,
+        sourceBaseName);
       var outputLength = separate
         ? checked(json.Length + binary.Length)
         : checked(28 + ((json.Length + 3) & ~3) + ((binary.Length + 3) & ~3));
@@ -283,13 +297,13 @@ namespace EarthTool.GLTF.Internal
         jsonBytes,
         new JsonDocumentOptions { MaxDepth = profile.MaxJsonDepth });
       var root = json.RootElement;
-      ValidateGraphBounds(root, profile);
+      var layout = ValidateGraphBounds(root, profile);
       var manifestText = GetEarthToolMetadata(root.GetProperty("scenes")[0], "scenes[0]");
       if (Encoding.UTF8.GetByteCount(manifestText) > profile.MaxMetadataBytes)
       {
         throw new ResourceLimitException(Encoding.UTF8.GetByteCount(manifestText), profile.MaxMetadataBytes);
       }
-      ValidateMetadataBudgets(root, manifestText, profile);
+      ValidateMetadataBudgets(root, manifestText, profile, layout.ObjectNodeIndices);
       using var manifest = ParseMetadata(manifestText, profile);
       var manifestRoot = manifest.RootElement;
       ValidateMetadataHeader(manifestRoot, "manifest", 0, expectedBaseline);
@@ -312,7 +326,7 @@ namespace EarthTool.GLTF.Internal
       var objects = Flatten(
         sourceAsset!.RootDynamicObject,
         profile,
-        ReadObjectIds(root, profile));
+        ReadObjectIds(root, profile, layout.ObjectNodeIndices));
       ValidateSupportedEffects(objects);
       var effectPreviews = CreateEffectPreviews(
         objects,
@@ -329,7 +343,7 @@ namespace EarthTool.GLTF.Internal
           "scenes[0].extras.earthtool",
           "Dynamic manifest scope inventory is invalid.");
       }
-      var nativeGraph = ValidateObjectGraph(root, objects, expectedBaseline, profile);
+      var nativeGraph = ValidateObjectGraph(root, objects, expectedBaseline, profile, layout);
       var fingerprintElement = payload.GetProperty("nativeProjection");
       var fingerprint = new NativeProjectionFingerprint(
         fingerprintElement.GetProperty("name").GetString()
@@ -358,17 +372,20 @@ namespace EarthTool.GLTF.Internal
         binary.Span,
         fingerprint,
         profile,
-        effectPreviews);
+        effectPreviews,
+        layout.PlacementDataIgnored,
+        layout.PlacementRootIndex);
     }
 
     private static NativeObjectGraph ValidateObjectGraph(
       JsonElement root,
       IReadOnlyList<DynamicObjectScope> sourceObjects,
       InterchangeBaseline baseline,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile,
+      DynamicSceneLayout layout)
     {
       var nodes = root.GetProperty("nodes");
-      if (nodes.GetArrayLength() != sourceObjects.Count)
+      if (layout.ObjectNodeIndices.Count != sourceObjects.Count)
       {
         throw new DynamicMetadataGraphException(
           GltfDiagnosticCodes.InvalidManifestInventory,
@@ -379,7 +396,7 @@ namespace EarthTool.GLTF.Internal
       var seen = new HashSet<int>();
       var nodeIndicesById = new Dictionary<int, int>();
       var meshNamesById = new Dictionary<int, IReadOnlyList<byte>>();
-      for (var nodeIndex = 0; nodeIndex < nodes.GetArrayLength(); nodeIndex++)
+      foreach (var nodeIndex in layout.ObjectNodeIndices)
       {
         var node = nodes[nodeIndex];
         var metadataText = GetEarthToolMetadata(node, $"nodes[{nodeIndex}]");
@@ -463,12 +480,13 @@ namespace EarthTool.GLTF.Internal
           "nodes",
           "Dynamic object scope inventory is incomplete.");
       }
-      if (!nodeIndicesById.TryGetValue(1, out var rootNodeIndex) || rootNodeIndex != 0)
+      if (!nodeIndicesById.TryGetValue(1, out var rootNodeIndex)
+        || rootNodeIndex != layout.DynamicRootNodeIndex)
       {
         throw new DynamicMetadataGraphException(
           GltfDiagnosticCodes.KindCarrierMismatch,
           2008,
-          "nodes[0]",
+          $"nodes[{layout.DynamicRootNodeIndex}]",
           "The dynamic root scope must own the scene root node.");
       }
       var scopes = new Dictionary<int, NativeObjectScope>();
@@ -725,11 +743,12 @@ namespace EarthTool.GLTF.Internal
 
     private static IReadOnlyList<int> ReadObjectIds(
       JsonElement root,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile,
+      IReadOnlyList<int> objectNodeIndices)
     {
-      var result = new List<int>();
       var nodes = root.GetProperty("nodes");
-      for (var index = 0; index < nodes.GetArrayLength(); index++)
+      var childrenById = new Dictionary<int, IReadOnlyList<int>>();
+      foreach (var index in objectNodeIndices)
       {
         var metadataText = GetEarthToolMetadata(nodes[index], $"nodes[{index}]");
         if (Encoding.UTF8.GetByteCount(metadataText) > profile.MaxMetadataBytes)
@@ -737,26 +756,61 @@ namespace EarthTool.GLTF.Internal
           throw new ResourceLimitException(Encoding.UTF8.GetByteCount(metadataText), profile.MaxMetadataBytes);
         }
         using var metadata = ParseMetadata(metadataText, profile);
-        result.Add(metadata.RootElement.GetProperty("scope").GetProperty("localId").GetInt32());
+        var metadataRoot = metadata.RootElement;
+        var id = metadataRoot.GetProperty("scope").GetProperty("localId").GetInt32();
+        var children = metadataRoot.GetProperty("payload").GetProperty("orderedChildIds")
+          .EnumerateArray().Select(item => item.GetInt32()).ToArray();
+        if (id <= 0 || !childrenById.TryAdd(id, Array.AsReadOnly(children)))
+        {
+          throw new DynamicMetadataGraphException(
+            GltfDiagnosticCodes.DuplicateScopeIdentity,
+            2009,
+            "nodes",
+            "Dynamic object scope identity is duplicate or invalid.");
+        }
       }
-      if (result.Any(id => id <= 0) || result.Distinct().Count() != result.Count)
+      var result = new List<int>();
+      AddDeclaredObjectIds(1, childrenById, result, new HashSet<int>());
+      if (result.Count != childrenById.Count)
       {
         throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.DuplicateScopeIdentity,
-          2009,
+          GltfDiagnosticCodes.MissingExpectedScope,
+          2010,
           "nodes",
-          "Dynamic object scope identity is duplicate or invalid.");
+          "Dynamic object scope hierarchy is incomplete.");
       }
       return result.AsReadOnly();
+    }
+
+    private static void AddDeclaredObjectIds(
+      int id,
+      IReadOnlyDictionary<int, IReadOnlyList<int>> childrenById,
+      ICollection<int> result,
+      ISet<int> visited)
+    {
+      if (!childrenById.TryGetValue(id, out var children) || !visited.Add(id))
+      {
+        throw new DynamicMetadataGraphException(
+          GltfDiagnosticCodes.DanglingMetadataReference,
+          2013,
+          "nodes",
+          "Dynamic object scope hierarchy is invalid.");
+      }
+      result.Add(id);
+      foreach (var childId in children)
+      {
+        AddDeclaredObjectIds(childId, childrenById, result, visited);
+      }
     }
 
     private static void ValidateMetadataBudgets(
       JsonElement root,
       string manifest,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile,
+      IReadOnlyList<int> objectNodeIndices)
     {
       var nodes = root.GetProperty("nodes");
-      if (nodes.GetArrayLength() + 1 > profile.MaxMetadataEnvelopes)
+      if (objectNodeIndices.Count + 1 > profile.MaxMetadataEnvelopes)
       {
         throw MetadataLimit("scenes[0].extras.earthtool", "Dynamic metadata has too many envelopes.");
       }
@@ -775,7 +829,7 @@ namespace EarthTool.GLTF.Internal
         profile,
         ref elementCount,
         ref unknownCount);
-      for (var index = 0; index < nodes.GetArrayLength(); index++)
+      foreach (var index in objectNodeIndices)
       {
         var path = $"nodes[{index}].extras.earthtool";
         var metadata = GetEarthToolMetadata(nodes[index], $"nodes[{index}]");
@@ -928,7 +982,9 @@ namespace EarthTool.GLTF.Internal
       ReadOnlySpan<byte> binary,
       NativeProjectionFingerprint fingerprint,
       GltfOperationProfile profile,
-      IReadOnlyDictionary<int, DynamicEffectPreview> effectPreviews)
+      IReadOnlyDictionary<int, DynamicEffectPreview> effectPreviews,
+      bool placementDataIgnored,
+      int? placementRootIndex)
     {
       var sourceBytes = sourceAsset.GetSerializedRepresentation();
       var rootOffset = GetRootOffset(sourceBytes);
@@ -975,7 +1031,9 @@ namespace EarthTool.GLTF.Internal
           sourceAsset,
           fingerprint,
           new PreservationReport(changes),
-          objectIds);
+          objectIds,
+          placementDataIgnored,
+          placementRootIndex);
       }
       var built = MshExpert.CreateDynamic(
         output.ToArray(),
@@ -985,7 +1043,13 @@ namespace EarthTool.GLTF.Internal
       {
         throw new InvalidDataException("The dynamic native edits cannot form one valid MSH snapshot.");
       }
-      return new DynamicGltfImport(asset!, fingerprint, new PreservationReport(changes), objectIds);
+      return new DynamicGltfImport(
+        asset!,
+        fingerprint,
+        new PreservationReport(changes),
+        objectIds,
+        placementDataIgnored,
+        placementRootIndex);
     }
 
     private static IReadOnlyList<int> GetPreorderIds(NativeObjectGraph graph)
@@ -1833,10 +1897,11 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyDictionary<int, TexPreview> previews,
       IReadOnlyList<TexPreview> previewImages,
       IReadOnlyDictionary<string, DynamicImageLayout> previewLayouts,
-      IReadOnlyDictionary<int, DynamicEffectPreview> effectPreviews)
+      IReadOnlyDictionary<int, DynamicEffectPreview> effectPreviews,
+      string? sourceBaseName)
     {
       var nodeIndicesById = objects
-        .Select((scope, index) => (scope.Id, index))
+        .Select((scope, index) => (scope.Id, index: index + 1))
         .ToDictionary(item => item.Id, item => item.index);
       using var stream = new MemoryStream();
       using (var writer = new Utf8JsonWriter(stream))
@@ -1862,12 +1927,23 @@ namespace EarthTool.GLTF.Internal
         writer.WriteEndObject();
         writer.WriteEndArray();
         writer.WriteStartArray("nodes");
+        writer.WriteStartObject();
+        writer.WriteString("name", sourceBaseName ?? "EarthTool Placement");
+        writer.WriteStartArray("children");
+        writer.WriteNumberValue(1);
+        writer.WriteEndArray();
+        writer.WriteStartObject("extras");
+        writer.WriteBoolean(GlbDocument.PlacementRootMarker, true);
+        writer.WriteEndObject();
+        writer.WriteEndObject();
         var previewIndex = 0;
         foreach (var scope in objects)
         {
           var extension = scope.Object.Extension;
           writer.WriteStartObject();
-          writer.WriteString("name", $"ET_Dynamic_{scope.Id}_{EffectName(extension)}");
+          writer.WriteString("name", sourceBaseName is null
+            ? $"ET_Dynamic_{scope.Id}_{EffectName(extension)}"
+            : $"{sourceBaseName}_{scope.Id}_{EffectName(extension)}");
           if (scope.ChildIds.Count != 0)
           {
             writer.WriteStartArray("children");
@@ -1912,7 +1988,9 @@ namespace EarthTool.GLTF.Internal
           foreach (var scope in objects.Where(item => layouts.ContainsKey(item.Id)))
           {
             writer.WriteStartObject();
-            writer.WriteString("name", $"ET_{EffectName(scope.Object.Extension)}Preview_{scope.Id}");
+            writer.WriteString("name", sourceBaseName is null
+              ? $"ET_{EffectName(scope.Object.Extension)}Preview_{scope.Id}"
+              : $"{sourceBaseName}_{scope.Id}_{EffectName(scope.Object.Extension)}_Mesh");
             writer.WriteStartArray("primitives");
             writer.WriteStartObject();
             writer.WriteStartObject("attributes");
@@ -2246,10 +2324,11 @@ namespace EarthTool.GLTF.Internal
     private static IReadOnlyList<DynamicObjectScope> Flatten(
       DynamicObject root,
       GltfOperationProfile profile,
-      IReadOnlyList<int>? objectIds = null)
+      IReadOnlyList<int>? objectIds = null,
+      int initialDepth = 1)
     {
       var objects = new List<DynamicObjectScope>();
-      Add(root, 1, objects, profile, objectIds ?? Array.Empty<int>());
+      Add(root, initialDepth, objects, profile, objectIds ?? Array.Empty<int>());
       if (objectIds is { Count: > 0 }
         && (objectIds.Count != objects.Count
           || objectIds.Any(id => id <= 0)
@@ -3008,7 +3087,7 @@ namespace EarthTool.GLTF.Internal
       }
     }
 
-    private static void ValidateGraphBounds(JsonElement root, GltfOperationProfile profile)
+    private static DynamicSceneLayout ValidateGraphBounds(JsonElement root, GltfOperationProfile profile)
     {
       if (!root.TryGetProperty("nodes", out var nodes)
         || nodes.ValueKind != JsonValueKind.Array
@@ -3024,16 +3103,127 @@ namespace EarthTool.GLTF.Internal
       if (!root.TryGetProperty("scenes", out var scenes)
         || scenes.GetArrayLength() != 1
         || !root.TryGetProperty("scene", out var scene)
-        || scene.GetInt32() != 0)
+        || scene.GetInt32() != 0
+        || !scenes[0].TryGetProperty("nodes", out var sceneNodes)
+        || sceneNodes.GetArrayLength() != 1)
       {
         throw new InvalidDataException("Dynamic glTF requires one default scene.");
       }
+      var sceneRootIndex = sceneNodes[0].GetInt32();
+      int? placementRootIndex = null;
+      for (var index = 0; index < nodes.GetArrayLength(); index++)
+      {
+        if (!TryGetPlacementRootMarker(nodes[index], out var hasMarker))
+        {
+          continue;
+        }
+        if (!hasMarker || placementRootIndex.HasValue || index != sceneRootIndex)
+        {
+          throw new InvalidDataException("Dynamic glTF placement root is malformed.");
+        }
+        placementRootIndex = index;
+      }
+      var dynamicRootIndex = sceneRootIndex;
+      var placementDataIgnored = false;
+      if (placementRootIndex.HasValue)
+      {
+        var placement = nodes[placementRootIndex.Value];
+        if (HasEarthToolMember(placement)
+          || placement.TryGetProperty("mesh", out _)
+          || placement.TryGetProperty("camera", out _)
+          || placement.TryGetProperty("skin", out _)
+          || placement.TryGetProperty("weights", out _)
+          || placement.TryGetProperty("extensions", out _)
+          || !placement.TryGetProperty("children", out var placementChildren)
+          || placementChildren.GetArrayLength() != 1)
+        {
+          throw new InvalidDataException("Dynamic glTF placement root is malformed.");
+        }
+        dynamicRootIndex = placementChildren[0].GetInt32();
+        placementDataIgnored = HasNonIdentityPlacement(placement)
+          || HasPlacementAnimation(root, placementRootIndex.Value);
+      }
+      else if (!HasEarthToolMember(nodes[sceneRootIndex]))
+      {
+        throw new InvalidDataException("Dynamic glTF has an unmarked placement root.");
+      }
       var visited = new HashSet<int>();
-      ValidateDepth(nodes, 0, 1, profile.MaxHierarchyDepth, visited);
+      ValidateDepth(nodes, sceneRootIndex, 1, profile.MaxHierarchyDepth, visited);
       if (visited.Count != nodes.GetArrayLength())
       {
         throw new InvalidDataException("Every dynamic glTF node must be reachable exactly once.");
       }
+      var objectNodeIndices = Enumerable.Range(0, nodes.GetArrayLength())
+        .Where(index => index != placementRootIndex)
+        .ToArray();
+      return new DynamicSceneLayout(
+        placementRootIndex,
+        dynamicRootIndex,
+        Array.AsReadOnly(objectNodeIndices),
+        placementDataIgnored);
+    }
+
+    private static bool TryGetPlacementRootMarker(JsonElement node, out bool value)
+    {
+      value = false;
+      if (!node.TryGetProperty("extras", out var extras)
+        || !extras.TryGetProperty(GlbDocument.PlacementRootMarker, out var marker))
+      {
+        return false;
+      }
+      value = marker.ValueKind == JsonValueKind.True;
+      return true;
+    }
+
+    private static bool HasEarthToolMember(JsonElement node)
+    {
+      return node.TryGetProperty("extras", out var extras)
+        && extras.TryGetProperty("earthtool", out _);
+    }
+
+    private static bool HasNonIdentityPlacement(JsonElement node)
+    {
+      if (node.TryGetProperty("matrix", out var matrix))
+      {
+        var identity = new[]
+        {
+          1f, 0f, 0f, 0f,
+          0f, 1f, 0f, 0f,
+          0f, 0f, 1f, 0f,
+          0f, 0f, 0f, 1f
+        };
+        return !matrix.EnumerateArray().Select(value => value.GetSingle()).SequenceEqual(identity);
+      }
+      return node.TryGetProperty("translation", out var translation)
+          && translation.EnumerateArray().Select(value => value.GetSingle()).Any(value => value != 0)
+        || node.TryGetProperty("rotation", out var rotation)
+          && !rotation.EnumerateArray().Select(value => value.GetSingle()).SequenceEqual(new[] { 0f, 0f, 0f, 1f })
+        || node.TryGetProperty("scale", out var scale)
+          && scale.EnumerateArray().Select(value => value.GetSingle()).Any(value => value != 1);
+    }
+
+    private static bool HasPlacementAnimation(JsonElement root, int placementRootIndex)
+    {
+      if (!root.TryGetProperty("animations", out var animations))
+      {
+        return false;
+      }
+      var found = false;
+      foreach (var channel in animations.EnumerateArray()
+        .SelectMany(animation => animation.GetProperty("channels").EnumerateArray()))
+      {
+        var target = channel.GetProperty("target");
+        if (target.GetProperty("node").GetInt32() != placementRootIndex)
+        {
+          continue;
+        }
+        if (target.GetProperty("path").GetString() is not ("translation" or "rotation" or "scale"))
+        {
+          throw new InvalidDataException("Dynamic placement animation has an unsupported target path.");
+        }
+        found = true;
+      }
+      return found;
     }
 
     private static void ValidateDepth(
@@ -3059,6 +3249,26 @@ namespace EarthTool.GLTF.Internal
       foreach (var child in children.EnumerateArray())
       {
         ValidateDepth(nodes, child.GetInt32(), depth + 1, maximumDepth, visited);
+      }
+    }
+
+    private sealed class DynamicSceneLayout
+    {
+      internal int? PlacementRootIndex { get; }
+      internal int DynamicRootNodeIndex { get; }
+      internal IReadOnlyList<int> ObjectNodeIndices { get; }
+      internal bool PlacementDataIgnored { get; }
+
+      internal DynamicSceneLayout(
+        int? placementRootIndex,
+        int dynamicRootNodeIndex,
+        IReadOnlyList<int> objectNodeIndices,
+        bool placementDataIgnored)
+      {
+        PlacementRootIndex = placementRootIndex;
+        DynamicRootNodeIndex = dynamicRootNodeIndex;
+        ObjectNodeIndices = objectNodeIndices;
+        PlacementDataIgnored = placementDataIgnored;
       }
     }
 

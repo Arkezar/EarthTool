@@ -124,10 +124,12 @@ public sealed class EarthTool.GLTF.GltfEditImportResult
 public sealed class EarthTool.GLTF.GltfExportOptions
   constructor GltfExportOptions(System.Guid? assetLineageId = null, System.Guid? documentId = null, System.Collections.Generic.IEnumerable<System.String>? textureSearchRoots = null, System.Collections.Generic.IReadOnlyDictionary<System.String, System.String>? preservedUnknownMetadata = null)
   constructor GltfExportOptions(System.Guid? assetLineageId, System.Guid? documentId, System.Collections.Generic.IEnumerable<System.String>? textureSearchRoots, System.Collections.Generic.IReadOnlyDictionary<System.String, System.String>? preservedUnknownMetadata, System.Collections.Generic.IEnumerable<System.String>? meshResourceSearchRoots)
+  constructor GltfExportOptions(System.Guid? assetLineageId, System.Guid? documentId, System.Collections.Generic.IEnumerable<System.String>? textureSearchRoots, System.Collections.Generic.IReadOnlyDictionary<System.String, System.String>? preservedUnknownMetadata, System.Collections.Generic.IEnumerable<System.String>? meshResourceSearchRoots, System.String? sourceBaseName)
   property System.Guid? AssetLineageId { get; }
   property System.Guid? DocumentId { get; }
   property System.Collections.Generic.IReadOnlyList<System.String> MeshResourceSearchRoots { get; }
   property System.Collections.Generic.IReadOnlyDictionary<System.String, System.String> PreservedUnknownMetadata { get; }
+  property System.String? SourceBaseName { get; }
   property System.Collections.Generic.IReadOnlyList<System.String> TextureSearchRoots { get; }
 public sealed class EarthTool.GLTF.GltfExportReceipt
   property EarthTool.GLTF.InterchangeBaseline Baseline { get; }

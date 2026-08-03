@@ -318,12 +318,14 @@ internal sealed class GltfCommandExecutor
       return failedOperation;
     }
 
+    var sourceBaseName = Path.GetFileNameWithoutExtension(input);
     var options = new GltfExportOptions(
       null,
       null,
       settings.TextureSearchRoots,
       null,
-      settings.MeshResourceSearchRoots);
+      settings.MeshResourceSearchRoots,
+      string.IsNullOrWhiteSpace(sourceBaseName) ? null : sourceBaseName);
     var asset = read.Value;
     var exported = await asset.Match(
       onStatic: staticAsset => settings.Format == GltfPackageKind.Glb

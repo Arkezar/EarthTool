@@ -2396,6 +2396,81 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
+  public async Task PlacementRootTransformAndAnimationRemainSceneOnlyOnEditImport()
+  {
+    var source = StaticAnimationMshFixture.Create(
+      0,
+      new StaticAnimationMshFixture.AnimationLengths(2, 0, 0, 0),
+      translations: [Vector3.Zero, Vector3.One]);
+    var asset = await ReadAssetAsync(source);
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId, null, null, null, "EDBBPP"));
+    export.Status.Should().Be(OperationStatus.Succeeded);
+    var placementIndex = -1;
+    var placementChannelIndex = -1;
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      placementIndex = root["nodes"]!.AsArray().Count - 1;
+      root["nodes"]![placementIndex]!["name"] = "Artist Placement";
+      root["nodes"]![placementIndex]!["translation"] = new JsonArray(10, 20, 30);
+      var channels = root["animations"]![0]!["channels"]!.AsArray();
+      placementChannelIndex = channels.Count;
+      var placementChannel = channels[0]!.DeepClone();
+      placementChannel["target"]!["node"] = placementIndex;
+      channels.Add(placementChannel);
+    });
+    await using var editedStream = new MemoryStream(edited);
+
+    var imported = await interchange.ImportEditGlbAsync(editedStream, export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Succeeded,
+      string.Join("; ", imported.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    imported.Value!.Asset.GetSerializedRepresentation().Should().Equal(source);
+    imported.Diagnostics.Where(diagnostic => diagnostic.Code == GltfDiagnosticCodes.InertDataIgnored)
+      .Select(diagnostic => diagnostic.Path).Should().BeEquivalentTo(
+        $"nodes[{placementIndex}]",
+        $"animations[0].channels[{placementChannelIndex}]");
+  }
+
+  [Fact]
+  public async Task StaticPlacementRootMayBeRemovedButNotLeftUnmarked()
+  {
+    var source = OneTriangleMshFixture.Create();
+    var asset = await ReadAssetAsync(source);
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var legacy = RewriteJson(glb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      nodes.RemoveAt(nodes.Count - 1);
+      root["scenes"]![0]!["nodes"]![0] = 0;
+    });
+    var unmarked = RewriteJson(glb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      nodes[nodes.Count - 1]!.AsObject().Remove("extras");
+    });
+    await using var legacyStream = new MemoryStream(legacy);
+    await using var unmarkedStream = new MemoryStream(unmarked);
+
+    var legacyImport = await interchange.ImportEditGlbAsync(legacyStream, export.Value!.Baseline);
+    var unmarkedImport = await interchange.ImportEditGlbAsync(unmarkedStream, export.Value.Baseline);
+
+    legacyImport.Status.Should().Be(OperationStatus.Succeeded);
+    legacyImport.Value!.Asset.GetSerializedRepresentation().Should().Equal(source);
+    unmarkedImport.Status.Should().Be(OperationStatus.Failed);
+    unmarkedImport.Value.Should().BeNull();
+  }
+
+  [Fact]
   public async Task StaticSourceObjectsAndMaterialPartitionsExportAsNativeHierarchy()
   {
     var fixture = StaticMeshSequenceFixture.CreateInterleaved();
@@ -2405,7 +2480,7 @@ public class GltfWalkingSkeletonTests
     var result = await new GltfInterchange().ExportGlbAsync(
       asset,
       glb,
-      new GltfExportOptions(LineageId, DocumentId));
+      new GltfExportOptions(LineageId, DocumentId, null, null, null, "EDBBPP"));
 
     result.Status.Should().Be(
       OperationStatus.Succeeded,
@@ -2413,9 +2488,20 @@ public class GltfWalkingSkeletonTests
     using var json = ReadGlbJson(glb.ToArray());
     var root = json.RootElement;
     root.GetProperty("scenes")[0].GetProperty("nodes").EnumerateArray()
-      .Select(node => node.GetInt32()).Should().Equal(0);
-    root.GetProperty("nodes").GetArrayLength().Should().Be(7);
+      .Select(node => node.GetInt32()).Should().Equal(7);
+    root.GetProperty("nodes").GetArrayLength().Should().Be(8);
     root.GetProperty("meshes").GetArrayLength().Should().Be(3);
+    root.GetProperty("nodes")[7].GetProperty("name").GetString().Should().Be("EDBBPP");
+    root.GetProperty("nodes")[7].GetProperty("children").EnumerateArray()
+      .Select(node => node.GetInt32()).Should().Equal(0);
+    root.GetProperty("nodes")[7].GetProperty("extras")
+      .GetProperty("earthtoolPlacementRoot").GetBoolean().Should().BeTrue();
+    root.GetProperty("nodes")[0].GetProperty("name").GetString().Should().Be("EDBBPP_1");
+    root.GetProperty("nodes")[1].GetProperty("name").GetString().Should().Be("EDBBPP_2");
+    root.GetProperty("nodes")[2].GetProperty("name").GetString().Should().Be("EDBBPP_3");
+    root.GetProperty("meshes")[0].GetProperty("name").GetString().Should().Be("EDBBPP_1_Mesh");
+    root.GetProperty("meshes")[1].GetProperty("name").GetString().Should().Be("EDBBPP_2_Mesh");
+    root.GetProperty("meshes")[2].GetProperty("name").GetString().Should().Be("EDBBPP_3_Mesh");
     root.GetProperty("nodes")[0].GetProperty("children").EnumerateArray()
       .Select(node => node.GetInt32()).Take(2).Should().Equal(1, 2);
     root.GetProperty("nodes")[0].TryGetProperty("translation", out _).Should().BeFalse();
@@ -5885,8 +5971,8 @@ public class GltfWalkingSkeletonTests
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId));
-    var bytes = glb.ToArray();
-    ReplaceFirst(bytes, "\"nodes\":[0]", "\"nodes\":[] ");
+    var bytes = RewriteJson(glb.ToArray(), root =>
+      root["scenes"]![0]!["nodes"] = new JsonArray());
     await using var edited = new MemoryStream(bytes);
 
     var result = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
@@ -6664,6 +6750,18 @@ public class GltfWalkingSkeletonTests
   {
     if (node is JsonObject owner)
     {
+      if (owner["nodes"] is JsonArray nodes
+        && owner["scenes"]?[0]?["nodes"] is JsonArray sceneNodes
+        && sceneNodes.Count == 1)
+      {
+        var sceneRootIndex = sceneNodes[0]!.GetValue<int>();
+        var sceneRoot = nodes[sceneRootIndex];
+        if (sceneRoot?["extras"]?[GlbDocument.PlacementRootMarker]?.GetValue<bool>() == true)
+        {
+          sceneNodes[0] = sceneRoot["children"]![0]!.GetValue<int>();
+          nodes.RemoveAt(sceneRootIndex);
+        }
+      }
       if (owner["extras"] is JsonObject extras)
       {
         extras.Remove("earthtool");

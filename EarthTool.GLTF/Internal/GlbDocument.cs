@@ -121,6 +121,8 @@ namespace EarthTool.GLTF.Internal
   {
     internal string? Name { get; }
 
+    internal bool IsPlacementRoot { get; }
+
     internal string? Metadata { get; }
 
     internal int? MeshIndex { get; }
@@ -135,6 +137,7 @@ namespace EarthTool.GLTF.Internal
 
     internal ParsedGltfNode(
       string? name,
+      bool isPlacementRoot,
       string? metadata,
       int? meshIndex,
       int? lightIndex,
@@ -143,6 +146,7 @@ namespace EarthTool.GLTF.Internal
       Matrix4x4 localTransform)
     {
       Name = name;
+      IsPlacementRoot = isPlacementRoot;
       Metadata = metadata;
       MeshIndex = meshIndex;
       LightIndex = lightIndex;
@@ -636,6 +640,7 @@ namespace EarthTool.GLTF.Internal
 
   internal static class GlbDocument
   {
+    internal const string PlacementRootMarker = "earthtoolPlacementRoot";
     private const uint GlbMagic = 0x46546C67;
     private const uint JsonChunkType = 0x4E4F534A;
     private const uint BinaryChunkType = 0x004E4942;
@@ -646,6 +651,7 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyDictionary<string, string> unknownMetadata,
       IReadOnlyDictionary<string, int> metadataNextIds,
       IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
+      string? sourceBaseName,
       out NativeProjectionFingerprint fingerprint)
     {
       var package = CreatePackage(
@@ -655,6 +661,7 @@ namespace EarthTool.GLTF.Internal
         metadataNextIds,
         false,
         previews,
+        sourceBaseName,
         out fingerprint);
       return Pack(package.Json, package.Binary);
     }
@@ -665,6 +672,7 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyDictionary<string, string> unknownMetadata,
       IReadOnlyDictionary<string, int> metadataNextIds,
       IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
+      string? sourceBaseName,
       out NativeProjectionFingerprint fingerprint)
     {
       return CreatePackage(
@@ -674,6 +682,7 @@ namespace EarthTool.GLTF.Internal
         metadataNextIds,
         true,
         previews,
+        sourceBaseName,
         out fingerprint);
     }
 
@@ -772,6 +781,7 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyDictionary<string, int> metadataNextIds,
       bool separate,
       IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
+      string? sourceBaseName,
       out NativeProjectionFingerprint fingerprint)
     {
       var partitions = asset.StaticRenderObjectSequence
@@ -811,7 +821,8 @@ namespace EarthTool.GLTF.Internal
         previewLayouts,
         animations,
         animationLayouts,
-        bufferFileName);
+        bufferFileName,
+        sourceBaseName);
       var imageSidecars = separate
         ? previews.Values
           .GroupBy(preview => preview.ContentAddress, StringComparer.Ordinal)
@@ -943,6 +954,7 @@ namespace EarthTool.GLTF.Internal
       var metadataConflicts = new MetadataConflictCollector(profile.MaxMetadataConflicts);
       ValidateSupportedGraph(root, profile, intent);
       ValidateMetadataGraph(root, profile, intent, metadataConflicts);
+      var rootNodeIndex = ResolveRootNodeIndex(root, intent, out var placementRootIndex);
       var manifest = intent == GltfImportIntent.Edit
         ? GetMetadata(root.GetProperty("scenes")[0], "scene")
         : TryGetMetadata(root.GetProperty("scenes")[0]);
@@ -954,6 +966,7 @@ namespace EarthTool.GLTF.Internal
           : Array.Empty<int>();
         nodes.Add(new ParsedGltfNode(
           node.TryGetProperty("name", out var name) ? name.GetString() : null,
+          TryGetPlacementRootMarker(node, out var isPlacementRoot) && isPlacementRoot,
           TryGetMetadata(node),
           node.TryGetProperty("mesh", out var mesh) ? mesh.GetInt32() : null,
           TryGetLightIndex(node),
@@ -984,7 +997,7 @@ namespace EarthTool.GLTF.Internal
               && pbr.TryGetProperty("baseColorTexture", out _)))
           .ToArray()
         : Array.Empty<ParsedGltfMaterial>();
-      var animations = ReadAnimations(root, binary);
+      var animations = ReadAnimations(root, binary, placementRootIndex);
       var lights = ReadLights(root, intent);
 
       return new ParsedGlb(
@@ -995,9 +1008,75 @@ namespace EarthTool.GLTF.Internal
         Array.AsReadOnly(materials),
         animations,
         lights,
-        root.GetProperty("scenes")[0].GetProperty("nodes")[0].GetInt32(),
+        rootNodeIndex,
         metadataConflicts,
-        GetIgnoredInertPaths(root, intent));
+        GetIgnoredInertPaths(root, intent, placementRootIndex));
+    }
+
+    private static int ResolveRootNodeIndex(
+      JsonElement root,
+      GltfImportIntent intent,
+      out int? placementRootIndex)
+    {
+      var nodes = root.GetProperty("nodes");
+      var sceneRootIndex = root.GetProperty("scenes")[0].GetProperty("nodes")[0].GetInt32();
+      placementRootIndex = null;
+      for (var index = 0; index < nodes.GetArrayLength(); index++)
+      {
+        if (!TryGetPlacementRootMarker(nodes[index], out var hasMarker))
+        {
+          continue;
+        }
+        if (!hasMarker || placementRootIndex.HasValue || index != sceneRootIndex)
+        {
+          throw new UnsupportedGltfDomainException("PlacementRoot");
+        }
+        placementRootIndex = index;
+      }
+
+      var sceneRoot = nodes[sceneRootIndex];
+      if (placementRootIndex.HasValue)
+      {
+        if (sceneRoot.TryGetProperty("mesh", out _)
+          || sceneRoot.TryGetProperty("camera", out _)
+          || sceneRoot.TryGetProperty("skin", out _)
+          || sceneRoot.TryGetProperty("weights", out _)
+          || sceneRoot.TryGetProperty("extensions", out _)
+          || TryGetLightIndex(sceneRoot).HasValue
+          || TryGetMetadata(sceneRoot) is not null
+          || !sceneRoot.TryGetProperty("children", out var children)
+          || children.GetArrayLength() != 1)
+        {
+          throw new UnsupportedGltfDomainException("PlacementRoot");
+        }
+        return intent == GltfImportIntent.Edit
+          ? children[0].GetInt32()
+          : sceneRootIndex;
+      }
+
+      if (intent == GltfImportIntent.Edit
+        && !sceneRoot.TryGetProperty("mesh", out _)
+        && TryGetMetadata(sceneRoot) is null)
+      {
+        throw new UnsupportedGltfDomainException("PlacementRoot");
+      }
+      return sceneRootIndex;
+    }
+
+    private static bool TryGetPlacementRootMarker(JsonElement node, out bool value)
+    {
+      value = false;
+      if (!node.TryGetProperty("extras", out var extras)
+        || !extras.TryGetProperty(PlacementRootMarker, out var marker))
+      {
+        return false;
+      }
+      if (marker.ValueKind != JsonValueKind.True)
+      {
+        return true;
+      }
+      value = true;
+      return true;
     }
 
     private static void ValidateMetadataGraph(
@@ -2581,13 +2660,18 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyDictionary<StaticRenderObjectId, PreviewLayout> previewLayouts,
       AnimationProjectionSet animations,
       IReadOnlyList<AnimationLayout> animationLayouts,
-      string? bufferFileName)
+      string? bufferFileName,
+      string? sourceBaseName)
     {
       var rootSourceObject = asset.RootSourceObject;
       var sources = StaticSourceObjectTraversal.Flatten(rootSourceObject).ToArray();
       var attachments = ProjectAttachments(asset);
       var cannonRenderPositions = ProjectCannonRenderPositions(asset);
       var staticLights = ProjectStaticLights(asset);
+      var placementRootIndex = sources.Length
+        + attachments.Count
+        + cannonRenderPositions.Count
+        + staticLights.Count;
       var nodeIndices = sources
         .Select((source, index) => new { source.Id, Index = index })
         .ToDictionary(item => item.Id, item => item.Index);
@@ -2672,7 +2756,7 @@ namespace EarthTool.GLTF.Internal
         writer.WriteStartArray("scenes");
         writer.WriteStartObject();
         writer.WriteStartArray("nodes");
-        writer.WriteNumberValue(0);
+        writer.WriteNumberValue(placementRootIndex);
         writer.WriteEndArray();
         WriteExtras(writer, manifest);
         writer.WriteEndObject();
@@ -2681,7 +2765,9 @@ namespace EarthTool.GLTF.Internal
         foreach (var source in sources)
         {
           writer.WriteStartObject();
-          writer.WriteString("name", $"Source object {source.Id.Value}");
+          writer.WriteString("name", sourceBaseName is null
+            ? $"Source object {source.Id.Value}"
+            : $"{sourceBaseName}_{source.Id.Value}");
           writer.WriteNumber("mesh", nodeIndices[source.Id]);
           var effectivePivot = layouts[source.StaticRenderObjectIds[0]].Partition.RenderObject.Pivot;
           var translation = ProjectToGltf(effectivePivot);
@@ -2760,12 +2846,24 @@ namespace EarthTool.GLTF.Internal
           writer.WriteEndObject();
         }
 
+        writer.WriteStartObject();
+        writer.WriteString("name", sourceBaseName ?? "EarthTool Placement");
+        writer.WriteStartArray("children");
+        writer.WriteNumberValue(0);
+        writer.WriteEndArray();
+        writer.WriteStartObject("extras");
+        writer.WriteBoolean(PlacementRootMarker, true);
+        writer.WriteEndObject();
+        writer.WriteEndObject();
+
         writer.WriteEndArray();
         writer.WriteStartArray("meshes");
         foreach (var source in sources)
         {
           writer.WriteStartObject();
-          writer.WriteString("name", $"Static mesh {source.Id.Value}");
+          writer.WriteString("name", sourceBaseName is null
+            ? $"Static mesh {source.Id.Value}"
+            : $"{sourceBaseName}_{source.Id.Value}_Mesh");
           writer.WriteStartArray("primitives");
           foreach (var renderObjectId in source.StaticRenderObjectIds)
           {
@@ -4149,14 +4247,39 @@ namespace EarthTool.GLTF.Internal
 
     private static IReadOnlyList<string> GetIgnoredInertPaths(
       JsonElement root,
-      GltfImportIntent intent)
+      GltfImportIntent intent,
+      int? placementRootIndex)
     {
-      if (intent != GltfImportIntent.NewModel)
+      var paths = new List<string>();
+      if (placementRootIndex.HasValue)
       {
-        return Array.Empty<string>();
+        var placement = root.GetProperty("nodes")[placementRootIndex.Value];
+        if (intent == GltfImportIntent.Edit
+          && ReadNodeTransform(placement) != Matrix4x4.Identity)
+        {
+          paths.Add($"nodes[{placementRootIndex.Value}]");
+        }
+        if (root.TryGetProperty("animations", out var animations))
+        {
+          for (var animationIndex = 0; animationIndex < animations.GetArrayLength(); animationIndex++)
+          {
+            var channels = animations[animationIndex].GetProperty("channels");
+            for (var channelIndex = 0; channelIndex < channels.GetArrayLength(); channelIndex++)
+            {
+              if (channels[channelIndex].GetProperty("target").GetProperty("node").GetInt32()
+                == placementRootIndex.Value)
+              {
+                paths.Add($"animations[{animationIndex}].channels[{channelIndex}]");
+              }
+            }
+          }
+        }
       }
 
-      var paths = new List<string>();
+      if (intent != GltfImportIntent.NewModel)
+      {
+        return paths.AsReadOnly();
+      }
       var nodes = root.GetProperty("nodes");
       for (var nodeIndex = 0; nodeIndex < nodes.GetArrayLength(); nodeIndex++)
       {
@@ -4960,7 +5083,8 @@ namespace EarthTool.GLTF.Internal
 
     private static IReadOnlyList<ParsedGltfAnimation> ReadAnimations(
       JsonElement root,
-      ReadOnlySpan<byte> binary)
+      ReadOnlySpan<byte> binary,
+      int? placementRootIndex)
     {
       if (!root.TryGetProperty("animations", out var animations))
       {
@@ -5004,6 +5128,20 @@ namespace EarthTool.GLTF.Internal
           {
             throw new UnsupportedGltfDomainException("animations");
           }
+          var values = ReadFloatAccessor(
+            root,
+            binary,
+            sampler.GetProperty("output").GetInt32(),
+            path == "rotation" ? 4 : 3,
+            path == "rotation" ? "VEC4" : "VEC3");
+          if (placementRootIndex == nodeIndex)
+          {
+            if (path is not ("translation" or "rotation" or "scale"))
+            {
+              throw new UnsupportedGltfDomainException("animations");
+            }
+            continue;
+          }
           if (!builders.TryGetValue(nodeIndex, out var builder))
           {
             builder = new ParsedAnimationBuilder(
@@ -5015,16 +5153,11 @@ namespace EarthTool.GLTF.Internal
             path,
             times,
             interpolation!,
-            ReadFloatAccessor(
-              root,
-              binary,
-              sampler.GetProperty("output").GetInt32(),
-              path == "rotation" ? 4 : 3,
-              path == "rotation" ? "VEC4" : "VEC3"));
+            values);
         }
         if (builders.Count == 0)
         {
-          throw new UnsupportedGltfDomainException("animations");
+          continue;
         }
         result.Add(new ParsedGltfAnimation(
           animation.TryGetProperty("name", out var name) ? name.GetString() : null,

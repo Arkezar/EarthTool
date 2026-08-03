@@ -97,6 +97,7 @@ namespace EarthTool.GLTF
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
           new Dictionary<StaticRenderObjectId, TexPreview>(),
+          options.SourceBaseName,
           out var fingerprint);
         if (withoutPreviews.Length > profile.MaxOutputBytes)
         {
@@ -122,6 +123,7 @@ namespace EarthTool.GLTF
             options.PreservedUnknownMetadata,
             options.MetadataNextIds,
             previewResult.Previews,
+            options.SourceBaseName,
             out fingerprint);
         var exportDiagnostics = previewResult.Diagnostics.Concat(projectionDiagnostics).ToArray();
         if (glb.Length > profile.MaxOutputBytes)
@@ -259,6 +261,7 @@ namespace EarthTool.GLTF
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
           new Dictionary<StaticRenderObjectId, TexPreview>(),
+          options.SourceBaseName,
           out var fingerprint);
         var withoutPreviewLength = checked(withoutPreviews.Json.Length + withoutPreviews.Binary.Length);
         if (withoutPreviewLength > profile.MaxOutputBytes)
@@ -285,6 +288,7 @@ namespace EarthTool.GLTF
             options.PreservedUnknownMetadata,
             options.MetadataNextIds,
             previewResult.Previews,
+            options.SourceBaseName,
             out fingerprint);
         var outputLength = checked(package.Json.Length
           + package.Binary.Length
@@ -475,6 +479,7 @@ namespace EarthTool.GLTF
           previewResult.Previews,
           meshPreviewResult.Previews,
           options.DynamicObjectIds,
+          options.SourceBaseName,
           out var fingerprint);
         DynamicGltfDocument.ValidateGlb(glb, profile);
         cancellationToken.ThrowIfCancellationRequested();
@@ -596,6 +601,7 @@ namespace EarthTool.GLTF
           previewResult.Previews,
           meshPreviewResult.Previews,
           options.DynamicObjectIds,
+          options.SourceBaseName,
           out var fingerprint);
         GlbDocument.ValidateSeparate(
           package.Json,
@@ -700,7 +706,8 @@ namespace EarthTool.GLTF
             imported.Fingerprint,
             imported.Preservation,
             new[] { "RootDynamicObject" },
-            imported.ObjectIds));
+            imported.ObjectIds),
+          CreateDynamicPlacementDiagnostics(imported));
       }
       catch (OperationCanceledException)
       {
@@ -749,7 +756,8 @@ namespace EarthTool.GLTF
             imported.Fingerprint,
             imported.Preservation,
             new[] { "RootDynamicObject" },
-            imported.ObjectIds));
+            imported.ObjectIds),
+          CreateDynamicPlacementDiagnostics(imported));
       }
       catch (OperationCanceledException)
       {
@@ -3201,7 +3209,9 @@ namespace EarthTool.GLTF
             ? GltfMetadataLineageDisposition.BranchAccepted
             : GltfMetadataLineageDisposition.Retained,
           conflictResolution.Applied),
-        sceneLightDiagnostics.Concat(committed.Diagnostics));
+        sceneLightDiagnostics
+          .Concat(CreateIgnoredInertDataDiagnostics(parsed))
+          .Concat(committed.Diagnostics));
     }
 
     private static IReadOnlyDictionary<string, string> CollectUnknownMetadata(
@@ -3228,6 +3238,7 @@ namespace EarthTool.GLTF
         parsed.Meshes.Select(mesh => new ParsedGltfMesh(null, mesh.Primitives)).ToArray(),
         parsed.Nodes.Select(node => new ParsedGltfNode(
           node.Name,
+          node.IsPlacementRoot,
           metadata: null,
           node.MeshIndex,
           node.LightIndex,
@@ -3247,7 +3258,7 @@ namespace EarthTool.GLTF
           light.Range,
           light.InnerConeAngle,
           light.OuterConeAngle)).ToArray(),
-        parsed.RootNodeIndex,
+        GetNewModelRootNodeIndex(parsed),
         new MetadataConflictCollector(profile.MaxMetadataConflicts),
         parsed.IgnoredInertPaths);
       var imported = ImportNewModelParsed(
@@ -3274,6 +3285,18 @@ namespace EarthTool.GLTF
           lineageDisposition: disposition,
           appliedConflictResolutions: new[] { resolution }),
         imported.Diagnostics);
+    }
+
+    private static int GetNewModelRootNodeIndex(ParsedGlb parsed)
+    {
+      for (var index = 0; index < parsed.Nodes.Count; index++)
+      {
+        if (parsed.Nodes[index].IsPlacementRoot)
+        {
+          return index;
+        }
+      }
+      return parsed.RootNodeIndex;
     }
 
     private static ParsedGlb RemoveScopeMetadata(
@@ -3672,6 +3695,7 @@ namespace EarthTool.GLTF
     {
       var nodes = parsed.Nodes.Select((node, index) => new ParsedGltfNode(
         node.Name,
+        node.IsPlacementRoot,
         nativePath == $"nodes[{index}]" ? metadata : node.Metadata,
         node.MeshIndex,
         node.LightIndex,
@@ -3776,6 +3800,22 @@ namespace EarthTool.GLTF
         path,
         "Inert native glTF data was excluded from canonical MSH state."))
         .ToArray();
+    }
+
+    private static IReadOnlyList<OperationDiagnostic> CreateDynamicPlacementDiagnostics(
+      DynamicGltfImport imported)
+    {
+      return imported.PlacementDataIgnored
+        ? new[]
+        {
+          new OperationDiagnostic(
+            GltfDiagnosticCodes.InertDataIgnored,
+            1119,
+            DiagnosticSeverity.Warning,
+            $"nodes[{imported.PlacementRootIndex}]",
+            "Placement-root transforms and animation remain scene-only and were excluded from canonical MSH state.")
+        }
+        : Array.Empty<OperationDiagnostic>();
     }
 
     private static IReadOnlyList<OperationDiagnostic> CreateNewModelTexBindingDiagnostics(

@@ -1049,7 +1049,8 @@ internal static class OfficialCorpusQualification
         cli.Baseline.DocumentId,
         [_corpusRoot],
         null,
-        [_corpusRoot]);
+        [_corpusRoot],
+        "source");
       OperationResult<GltfExportReceipt> export;
       if (packageKind == GltfPackageKind.Glb)
       {

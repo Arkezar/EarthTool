@@ -28,20 +28,31 @@ public class DynamicGltfInterchangeTests
     var result = await new GltfInterchange().ExportGlbAsync(
       asset,
       destination,
-      new GltfExportOptions(_lineageId, _documentId));
+      new GltfExportOptions(_lineageId, _documentId, null, null, null, "EDBBPP"));
 
     result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
     result.Value!.Fingerprint.Name.Should().Be("dynamic-group-explosion-preview");
     result.Value.Fingerprint.Version.Should().Be(1);
     using var json = ReadGlbJson(destination.ToArray());
     var nodes = json.RootElement.GetProperty("nodes");
-    nodes.GetArrayLength().Should().Be(3);
+    nodes.GetArrayLength().Should().Be(4);
     nodes[0].GetProperty("children").EnumerateArray().Select(item => item.GetInt32())
-      .Should().Equal(1, 2);
+      .Should().Equal(1);
     nodes[0].TryGetProperty("mesh", out _).Should().BeFalse();
-    nodes[1].GetProperty("mesh").GetInt32().Should().Be(0);
-    nodes[2].GetProperty("mesh").GetInt32().Should().Be(1);
+    nodes[0].GetProperty("name").GetString().Should().Be("EDBBPP");
+    nodes[0].GetProperty("extras").GetProperty("earthtoolPlacementRoot").GetBoolean().Should().BeTrue();
+    nodes[1].GetProperty("name").GetString().Should().Be("EDBBPP_1_Group");
+    nodes[1].GetProperty("children").EnumerateArray().Select(item => item.GetInt32())
+      .Should().Equal(2, 3);
+    nodes[2].GetProperty("name").GetString().Should().Be("EDBBPP_2_Explosion");
+    nodes[3].GetProperty("name").GetString().Should().Be("EDBBPP_3_Explosion");
+    nodes[2].GetProperty("mesh").GetInt32().Should().Be(0);
+    nodes[3].GetProperty("mesh").GetInt32().Should().Be(1);
     json.RootElement.GetProperty("meshes").GetArrayLength().Should().Be(2);
+    json.RootElement.GetProperty("meshes")[0].GetProperty("name").GetString().Should()
+      .Be("EDBBPP_2_Explosion_Mesh");
+    json.RootElement.GetProperty("meshes")[1].GetProperty("name").GetString().Should()
+      .Be("EDBBPP_3_Explosion_Mesh");
     json.RootElement.GetProperty("images").GetArrayLength().Should().Be(1);
     json.RootElement.GetProperty("images")[0].GetProperty("mimeType").GetString().Should()
       .Be("image/png");
@@ -76,6 +87,145 @@ public class DynamicGltfInterchangeTests
   }
 
   [Fact]
+  public async Task DynamicPlacementRootTransformAndAnimationRemainSceneOnlyOnEditImport()
+  {
+    var asset = CreateAsset();
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(asset, package,
+      new GltfExportOptions(_lineageId, _documentId));
+    var edited = RewriteGlbExpanded(package.ToArray(), (root, binary) =>
+    {
+      root["nodes"]![0]!["translation"] = new JsonArray(10, 20, 30);
+      var input = AppendFloatAccessor(root, binary, [0, 1], "SCALAR", 2, 0, 1);
+      var output = AppendFloatAccessor(root, binary, [0, 0, 0, 1, 2, 3], "VEC3", 2);
+      root["animations"] = new JsonArray(new JsonObject
+      {
+        ["samplers"] = new JsonArray(new JsonObject
+        {
+          ["input"] = input,
+          ["output"] = output,
+          ["interpolation"] = "LINEAR"
+        }),
+        ["channels"] = new JsonArray(new JsonObject
+        {
+          ["sampler"] = 0,
+          ["target"] = new JsonObject
+          {
+            ["node"] = 0,
+            ["path"] = "translation"
+          }
+        })
+      });
+    });
+    await using var editedStream = new MemoryStream(edited);
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(
+      editedStream,
+      export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
+    imported.Value!.Asset.GetSerializedRepresentation().Should()
+      .Equal(asset.GetSerializedRepresentation());
+    imported.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.InertDataIgnored
+      && diagnostic.Path == "nodes[0]");
+  }
+
+  [Fact]
+  public async Task RemovedPlacementRootImportsAsALegacyDirectRoot()
+  {
+    var asset = CreateAsset();
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(asset, package,
+      new GltfExportOptions(_lineageId, _documentId));
+    var legacy = RewriteGlb(package.ToArray(), (root, _) =>
+    {
+      root["nodes"]!.AsArray().RemoveAt(0);
+      root["scenes"]![0]!["nodes"]![0] = 0;
+      foreach (var node in root["nodes"]!.AsArray())
+      {
+        if (node?["children"] is not JsonArray children)
+        {
+          continue;
+        }
+        for (var index = 0; index < children.Count; index++)
+        {
+          children[index] = children[index]!.GetValue<int>() - 1;
+        }
+      }
+    });
+    await using var legacyStream = new MemoryStream(legacy);
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(
+      legacyStream,
+      export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
+    imported.Value!.Asset.GetSerializedRepresentation().Should()
+      .Equal(asset.GetSerializedRepresentation());
+    imported.Diagnostics.Should().NotContain(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.InertDataIgnored);
+  }
+
+  [Fact]
+  public async Task UnmarkedDynamicPlacementRootIsRejected()
+  {
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(CreateAsset(), package,
+      new GltfExportOptions(_lineageId, _documentId));
+    var malformed = RewriteGlb(package.ToArray(), (root, _) =>
+      root["nodes"]![0]!.AsObject().Remove("extras"));
+    await using var malformedStream = new MemoryStream(malformed);
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(
+      malformedStream,
+      export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    imported.Value.Should().BeNull();
+  }
+
+  [Theory]
+  [InlineData("malformed")]
+  [InlineData("duplicate")]
+  [InlineData("misplaced")]
+  public async Task InvalidDynamicPlacementMarkersAreRejected(string mutation)
+  {
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(CreateAsset(), package,
+      new GltfExportOptions(_lineageId, _documentId));
+    var malformed = RewriteGlb(package.ToArray(), (root, _) =>
+    {
+      var rootExtras = root["nodes"]![0]!["extras"]!.AsObject();
+      var objectExtras = root["nodes"]![1]!["extras"]!.AsObject();
+      if (mutation == "malformed")
+      {
+        rootExtras[GlbDocument.PlacementRootMarker] = false;
+      }
+      else
+      {
+        objectExtras[GlbDocument.PlacementRootMarker] = true;
+        if (mutation == "misplaced")
+        {
+          rootExtras.Remove(GlbDocument.PlacementRootMarker);
+        }
+      }
+    });
+    await using var malformedStream = new MemoryStream(malformed);
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(
+      malformedStream,
+      export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    imported.Value.Should().BeNull();
+  }
+
+  [Fact]
   public async Task GroupOnlyExportHasNoSyntheticEffectGeometry()
   {
     var build = DynamicMeshBuilder.Create(
@@ -93,9 +243,34 @@ public class DynamicGltfInterchangeTests
 
     result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
     using var json = ReadGlbJson(destination.ToArray());
-    json.RootElement.GetProperty("nodes").GetArrayLength().Should().Be(2);
+    json.RootElement.GetProperty("nodes").GetArrayLength().Should().Be(3);
     json.RootElement.TryGetProperty("meshes", out _).Should().BeFalse();
     json.RootElement.TryGetProperty("materials", out _).Should().BeFalse();
+  }
+
+  [Theory]
+  [InlineData(3, 15)]
+  [InlineData(4096, 2)]
+  public async Task DynamicExportLimitsIncludeThePlacementRoot(int maxNodes, int maxHierarchyDepth)
+  {
+    await using var destination = new MemoryStream();
+    var profile = new GltfOperationProfile(
+      32 * 1024 * 1024,
+      32 * 1024 * 1024,
+      4 * 1024 * 1024,
+      32,
+      65536,
+      maxNodes,
+      maxHierarchyDepth);
+
+    var result = await new GltfInterchange().ExportGlbAsync(
+      CreateAsset(),
+      destination,
+      profile: profile);
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.ResourceLimitExceeded);
   }
 
   [Fact]
@@ -110,10 +285,10 @@ public class DynamicGltfInterchangeTests
       new GltfExportOptions(_lineageId, _documentId));
     var malformed = RewriteGlb(package.ToArray(), (root, _) =>
     {
-      var metadataText = root["nodes"]![2]!["extras"]!["earthtool"]!.GetValue<string>();
+      var metadataText = root["nodes"]![3]!["extras"]!["earthtool"]!.GetValue<string>();
       var metadata = JsonNode.Parse(metadataText)!;
       metadata["scope"]!["localId"] = 2;
-      root["nodes"]![2]!["extras"]!["earthtool"] = metadata.ToJsonString();
+      root["nodes"]![3]!["extras"]!["earthtool"] = metadata.ToJsonString();
     });
     await using var malformedStream = new MemoryStream(malformed);
 
@@ -138,7 +313,7 @@ public class DynamicGltfInterchangeTests
       package,
       new GltfExportOptions(_lineageId, _documentId));
     var malformed = RewriteGlb(package.ToArray(), (root, _) =>
-      root["nodes"]![2]!["mesh"] = root["nodes"]![1]!["mesh"]!.GetValue<int>());
+      root["nodes"]![3]!["mesh"] = root["nodes"]![2]!["mesh"]!.GetValue<int>());
     await using var malformedStream = new MemoryStream(malformed);
 
     var imported = await interchange.ImportEditDynamicGlbAsync(
@@ -188,10 +363,10 @@ public class DynamicGltfInterchangeTests
       new GltfExportOptions(_lineageId, _documentId));
     var malformed = RewriteGlb(package.ToArray(), (root, _) =>
     {
-      var metadataText = root["nodes"]![1]!["extras"]!["earthtool"]!.GetValue<string>();
+      var metadataText = root["nodes"]![2]!["extras"]!["earthtool"]!.GetValue<string>();
       var metadata = JsonNode.Parse(metadataText)!;
       metadata["guards"]!.AsObject().Remove("orderedChildren");
-      root["nodes"]![1]!["extras"]!["earthtool"] = metadata.ToJsonString();
+      root["nodes"]![2]!["extras"]!["earthtool"] = metadata.ToJsonString();
     });
     await using var malformedStream = new MemoryStream(malformed);
 
@@ -250,7 +425,7 @@ public class DynamicGltfInterchangeTests
     result.Diagnostics.Count(item => item.Code == GltfDiagnosticCodes.TextureResourceMissing)
       .Should().Be(4);
     using var json = ReadGlbJson(destination.ToArray());
-    json.RootElement.GetProperty("nodes").GetArrayLength().Should().Be(5);
+    json.RootElement.GetProperty("nodes").GetArrayLength().Should().Be(6);
     json.RootElement.GetProperty("meshes").GetArrayLength().Should().Be(4);
   }
 
@@ -269,7 +444,7 @@ public class DynamicGltfInterchangeTests
     result.Diagnostics.Count(item => item.Code == GltfDiagnosticCodes.TextureResourceMissing)
       .Should().Be(4);
     using var json = ReadGlbJson(destination.ToArray());
-    json.RootElement.GetProperty("nodes").GetArrayLength().Should().Be(5);
+    json.RootElement.GetProperty("nodes").GetArrayLength().Should().Be(6);
     json.RootElement.GetProperty("meshes").GetArrayLength().Should().Be(4);
   }
 
@@ -289,18 +464,18 @@ public class DynamicGltfInterchangeTests
       .Should().Be(4);
     using var json = ReadGlbJson(destination.ToArray());
     var root = json.RootElement;
-    root.GetProperty("nodes").GetArrayLength().Should().Be(5);
+    root.GetProperty("nodes").GetArrayLength().Should().Be(6);
     root.GetProperty("meshes").GetArrayLength().Should().Be(4);
     root.GetProperty("accessors")[8].GetProperty("count").GetInt32().Should().BeGreaterThan(4);
-    ReadDynamicObjectMetadata(root.GetProperty("nodes")[1])
+    ReadDynamicObjectMetadata(root.GetProperty("nodes")[2])
       .GetProperty("payload").GetProperty("previewContext").GetString().Should()
       .Be("attachedParticle");
-    var spherePayload = ReadDynamicObjectMetadata(root.GetProperty("nodes")[3])
+    var spherePayload = ReadDynamicObjectMetadata(root.GetProperty("nodes")[4])
       .GetProperty("payload");
     spherePayload.GetProperty("previewContext").GetString().Should().Be("primary");
     spherePayload.GetProperty("previewFrameDomain").GetString().Should().Be("builtIn16");
     spherePayload.GetProperty("previewSourceFrame").GetInt32().Should().Be(0);
-    root.GetProperty("nodes")[2].GetProperty("translation").EnumerateArray()
+    root.GetProperty("nodes")[3].GetProperty("translation").EnumerateArray()
       .Select(item => item.GetSingle()).Should().Equal(2, 4, -3);
   }
 
@@ -897,8 +1072,17 @@ public class DynamicGltfInterchangeTests
       var export = await interchange.ExportGltfFileAsync(
         asset,
         path,
-        new GltfExportOptions(_lineageId, _documentId));
+        new GltfExportOptions(_lineageId, _documentId, null, null, null, "EDBBPP"));
       export.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(export.Diagnostics));
+      using (var json = JsonDocument.Parse(await File.ReadAllBytesAsync(path)))
+      {
+        var sceneRootIndex = json.RootElement.GetProperty("scenes")[0]
+          .GetProperty("nodes")[0].GetInt32();
+        json.RootElement.GetProperty("nodes")[sceneRootIndex].GetProperty("name")
+          .GetString().Should().Be("EDBBPP");
+        json.RootElement.GetProperty("nodes")[sceneRootIndex].GetProperty("extras")
+          .GetProperty("earthtoolPlacementRoot").GetBoolean().Should().BeTrue();
+      }
 
       var imported = await interchange.ImportEditDynamicGltfFileAsync(path, export.Value!.Baseline);
 
@@ -1040,10 +1224,11 @@ public class DynamicGltfInterchangeTests
       new GltfExportOptions(_lineageId, _documentId));
     var malformed = RewriteGlb(package.ToArray(), (root, _) =>
     {
+      var nativeNodeIndex = nodeIndex + 1;
       var metadata = JsonNode.Parse(
-        root["nodes"]![nodeIndex]!["extras"]!["earthtool"]!.GetValue<string>())!;
+        root["nodes"]![nativeNodeIndex]!["extras"]!["earthtool"]!.GetValue<string>())!;
       metadata["payload"]![field] = value;
-      root["nodes"]![nodeIndex]!["extras"]!["earthtool"] = metadata.ToJsonString();
+      root["nodes"]![nativeNodeIndex]!["extras"]!["earthtool"] = metadata.ToJsonString();
     });
     await using var malformedStream = new MemoryStream(malformed);
 
@@ -1055,7 +1240,7 @@ public class DynamicGltfInterchangeTests
     imported.Value.Should().BeNull();
     imported.Diagnostics.Should().ContainSingle(diagnostic =>
       diagnostic.Code == GltfDiagnosticCodes.StaleNativeProjection
-      && diagnostic.Path == $"nodes[{nodeIndex}].extras.earthtool");
+      && diagnostic.Path == $"nodes[{nodeIndex + 1}].extras.earthtool");
   }
 
   [Fact]
@@ -1070,9 +1255,9 @@ public class DynamicGltfInterchangeTests
     var malformed = RewriteGlb(package.ToArray(), (root, _) =>
     {
       var metadata = JsonNode.Parse(
-        root["nodes"]![1]!["extras"]!["earthtool"]!.GetValue<string>())!;
+        root["nodes"]![2]!["extras"]!["earthtool"]!.GetValue<string>())!;
       metadata["guards"]!.AsObject().Remove("effectPreview");
-      root["nodes"]![1]!["extras"]!["earthtool"] = metadata.ToJsonString();
+      root["nodes"]![2]!["extras"]!["earthtool"] = metadata.ToJsonString();
     });
     await using var malformedStream = new MemoryStream(malformed);
 
@@ -1084,7 +1269,7 @@ public class DynamicGltfInterchangeTests
     imported.Value.Should().BeNull();
     imported.Diagnostics.Should().ContainSingle(diagnostic =>
       diagnostic.Code == GltfDiagnosticCodes.MissingRequiredGuard
-      && diagnostic.Path == "nodes[1].extras.earthtool");
+      && diagnostic.Path == "nodes[2].extras.earthtool");
   }
 
   [Fact]
@@ -1469,7 +1654,7 @@ public class DynamicGltfInterchangeTests
       export.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(export.Diagnostics));
       export.Diagnostics.Should().NotContain(item => item.Code == GltfDiagnosticCodes.UnsupportedDomain);
       using var json = ReadGlbJson(package.ToArray());
-      var scalableNode = json.RootElement.GetProperty("nodes")[1];
+      var scalableNode = json.RootElement.GetProperty("nodes")[2];
       scalableNode.GetProperty("scale").EnumerateArray().Select(item => item.GetSingle())
         .Should().OnlyContain(item => Math.Abs(item - 2.03f) < 0.0001f);
       var primitive = json.RootElement.GetProperty("meshes")[0].GetProperty("primitives")[0];
@@ -1744,13 +1929,13 @@ public class DynamicGltfInterchangeTests
           meshResourceSearchRoots: [directory]));
       var edited = RewriteGlb(package.ToArray(), (root, binary) =>
       {
-        root["nodes"]![1]!["scale"] = new JsonArray(3.02f, 3.02f, 3.02f);
+        root["nodes"]![2]!["scale"] = new JsonArray(3.02f, 3.02f, 3.02f);
         var metadata = JsonNode.Parse(
-          root["nodes"]![1]!["extras"]!["earthtool"]!.GetValue<string>())!;
+          root["nodes"]![2]!["extras"]!["earthtool"]!.GetValue<string>())!;
         metadata["payload"]!["meshName"] = Convert.ToBase64String(
           Encoding.ASCII.GetBytes("renamed"))
           .TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        root["nodes"]![1]!["extras"]!["earthtool"] = metadata.ToJsonString();
+        root["nodes"]![2]!["extras"]!["earthtool"] = metadata.ToJsonString();
         var accessor = root["accessors"]![0]!;
         var view = root["bufferViews"]![accessor["bufferView"]!.GetValue<int>()]!;
         WriteSingle(binary, view["byteOffset"]!.GetValue<int>(), 42);
@@ -1983,7 +2168,7 @@ public class DynamicGltfInterchangeTests
       new GltfExportOptions(_lineageId, _documentId));
     var edited = RewriteGlb(package.ToArray(), (root, _) =>
     {
-      var children = root["nodes"]![0]!["children"]!.AsArray();
+      var children = root["nodes"]![1]!["children"]!.AsArray();
       var first = children[0]!.GetValue<int>();
       children[0] = children[1]!.GetValue<int>();
       children[1] = first;
@@ -2017,7 +2202,7 @@ public class DynamicGltfInterchangeTests
         "DynamicObjectScopes[3].Extension.TexturePathBytes",
         "DynamicObjectScopes[2].Extension.TexturePathBytes");
     using var reexportedJson = ReadGlbJson(reexported.ToArray());
-    reexportedJson.RootElement.GetProperty("nodes").EnumerateArray()
+    reexportedJson.RootElement.GetProperty("nodes").EnumerateArray().Skip(1)
       .Select(node =>
       {
         var metadata = node.GetProperty("extras").GetProperty("earthtool").GetString()!;
@@ -2039,7 +2224,7 @@ public class DynamicGltfInterchangeTests
       new GltfExportOptions(_lineageId, _documentId));
     var edited = RewriteGlb(package.ToArray(), (root, binary) =>
     {
-      root["nodes"]![1]!["translation"] = new JsonArray(10, 20, 30);
+      root["nodes"]![2]!["translation"] = new JsonArray(10, 20, 30);
       root["materials"]![0]!["pbrMetallicRoughness"]!["baseColorFactor"] =
         new JsonArray(0.9f, 0.8f, 0.7f, 0.6f);
       var accessor = root["accessors"]![0]!;
@@ -2577,6 +2762,81 @@ public class DynamicGltfInterchangeTests
     BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(newBinaryHeader + 4), 0x004E4942);
     binary.CopyTo(result.AsSpan(newBinaryHeader + 8));
     return result;
+  }
+
+  private static byte[] RewriteGlbExpanded(
+    byte[] glb,
+    Action<JsonNode, List<byte>> rewrite)
+  {
+    var oldJsonLength = BinaryPrimitives.ReadInt32LittleEndian(glb.AsSpan(12));
+    var binaryHeader = 20 + oldJsonLength;
+    var binaryLength = BinaryPrimitives.ReadInt32LittleEndian(glb.AsSpan(binaryHeader));
+    var root = JsonNode.Parse(Encoding.UTF8.GetString(glb, 20, oldJsonLength))!;
+    var binary = glb.AsSpan(binaryHeader + 8, binaryLength).ToArray().ToList();
+    rewrite(root, binary);
+    root["buffers"]![0]!["byteLength"] = binary.Count;
+    var json = Encoding.UTF8.GetBytes(root.ToJsonString());
+    var paddedJsonLength = (json.Length + 3) & ~3;
+    var paddedBinaryLength = (binary.Count + 3) & ~3;
+    var result = new byte[12 + 8 + paddedJsonLength + 8 + paddedBinaryLength];
+    BinaryPrimitives.WriteUInt32LittleEndian(result, 0x46546C67);
+    BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(4), 2);
+    BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(8), result.Length);
+    BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(12), paddedJsonLength);
+    BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(16), 0x4E4F534A);
+    json.CopyTo(result.AsSpan(20));
+    result.AsSpan(20 + json.Length, paddedJsonLength - json.Length).Fill(0x20);
+    var newBinaryHeader = 20 + paddedJsonLength;
+    BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(newBinaryHeader), paddedBinaryLength);
+    BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(newBinaryHeader + 4), 0x004E4942);
+    binary.ToArray().CopyTo(result, newBinaryHeader + 8);
+    return result;
+  }
+
+  private static int AppendFloatAccessor(
+    JsonNode root,
+    List<byte> binary,
+    IReadOnlyList<float> values,
+    string type,
+    int count,
+    float? minimum = null,
+    float? maximum = null)
+  {
+    while (binary.Count % 4 != 0)
+    {
+      binary.Add(0);
+    }
+    var offset = binary.Count;
+    foreach (var value in values)
+    {
+      binary.AddRange(BitConverter.GetBytes(value));
+    }
+    var views = root["bufferViews"]!.AsArray();
+    var viewIndex = views.Count;
+    views.Add(new JsonObject
+    {
+      ["buffer"] = 0,
+      ["byteOffset"] = offset,
+      ["byteLength"] = values.Count * sizeof(float)
+    });
+    var accessor = new JsonObject
+    {
+      ["bufferView"] = viewIndex,
+      ["componentType"] = 5126,
+      ["count"] = count,
+      ["type"] = type
+    };
+    if (minimum.HasValue)
+    {
+      accessor["min"] = new JsonArray(minimum.Value);
+    }
+    if (maximum.HasValue)
+    {
+      accessor["max"] = new JsonArray(maximum.Value);
+    }
+    var accessors = root["accessors"]!.AsArray();
+    accessors.Add(accessor);
+    return accessors.Count - 1;
   }
 
   private static void WriteVector3(byte[] destination, int offset, Vector3 value)

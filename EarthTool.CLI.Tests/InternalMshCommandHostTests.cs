@@ -60,8 +60,16 @@ public sealed class InternalMshCommandHostTests
       TextWriter.Null);
 
     exitCode.Should().Be(CliExitCode.Success);
-    File.Exists(Path.ChangeExtension(fixture.MshPath, ".gltf")).Should().BeTrue();
+    var gltfPath = Path.ChangeExtension(fixture.MshPath, ".gltf");
+    File.Exists(gltfPath).Should().BeTrue();
     File.Exists(fixture.GlbPath).Should().BeFalse();
+    using var gltf = JsonDocument.Parse(await File.ReadAllBytesAsync(gltfPath));
+    var sceneRootIndex = gltf.RootElement.GetProperty("scenes")[0]
+      .GetProperty("nodes")[0].GetInt32();
+    var nodes = gltf.RootElement.GetProperty("nodes");
+    nodes[sceneRootIndex].GetProperty("name").GetString().Should().Be("model");
+    nodes[nodes[sceneRootIndex].GetProperty("children")[0].GetInt32()]
+      .GetProperty("name").GetString().Should().Be("model_1");
   }
 
   [Fact]
