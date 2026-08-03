@@ -533,9 +533,11 @@ namespace EarthTool.GLTF.Internal
 
     internal IReadOnlyList<byte>? AttachmentRecord { get; }
 
-    internal int? CannonRenderPositionNumber { get; }
+    internal int? CannonPhysicalNumber { get; }
 
-    internal IReadOnlyList<byte>? CannonRenderPosition { get; }
+    internal IReadOnlyList<byte>? CannonAttachmentRecord { get; }
+
+    internal IReadOnlyList<byte>? CannonRenderPositionRecord { get; }
 
     internal string? StaticLightType { get; }
 
@@ -584,8 +586,9 @@ namespace EarthTool.GLTF.Internal
       MetadataAnimationProjection? animationProjection,
       int? attachmentPhysicalNumber,
       IReadOnlyList<byte>? attachmentRecord,
-      int? cannonRenderPositionNumber,
-      IReadOnlyList<byte>? cannonRenderPosition,
+      int? cannonPhysicalNumber,
+      IReadOnlyList<byte>? cannonAttachmentRecord,
+      IReadOnlyList<byte>? cannonRenderPositionRecord,
       string? staticLightType,
       int? staticLightPhysicalNumber,
       int? staticLightDefinitionLocalId,
@@ -621,8 +624,9 @@ namespace EarthTool.GLTF.Internal
       AnimationProjection = animationProjection;
       AttachmentPhysicalNumber = attachmentPhysicalNumber;
       AttachmentRecord = attachmentRecord;
-      CannonRenderPositionNumber = cannonRenderPositionNumber;
-      CannonRenderPosition = cannonRenderPosition;
+      CannonPhysicalNumber = cannonPhysicalNumber;
+      CannonAttachmentRecord = cannonAttachmentRecord;
+      CannonRenderPositionRecord = cannonRenderPositionRecord;
       StaticLightType = staticLightType;
       StaticLightPhysicalNumber = staticLightPhysicalNumber;
       StaticLightDefinitionLocalId = staticLightDefinitionLocalId;
@@ -635,6 +639,91 @@ namespace EarthTool.GLTF.Internal
       SourceProvenance = sourceProvenance;
       UnknownMembers = unknownMembers;
       ElementCount = elementCount;
+    }
+  }
+
+  internal static class AttachmentHeadingProjection
+  {
+    private const float HalfHeadingStep = MathF.PI / 256;
+
+    internal static Quaternion CreateRotation(byte heading)
+    {
+      var headingRadians = heading * (MathF.PI * 2 / 256f);
+      var transform = Matrix4x4.CreateRotationZ(-MathF.PI / 2)
+        * Matrix4x4.CreateRotationY(headingRadians);
+      var rotation = Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(transform));
+      return rotation.W < 0
+        ? new Quaternion(-rotation.X, -rotation.Y, -rotation.Z, -rotation.W)
+        : rotation;
+    }
+
+    internal static Vector3 CreateDirection(byte heading)
+    {
+      var angle = heading * (MathF.PI * 2 / 256f);
+      return new Vector3(MathF.Cos(angle), 0, -MathF.Sin(angle));
+    }
+
+    internal static bool TryReadHeading(Quaternion rotation, out byte heading)
+    {
+      heading = 0;
+      if (!IsFinite(rotation) || rotation.LengthSquared() == 0)
+      {
+        return false;
+      }
+
+      rotation = Quaternion.Normalize(rotation);
+      var direction = Vector3.TransformNormal(
+        Vector3.UnitY,
+        Matrix4x4.CreateFromQuaternion(rotation));
+      if (!IsFinite(direction) || direction.LengthSquared() == 0)
+      {
+        return false;
+      }
+      direction = Vector3.Normalize(direction);
+      if (MathF.Abs(direction.Y) > MathF.Sin(HalfHeadingStep) + 1e-5f)
+      {
+        return false;
+      }
+
+      var horizontal = new Vector2(direction.X, direction.Z);
+      if (horizontal.LengthSquared() == 0)
+      {
+        return false;
+      }
+      horizontal = Vector2.Normalize(horizontal);
+      var angle = MathF.Atan2(-horizontal.Y, horizontal.X);
+      if (angle < 0)
+      {
+        angle += MathF.PI * 2;
+      }
+      heading = unchecked((byte)((int)MathF.Floor(
+        (angle * 256 / (MathF.PI * 2)) + 0.5f) & 0xFF));
+      var expectedDirection = CreateDirection(heading);
+      var directionError = MathF.Acos(Math.Clamp(
+        Vector3.Dot(direction, expectedDirection),
+        -1,
+        1));
+      var rotationError = 2 * MathF.Acos(Math.Clamp(
+        MathF.Abs(Quaternion.Dot(rotation, CreateRotation(heading))),
+        -1,
+        1));
+      return directionError <= HalfHeadingStep + 1e-5f
+        && rotationError <= HalfHeadingStep + 1e-5f;
+    }
+
+    private static bool IsFinite(Vector3 value)
+    {
+      return float.IsFinite(value.X)
+        && float.IsFinite(value.Y)
+        && float.IsFinite(value.Z);
+    }
+
+    private static bool IsFinite(Quaternion value)
+    {
+      return float.IsFinite(value.X)
+        && float.IsFinite(value.Y)
+        && float.IsFinite(value.Z)
+        && float.IsFinite(value.W);
     }
   }
 
@@ -724,10 +813,10 @@ namespace EarthTool.GLTF.Internal
         maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(
           CreateAttachmentMetadata(baseline, attachment, unknownMetadata)));
       }
-      foreach (var cannon in ProjectCannonRenderPositions(asset))
+      foreach (var cannon in ProjectCannons(asset))
       {
         maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(
-          CreateCannonRenderPositionMetadata(baseline, cannon, unknownMetadata)));
+          CreateCannonMetadata(baseline, cannon, unknownMetadata)));
       }
       foreach (var light in ProjectStaticLights(asset))
       {
@@ -2024,11 +2113,14 @@ namespace EarthTool.GLTF.Internal
           envelopePayload.TryGetProperty("attachment", out attachment)
             ? ReadBase64(attachment, "record", profile.MaxMetadataBytes)
             : null,
-          envelopePayload.TryGetProperty("cannonRenderPosition", out var cannonRenderPosition)
-            ? cannonRenderPosition.GetProperty("physicalNumber").GetInt32()
+          envelopePayload.TryGetProperty("cannon", out var cannon)
+            ? cannon.GetProperty("physicalNumber").GetInt32()
             : null,
-          envelopePayload.TryGetProperty("cannonRenderPosition", out cannonRenderPosition)
-            ? ReadBase64(cannonRenderPosition, "record", profile.MaxMetadataBytes)
+          envelopePayload.TryGetProperty("cannon", out cannon)
+            ? ReadBase64(cannon, "attachmentRecord", profile.MaxMetadataBytes)
+            : null,
+          envelopePayload.TryGetProperty("cannon", out cannon)
+            ? ReadBase64(cannon, "renderPositionRecord", profile.MaxMetadataBytes)
             : null,
           envelopePayload.TryGetProperty("staticLight", out var staticLight)
             ? staticLight.GetProperty("type").GetString()
@@ -2332,7 +2424,7 @@ namespace EarthTool.GLTF.Internal
       if (scopeKind == "object")
       {
         return parent is "/payload/staticAnimation" or "/payload/attachment"
-          or "/payload/cannonRenderPosition" or "/payload/staticLightInstance";
+          or "/payload/cannon" or "/payload/staticLightInstance";
       }
       return scopeKind == "light" && parent == "/payload/staticLight";
     }
@@ -2351,6 +2443,7 @@ namespace EarthTool.GLTF.Internal
     private static bool IsKnownGuard(string scopeKind, string name)
     {
       return scopeKind is "mesh" or "object" && name == "nativeProjection"
+        || scopeKind == "object" && name is "cannon.position" or "cannon.direction"
         || scopeKind == "light" && name is "staticLight.pose" or "staticLight.type"
           or "staticLight.color" or "staticLight.intensity" or "staticLight.direction"
           or "staticLight.cones";
@@ -2392,7 +2485,7 @@ namespace EarthTool.GLTF.Internal
     private static bool IsKnownObjectMember(string path)
     {
       if (path is "/payload/staticAnimation" or "/payload/attachment"
-        or "/payload/cannonRenderPosition" or "/payload/staticLightInstance")
+        or "/payload/cannon" or "/payload/staticLightInstance")
       {
         return true;
       }
@@ -2401,11 +2494,15 @@ namespace EarthTool.GLTF.Internal
         return path.Substring("/payload/staticAnimation/".Length) is "animationClassValue" or "class"
           or "declaredLength" or "status" or "scaleFrames" or "translationFrames" or "matrices" or "sha256";
       }
-      if (path.StartsWith("/payload/attachment/", StringComparison.Ordinal)
-        || path.StartsWith("/payload/cannonRenderPosition/", StringComparison.Ordinal))
+      if (path.StartsWith("/payload/attachment/", StringComparison.Ordinal))
       {
         var name = path.Substring(path.LastIndexOf('/') + 1);
         return name is "physicalNumber" or "record";
+      }
+      if (path.StartsWith("/payload/cannon/", StringComparison.Ordinal))
+      {
+        var name = path.Substring(path.LastIndexOf('/') + 1);
+        return name is "physicalNumber" or "attachmentRecord" or "renderPositionRecord";
       }
       if (path.StartsWith("/payload/staticLightInstance/", StringComparison.Ordinal))
       {
@@ -2666,11 +2763,11 @@ namespace EarthTool.GLTF.Internal
       var rootSourceObject = asset.RootSourceObject;
       var sources = StaticSourceObjectTraversal.Flatten(rootSourceObject).ToArray();
       var attachments = ProjectAttachments(asset);
-      var cannonRenderPositions = ProjectCannonRenderPositions(asset);
+      var cannons = ProjectCannons(asset);
       var staticLights = ProjectStaticLights(asset);
       var placementRootIndex = sources.Length
         + attachments.Count
-        + cannonRenderPositions.Count
+        + cannons.Count
         + staticLights.Count;
       var nodeIndices = sources
         .Select((source, index) => new { source.Id, Index = index })
@@ -2781,7 +2878,7 @@ namespace EarthTool.GLTF.Internal
           }
           var isRoot = source.Id.Equals(rootSourceObject.Id);
           if (source.Children.Count > 0 || isRoot && (attachments.Count > 0
-            || cannonRenderPositions.Count > 0
+            || cannons.Count > 0
             || staticLights.Count > 0))
           {
             writer.WriteStartArray("children");
@@ -2793,7 +2890,7 @@ namespace EarthTool.GLTF.Internal
             {
               var helperIndex = sources.Length;
               for (var index = 0;
-                index < attachments.Count + cannonRenderPositions.Count + staticLights.Count;
+                index < attachments.Count + cannons.Count + staticLights.Count;
                 index++)
               {
                 writer.WriteNumberValue(helperIndex + index);
@@ -2823,12 +2920,12 @@ namespace EarthTool.GLTF.Internal
           WriteExtras(writer, CreateAttachmentMetadata(baseline, attachment, unknownMetadata));
           writer.WriteEndObject();
         }
-        foreach (var cannon in cannonRenderPositions)
+        foreach (var cannon in cannons)
         {
           writer.WriteStartObject();
-          writer.WriteString("name", $"ET_CannonRenderPosition_{cannon.PhysicalNumber}");
-          WriteTransform(writer, cannon.Translation, Quaternion.Identity);
-          WriteExtras(writer, CreateCannonRenderPositionMetadata(baseline, cannon, unknownMetadata));
+          writer.WriteString("name", GetCannonHelperName(cannon.PhysicalNumber));
+          WriteTransform(writer, cannon.Translation, cannon.Rotation);
+          WriteExtras(writer, CreateCannonMetadata(baseline, cannon, unknownMetadata));
           writer.WriteEndObject();
         }
         for (var lightIndex = 0; lightIndex < staticLights.Count; lightIndex++)
@@ -3549,9 +3646,9 @@ namespace EarthTool.GLTF.Internal
       return Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    private static string CreateCannonRenderPositionMetadata(
+    private static string CreateCannonMetadata(
       InterchangeBaseline baseline,
-      ProjectedCannonRenderPosition cannon,
+      ProjectedCannon cannon,
       IReadOnlyDictionary<string, string> unknownMetadata)
     {
       using var stream = new MemoryStream();
@@ -3560,24 +3657,31 @@ namespace EarthTool.GLTF.Internal
         WriteMetadataStart(writer, baseline, "object", cannon.LocalId);
         WriteUnknownMetadata(writer, unknownMetadata, "object", cannon.LocalId, false);
         writer.WriteStartObject("guards");
-        WriteGuard(writer, "nativeProjection", "cannonRenderPosition.position", 1,
-          CreateCannonRenderPositionFingerprint(
-          baseline,
-          cannon.LocalId,
-          cannon.PhysicalNumber,
-          cannon.Record), unknownMetadata, "object", cannon.LocalId);
+        foreach (var guard in CreateCannonGuards(baseline, cannon))
+        {
+          WriteGuard(
+            writer,
+            guard.Key,
+            guard.Key,
+            1,
+            guard.Value,
+            unknownMetadata,
+            "object",
+            cannon.LocalId);
+        }
         WriteUnknownMetadata(writer, unknownMetadata, "object", cannon.LocalId, "/guards/");
         writer.WriteEndObject();
         writer.WriteStartObject("payload");
-        writer.WriteStartObject("cannonRenderPosition");
+        writer.WriteStartObject("cannon");
         writer.WriteNumber("physicalNumber", cannon.PhysicalNumber);
-        writer.WriteString("record", EncodeBase64Url(cannon.Record));
+        writer.WriteString("attachmentRecord", EncodeBase64Url(cannon.AttachmentRecord));
+        writer.WriteString("renderPositionRecord", EncodeBase64Url(cannon.RenderPositionRecord));
         WriteUnknownMetadata(
           writer,
           unknownMetadata,
           "object",
           cannon.LocalId,
-          "/payload/cannonRenderPosition/");
+          "/payload/cannon/");
         writer.WriteEndObject();
         WriteUnknownMetadata(writer, unknownMetadata, "object", cannon.LocalId, true);
         writer.WriteEndObject();
@@ -3780,7 +3884,41 @@ namespace EarthTool.GLTF.Internal
       return Hash(preimage.ToArray());
     }
 
-    internal static string CreateCannonRenderPositionFingerprint(
+    internal static IReadOnlyDictionary<string, string> CreateCannonGuards(
+      InterchangeBaseline baseline,
+      int localId,
+      int physicalNumber,
+      IReadOnlyList<byte> attachmentRecord,
+      IReadOnlyList<byte> renderPositionRecord)
+    {
+      return new Dictionary<string, string>(StringComparer.Ordinal)
+      {
+        ["cannon.position"] = CreateCannonPositionFingerprint(
+          baseline,
+          localId,
+          physicalNumber,
+          renderPositionRecord),
+        ["cannon.direction"] = CreateCannonDirectionFingerprint(
+          baseline,
+          localId,
+          physicalNumber,
+          attachmentRecord)
+      };
+    }
+
+    private static IReadOnlyDictionary<string, string> CreateCannonGuards(
+      InterchangeBaseline baseline,
+      ProjectedCannon cannon)
+    {
+      return CreateCannonGuards(
+        baseline,
+        cannon.LocalId,
+        cannon.PhysicalNumber,
+        cannon.AttachmentRecord,
+        cannon.RenderPositionRecord);
+    }
+
+    internal static string CreateCannonPositionFingerprint(
       InterchangeBaseline baseline,
       int localId,
       int physicalNumber,
@@ -3793,13 +3931,30 @@ namespace EarthTool.GLTF.Internal
         WriteFingerprintHeader(
           writer,
           baseline,
-          "cannonRenderPosition.position",
+          "cannon.position",
           "object",
           localId);
         writer.Write(physicalNumber);
         WriteCanonicalFloat(writer, ReadFinitePreview(bytes, 0));
         WriteCanonicalFloat(writer, ReadFinitePreview(bytes, 8));
         WriteCanonicalFloat(writer, ReadFinitePreview(bytes, 4));
+      }
+      return Hash(preimage.ToArray());
+    }
+
+    internal static string CreateCannonDirectionFingerprint(
+      InterchangeBaseline baseline,
+      int localId,
+      int physicalNumber,
+      IReadOnlyList<byte> attachmentRecord)
+    {
+      var bytes = attachmentRecord.ToArray();
+      using var preimage = new MemoryStream();
+      using (var writer = new BinaryWriter(preimage, Encoding.UTF8, true))
+      {
+        WriteFingerprintHeader(writer, baseline, "cannon.direction", "object", localId);
+        writer.Write(physicalNumber);
+        writer.Write(bytes[6]);
       }
       return Hash(preimage.ToArray());
     }
@@ -3943,7 +4098,7 @@ namespace EarthTool.GLTF.Internal
       var objectIds = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
         .Select(source => source.Id.Value)
         .Concat(ProjectAttachments(asset).Select(attachment => attachment.LocalId))
-        .Concat(ProjectCannonRenderPositions(asset).Select(cannon => cannon.LocalId))
+        .Concat(ProjectCannons(asset).Select(cannon => cannon.LocalId))
         .Concat(ProjectStaticLights(asset).Select(light => light.InstanceLocalId))
         .OrderBy(id => id)
         .ToArray();
@@ -4467,7 +4622,7 @@ namespace EarthTool.GLTF.Internal
       var result = new List<ProjectedAttachment>();
       for (var physicalNumber = 1; physicalNumber <= 49; physicalNumber++)
       {
-        if (physicalNumber is >= 13 and <= 20)
+        if (physicalNumber <= 4 || physicalNumber is >= 13 and <= 20)
         {
           continue;
         }
@@ -4480,12 +4635,7 @@ namespace EarthTool.GLTF.Internal
         }
         var storedNegativeY = BinaryPrimitives.ReadInt16LittleEndian(record.AsSpan(2));
         var z = BinaryPrimitives.ReadInt16LittleEndian(record.AsSpan(4));
-        var headingRadians = record[6] * (MathF.PI * 2 / 256f);
-        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, headingRadians - (MathF.PI / 2));
-        if (rotation.W < 0)
-        {
-          rotation = new Quaternion(-rotation.X, -rotation.Y, -rotation.Z, -rotation.W);
-        }
+        var rotation = AttachmentHeadingProjection.CreateRotation(record[6]);
         result.Add(new ProjectedAttachment(
           GetAttachmentArtistObjectLocalId(firstArtistObjectId, physicalNumber),
           physicalNumber,
@@ -4496,25 +4646,34 @@ namespace EarthTool.GLTF.Internal
       return result.AsReadOnly();
     }
 
-    private static IReadOnlyList<ProjectedCannonRenderPosition> ProjectCannonRenderPositions(
+    private static IReadOnlyList<ProjectedCannon> ProjectCannons(
       StaticMeshAsset asset)
     {
-      var records = asset.CommonBaseHeader.CannonRenderPositions.ToArray();
+      var attachments = asset.CommonBaseHeader.AttachmentTable.ToArray();
+      var renderPositions = asset.CommonBaseHeader.CannonRenderPositions.ToArray();
       var firstArtistObjectId = GetFirstArtistObjectLocalId(asset);
-      var result = new ProjectedCannonRenderPosition[4];
+      var result = new List<ProjectedCannon>();
       for (var physicalNumber = 1; physicalNumber <= 4; physicalNumber++)
       {
-        var record = records.AsSpan((physicalNumber - 1) * 12, 12).ToArray();
-        var x = ReadFinitePreview(record, 0);
-        var storedNegativeY = ReadFinitePreview(record, 4);
-        var z = ReadFinitePreview(record, 8);
-        result[physicalNumber - 1] = new ProjectedCannonRenderPosition(
+        var attachmentRecord = attachments.AsSpan((physicalNumber - 1) * 8, 8).ToArray();
+        if (BinaryPrimitives.ReadInt16LittleEndian(attachmentRecord) == short.MinValue)
+        {
+          continue;
+        }
+        var renderPositionRecord = renderPositions.AsSpan((physicalNumber - 1) * 12, 12).ToArray();
+        var x = ReadFinitePreview(renderPositionRecord, 0);
+        var storedNegativeY = ReadFinitePreview(renderPositionRecord, 4);
+        var z = ReadFinitePreview(renderPositionRecord, 8);
+        var rotation = AttachmentHeadingProjection.CreateRotation(attachmentRecord[6]);
+        result.Add(new ProjectedCannon(
           GetCannonArtistObjectLocalId(firstArtistObjectId, physicalNumber),
           physicalNumber,
-          record,
-          new Vector3(x, z, storedNegativeY));
+          attachmentRecord,
+          renderPositionRecord,
+          new Vector3(x, z, storedNegativeY),
+          rotation));
       }
-      return Array.AsReadOnly(result);
+      return result.AsReadOnly();
     }
 
     private static IReadOnlyList<ProjectedStaticLight> ProjectStaticLights(StaticMeshAsset asset)
@@ -4677,9 +4836,12 @@ namespace EarthTool.GLTF.Internal
 
     internal static string GetAttachmentHelperName(int physicalNumber)
     {
+      if (physicalNumber is < 5 or > 49 or >= 13 and <= 20)
+      {
+        throw new ArgumentOutOfRangeException(nameof(physicalNumber));
+      }
       var (range, localNumber) = physicalNumber switch
       {
-        <= 4 => ("Cannon", physicalNumber),
         <= 8 => ("Marker", physicalNumber - 4),
         <= 12 => ("SS", physicalNumber - 8),
         <= 16 => ("SpotLight", physicalNumber - 12),
@@ -4703,7 +4865,7 @@ namespace EarthTool.GLTF.Internal
 
     internal static bool TryParseAttachmentHelperName(string? name, out int physicalNumber)
     {
-      for (physicalNumber = 1; physicalNumber <= 49; physicalNumber++)
+      for (physicalNumber = 5; physicalNumber <= 49; physicalNumber++)
       {
         if (physicalNumber is not (>= 13 and <= 20)
           && string.Equals(name, GetAttachmentHelperName(physicalNumber), StringComparison.Ordinal))
@@ -4715,11 +4877,20 @@ namespace EarthTool.GLTF.Internal
       return false;
     }
 
-    internal static bool TryParseCannonRenderPositionHelperName(string? name, out int physicalNumber)
+    internal static string GetCannonHelperName(int physicalNumber)
+    {
+      if (physicalNumber is < 1 or > 4)
+      {
+        throw new ArgumentOutOfRangeException(nameof(physicalNumber));
+      }
+      return $"ET_Cannon_{physicalNumber}_Attachment_{physicalNumber}";
+    }
+
+    internal static bool TryParseCannonHelperName(string? name, out int physicalNumber)
     {
       for (physicalNumber = 1; physicalNumber <= 4; physicalNumber++)
       {
-        if (string.Equals(name, $"ET_CannonRenderPosition_{physicalNumber}", StringComparison.Ordinal))
+        if (string.Equals(name, GetCannonHelperName(physicalNumber), StringComparison.Ordinal))
         {
           return true;
         }
@@ -4782,24 +4953,30 @@ namespace EarthTool.GLTF.Internal
       }
     }
 
-    private sealed class ProjectedCannonRenderPosition
+    private sealed class ProjectedCannon
     {
       internal int LocalId { get; }
 
       internal int PhysicalNumber { get; }
-      internal byte[] Record { get; }
+      internal byte[] AttachmentRecord { get; }
+      internal byte[] RenderPositionRecord { get; }
       internal Vector3 Translation { get; }
+      internal Quaternion Rotation { get; }
 
-      internal ProjectedCannonRenderPosition(
+      internal ProjectedCannon(
         int localId,
         int physicalNumber,
-        byte[] record,
-        Vector3 translation)
+        byte[] attachmentRecord,
+        byte[] renderPositionRecord,
+        Vector3 translation,
+        Quaternion rotation)
       {
         LocalId = localId;
         PhysicalNumber = physicalNumber;
-        Record = record;
+        AttachmentRecord = attachmentRecord;
+        RenderPositionRecord = renderPositionRecord;
         Translation = translation;
+        Rotation = rotation;
       }
     }
 

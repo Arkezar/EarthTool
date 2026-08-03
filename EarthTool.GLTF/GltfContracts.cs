@@ -1000,8 +1000,8 @@ namespace EarthTool.GLTF
   {
     /// <summary>Authors one ordinary attachment record.</summary>
     Attachment = 0,
-    /// <summary>Authors one full-precision cannon render position.</summary>
-    CannonRenderPosition = 1,
+    /// <summary>Authors one cannon attachment and full-precision render position.</summary>
+    Cannon = 1,
     /// <summary>Authors one spot light and its activity attachment.</summary>
     SpotLight = 2,
     /// <summary>Authors one omni light and its activity attachment.</summary>
@@ -1024,7 +1024,7 @@ namespace EarthTool.GLTF
         throw new ArgumentOutOfRangeException(nameof(kind));
       }
       if (kind == GltfNewModelHelperKind.Attachment
-          && (physicalNumber is < 1 or > 49 or >= 13 and <= 20)
+          && (physicalNumber is < 5 or > 49 or >= 13 and <= 20)
         || kind != GltfNewModelHelperKind.Attachment && physicalNumber is < 1 or > 4)
       {
         throw new ArgumentOutOfRangeException(nameof(physicalNumber));

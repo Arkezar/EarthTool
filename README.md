@@ -6,6 +6,11 @@
 
 A comprehensive suite of tools for working with Earth 2150 game data files.
 
+> **Mesh artists:** Start with the
+> [Mesh Artist Quick Start and Cheat Sheet](docs/mesh-artist-quickstart.md) for
+> Blender export settings, edit/new-model workflows, animation-track setup, and
+> every supported attachment identifier.
+
 ## Features
 
 - **WD Archives** - Extract, create, and modify WD archive files
@@ -96,6 +101,8 @@ dotnet publish -c Release
 - **EarthTool.PAR.GUI** - Parameter editor GUI (Avalonia UI)
 
 The current MSH CLI is `msh export`, `msh import edit`, and `msh import new`.
+Graphics artists should use the
+[Mesh Artist Quick Start and Cheat Sheet](docs/mesh-artist-quickstart.md).
 Users of the removed COLLADA workflow should read the
 [migration guide](docs/migration-collada-to-gltf.md).
 

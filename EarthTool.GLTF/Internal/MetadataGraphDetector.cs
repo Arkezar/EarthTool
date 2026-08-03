@@ -192,7 +192,7 @@ namespace EarthTool.GLTF.Internal
         if (parsed.Nodes[nodeIndex].MeshIndex is not int meshIndex
           || !meshByIndex.TryGetValue(meshIndex, out var mesh)
           || node.Envelope.AttachmentRecord is not null
-          || node.Envelope.CannonRenderPosition is not null
+          || node.Envelope.CannonRenderPositionRecord is not null
           || node.Envelope.StaticLightDefinitionLocalId is not null
           || node.Envelope.LocalId == mesh.Envelope.LocalId)
         {
@@ -352,9 +352,10 @@ namespace EarthTool.GLTF.Internal
       {
         yield return ("nativeProjection", "attachment.pose", 1);
       }
-      else if (envelope.CannonRenderPosition is not null)
+      else if (envelope.CannonRenderPositionRecord is not null)
       {
-        yield return ("nativeProjection", "cannonRenderPosition.position", 1);
+        yield return ("cannon.position", "cannon.position", 1);
+        yield return ("cannon.direction", "cannon.direction", 1);
       }
       else if (envelope.ScopeKind == "light")
       {
@@ -427,6 +428,7 @@ namespace EarthTool.GLTF.Internal
         {
           return;
         }
+        string? guardName = null;
         string? actual = null;
         if (node.Envelope.AttachmentPhysicalNumber.HasValue
           && node.Envelope.AttachmentRecord?.Count == 8)
@@ -439,21 +441,33 @@ namespace EarthTool.GLTF.Internal
             node.Envelope.LocalId,
             attachmentNumber,
             node.Envelope.AttachmentRecord);
+          guardName = "nativeProjection";
         }
-        else if (node.Envelope.CannonRenderPositionNumber is int cannonNumber
-          && node.Envelope.CannonRenderPosition?.Count == 12)
+        else if (node.Envelope.CannonPhysicalNumber is int cannonNumber
+          && node.Envelope.CannonAttachmentRecord?.Count == 8
+          && node.Envelope.CannonRenderPositionRecord?.Count == 12)
         {
-          actual = GlbDocument.CreateCannonRenderPositionFingerprint(
+          var expectedGuards = GlbDocument.CreateCannonGuards(
             expected,
             node.Envelope.LocalId,
             cannonNumber,
-            node.Envelope.CannonRenderPosition);
+            node.Envelope.CannonAttachmentRecord,
+            node.Envelope.CannonRenderPositionRecord);
+          foreach (var guard in expectedGuards)
+          {
+            if (node.Envelope.Guards.TryGetValue(guard.Key, out var recorded)
+              && !string.Equals(recorded, guard.Value, StringComparison.Ordinal))
+            {
+              conflicts.Add(StaleGuard(node, guard.Key, guard.Value));
+            }
+          }
+          continue;
         }
         if (actual is not null
           && node.Envelope.Fingerprint is not null
           && !string.Equals(node.Envelope.Fingerprint, actual, StringComparison.Ordinal))
         {
-          conflicts.Add(StaleGuard(node, "nativeProjection", actual));
+          conflicts.Add(StaleGuard(node, guardName!, actual));
         }
       }
 

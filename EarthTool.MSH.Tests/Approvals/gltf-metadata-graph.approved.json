@@ -48,13 +48,18 @@
     "id": 51,
     "guards": [
       {
-        "name": "nativeProjection",
-        "projection": "cannonRenderPosition.position",
+        "name": "cannon.position",
+        "projection": "cannon.position",
+        "version": 1
+      },
+      {
+        "name": "cannon.direction",
+        "projection": "cannon.direction",
         "version": 1
       }
     ],
     "payload": [
-      "cannonRenderPosition"
+      "cannon"
     ]
   },
   {
@@ -63,13 +68,18 @@
     "id": 52,
     "guards": [
       {
-        "name": "nativeProjection",
-        "projection": "cannonRenderPosition.position",
+        "name": "cannon.position",
+        "projection": "cannon.position",
+        "version": 1
+      },
+      {
+        "name": "cannon.direction",
+        "projection": "cannon.direction",
         "version": 1
       }
     ],
     "payload": [
-      "cannonRenderPosition"
+      "cannon"
     ]
   },
   {
@@ -78,13 +88,18 @@
     "id": 53,
     "guards": [
       {
-        "name": "nativeProjection",
-        "projection": "cannonRenderPosition.position",
+        "name": "cannon.position",
+        "projection": "cannon.position",
+        "version": 1
+      },
+      {
+        "name": "cannon.direction",
+        "projection": "cannon.direction",
         "version": 1
       }
     ],
     "payload": [
-      "cannonRenderPosition"
+      "cannon"
     ]
   },
   {
@@ -93,13 +108,18 @@
     "id": 54,
     "guards": [
       {
-        "name": "nativeProjection",
-        "projection": "cannonRenderPosition.position",
+        "name": "cannon.position",
+        "projection": "cannon.position",
+        "version": 1
+      },
+      {
+        "name": "cannon.direction",
+        "projection": "cannon.direction",
         "version": 1
       }
     ],
     "payload": [
-      "cannonRenderPosition"
+      "cannon"
     ]
   },
   {

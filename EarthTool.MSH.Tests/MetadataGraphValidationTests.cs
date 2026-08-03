@@ -577,7 +577,7 @@ public class MetadataGraphValidationTests
     var secondEdit = RewriteJson(bytes, root =>
     {
       var metadata = ReadEnvelope(root["nodes"]![4]!);
-      metadata["guards"]!.AsObject().Remove("nativeProjection");
+      metadata["guards"]!.AsObject().Remove("cannon.position");
       WriteEnvelope(root["nodes"]![4]!, metadata);
     });
 
@@ -701,8 +701,14 @@ public class MetadataGraphValidationTests
 
     var result = await ImportAsync(edited, baseline);
 
-    AssertConflict(result, GltfDiagnosticCodes.StaleNativeProjection, 2016);
-    result.Diagnostics[0].Path.Should().Be("nodes[4].guards.nativeProjection");
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Diagnostics.Should().HaveCount(2);
+    result.Diagnostics.Should().OnlyContain(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.StaleNativeProjection
+      && diagnostic.EventId == 2016);
+    result.Diagnostics.Select(diagnostic => diagnostic.Path).Should().BeEquivalentTo(
+      "nodes[4].guards.cannon.position",
+      "nodes[4].guards.cannon.direction");
   }
 
   [Theory]
@@ -714,7 +720,7 @@ public class MetadataGraphValidationTests
     var edited = RewriteJson(bytes, root =>
     {
       var metadata = ReadEnvelope(root["nodes"]![4]!);
-      metadata["guards"]!.AsObject().Remove("nativeProjection");
+      metadata["guards"]!.AsObject().Remove("cannon.position");
       WriteEnvelope(root["nodes"]![4]!, metadata);
     });
     var conflict = await ImportAsync(edited, baseline);
@@ -1380,7 +1386,15 @@ public class MetadataGraphValidationTests
 
   private static async Task<(byte[] Bytes, InterchangeBaseline Baseline)> ExportFixtureAsync()
   {
-    return await ExportAssetAsync(OneTriangleMshFixture.Create());
+    return await ExportAssetAsync(AttachmentAndCannonMshFixture.Create(
+      Enumerable.Range(1, 4).ToDictionary(
+        number => number,
+        number => new AttachmentAndCannonMshFixture.AttachmentRecord(
+          checked((short)number),
+          checked((short)-number),
+          checked((short)(number * 2)),
+          unchecked((byte)(number * 32)),
+          0x80))));
   }
 
   private static async Task<(byte[] Bytes, InterchangeBaseline Baseline)> ExportAssetAsync(byte[] sourceBytes)

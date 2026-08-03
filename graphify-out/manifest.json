@@ -1365,8 +1365,8 @@
     "semantic_hash": "430a3f57e26d06f9c29fe4f14c9fccd4"
   },
   "README.md": {
-    "mtime": 1785765671.5347307,
-    "ast_hash": "1e7e3f4a3ebfa1bab0fb96943b73ed6c",
+    "mtime": 1785779596.3374152,
+    "ast_hash": "05497d841ca697847587975fbd640d8a",
     "semantic_hash": ""
   },
   "docs/MSH_FORMAT.md": {
@@ -1380,8 +1380,8 @@
     "semantic_hash": "4d9246033938a6e4bf82b9d6f0ef471c"
   },
   "docs/README.md": {
-    "mtime": 1785742764.140437,
-    "ast_hash": "bc41dd1471d57e0f21a9d3b2244100f2",
+    "mtime": 1785779596.3404152,
+    "ast_hash": "d209c3913df02755ab76b1730c83bb20",
     "semantic_hash": ""
   },
   "docs/WD_COMMANDS.md": {
@@ -1480,18 +1480,18 @@
     "semantic_hash": ""
   },
   "EarthTool.GLTF/GltfContracts.cs": {
-    "mtime": 1785773424.190191,
-    "ast_hash": "e7a347706cee0df73e8a8118b9f49a05",
+    "mtime": 1785781852.4675493,
+    "ast_hash": "b7c79650312252c42466bc306996e533",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/GltfInterchange.cs": {
-    "mtime": 1785775080.4167316,
-    "ast_hash": "156203571ec34f0a9b22ee4aaf96594b",
+    "mtime": 1785783373.9188466,
+    "ast_hash": "daf1088e76c6d3a0b81573463ebcb33c",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/GlbDocument.cs": {
-    "mtime": 1785775525.1024573,
-    "ast_hash": "98197bd8e2845e553e5efcdbd93c96e0",
+    "mtime": 1785783357.0832436,
+    "ast_hash": "e5c15a5ce5629d1bbde75a111dbad1e4",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/TransactionalFileSystem.cs": {
@@ -1505,8 +1505,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/GltfWalkingSkeletonTests.cs": {
-    "mtime": 1785774397.0075665,
-    "ast_hash": "5a9dd7b3d16d5c3af36efdf790d69366",
+    "mtime": 1785783539.8317838,
+    "ast_hash": "e039e4dd523982239988d3d3ec6a5c96",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/OneTriangleMshFixture.cs": {
@@ -1570,8 +1570,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/Approvals/gltf.approved.txt": {
-    "mtime": 1785773874.8371086,
-    "ast_hash": "cf29c251db011d55c5ea07b67d2d333a",
+    "mtime": 1785782344.1280215,
+    "ast_hash": "681a66c69b3856b73f740ad8bbcfed32",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/Approvals/msh.approved.txt": {
@@ -1685,23 +1685,23 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/MetadataGraphValidationTests.cs": {
-    "mtime": 1785752390.6398454,
-    "ast_hash": "747ab066480626b472e1af5d4b5da674",
+    "mtime": 1785782321.5712202,
+    "ast_hash": "0930b176dc6ae9b16edf7bda3dc3c9f6",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/MetadataGraphDetector.cs": {
-    "mtime": 1785667049.1117694,
-    "ast_hash": "bd00a3e6875bc8585c47c61232c4dcc5",
+    "mtime": 1785781843.20522,
+    "ast_hash": "c00bca40ae2cf871bd1d203da1d06fef",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/Approvals/gltf-metadata-graph.approved.json": {
-    "mtime": 1785666631.0157576,
-    "ast_hash": "24c7a57883713e3032600483660f8cb7",
+    "mtime": 1785782344.1240213,
+    "ast_hash": "18f281dfb6093468813efb4b29d98c0b",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/GltfPlanAndReport.cs": {
-    "mtime": 1785755304.677662,
-    "ast_hash": "5fe3e715003c035aebde7adc3e6ccbd2",
+    "mtime": 1785781852.4675493,
+    "ast_hash": "f8634b1d9e3ec6728e1cd1b22d63ad16",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/Approvals/gltf-cli-report-v1.approved.json": {
@@ -1710,13 +1710,13 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/Approvals/gltf-import-plan-v1.approved.json": {
-    "mtime": 1785680616.6395967,
-    "ast_hash": "1ed144725d56d9c5ae1b6f550967c4cb",
+    "mtime": 1785782362.778684,
+    "ast_hash": "f721fdb14fa2db35c38d402f40cb1b68",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/GltfPlanAndReportTests.cs": {
-    "mtime": 1785682224.2147574,
-    "ast_hash": "2d8595bf3d318e64b3a01ae79733902c",
+    "mtime": 1785782362.778684,
+    "ast_hash": "c914d078cded6774bbf2d2ade60032f7",
     "semantic_hash": ""
   },
   "EarthTool.CLI.Tests/EarthTool.CLI.Tests.csproj": {
@@ -1887,6 +1887,11 @@
   "test-tools/official-corpus-contract.mjs": {
     "mtime": 1785770406.0387633,
     "ast_hash": "2ba42bb13eb22837a74deb8b7085880c",
+    "semantic_hash": ""
+  },
+  "docs/mesh-artist-quickstart.md": {
+    "mtime": 1785783651.5627763,
+    "ast_hash": "37c2a58eea7574263055c444851f6a7e",
     "semantic_hash": ""
   }
 }

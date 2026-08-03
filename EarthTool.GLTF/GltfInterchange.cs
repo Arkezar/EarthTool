@@ -2077,7 +2077,7 @@ namespace EarthTool.GLTF
       {
         var claimedArtistObject = options.HelperBindings.ContainsKey(GetNodeHandle(parsed, nodeIndex))
           || GlbDocument.TryParseAttachmentHelperName(node.Name, out _)
-          || GlbDocument.TryParseCannonRenderPositionHelperName(node.Name, out _)
+          || GlbDocument.TryParseCannonHelperName(node.Name, out _)
           || GlbDocument.TryParseStaticLightHelperName(node.Name, out _, out _);
         if (claimedArtistObject)
         {
@@ -2196,7 +2196,7 @@ namespace EarthTool.GLTF
               throw ArtistObjectConflict("A physical attachment target is occupied more than once.");
             }
           }
-          else if (binding.Kind == GltfNewModelHelperKind.CannonRenderPosition)
+          else if (binding.Kind == GltfNewModelHelperKind.Cannon)
           {
             if (!cannons.TryAdd(binding.PhysicalNumber, index))
             {
@@ -2219,7 +2219,7 @@ namespace EarthTool.GLTF
             throw ArtistObjectConflict("A physical attachment target is occupied more than once.");
           }
         }
-        else if (GlbDocument.TryParseCannonRenderPositionHelperName(node.Name, out physicalNumber))
+        else if (GlbDocument.TryParseCannonHelperName(node.Name, out physicalNumber))
         {
           if (!cannons.TryAdd(physicalNumber, index))
           {
@@ -2245,6 +2245,9 @@ namespace EarthTool.GLTF
       }
       foreach (var cannon in cannons)
       {
+        edit.ReplaceAttachmentRecord(
+          cannon.Key,
+          CreateAttachmentRecord(transforms[cannon.Value], 0x80));
         edit.ReplaceCannonRenderPosition(
           cannon.Key,
           CreateCannonRenderPositionRecord(transforms[cannon.Value].Translation));
@@ -2319,9 +2322,9 @@ namespace EarthTool.GLTF
         return binding.Kind != GltfNewModelHelperKind.Attachment
           || binding.PhysicalNumber != attachment;
       }
-      if (GlbDocument.TryParseCannonRenderPositionHelperName(name, out var cannon))
+      if (GlbDocument.TryParseCannonHelperName(name, out var cannon))
       {
-        return binding.Kind != GltfNewModelHelperKind.CannonRenderPosition
+        return binding.Kind != GltfNewModelHelperKind.Cannon
           || binding.PhysicalNumber != cannon;
       }
       if (GlbDocument.TryParseStaticLightHelperName(name, out var type, out var light))
@@ -3027,7 +3030,7 @@ namespace EarthTool.GLTF
           manifest,
           nodes.Select(node => node.Metadata?.ScopeKind == "object"
               && node.Metadata.AttachmentRecord is null
-              && node.Metadata.CannonRenderPosition is null
+              && node.Metadata.CannonRenderPositionRecord is null
               && node.Metadata.StaticLightAttachmentRecord is null
                 ? node.Metadata
                 : null).ToArray(),
@@ -3420,7 +3423,10 @@ namespace EarthTool.GLTF
       var value = GetScopeMetadata(parsed, nativePath)
         ?? throw new InvalidDataException("The node guard carrier has no metadata.");
       var envelope = GlbDocument.ParseMetadata(value, profile);
+      var guardName = conflict.Path.Substring(
+        conflict.Path.IndexOf(".guards.", StringComparison.Ordinal) + ".guards.".Length);
       string digest;
+      string projection;
       if (envelope.AttachmentRecord is not null)
       {
         var number = GlbDocument.GetAttachmentPhysicalNumber(
@@ -3431,25 +3437,31 @@ namespace EarthTool.GLTF
           envelope.LocalId,
           number,
           envelope.AttachmentRecord);
+        projection = "attachment.pose";
       }
-      else if (envelope.CannonRenderPosition is not null
-        && envelope.CannonRenderPositionNumber is int cannonNumber)
+      else if (envelope.CannonPhysicalNumber is int cannonNumber
+        && envelope.CannonAttachmentRecord is not null
+        && envelope.CannonRenderPositionRecord is not null)
       {
-        digest = GlbDocument.CreateCannonRenderPositionFingerprint(
+        var guards = GlbDocument.CreateCannonGuards(
           baseline,
           envelope.LocalId,
           cannonNumber,
-          envelope.CannonRenderPosition);
+          envelope.CannonAttachmentRecord,
+          envelope.CannonRenderPositionRecord);
+        if (!guards.TryGetValue(guardName, out var cannonDigest))
+        {
+          throw new InvalidDataException("The cannon guard is not regenerable.");
+        }
+        digest = cannonDigest;
+        projection = guardName;
       }
       else
       {
         throw new InvalidDataException("The node scope has no regenerable derived guard.");
       }
       var metadata = JsonNode.Parse(value)!.AsObject();
-      var projection = envelope.AttachmentRecord is not null
-        ? "attachment.pose"
-        : "cannonRenderPosition.position";
-      metadata["guards"]!["nativeProjection"] = CreateGuard(projection, digest);
+      metadata["guards"]![guardName] = CreateGuard(projection, digest);
       return RewriteScopeMetadata(parsed, nativePath, metadata.ToJsonString(), profile);
     }
 
@@ -4533,9 +4545,9 @@ namespace EarthTool.GLTF
           physicalNumber = ValidateAttachmentMetadata(node.Metadata, asset, expected);
           AddArtistCandidate(attachmentCandidates, physicalNumber, nodeIndex);
         }
-        else if (node.Metadata?.CannonRenderPosition is not null)
+        else if (node.Metadata?.CannonRenderPositionRecord is not null)
         {
-          physicalNumber = ValidateCannonRenderPositionMetadata(node.Metadata, asset, expected);
+          physicalNumber = ValidateCannonMetadata(node.Metadata, asset, expected);
           AddArtistCandidate(cannonCandidates, physicalNumber, nodeIndex);
         }
         else if (node.Metadata is null
@@ -4546,7 +4558,7 @@ namespace EarthTool.GLTF
         }
         else if (node.Metadata is null
           && !node.Parsed.MeshIndex.HasValue
-          && GlbDocument.TryParseCannonRenderPositionHelperName(node.Parsed.Name, out physicalNumber))
+          && GlbDocument.TryParseCannonHelperName(node.Parsed.Name, out physicalNumber))
         {
           AddArtistCandidate(cannonCandidates, physicalNumber, nodeIndex);
         }
@@ -4567,7 +4579,7 @@ namespace EarthTool.GLTF
       }
 
       var attachmentTable = asset.CommonBaseHeader.AttachmentTable.ToArray();
-      for (var physicalNumber = 1; physicalNumber <= 49; physicalNumber++)
+      for (var physicalNumber = 5; physicalNumber <= 49; physicalNumber++)
       {
         if (physicalNumber is >= 13 and <= 20)
         {
@@ -4608,21 +4620,48 @@ namespace EarthTool.GLTF
       var cannonRecords = asset.CommonBaseHeader.CannonRenderPositions.ToArray();
       for (var physicalNumber = 1; physicalNumber <= 4; physicalNumber++)
       {
+        var sourceAttachment = attachmentTable.AsSpan((physicalNumber - 1) * 8, 8).ToArray();
+        var sourceActive = BinaryPrimitives.ReadInt16LittleEndian(sourceAttachment) != short.MinValue;
         if (!cannonCandidates.TryGetValue(physicalNumber, out var candidates))
         {
-          throw ArtistObjectConflict("Every cannon render-position artist object must remain present.");
+          if (sourceActive)
+          {
+            edit.ReplaceAttachmentRecord(physicalNumber, CreateAbsentAttachmentRecord());
+          }
+          continue;
         }
+
+        var nodeIndex = candidates[0];
+        var transform = transforms[nodeIndex];
         var sourceRecord = cannonRecords.AsSpan((physicalNumber - 1) * 12, 12).ToArray();
-        var translation = transforms[candidates[0]].Translation;
+        var (translation, heading) = ReadAttachmentTransform(transform);
         var sourcePreview = new Vector3(
           GlbDocument.ReadFinitePreview(sourceRecord, 0),
           GlbDocument.ReadFinitePreview(sourceRecord, 8),
           GlbDocument.ReadFinitePreview(sourceRecord, 4));
-        if (translation != sourcePreview)
+        var translationChanged = !sourceActive || translation != sourcePreview;
+        var rotationChanged = !sourceActive || heading != sourceAttachment[6];
+        var generatedAttachment = translationChanged
+          ? CreateAttachmentRecord(transform, sourceActive ? sourceAttachment[7] : (byte)0x80)
+          : null;
+        if (translationChanged)
         {
           edit.ReplaceCannonRenderPosition(
             physicalNumber,
             CreateCannonRenderPositionRecord(translation));
+        }
+        if (translationChanged || rotationChanged)
+        {
+          var replacement = sourceActive ? sourceAttachment.ToArray() : generatedAttachment!;
+          if (translationChanged && sourceActive)
+          {
+            generatedAttachment!.AsSpan(0, 6).CopyTo(replacement);
+          }
+          if (rotationChanged && sourceActive)
+          {
+            replacement[6] = heading;
+          }
+          edit.ReplaceAttachmentRecord(physicalNumber, replacement);
         }
       }
 
@@ -4727,7 +4766,7 @@ namespace EarthTool.GLTF
           || node.Parsed.Children.Count != 0
           || !transforms.ContainsKey(nodeIndex)
           || node.Metadata.AttachmentRecord is not null
-          || node.Metadata.CannonRenderPosition is not null
+          || node.Metadata.CannonRenderPositionRecord is not null
           || node.Metadata.StaticLightRecord is not null
           || node.Metadata.Fingerprint is not null
           || node.Metadata.Guards.Count != 0
@@ -4777,7 +4816,7 @@ namespace EarthTool.GLTF
           || expectedGuards.Any(guard => !metadata.Guards.TryGetValue(guard.Key, out var value)
             || !string.Equals(value, guard.Value, StringComparison.Ordinal))
           || metadata.AttachmentRecord is not null
-          || metadata.CannonRenderPosition is not null
+          || metadata.CannonRenderPositionRecord is not null
           || metadata.StaticLightAttachmentRecord is not null
           || metadata.Fingerprint is not null
           || metadata.FingerprintName is not null
@@ -5267,9 +5306,9 @@ namespace EarthTool.GLTF
       if (metadata.AssetLineageId != expected.AssetLineageId
         || metadata.DocumentId != expected.DocumentId
         || metadata.ScopeKind != "object"
-        || sourcePhysicalNumber is < 1 or > 49
+        || sourcePhysicalNumber is < 5 or > 49
         || sourcePhysicalNumber is >= 13 and <= 20
-        || physicalNumber is null or < 1 or > 49
+        || physicalNumber is null or < 5 or > 49
         || physicalNumber is >= 13 and <= 20
         || metadata.AttachmentRecord?.Count != 8
         || metadata.FingerprintName != "attachment.pose"
@@ -5279,6 +5318,9 @@ namespace EarthTool.GLTF
         || metadata.StaticLightDefinitionLocalId is not null
         || metadata.StaticLightRecord is not null
         || metadata.StaticLightAttachmentRecord is not null
+        || metadata.CannonPhysicalNumber is not null
+        || metadata.CannonAttachmentRecord is not null
+        || metadata.CannonRenderPositionRecord is not null
         || metadata.Guards.Count != 0
         || !HasNoUnrelatedArtistObjectMetadata(metadata))
       {
@@ -5299,12 +5341,12 @@ namespace EarthTool.GLTF
       return physicalNumber.Value;
     }
 
-    private static int ValidateCannonRenderPositionMetadata(
+    private static int ValidateCannonMetadata(
       MetadataEnvelope metadata,
       StaticMeshAsset asset,
       InterchangeBaseline expected)
     {
-      var physicalNumber = metadata.CannonRenderPositionNumber;
+      var physicalNumber = metadata.CannonPhysicalNumber;
       var expectedLocalId = GlbDocument.GetCannonArtistObjectLocalId(
         GlbDocument.GetFirstArtistObjectLocalId(asset),
         physicalNumber.GetValueOrDefault());
@@ -5313,30 +5355,40 @@ namespace EarthTool.GLTF
         || metadata.ScopeKind != "object"
         || metadata.LocalId != expectedLocalId
         || physicalNumber is null or < 1 or > 4
-        || metadata.CannonRenderPosition?.Count != 12
-        || metadata.FingerprintName != "cannonRenderPosition.position"
-        || metadata.FingerprintVersion != 1
+        || metadata.CannonAttachmentRecord?.Count != 8
+        || metadata.CannonRenderPositionRecord?.Count != 12
+        || metadata.AttachmentPhysicalNumber is not null
+        || metadata.AttachmentRecord is not null
+        || metadata.Fingerprint is not null
+        || metadata.FingerprintName is not null
+        || metadata.FingerprintVersion is not null
         || metadata.StaticLightType is not null
         || metadata.StaticLightPhysicalNumber is not null
         || metadata.StaticLightDefinitionLocalId is not null
         || metadata.StaticLightRecord is not null
         || metadata.StaticLightAttachmentRecord is not null
-        || metadata.Guards.Count != 0
+        || metadata.Guards.Count != 2
         || !HasNoUnrelatedArtistObjectMetadata(metadata))
       {
-        throw new MalformedMetadataException("The cannon render-position metadata envelope is malformed.");
+        throw new MalformedMetadataException("The cannon metadata envelope is malformed.");
       }
-      var sourceRecord = asset.CommonBaseHeader.CannonRenderPositions
-        .Skip((physicalNumber.Value - 1) * 12).Take(12);
-      if (!sourceRecord.SequenceEqual(metadata.CannonRenderPosition)
-        || metadata.Fingerprint != GlbDocument.CreateCannonRenderPositionFingerprint(
-          expected,
-          metadata.LocalId,
-          physicalNumber.Value,
-          sourceRecord.ToArray()))
+      var sourceAttachment = asset.CommonBaseHeader.AttachmentTable
+        .Skip((physicalNumber.Value - 1) * 8).Take(8).ToArray();
+      var sourceRenderPosition = asset.CommonBaseHeader.CannonRenderPositions
+        .Skip((physicalNumber.Value - 1) * 12).Take(12).ToArray();
+      var expectedGuards = GlbDocument.CreateCannonGuards(
+        expected,
+        metadata.LocalId,
+        physicalNumber.Value,
+        sourceAttachment,
+        sourceRenderPosition);
+      if (!sourceAttachment.SequenceEqual(metadata.CannonAttachmentRecord)
+        || !sourceRenderPosition.SequenceEqual(metadata.CannonRenderPositionRecord)
+        || BinaryPrimitives.ReadInt16LittleEndian(sourceAttachment) == short.MinValue
+        || expectedGuards.Any(guard => !metadata.Guards.TryGetValue(guard.Key, out var digest)
+          || !string.Equals(digest, guard.Value, StringComparison.Ordinal)))
       {
-        throw new MalformedMetadataException(
-          "The cannon render-position metadata does not match its source record.");
+        throw new MalformedMetadataException("The cannon metadata does not match its source records.");
       }
       return physicalNumber.Value;
     }
@@ -5406,11 +5458,11 @@ namespace EarthTool.GLTF
       var effective = node.Parsed.LocalTransform * inheritedTransform;
       var isArtistObject = explicitArtistObjects.Contains(nodeIndex)
         || node.Metadata?.AttachmentRecord is not null
-        || node.Metadata?.CannonRenderPosition is not null
+        || node.Metadata?.CannonRenderPositionRecord is not null
         || node.Metadata?.StaticLightAttachmentRecord is not null
         || node.Metadata is null
           && (GlbDocument.TryParseAttachmentHelperName(node.Parsed.Name, out _)
-            || GlbDocument.TryParseCannonRenderPositionHelperName(node.Parsed.Name, out _)
+            || GlbDocument.TryParseCannonHelperName(node.Parsed.Name, out _)
             || node.Parsed.LightIndex.HasValue
               && GlbDocument.TryParseStaticLightHelperName(node.Parsed.Name, out _, out _));
       if (isArtistObject)
@@ -5427,6 +5479,22 @@ namespace EarthTool.GLTF
 
     private static byte[] CreateAttachmentRecord(Matrix4x4 transform, byte extra)
     {
+      var (translation, heading) = ReadAttachmentTransform(transform);
+      var record = new byte[8];
+      BinaryPrimitives.WriteInt16LittleEndian(record, QuantizeAttachmentCoordinate(translation.X, true));
+      BinaryPrimitives.WriteInt16LittleEndian(
+        record.AsSpan(2),
+        QuantizeAttachmentCoordinate(translation.Z, false));
+      BinaryPrimitives.WriteInt16LittleEndian(
+        record.AsSpan(4),
+        QuantizeAttachmentCoordinate(translation.Y, false));
+      record[6] = heading;
+      record[7] = extra;
+      return record;
+    }
+
+    private static (Vector3 Translation, byte Heading) ReadAttachmentTransform(Matrix4x4 transform)
+    {
       if (!Matrix4x4.Decompose(transform, out var scale, out var rotation, out var translation)
         || !IsFinite(scale)
         || !IsFinite(translation)
@@ -5442,60 +5510,12 @@ namespace EarthTool.GLTF
         throw new UnsupportedGltfDomainException("AttachmentPose");
       }
 
-      var direction = Vector3.TransformNormal(-Vector3.UnitZ, Matrix4x4.CreateFromQuaternion(rotation));
-      if (!IsFinite(direction) || direction.LengthSquared() == 0)
-      {
-        throw new UnsupportedGltfDomainException("AttachmentPose");
-      }
-      direction = Vector3.Normalize(direction);
-      const float halfHeadingStep = MathF.PI / 256;
-      var up = Vector3.TransformNormal(Vector3.UnitY, Matrix4x4.CreateFromQuaternion(rotation));
-      if (MathF.Abs(direction.Y) > MathF.Sin(halfHeadingStep) + 1e-5f
-        || !IsFinite(up)
-        || Vector3.Dot(Vector3.Normalize(up), Vector3.UnitY) < MathF.Cos(halfHeadingStep) - 1e-5f)
-      {
-        throw new UnsupportedGltfDomainException("AttachmentPose");
-      }
-      var horizontal = new Vector2(direction.X, direction.Z);
-      if (horizontal.LengthSquared() == 0)
-      {
-        throw new UnsupportedGltfDomainException("AttachmentPose");
-      }
-      horizontal = Vector2.Normalize(horizontal);
-      var angle = MathF.Atan2(-horizontal.Y, horizontal.X);
-      if (angle < 0)
-      {
-        angle += MathF.PI * 2;
-      }
-      var heading = unchecked((byte)((int)MathF.Floor((angle * 256 / (MathF.PI * 2)) + 0.5f) & 0xFF));
-      var reconstructedDirection = new Vector2(
-        MathF.Cos(heading * MathF.PI * 2 / 256),
-        -MathF.Sin(heading * MathF.PI * 2 / 256));
-      var error = MathF.Acos(Math.Clamp(Vector2.Dot(horizontal, reconstructedDirection), -1, 1));
-      var reconstructedRotation = Quaternion.CreateFromAxisAngle(
-        Vector3.UnitY,
-        (heading * MathF.PI * 2 / 256) - (MathF.PI / 2));
-      var rotationError = 2 * MathF.Acos(Math.Clamp(
-        MathF.Abs(Quaternion.Dot(Quaternion.Normalize(rotation), reconstructedRotation)),
-        -1,
-        1));
-      if (error > halfHeadingStep + 1e-5f
-        || rotationError > halfHeadingStep + 1e-5f)
+      if (!AttachmentHeadingProjection.TryReadHeading(rotation, out var heading))
       {
         throw new UnsupportedGltfDomainException("AttachmentPose");
       }
 
-      var record = new byte[8];
-      BinaryPrimitives.WriteInt16LittleEndian(record, QuantizeAttachmentCoordinate(translation.X, true));
-      BinaryPrimitives.WriteInt16LittleEndian(
-        record.AsSpan(2),
-        QuantizeAttachmentCoordinate(translation.Z, false));
-      BinaryPrimitives.WriteInt16LittleEndian(
-        record.AsSpan(4),
-        QuantizeAttachmentCoordinate(translation.Y, false));
-      record[6] = heading;
-      record[7] = extra;
-      return record;
+      return (translation, heading);
     }
 
     private static short QuantizeAttachmentCoordinate(
@@ -5587,12 +5607,12 @@ namespace EarthTool.GLTF
       if (nodes.Any(node => !node.Parsed.MeshIndex.HasValue
         && (node.Metadata is not null
             && node.Metadata.AttachmentRecord is null
-            && node.Metadata.CannonRenderPosition is null
+            && node.Metadata.CannonRenderPositionRecord is null
             && node.Metadata.StaticLightAttachmentRecord is null
           || node.Metadata is null
             && node.Parsed.Children.Count == 0
             && !GlbDocument.TryParseAttachmentHelperName(node.Parsed.Name, out _)
-            && !GlbDocument.TryParseCannonRenderPositionHelperName(node.Parsed.Name, out _)
+            && !GlbDocument.TryParseCannonHelperName(node.Parsed.Name, out _)
             && !node.Parsed.LightIndex.HasValue)))
       {
         throw new MalformedMetadataException("The object scope set does not match the source hierarchy.");
@@ -6557,9 +6577,15 @@ namespace EarthTool.GLTF
       StaticMeshAsset asset)
     {
       var records = asset.CommonBaseHeader.CannonRenderPositions.ToArray();
+      var attachments = asset.CommonBaseHeader.AttachmentTable.ToArray();
       var diagnostics = new List<OperationDiagnostic>();
       for (var physicalNumber = 1; physicalNumber <= 4; physicalNumber++)
       {
+        if (BinaryPrimitives.ReadInt16LittleEndian(
+          attachments.AsSpan((physicalNumber - 1) * 8, 8)) == short.MinValue)
+        {
+          continue;
+        }
         var record = records.AsSpan((physicalNumber - 1) * 12, 12);
         var substituted = new List<int>();
         for (var component = 0; component < 3; component++)

@@ -5,12 +5,14 @@
 - [Project overview](overview.md)
 - [Installation](installation.md)
 - [Quick start](quickstart.md)
+- [Mesh artist quick start and cheat sheet](mesh-artist-quickstart.md)
 - [COLLADA to glTF migration](migration-collada-to-gltf.md)
 
 ## MSH And glTF
 
 - [MSH API](api/msh.md)
 - [glTF API](api/gltf.md)
+- [Mesh artist quick start and cheat sheet](mesh-artist-quickstart.md)
 - [MSH format](MSH_FORMAT.md)
 
 ## Other Formats

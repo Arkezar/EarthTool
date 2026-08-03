@@ -253,7 +253,7 @@ public sealed class EarthTool.GLTF.GltfNewModelHelperBinding
   property System.Int32 PhysicalNumber { get; }
 public enum EarthTool.GLTF.GltfNewModelHelperKind : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
   field EarthTool.GLTF.GltfNewModelHelperKind Attachment = 0
-  field EarthTool.GLTF.GltfNewModelHelperKind CannonRenderPosition = 1
+  field EarthTool.GLTF.GltfNewModelHelperKind Cannon = 1
   field EarthTool.GLTF.GltfNewModelHelperKind OmniLight = 3
   field EarthTool.GLTF.GltfNewModelHelperKind SpotLight = 2
 public sealed class EarthTool.GLTF.GltfNewModelHorizontalExtents

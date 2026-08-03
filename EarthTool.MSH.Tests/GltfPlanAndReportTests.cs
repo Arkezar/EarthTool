@@ -42,7 +42,8 @@ public class GltfPlanAndReportTests
         },
         helperBindings: new Dictionary<GltfNodeHandle, GltfNewModelHelperBinding>
         {
-          [new GltfNodeHandle(3)] = new(GltfNewModelHelperKind.Attachment, 21)
+          [new GltfNodeHandle(3)] = new(GltfNewModelHelperKind.Attachment, 21),
+          [new GltfNodeHandle(4)] = new(GltfNewModelHelperKind.Cannon, 2)
         },
         staticLightOptions: new Dictionary<GltfLightHandle, GltfNewModelStaticLightOptions>
         {
@@ -76,6 +77,8 @@ public class GltfPlanAndReportTests
     read.Value.NewModelOptions!.TextureResourceBindings.Should().ContainKey(new GltfMaterialHandle(1));
     read.Value.NewModelOptions.ObjectRoles[new GltfNodeHandle(2)].BarrelMaximumAngle.Should().Be(32);
     read.Value.NewModelOptions.HelperBindings[new GltfNodeHandle(3)].PhysicalNumber.Should().Be(21);
+    read.Value.NewModelOptions.HelperBindings[new GltfNodeHandle(4)].Kind.Should()
+      .Be(GltfNewModelHelperKind.Cannon);
     read.Value.NewModelOptions.StaticLightOptions[new GltfLightHandle(1)].TargetDistance.Should().Be(12.5f);
     read.Value.NewModelOptions.AnimationClasses[new GltfAnimationHandle(1)].Should()
       .Be(GltfNewModelAnimationClass.A);

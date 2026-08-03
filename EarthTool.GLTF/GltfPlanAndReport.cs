@@ -528,7 +528,7 @@ namespace EarthTool.GLTF
         var kind = RequiredString(item, "kind", "semanticOverrides.helperBindings[].kind") switch
         {
           "attachment" => GltfNewModelHelperKind.Attachment,
-          "cannonRenderPosition" => GltfNewModelHelperKind.CannonRenderPosition,
+          "cannon" => GltfNewModelHelperKind.Cannon,
           "spotLight" => GltfNewModelHelperKind.SpotLight,
           "omniLight" => GltfNewModelHelperKind.OmniLight,
           _ => throw Malformed("semanticOverrides.helperBindings[].kind", "A helper kind is invalid.")
@@ -1080,7 +1080,7 @@ namespace EarthTool.GLTF
     private static string HelperName(GltfNewModelHelperKind kind) => kind switch
     {
       GltfNewModelHelperKind.Attachment => "attachment",
-      GltfNewModelHelperKind.CannonRenderPosition => "cannonRenderPosition",
+      GltfNewModelHelperKind.Cannon => "cannon",
       GltfNewModelHelperKind.SpotLight => "spotLight",
       GltfNewModelHelperKind.OmniLight => "omniLight",
       _ => throw new ArgumentOutOfRangeException(nameof(kind))

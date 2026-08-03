@@ -75,6 +75,11 @@
         "node": 3,
         "kind": "attachment",
         "physicalNumber": 21
+      },
+      {
+        "node": 4,
+        "kind": "cannon",
+        "physicalNumber": 2
       }
     ],
     "staticLightOptions": [

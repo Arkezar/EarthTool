@@ -540,7 +540,8 @@ public class GltfWalkingSkeletonTests
         }
       };
       var nodes = root["nodes"]!.AsArray();
-      var rootChildren = nodes[0]!["children"]!.AsArray();
+      var rootChildren = nodes[0]!["children"] as JsonArray ?? new JsonArray();
+      nodes[0]!["children"] = rootChildren;
       rootChildren.Add(nodes.Count);
       nodes.Add(new JsonObject
       {
@@ -776,7 +777,9 @@ public class GltfWalkingSkeletonTests
         }
       };
       var nodes = root["nodes"]!.AsArray();
-      nodes[0]!["children"]!.AsArray().Add(nodes.Count);
+      var rootChildren = nodes[0]!["children"] as JsonArray ?? new JsonArray();
+      nodes[0]!["children"] = rootChildren;
+      rootChildren.Add(nodes.Count);
       nodes.Add(new JsonObject
       {
         ["name"] = "ET_SpotLight_2_Attachment_14",
@@ -840,12 +843,18 @@ public class GltfWalkingSkeletonTests
         .Where(node => !node.TryGetProperty("mesh", out _))
         .Select(node => node.GetProperty("name").GetString())
         .ToArray();
-      helperNames.Should().Contain(activeNumbers.Select(GlbDocument.GetAttachmentHelperName));
-      helperNames.Should().NotContain(GlbDocument.GetAttachmentHelperName(13));
-      helperNames.Should().NotContain(GlbDocument.GetAttachmentHelperName(17));
+      helperNames.Should().Contain(activeNumbers.Where(number => number > 4)
+        .Select(GlbDocument.GetAttachmentHelperName));
+      helperNames.Should().NotContain("ET_Attachment_01_Cannon_1");
+      helperNames.Should().NotContain("ET_Attachment_13_SpotLight_1");
+      helperNames.Should().NotContain("ET_Attachment_17_OmniLight_1");
       helperNames.Should().NotContain(GlbDocument.GetAttachmentHelperName(44));
-      helperNames.Should().Contain(Enumerable.Range(1, 4)
-        .Select(number => $"ET_CannonRenderPosition_{number}"));
+      helperNames.Should().Contain(GlbDocument.GetCannonHelperName(1));
+      helperNames.Count(name => name != null && name.StartsWith("ET_Cannon_", StringComparison.Ordinal))
+        .Should().Be(1);
+      helperNames.Should().NotContain(name => name != null && name.StartsWith(
+        "ET_CannonRenderPosition_",
+        StringComparison.Ordinal));
     }
 
     glb.Position = 0;
@@ -855,6 +864,27 @@ public class GltfWalkingSkeletonTests
       OperationStatus.Succeeded,
       string.Join("; ", import.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}")));
     import.Value!.Asset.GetSerializedRepresentation().Should().Equal(sourceBytes);
+  }
+
+  [Theory]
+  [InlineData(0)]
+  [InlineData(64)]
+  [InlineData(128)]
+  [InlineData(192)]
+  [InlineData(255)]
+  public void CanonicalAttachmentRotationPointsLocalPositiveYAlongHeading(byte heading)
+  {
+    var rotation = AttachmentHeadingProjection.CreateRotation(heading);
+    var direction = Vector3.TransformNormal(
+      Vector3.UnitY,
+      Matrix4x4.CreateFromQuaternion(rotation));
+    var angle = heading * MathF.PI * 2 / 256;
+
+    direction.X.Should().BeApproximately(MathF.Cos(angle), 1e-6f);
+    direction.Y.Should().BeApproximately(0, 1e-6f);
+    direction.Z.Should().BeApproximately(-MathF.Sin(angle), 1e-6f);
+    AttachmentHeadingProjection.TryReadHeading(rotation, out var roundTripped).Should().BeTrue();
+    roundTripped.Should().Be(heading);
   }
 
   [Fact]
@@ -880,7 +910,8 @@ public class GltfWalkingSkeletonTests
       var helper = root["nodes"]!.AsArray().Single(node =>
         node!["name"]!.GetValue<string>() == GlbDocument.GetAttachmentHelperName(5))!.AsObject();
       helper["translation"] = new JsonArray(1.003f, -3.999f, 2.007f);
-      helper["rotation"] = new JsonArray(0, MathF.Sin(MathF.PI / 4), 0, MathF.Cos(MathF.PI / 4));
+      var rotation = AttachmentHeadingProjection.CreateRotation(128);
+      helper["rotation"] = new JsonArray(rotation.X, rotation.Y, rotation.Z, rotation.W);
     });
 
     await using var input = new MemoryStream(edited);
@@ -912,7 +943,7 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
-  public async Task CannonPositionEditDoesNotChangeCannonAttachment()
+  public async Task CannonTranslationEditUpdatesBothRecordsAndPreservesHeadingAndYaw()
   {
     var sourceBytes = AttachmentAndCannonMshFixture.Create(
       new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
@@ -930,9 +961,8 @@ public class GltfWalkingSkeletonTests
     var edited = RewriteJson(glb.ToArray(), root =>
     {
       var helper = root["nodes"]!.AsArray().Single(node =>
-        node!["name"]!.GetValue<string>() == "ET_CannonRenderPosition_1")!.AsObject();
+        node!["name"]!.GetValue<string>() == GlbDocument.GetCannonHelperName(1))!.AsObject();
       helper["translation"] = new JsonArray(4.5f, 6.5f, -5.5f);
-      helper["rotation"] = new JsonArray(0, 0.25f, 0, 0.9682458f);
       helper["scale"] = new JsonArray(2, 3, 4);
     });
 
@@ -941,8 +971,12 @@ public class GltfWalkingSkeletonTests
 
     import.Status.Should().Be(OperationStatus.Succeeded);
     var resultBytes = import.Value!.Asset.GetSerializedRepresentation().ToArray();
-    AttachmentAndCannonMshFixture.GetAttachment(resultBytes, 1)
-      .Should().Equal(AttachmentAndCannonMshFixture.GetAttachment(sourceBytes, 1));
+    var attachment = AttachmentAndCannonMshFixture.GetAttachment(resultBytes, 1);
+    BinaryPrimitives.ReadInt16LittleEndian(attachment).Should().Be(1152);
+    BinaryPrimitives.ReadInt16LittleEndian(attachment.AsSpan(2)).Should().Be(-1408);
+    BinaryPrimitives.ReadInt16LittleEndian(attachment.AsSpan(4)).Should().Be(1664);
+    attachment[6].Should().Be(64);
+    attachment[7].Should().Be(0x80);
     var cannon = AttachmentAndCannonMshFixture.GetCannonRenderPosition(resultBytes, 1);
     ReadSingle(cannon, 0).Should().Be(4.5f);
     ReadSingle(cannon, 4).Should().Be(-5.5f);
@@ -950,9 +984,182 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
+  public async Task CannonRotationEditUpdatesOnlyHeading()
+  {
+    var sourceBytes = AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [1] = new(100, 200, 300, 64, 0xB7)
+      },
+      new Dictionary<int, Vector3> { [1] = new(1.25f, 2.5f, 3.75f) });
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      var helper = root["nodes"]!.AsArray().Single(node =>
+        node!["name"]!.GetValue<string>() == GlbDocument.GetCannonHelperName(1))!.AsObject();
+      var rotation = AttachmentHeadingProjection.CreateRotation(128);
+      helper["rotation"] = new JsonArray(rotation.X, rotation.Y, rotation.Z, rotation.W);
+    });
+
+    await using var input = new MemoryStream(edited);
+    var import = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Succeeded);
+    var resultBytes = import.Value!.Asset.GetSerializedRepresentation().ToArray();
+    var sourceAttachment = AttachmentAndCannonMshFixture.GetAttachment(sourceBytes, 1);
+    var attachment = AttachmentAndCannonMshFixture.GetAttachment(resultBytes, 1);
+    attachment.Take(6).Should().Equal(sourceAttachment.Take(6));
+    attachment[6].Should().Be(128);
+    attachment[7].Should().Be(0xB7);
+    AttachmentAndCannonMshFixture.GetCannonRenderPosition(resultBytes, 1).Should()
+      .Equal(AttachmentAndCannonMshFixture.GetCannonRenderPosition(sourceBytes, 1));
+  }
+
+  [Fact]
+  public async Task InvalidCannonTransformsRejectTheTransaction()
+  {
+    var sourceBytes = AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [1] = new(100, 200, 300, 64, 0xB7)
+      },
+      new Dictionary<int, Vector3> { [1] = new(1.25f, 2.5f, 3.75f) });
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var canonical = AttachmentHeadingProjection.CreateRotation(64);
+    var twisted = Quaternion.CreateFromRotationMatrix(
+      Matrix4x4.CreateRotationY(0.25f) * Matrix4x4.CreateFromQuaternion(canonical));
+    var invalidEdits = new Action<JsonObject>[]
+    {
+      helper => helper["rotation"] = new JsonArray(MathF.Sin(0.125f), 0, 0, MathF.Cos(0.125f)),
+      helper => helper["rotation"] = new JsonArray(0, 0, MathF.Sin(0.125f), MathF.Cos(0.125f)),
+      helper => helper["rotation"] = new JsonArray(twisted.X, twisted.Y, twisted.Z, twisted.W),
+      helper => helper["translation"] = new JsonArray(128, 0, 0)
+    };
+
+    foreach (var invalidEdit in invalidEdits)
+    {
+      var edited = RewriteJson(glb.ToArray(), root =>
+      {
+        var helper = root["nodes"]!.AsArray().Single(node =>
+          node!["name"]!.GetValue<string>() == GlbDocument.GetCannonHelperName(1))!.AsObject();
+        invalidEdit(helper);
+      });
+      await using var input = new MemoryStream(edited);
+
+      var import = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+      import.Status.Should().Be(OperationStatus.Failed);
+      import.Value.Should().BeNull();
+      import.Diagnostics.Should().ContainSingle(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.UnsupportedDomain);
+    }
+  }
+
+  [Fact]
+  public async Task UnchangedMismatchedCannonRecordsRemainByteExact()
+  {
+    var sourceBytes = AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [2] = new(256, -512, 768, 192, 0xD4)
+      },
+      new Dictionary<int, Vector3> { [2] = new(9.25f, -8.5f, 7.75f) });
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+
+    glb.Position = 0;
+    var import = await interchange.ImportEditGlbAsync(glb, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Succeeded);
+    import.Value!.Asset.GetSerializedRepresentation().Should().Equal(sourceBytes);
+  }
+
+  [Fact]
+  public async Task InactiveCannonHasNoHelperOrNonFinitePreviewWarning()
+  {
+    var sourceBytes = AttachmentAndCannonMshFixture.Create(
+      cannonRenderPositions: new Dictionary<int, Vector3>
+      {
+        [2] = new(float.NaN, float.PositiveInfinity, float.NegativeInfinity)
+      });
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+
+    var export = await new GltfInterchange().ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+
+    export.Diagnostics.Should().NotContain(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.CannonRenderPositionPreviewSubstituted);
+    using var json = ReadGlbJson(glb.ToArray());
+    json.RootElement.GetProperty("nodes").EnumerateArray()
+      .Select(node => node.TryGetProperty("name", out var name) ? name.GetString() : null)
+      .Should().NotContain(GlbDocument.GetCannonHelperName(2));
+  }
+
+  [Fact]
+  public async Task DeletingActiveCannonWritesAbsentAttachmentAndRetainsRenderPosition()
+  {
+    var sourceBytes = AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [1] = new(100, 200, 300, 64, 0xA1)
+      },
+      new Dictionary<int, Vector3> { [1] = new(1.25f, 2.5f, 3.75f) });
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      var cannonIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["name"]!.GetValue<string>() == GlbDocument.GetCannonHelperName(1)).index;
+      nodes.RemoveAt(cannonIndex);
+      nodes[0]!.AsObject().Remove("children");
+      root["scenes"]![0]!["nodes"]![0] = nodes.Count - 1;
+    });
+
+    await using var input = new MemoryStream(edited);
+    var import = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Succeeded);
+    var resultBytes = import.Value!.Asset.GetSerializedRepresentation().ToArray();
+    AttachmentAndCannonMshFixture.GetAttachment(resultBytes, 1).Should()
+      .Equal(0, 128, 0, 128, 0, 128, 0, 0);
+    AttachmentAndCannonMshFixture.GetCannonRenderPosition(resultBytes, 1).Should()
+      .Equal(AttachmentAndCannonMshFixture.GetCannonRenderPosition(sourceBytes, 1));
+  }
+
+  [Fact]
   public async Task NonFiniteCannonPositionUsesWarnedFinitePreviewAndRestoresExactBits()
   {
     var sourceBytes = AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [3] = new(1, 2, 3, 64, 0x80)
+      },
       cannonRenderPositions: new Dictionary<int, Vector3>
       {
         [3] = new(float.NaN, float.PositiveInfinity, float.NegativeInfinity)
@@ -973,7 +1180,7 @@ public class GltfWalkingSkeletonTests
     using (var json = ReadGlbJson(glb.ToArray()))
     {
       json.RootElement.GetProperty("nodes").EnumerateArray().Single(node =>
-          node.GetProperty("name").GetString() == "ET_CannonRenderPosition_3")
+          node.GetProperty("name").GetString() == GlbDocument.GetCannonHelperName(3))
         .TryGetProperty("translation", out _).Should().BeFalse();
     }
     glb.Position = 0;
@@ -1180,6 +1387,7 @@ public class GltfWalkingSkeletonTests
     var sourceBytes = AttachmentAndCannonMshFixture.Create(
       new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
       {
+        [2] = new(10, 20, 30, 64, 0xA5),
         [47] = new(256, 512, -768, 192, 0x80)
       },
       new Dictionary<int, Vector3> { [2] = new(1.25f, -2.5f, 3.75f) });
@@ -1205,6 +1413,12 @@ public class GltfWalkingSkeletonTests
       .Should().Equal(AttachmentAndCannonMshFixture.GetAttachment(sourceBytes, 47));
     AttachmentAndCannonMshFixture.GetCannonRenderPosition(resultBytes, 2)
       .Should().Equal(AttachmentAndCannonMshFixture.GetCannonRenderPosition(sourceBytes, 2));
+    var cannonAttachment = AttachmentAndCannonMshFixture.GetAttachment(resultBytes, 2);
+    BinaryPrimitives.ReadInt16LittleEndian(cannonAttachment).Should().Be(320);
+    BinaryPrimitives.ReadInt16LittleEndian(cannonAttachment.AsSpan(2)).Should().Be(-640);
+    BinaryPrimitives.ReadInt16LittleEndian(cannonAttachment.AsSpan(4)).Should().Be(960);
+    cannonAttachment[6].Should().Be(64);
+    cannonAttachment[7].Should().Be(0x80);
   }
 
   [Fact]
@@ -1258,12 +1472,58 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
+  public async Task TypedCannonBindingCreatesBothRecordsWithoutDependingOnDisplayName()
+  {
+    var sourceBytes = AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [3] = new(1, 2, 3, 192, 0xA5)
+      },
+      new Dictionary<int, Vector3> { [3] = new(2.25f, -3.5f, 4.75f) });
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var exported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    GltfNodeHandle cannonNode = default;
+    var generic = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      var nodes = root["nodes"]!.AsArray();
+      var nodeIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["name"]!.GetValue<string>() == GlbDocument.GetCannonHelperName(3)).index;
+      cannonNode = new GltfNodeHandle(nodeIndex + 1);
+      nodes[nodeIndex]!["name"] = "Artist Weapon Mount";
+    });
+    await using var source = new MemoryStream(generic);
+
+    var imported = await interchange.ImportNewModelGlbAsync(
+      source,
+      new GltfNewModelImportOptions(
+        helperBindings: new Dictionary<GltfNodeHandle, GltfNewModelHelperBinding>
+        {
+          [cannonNode] = new(GltfNewModelHelperKind.Cannon, 3)
+        }));
+
+    imported.Status.Should().Be(OperationStatus.Succeeded);
+    var resultBytes = imported.Value!.Asset.GetSerializedRepresentation().ToArray();
+    AttachmentAndCannonMshFixture.GetCannonRenderPosition(resultBytes, 3).Should()
+      .Equal(AttachmentAndCannonMshFixture.GetCannonRenderPosition(sourceBytes, 3));
+    var attachment = AttachmentAndCannonMshFixture.GetAttachment(resultBytes, 3);
+    BinaryPrimitives.ReadInt16LittleEndian(attachment).Should().Be(576);
+    BinaryPrimitives.ReadInt16LittleEndian(attachment.AsSpan(2)).Should().Be(-896);
+    BinaryPrimitives.ReadInt16LittleEndian(attachment.AsSpan(4)).Should().Be(1216);
+    attachment[6].Should().Be(192);
+    attachment[7].Should().Be(0x80);
+  }
+
+  [Fact]
   public async Task SeparateGltfPreservesAttachmentAndCannonRecords()
   {
     var sourceBytes = AttachmentAndCannonMshFixture.Create(
       new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
       {
         [1] = new(111, -222, 333, 255, 0xA7),
+        [4] = new(1, 2, 3, 64, 0xB2),
         [49] = new(444, short.MinValue, -555, 0, 0xE1)
       },
       new Dictionary<int, Vector3> { [4] = new(7.25f, -8.5f, 9.75f) });
@@ -1290,12 +1550,18 @@ public class GltfWalkingSkeletonTests
 
       generic.Status.Should().Be(OperationStatus.Succeeded);
       var genericBytes = generic.Value!.Asset.GetSerializedRepresentation().ToArray();
-      AttachmentAndCannonMshFixture.GetAttachment(genericBytes, 1).Take(7).Should()
-        .Equal(AttachmentAndCannonMshFixture.GetAttachment(sourceBytes, 1).Take(7));
+      var genericCannon = AttachmentAndCannonMshFixture.GetAttachment(genericBytes, 1);
+      genericCannon.Should().Equal(0, 0, 0, 0, 0, 0, 255, 0x80);
       AttachmentAndCannonMshFixture.GetAttachment(genericBytes, 49).Take(7).Should()
         .Equal(AttachmentAndCannonMshFixture.GetAttachment(sourceBytes, 49).Take(7));
       AttachmentAndCannonMshFixture.GetCannonRenderPosition(genericBytes, 4).Should()
         .Equal(AttachmentAndCannonMshFixture.GetCannonRenderPosition(sourceBytes, 4));
+      var genericCannon4 = AttachmentAndCannonMshFixture.GetAttachment(genericBytes, 4);
+      BinaryPrimitives.ReadInt16LittleEndian(genericCannon4).Should().Be(1856);
+      BinaryPrimitives.ReadInt16LittleEndian(genericCannon4.AsSpan(2)).Should().Be(-2176);
+      BinaryPrimitives.ReadInt16LittleEndian(genericCannon4.AsSpan(4)).Should().Be(2496);
+      genericCannon4[6].Should().Be(64);
+      genericCannon4[7].Should().Be(0x80);
     }
     finally
     {
@@ -1418,7 +1684,7 @@ public class GltfWalkingSkeletonTests
       "attachment" => AttachmentAndCannonMshFixture.Create(
         new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
         {
-          [3] = new(256, -512, 768, 32, 0xA5)
+          [5] = new(256, -512, 768, 32, 0xA5)
         }),
       "light" => StaticLightMshFixture.Create(
         spots: new Dictionary<int, StaticLightMshFixture.SpotRecord>
@@ -1509,7 +1775,7 @@ public class GltfWalkingSkeletonTests
           break;
         case "attachment":
           changes.Should().Contain(change =>
-            change.FieldPath == "CommonBaseHeader.AttachmentTable[3]"
+            change.FieldPath == "CommonBaseHeader.AttachmentTable[5]"
             && change.Disposition == PreservationDisposition.Regenerated);
           break;
         case "light":
@@ -2488,13 +2754,13 @@ public class GltfWalkingSkeletonTests
     using var json = ReadGlbJson(glb.ToArray());
     var root = json.RootElement;
     root.GetProperty("scenes")[0].GetProperty("nodes").EnumerateArray()
-      .Select(node => node.GetInt32()).Should().Equal(7);
-    root.GetProperty("nodes").GetArrayLength().Should().Be(8);
+      .Select(node => node.GetInt32()).Should().Equal(3);
+    root.GetProperty("nodes").GetArrayLength().Should().Be(4);
     root.GetProperty("meshes").GetArrayLength().Should().Be(3);
-    root.GetProperty("nodes")[7].GetProperty("name").GetString().Should().Be("EDBBPP");
-    root.GetProperty("nodes")[7].GetProperty("children").EnumerateArray()
+    root.GetProperty("nodes")[3].GetProperty("name").GetString().Should().Be("EDBBPP");
+    root.GetProperty("nodes")[3].GetProperty("children").EnumerateArray()
       .Select(node => node.GetInt32()).Should().Equal(0);
-    root.GetProperty("nodes")[7].GetProperty("extras")
+    root.GetProperty("nodes")[3].GetProperty("extras")
       .GetProperty("earthtoolPlacementRoot").GetBoolean().Should().BeTrue();
     root.GetProperty("nodes")[0].GetProperty("name").GetString().Should().Be("EDBBPP_1");
     root.GetProperty("nodes")[1].GetProperty("name").GetString().Should().Be("EDBBPP_2");
@@ -5122,10 +5388,6 @@ public class GltfWalkingSkeletonTests
         ["children"] = new JsonArray(1)
       });
       root["nodes"]![0]!["children"] = new JsonArray(nodes.Count - 1, 2);
-      foreach (var helperIndex in Enumerable.Range(3, 4))
-      {
-        root["nodes"]![0]!["children"]!.AsArray().Add(helperIndex);
-      }
     });
     await using var edited = new MemoryStream(bytes);
 
@@ -5166,10 +5428,6 @@ public class GltfWalkingSkeletonTests
       });
       root["nodes"]![1]!["translation"] = new JsonArray(2, 3, -2);
       root["nodes"]![0]!["children"] = new JsonArray(nodes.Count - 1);
-      foreach (var helperIndex in Enumerable.Range(3, 4))
-      {
-        root["nodes"]![0]!["children"]!.AsArray().Add(helperIndex);
-      }
       root["nodes"]![1]!["children"] = new JsonArray(2);
       await File.WriteAllTextAsync(path, root.ToJsonString());
 
@@ -6217,7 +6475,7 @@ public class GltfWalkingSkeletonTests
     var helperIndices = nodes.Select((node, index) => (node, index))
       .Where(item => item.node?["name"]?.GetValue<string>() is string name
         && (name.StartsWith("ET_Attachment_", StringComparison.Ordinal)
-          || name.StartsWith("ET_CannonRenderPosition_", StringComparison.Ordinal)))
+          || name.StartsWith("ET_Cannon_", StringComparison.Ordinal)))
       .Select(item => item.index)
       .OrderByDescending(index => index)
       .ToArray();
@@ -6316,7 +6574,7 @@ public class GltfWalkingSkeletonTests
       "animation" => path.StartsWith(
         "StaticRenderObjectSequence[0].AnimationTracks.",
         StringComparison.Ordinal),
-      "attachment" => path == "CommonBaseHeader.AttachmentTable[3]",
+      "attachment" => path == "CommonBaseHeader.AttachmentTable[5]",
       "light" => path is "CommonBaseHeader.AttachmentTable[13]"
         or "CommonBaseHeader.StaticSpotLights[1].Position"
         or "CommonBaseHeader.StaticSpotLights[1].TerrainLightAmplitude",
