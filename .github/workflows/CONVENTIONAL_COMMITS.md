@@ -1,6 +1,6 @@
 # Conventional Commits Guide for EarthTool
 
-This guide explains how to use [Conventional Commits](https://www.conventionalcommits.org/) in the EarthTool project for automatic changelog generation.
+This guide explains how to use [Conventional Commits](https://www.conventionalcommits.org/) in the EarthTool project for clear history and release notes.
 
 ## Quick Reference
 
@@ -14,17 +14,17 @@ This guide explains how to use [Conventional Commits](https://www.conventionalco
 
 ## Commit Types
 
-| Type | Description | Changelog Section | Example |
-|------|-------------|-------------------|---------|
-| `feat` | New feature | ✨ Features | `feat(cli): add batch processing` |
-| `fix` | Bug fix | 🐛 Bug Fixes | `fix(gui): resolve window crash` |
-| `perf` | Performance improvement | ⚡ Performance | `perf(wd): optimize compression` |
-| `refactor` | Code refactoring | ♻️ Refactoring | `refactor(msh): simplify parser` |
-| `docs` | Documentation | 📝 Documentation | `docs: update README` |
-| `test` | Tests | ✅ Tests | `test(par): add parsing tests` |
-| `build` | Build system | 👷 Build System | `build: update .NET to 8.0.1` |
-| `ci` | CI configuration | 👷 Build System | `ci: add coverage reporting` |
-| `chore` | Maintenance | 🔧 Other Changes | `chore: update .gitignore` |
+| Type | Description | Example |
+|------|-------------|---------|
+| `feat` | New feature | `feat(cli): add batch processing` |
+| `fix` | Bug fix | `fix(gui): resolve window crash` |
+| `perf` | Performance improvement | `perf(wd): optimize compression` |
+| `refactor` | Code refactoring | `refactor(msh): simplify parser` |
+| `docs` | Documentation | `docs: update README` |
+| `test` | Tests | `test(par): add parsing tests` |
+| `build` | Build system | `build: update .NET to 8.0.1` |
+| `ci` | CI configuration | `ci: add coverage reporting` |
+| `chore` | Maintenance | `chore: update .gitignore` |
 
 ## Scopes
 
@@ -124,7 +124,7 @@ git commit -m "chore(deps): update .NET dependencies
 git commit -m "ci: add unified release workflow
 
 Combines CLI and GUI releases into a single workflow with
-comprehensive changelog generation based on conventional commits."
+concise commit-based release notes."
 ```
 
 ## Breaking Changes
@@ -168,9 +168,9 @@ Closes #45, #67, #89"
 git commit -m "refactor(common): improve error handling (PR #156)"
 ```
 
-## Changelog Impact
+## Release Note Impact
 
-Your commits directly affect the generated changelog:
+Every non-merge commit appears directly in the generated release notes:
 
 ### Input Commits
 ```
@@ -183,24 +183,15 @@ docs: update installation guide
 chore(deps): bump Avalonia to 11.1.0
 ```
 
-### Generated Changelog
+### Generated Release Notes
 ```markdown
-### ✨ Features
-- **[cli]** Add batch processing support [`a1b2c3`](...) - @developer
-- **[gui]** Implement drag and drop [`d4e5f6`](...) - @developer
-
-### 🐛 Bug Fixes
-- **[cli]** Resolve extraction error for large files [`m3n4o5`](...) - @developer
-- **[gui]** Correct window sizing on macOS [`p6q7r8`](...) - @developer
-
-### ⚡ Performance Improvements
-- **[wd]** Optimize compression algorithm by 30% [`g7h8i9`](...) - @developer
-
-### 📝 Documentation
-- Update installation guide [`s9t0u1`](...) - @developer
-
-### 📦 Dependencies
-- Bump Avalonia to 11.1.0 [`v2w3x4`](...) - @dependabot
+- feat(cli): add batch processing support - Developer ([`a1b2c3`](...))
+- feat(gui): implement drag and drop - Developer ([`d4e5f6`](...))
+- fix(cli): resolve extraction error for large files - Developer ([`m3n4o5`](...))
+- fix(gui): correct window sizing on macOS - Developer ([`p6q7r8`](...))
+- perf(wd): optimize compression algorithm by 30% - Developer ([`g7h8i9`](...))
+- docs: update installation guide - Developer ([`s9t0u1`](...))
+- chore(deps): bump Avalonia to 11.1.0 - dependabot ([`v2w3x4`](...))
 ```
 
 ## Best Practices
@@ -364,7 +355,7 @@ Closes #890"
 
 ## Summary
 
-- **Always use conventional commit format** for automatic changelog generation
+- **Always use conventional commit format** for readable release notes
 - **Add scopes** to organize changes by component
 - **Document breaking changes** thoroughly
 - **Reference issues and PRs** when applicable
@@ -372,7 +363,7 @@ Closes #890"
 - **Write clear, descriptive messages** for future maintainers
 
 Following these conventions ensures:
-- ✅ Automatic, well-organized changelogs
+- ✅ Concise, consistent release notes
 - ✅ Clear project history
 - ✅ Easy identification of breaking changes
 - ✅ Better collaboration and code review

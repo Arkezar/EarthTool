@@ -29,7 +29,7 @@ This directory contains GitHub Actions workflows for building, testing, and publ
 - Parallel builds for efficiency
 
 ### 2. `release.yml` - Unified Release Pipeline ⭐ **RECOMMENDED**
-**Purpose**: Official release pipeline for both CLI and GUI with unified changelog generation
+**Purpose**: Official release pipeline for both CLI and GUI with concise commit-based release notes
 
 **Triggers**:
 - Version tags (`v*` - e.g., `v1.0.0`)
@@ -39,26 +39,21 @@ This directory contains GitHub Actions workflows for building, testing, and publ
 - 🌍 **Release builds** - Windows and Linux for all applications
 - ✅ **Comprehensive testing** and quality checks
 - 🔒 **Security scanning** with dotnet-outdated
-- 📝 **Unified changelog generation** based on conventional commits
+- 📝 **Concise release notes** listing commits since the previous version
 - 🎁 **Single release** with Windows and Linux artifacts for all applications
 - 🔄 **Semantic versioning** support
-- ⚠️ **Breaking change detection** and migration guides
-- 👥 **Contributor attribution**
-- 🔗 **GitHub integration** (commits, issues, PRs linked)
-- 📊 **Release statistics** and highlights
+- 👥 **Author attribution** for every listed commit
+- 🔗 **GitHub links** to each commit
 
-**Changelog Features**:
-- Automatic categorization by commit type (feat, fix, perf, etc.)
-- Scope-based organization (e.g., `feat(cli):`, `fix(gui):`)
-- Issue and PR linking
-- Breaking change warnings
-- Dependency update tracking
-- Release type badges (Major/Minor/Patch)
+**Release Note Format**:
+- Version heading
+- Previous-version reference
+- Commit message, author, and commit link for every non-merge commit
 
 **Advantages**:
 - Synchronized releases for CLI and GUI
 - Consistent versioning (same tag for both)
-- Comprehensive changelog covering all changes
+- Complete, concise commit history for each release
 - Single source of truth for releases
 
 ### 3. `ci.yml` - Full Solution CI
@@ -91,7 +86,7 @@ The project uses a **unified workflow architecture** for simplified management:
 
 ### Unified Approach (Recommended)
 - **ci-unified.yml**: Fast CI feedback with smart change detection
-- **release.yml**: Official releases with unified changelog
+- **release.yml**: Official releases with concise commit-based notes
 
 ### Benefits of Unified Architecture
 - ✅ Single source of truth for CI/CD
@@ -123,7 +118,7 @@ The project uses a **unified workflow architecture** for simplified management:
 2. **Create a version tag**: `git tag v1.0.0`
 3. **Push the tag**: `git push origin v1.0.0`
 4. **Release workflow** builds the CLI and GUIs for Windows and Linux
-5. **GitHub release** created with all 8 artifacts and unified changelog
+5. **GitHub release** created with all 8 artifacts and commit-based notes
 
 ### Commit Message Convention
 
@@ -233,75 +228,19 @@ Project-specific paths are configured in the matrix strategy.
 - `GITHUB_TOKEN`: Automatically provided by GitHub
 - No additional secrets needed
 
-## Unified Changelog Generation 📝
+## Release Notes
 
-The `release.yml` workflow includes an advanced changelog generator based on **Conventional Commits**.
+The `release.yml` workflow lists every non-merge commit since the previous version. Each entry includes the commit message, author, and a link to the commit.
 
-### Features
-
-- **🎯 Automatic Release Type**: Detects Major/Minor/Patch from commits
-- **📋 Smart Categorization**: Groups by type (features, fixes, performance, etc.)
-- **🔍 Scope Recognition**: Organizes by component (CLI, GUI, WD, MSH, etc.)
-- **⚠️ Breaking Changes**: Highlights with migration guides
-- **🔗 GitHub Links**: Auto-links to commits, issues, and PRs
-- **👥 Contributors**: Credits all contributors
-- **📊 Statistics**: Shows commits, files changed, lines modified
-- **✨ Highlights**: Summarizes most significant changes
-- **📦 Dependencies**: Tracks dependency updates
-- **🎁 Unified Release**: Covers both CLI and GUI in one changelog
-
-### Changelog Sections
-
-Generated changelog includes:
-1. **Release Type Badge** (Major/Minor/Patch)
-2. **Highlights** - Summary of key changes
-3. **Breaking Changes** (if any) with migration guide
-4. **Features** - New functionality (from `feat:` commits)
-5. **Bug Fixes** - Fixed issues (from `fix:` commits)
-6. **Performance** - Optimizations (from `perf:` commits)
-7. **Refactoring** - Code improvements (from `refactor:` commits)
-8. **Documentation** - Docs updates (from `docs:` commits)
-9. **Tests** - Test additions (from `test:` commits)
-10. **Build System** - CI/build changes (from `build:`/`ci:` commits)
-11. **Other Changes** - Misc commits
-12. **Contributors** - All contributors
-13. **Dependencies** - Package updates
-14. **Statistics** - Detailed metrics
-15. **Release Info** - Download links, requirements, installation
-
-### Example Changelog Output
+### Example
 
 ```markdown
-## 🆕 What's Changed in v1.2.0
+## v1.2.0
 
-> 🟡 **Minor Release** - New features added
+Commits since [`v1.1.0`](...):
 
-**15 commits** since [`v1.1.0`](...)
-
-### 🎯 Highlights
-
-- ✨ **5 new features** added
-- 🐛 **3 bug fixes** applied
-- ⚡ **1 performance improvement** implemented
-
-**Most significant changes:**
-- Add batch processing support for CLI [`a1b2c3`](...)
-- Implement drag and drop in GUI [`d4e5f6`](...)
-- Optimize WD compression algorithm [`g7h8i9`](...)
-
-### ✨ Features
-- **[cli]** Add batch processing support for multiple files [`a1b2c3`](...) - @developer
-- **[gui]** Implement drag and drop functionality [`d4e5f6`](...) - @developer
-- Support for new Earth 2150 texture format [`j0k1l2`](...) - @contributor
-
-### 🐛 Bug Fixes
-- **[cli]** Resolve extraction error for large WD archives [#123](...)  [`m3n4o5`](...) - @developer
-- **[gui]** Fix window sizing on macOS [`p6q7r8`](...) - @developer
-
-### ⚡ Performance Improvements
-- **[wd]** Optimize compression algorithm by 30% [`g7h8i9`](...) - @developer
-
-...
+- feat(cli): add batch processing - Jane Doe ([`a1b2c3`](...))
+- fix(wd): handle empty archives - John Smith ([`d4e5f6`](...))
 ```
 
 ## Migration from Legacy Workflows
@@ -311,7 +250,7 @@ If you're currently using `cli-ci.yml`, `cli-release.yml`, `gui-ci.yml`, or `gui
 ### Benefits of Migration
 - ✅ Reduced workflow complexity
 - ✅ Synchronized versions for CLI and GUI
-- ✅ Single, comprehensive changelog
+- ✅ Concise release notes with complete commit history
 - ✅ Easier maintenance
 - ✅ Better resource utilization
 
@@ -338,20 +277,20 @@ If you're currently using `cli-ci.yml`, `cli-release.yml`, `gui-ci.yml`, or `gui
 
 - **Actions Tab**: Monitor workflow runs
 - **Artifacts**: Download builds from run pages
-- **Releases**: View releases with unified changelogs
+- **Releases**: View releases with commit-based notes
 - **Logs**: Debug issues from detailed logs
 - **Commit Comments**: Get preview build links on dev commits
 
 ## Best Practices
 
-1. **Use conventional commits** for automatic changelog generation
-2. **Add scopes** to commits for better organization
+1. **Use conventional commits** so release entries remain easy to scan
+2. **Add scopes** to make commit messages clear
 3. **Document breaking changes** in commit body
 4. **Reference issues** in commit messages (#123)
 5. **Test on dev branch** before releasing
 6. **Use preview builds** for validation
 7. **Create releases** from stable main/master branch
-8. **Review changelogs** before publishing
+8. **Review release notes** before publishing
 
 ## Support
 
