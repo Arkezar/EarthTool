@@ -145,6 +145,8 @@ internal static class OfficialCorpusCliOracle
 
   private static string ResolveExecutable(string root)
   {
+    var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name
+      ?? throw new InvalidOperationException("The test build configuration could not be resolved.");
     var platform = OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : "linux";
     var architecture = RuntimeInformation.OSArchitecture switch
     {
@@ -157,7 +159,7 @@ internal static class OfficialCorpusCliOracle
       root,
       "EarthTool.CLI",
       "bin",
-      "Release",
+      configuration,
       "net8.0",
       $"{platform}-{architecture}",
       OperatingSystem.IsWindows() ? "EarthTool.CLI.exe" : "EarthTool.CLI");

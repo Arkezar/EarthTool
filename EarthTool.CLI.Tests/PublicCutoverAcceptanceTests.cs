@@ -78,6 +78,8 @@ public sealed class PublicCutoverAcceptanceTests
   private static async Task<CliResult> RunCliAsync(params string[] arguments)
   {
     var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../.."));
+    var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name
+      ?? throw new InvalidOperationException("The test build configuration could not be resolved.");
     var platform = OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : "linux";
     var architecture = RuntimeInformation.OSArchitecture switch
     {
@@ -89,7 +91,7 @@ public sealed class PublicCutoverAcceptanceTests
       root,
       "EarthTool.CLI",
       "bin",
-      "Release",
+      configuration,
       "net8.0",
       $"{platform}-{architecture}",
       OperatingSystem.IsWindows() ? "EarthTool.CLI.exe" : "EarthTool.CLI");
