@@ -170,9 +170,17 @@ namespace EarthTool.GLTF.Internal
           ? options.DynamicObjectIds[index]
           : index + 1;
         cancellationToken.ThrowIfCancellationRequested();
-        if (extension.KnownEffectType != DynamicEffectType.Explosion
-          || extension.TexturePathBytes.Count == 0)
+        if (!DynamicGltfDocument.HasNativePreview(extension.KnownEffectType))
         {
+          continue;
+        }
+        if (extension.TexturePathBytes.Count == 0)
+        {
+          diagnostics.Add(DynamicWarning(
+            GltfDiagnosticCodes.TexturePreviewUnavailable,
+            1109,
+            localId,
+            "The sprite effect has no TEX resource binding to preview."));
           continue;
         }
         var path = TryGetRelativePath(extension.TexturePathBytes);

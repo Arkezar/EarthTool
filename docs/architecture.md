@@ -42,7 +42,7 @@ serialized-construction boundary.
 ## Interchange boundary
 
 `GltfInterchange` projects static mesh assets and supported dynamic
-`Group`/`Explosion` assets to GLB or separate glTF. EarthTool metadata envelopes
+`Group`/sprite-effect assets to GLB or separate glTF. EarthTool metadata envelopes
 retain MSH-only state only while native projection fingerprints prove that state
 remains applicable. Native glTF owns only the deliberately documented artist
 projection; runtime-only dynamic behavior remains metadata authority.

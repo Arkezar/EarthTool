@@ -236,18 +236,136 @@ public class DynamicGltfInterchangeTests
   }
 
   [Fact]
+  public async Task SpriteEffectsExportThroughThePublicGlbSeam()
+  {
+    await using var destination = new MemoryStream();
+
+    var result = await new GltfInterchange().ExportGlbAsync(
+      CreateSpriteEffectsAsset(),
+      destination,
+      new GltfExportOptions(_lineageId, _documentId));
+
+    result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
+    result.Diagnostics.Should().NotContain(item => item.Code == GltfDiagnosticCodes.UnsupportedDomain);
+    result.Diagnostics.Count(item => item.Code == GltfDiagnosticCodes.TextureResourceMissing)
+      .Should().Be(4);
+    using var json = ReadGlbJson(destination.ToArray());
+    json.RootElement.GetProperty("nodes").GetArrayLength().Should().Be(5);
+    json.RootElement.GetProperty("meshes").GetArrayLength().Should().Be(4);
+  }
+
+  [Fact]
+  public async Task InvalidSpritePreviewDomainsFailWithoutPartialOutput()
+  {
+    var frames = new CanonicalDynamicFrameSequence(0, 1, 1);
+    var sprite = new CanonicalDynamicSpriteSheet(frames, 1, 1);
+    var shape = new CanonicalDynamicEffectShape(
+      new EffectRectangle(-1, 1, 1, -1),
+      new EffectRectangle(-2, 2, 2, -2),
+      0.25f);
+    var alpha = new CanonicalDynamicAlpha(1, 0, DynamicAlphaTiming.FramePhase);
+    var light = new CanonicalDynamicTerrainLight(DynamicLightType.Constant, Vector3.One);
+    var cases = new (DynamicMeshAsset Asset, int Offset, int Value)[]
+    {
+      (CreateSingleEffectAsset(DynamicEffectRecipes.Track(
+        frames, shape.StartEffectRectangle, shape.EndEffectRectangle,
+        "Textures\\fx\\track.tex", alpha, false)), 0x370, -1),
+      (CreateSingleEffectAsset(DynamicEffectRecipes.MappedExplosion(
+        frames, shape.StartEffectRectangle, shape.EndEffectRectangle,
+        "Textures\\fx\\mapped.tex", Vector3.One, alpha, false, light)), 0x370, int.MaxValue),
+      (CreateSingleEffectAsset(DynamicEffectRecipes.FlatExplosion(
+        sprite, shape, "Textures\\fx\\flat.tex", Vector3.One, alpha, false, light)),
+        0x378, 0),
+      (CreateSingleEffectAsset(DynamicEffectRecipes.FlatExplosion(
+        sprite, shape, "Textures\\fx\\flat.tex", Vector3.One, alpha, false, light)),
+        0x37C, 0),
+      (CreateSingleEffectAsset(DynamicEffectRecipes.Smoke(
+        sprite, shape, "Textures\\fx\\smoke.tex", Vector3.One, 1, alpha, false)),
+        0x38C, BitConverter.SingleToInt32Bits(float.NaN))
+    };
+
+    foreach (var item in cases)
+    {
+      var bytes = item.Asset.GetSerializedRepresentation();
+      const int firstChildOffset = 0x18 + 0x410;
+      BinaryPrimitives.WriteInt32LittleEndian(
+        bytes.AsSpan(firstChildOffset + item.Offset),
+        item.Value);
+      var expert = MshExpert.CreateDynamic(bytes, item.Asset.LineageId);
+      expert.TryGetValue(out var malformed).Should().BeTrue();
+      await using var destination = new MemoryStream();
+
+      var result = await new GltfInterchange().ExportGlbAsync(malformed!, destination);
+
+      result.Status.Should().Be(OperationStatus.Failed);
+      result.Value.Should().BeNull();
+      result.Diagnostics.Should().ContainSingle(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.InvalidGeometry
+        && diagnostic.Path.StartsWith("DynamicObjectScopes[2].Extension", StringComparison.Ordinal));
+      destination.Length.Should().Be(0);
+    }
+  }
+
+  [Fact]
+  public async Task FiniteUnrepresentableSmokeMaterialValuesRemainExact()
+  {
+    var sprite = new CanonicalDynamicSpriteSheet(
+      new CanonicalDynamicFrameSequence(0, 1, 1),
+      1,
+      1);
+    var shape = new CanonicalDynamicEffectShape(
+      new EffectRectangle(-1, 1, 1, -1),
+      new EffectRectangle(-2, 2, 2, -2),
+      0.25f);
+    var source = CreateSingleEffectAsset(DynamicEffectRecipes.Smoke(
+      sprite,
+      shape,
+      "Textures\\fx\\smoke.tex",
+      Vector3.One,
+      1,
+      new CanonicalDynamicAlpha(1, 0, DynamicAlphaTiming.FramePhase),
+      false));
+    var bytes = source.GetSerializedRepresentation();
+    const int firstChildOffset = 0x18 + 0x410;
+    WriteSingle(bytes, firstChildOffset + 0x384, 0);
+    WriteSingle(bytes, firstChildOffset + 0x388, -1);
+    WriteSingle(bytes, firstChildOffset + 0x3C8, 2);
+    WriteSingle(bytes, firstChildOffset + 0x3CC, -1);
+    WriteSingle(bytes, firstChildOffset + 0x3D4, -2);
+    WriteSingle(bytes, firstChildOffset + 0x3E0, 2);
+    WriteSingle(bytes, firstChildOffset + 0x3F8, float.NaN);
+    var expert = MshExpert.CreateDynamic(bytes, source.LineageId);
+    expert.TryGetValue(out var asset).Should().BeTrue();
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(asset!, package);
+    export.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(export.Diagnostics));
+    package.Position = 0;
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(
+      package,
+      export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
+    imported.Value!.Asset.GetSerializedRepresentation().Should().Equal(bytes);
+  }
+
+  [Fact]
   public async Task UnsupportedEffectAndObjectLimitFailWithoutOutput()
   {
     var frames = new CanonicalDynamicFrameSequence(0, 1, 0);
-    var track = DynamicEffectRecipes.Track(
+    var unsupportedEffect = DynamicEffectRecipes.ScalableObject(
       frames,
-      new EffectRectangle(-1, 1, 1, -1),
-      new EffectRectangle(-2, 2, 2, -2),
+      "Objects\\fx\\scalable.msh",
       "Textures\\fx\\track.tex",
+      1,
+      2,
+      Vector3.One,
       new CanonicalDynamicAlpha(1, 0, DynamicAlphaTiming.FramePhase),
-      false);
+      false,
+      new CanonicalDynamicTerrainLight(DynamicLightType.Constant, Vector3.Zero));
     var unsupportedBuild = DynamicMeshBuilder.Create()
-      .SetRoot(DynamicEffectRecipes.Group([track]))
+      .SetRoot(DynamicEffectRecipes.Group([unsupportedEffect]))
       .Build();
     unsupportedBuild.TryGetValue(out var unsupported).Should().BeTrue();
     await using var unsupportedOutput = new MemoryStream();
@@ -256,16 +374,9 @@ public class DynamicGltfInterchangeTests
       unsupported!,
       unsupportedOutput);
     var limitedResult = await new GltfInterchange().ExportGlbAsync(
-      CreateAsset(),
+      CreateSpriteEffectsAsset(),
       new MemoryStream(),
-      profile: new GltfOperationProfile(
-        32 * 1024 * 1024,
-        32 * 1024 * 1024,
-        4 * 1024 * 1024,
-        32,
-        65536,
-        2,
-        15));
+      profile: new GltfOperationProfile(maxOutputBytes: 1024));
 
     unsupportedResult.Status.Should().Be(OperationStatus.Failed);
     unsupportedResult.Diagnostics.Select(item => item.Code).Should()
@@ -305,7 +416,7 @@ public class DynamicGltfInterchangeTests
     try
     {
       var path = Path.Combine(directory, "effect.gltf");
-      var asset = CreateAsset();
+      var asset = CreateSpriteEffectsAsset();
       var interchange = new GltfInterchange();
       var export = await interchange.ExportGltfFileAsync(
         asset,
@@ -326,6 +437,53 @@ public class DynamicGltfInterchangeTests
   }
 
   [Fact]
+  public async Task NestedSpriteEffectsRoundTripExactlyThroughBothPackageForms()
+  {
+    var asset = CreateSpriteEffectsAsset();
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var glbExport = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(_lineageId, _documentId));
+    glbExport.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(glbExport.Diagnostics));
+    glb.Position = 0;
+
+    var glbImport = await interchange.ImportEditDynamicGlbAsync(
+      glb,
+      glbExport.Value!.Baseline);
+
+    glbImport.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(glbImport.Diagnostics));
+    glbImport.Value!.Asset.GetSerializedRepresentation().Should()
+      .Equal(asset.GetSerializedRepresentation());
+
+    var directory = Path.Combine(Path.GetTempPath(), $"earthtool-sprite-gltf-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(directory);
+    try
+    {
+      var path = Path.Combine(directory, "effects.gltf");
+      var gltfExport = await interchange.ExportGltfFileAsync(
+        asset,
+        path,
+        new GltfExportOptions(_lineageId, _documentId));
+      gltfExport.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(gltfExport.Diagnostics));
+
+      var gltfImport = await interchange.ImportEditDynamicGltfFileAsync(
+        path,
+        gltfExport.Value!.Baseline);
+
+      gltfImport.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(gltfImport.Diagnostics));
+      gltfImport.Value!.Asset.GetSerializedRepresentation().Should()
+        .Equal(asset.GetSerializedRepresentation());
+      gltfImport.Value.NextExportOptions.DynamicObjectIds.Should().Equal(1, 2, 3, 4, 5);
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
   public async Task DynamicPackagesPassKhronosValidation()
   {
     var directory = Path.Combine(Path.GetTempPath(), $"earthtool-dynamic-validation-{Guid.NewGuid():N}");
@@ -335,7 +493,7 @@ public class DynamicGltfInterchangeTests
       var glbPath = Path.Combine(directory, "effect.glb");
       var gltfPath = Path.Combine(directory, "effect.gltf");
       var groupPath = Path.Combine(directory, "group.glb");
-      var asset = CreateAsset();
+      var asset = CreateSpriteEffectsAsset();
       var interchange = new GltfInterchange();
       (await interchange.ExportGlbFileAsync(asset, glbPath)).Status.Should()
         .Be(OperationStatus.Succeeded);
@@ -474,6 +632,122 @@ public class DynamicGltfInterchangeTests
     extension.TexturePathBytes.Should().Equal(original.TexturePathBytes);
   }
 
+  [Fact]
+  public async Task FlatExplosionPreviewEditRegeneratesOnlyOwnedRepresentations()
+  {
+    var asset = CreateSpriteEffectsAsset();
+    var original = asset.RootDynamicObject.Children[1].Children[0].Extension;
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      package,
+      new GltfExportOptions(_lineageId, _documentId));
+    var edited = RewriteGlb(package.ToArray(), (root, binary) =>
+    {
+      root["materials"]![3]!["pbrMetallicRoughness"]!["baseColorFactor"] =
+        new JsonArray(0.9f, 0.8f, 0.7f, 0.6f);
+      var accessor = root["accessors"]![12]!;
+      var view = root["bufferViews"]![accessor["bufferView"]!.GetValue<int>()]!;
+      var offset = view["byteOffset"]!.GetValue<int>();
+      var positions = new[]
+      {
+        new Vector3(-10, 2, 40),
+        new Vector3(30, 2, 40),
+        new Vector3(30, 2, -20),
+        new Vector3(-10, 2, -20)
+      };
+      for (var index = 0; index < positions.Length; index++)
+      {
+        WriteVector3(binary, offset + index * 12, positions[index]);
+      }
+      accessor["min"] = new JsonArray(-10, 2, -20);
+      accessor["max"] = new JsonArray(30, 2, 40);
+    });
+    await using var editedStream = new MemoryStream(edited);
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(
+      editedStream,
+      export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
+    var extension = imported.Value!.Asset.RootDynamicObject.Children[1].Children[0].Extension;
+    extension.StartEffectRectangle.Should().Be(new EffectRectangle(-10, 20, 30, -40));
+    extension.EndEffectRectangle.Should().Be(original.EndEffectRectangle);
+    extension.EffectDepthOffset.Should().Be(2);
+    extension.VisibleEffectColor.Should().Be(new Vector3(0.9f, 0.8f, 0.7f));
+    extension.StartAlpha.Should().BeApproximately(0.6f, 0.0001f);
+    extension.EndAlpha.Should().Be(original.EndAlpha);
+    extension.AdditiveFlag.Should().Be(original.AdditiveFlag);
+    extension.LightType.Should().Be(original.LightType);
+    extension.TerrainLightColor.Should().Be(original.TerrainLightColor);
+    extension.TexturePathBytes.Should().Equal(original.TexturePathBytes);
+  }
+
+  [Fact]
+  public async Task TrackMappedExplosionAndSmokeEditsRespectEffectOwnership()
+  {
+    var asset = CreateSpriteEffectsAsset();
+    var originalTrack = asset.RootDynamicObject.Children[0].Extension;
+    var originalSmoke = asset.RootDynamicObject.Children[0].Children[0].Extension;
+    var originalMapped = asset.RootDynamicObject.Children[1].Extension;
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      package,
+      new GltfExportOptions(_lineageId, _documentId));
+    var edited = RewriteGlb(package.ToArray(), (root, binary) =>
+    {
+      root["materials"]![0]!["pbrMetallicRoughness"]!["baseColorFactor"] =
+        new JsonArray(0.1f, 0.2f, 0.3f, 0.7f);
+      root["materials"]![1]!["pbrMetallicRoughness"]!["baseColorFactor"] =
+        new JsonArray(0.15f, 0.1f, 0.05f, 0.7f);
+      root["materials"]![2]!["pbrMetallicRoughness"]!["baseColorFactor"] =
+        new JsonArray(0.6f, 0.5f, 0.4f, 0.7f);
+      var accessor = root["accessors"]![0]!;
+      var view = root["bufferViews"]![accessor["bufferView"]!.GetValue<int>()]!;
+      var offset = view["byteOffset"]!.GetValue<int>();
+      var positions = new[]
+      {
+        new Vector3(-2, 0, 5),
+        new Vector3(4, 0, 5),
+        new Vector3(4, 0, -3),
+        new Vector3(-2, 0, -3)
+      };
+      for (var index = 0; index < positions.Length; index++)
+      {
+        WriteVector3(binary, offset + index * 12, positions[index]);
+      }
+      accessor["min"] = new JsonArray(-2, 0, -3);
+      accessor["max"] = new JsonArray(4, 0, 5);
+    });
+    await using var editedStream = new MemoryStream(edited);
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(
+      editedStream,
+      export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
+    var track = imported.Value!.Asset.RootDynamicObject.Children[0].Extension;
+    var smoke = imported.Value.Asset.RootDynamicObject.Children[0].Children[0].Extension;
+    var mapped = imported.Value.Asset.RootDynamicObject.Children[1].Extension;
+    track.StartEffectRectangle.Should().Be(new EffectRectangle(-2, 3, 4, -5));
+    track.VisibleEffectColor.Should().Be(originalTrack.VisibleEffectColor);
+    track.StartAlpha.Should().BeApproximately(0.7f, 0.0001f);
+    track.EndEffectRectangle.Should().Be(originalTrack.EndEffectRectangle);
+    smoke.VisibleEffectColor.X.Should().BeApproximately(0.3f, 0.0001f);
+    smoke.VisibleEffectColor.Y.Should().BeApproximately(0.2f, 0.0001f);
+    smoke.VisibleEffectColor.Z.Should().BeApproximately(0.1f, 0.0001f);
+    smoke.VisibleTerrainLightGain.Should().Be(originalSmoke.VisibleTerrainLightGain);
+    smoke.EndAlpha.Should().Be(originalSmoke.EndAlpha);
+    mapped.VisibleEffectColor.X.Should().BeApproximately(0.6f, 0.0001f);
+    mapped.VisibleEffectColor.Y.Should().BeApproximately(0.5f, 0.0001f);
+    mapped.VisibleEffectColor.Z.Should().BeApproximately(0.4f, 0.0001f);
+    mapped.EffectDepthOffset.Should().Be(originalMapped.EffectDepthOffset);
+    mapped.TerrainLightColor.Should().Be(originalMapped.TerrainLightColor);
+  }
+
   private static DynamicMeshAsset CreateAsset()
   {
     var sprite = new CanonicalDynamicSpriteSheet(
@@ -511,6 +785,72 @@ public class DynamicGltfInterchangeTests
         Guid.Parse("12345678-9abc-4ef0-9234-56789abcdef0"),
         new MeshAssetLineageId(Guid.Parse("99999999-8888-4777-a666-555555555555")))
       .SetRoot(DynamicEffectRecipes.Group([first, second]))
+      .Build();
+    build.TryGetValue(out var asset).Should().BeTrue();
+    return asset!;
+  }
+
+  private static DynamicMeshAsset CreateSpriteEffectsAsset()
+  {
+    var frames = new CanonicalDynamicFrameSequence(2, 3, 4);
+    var sprite = new CanonicalDynamicSpriteSheet(frames, 5, 2);
+    var alpha = new CanonicalDynamicAlpha(0.8f, 0.2f, DynamicAlphaTiming.LifetimeProgress);
+    var light = new CanonicalDynamicTerrainLight(
+      DynamicLightType.Trapezium,
+      new Vector3(0.1f, 0.2f, 0.3f));
+    var shape = new CanonicalDynamicEffectShape(
+      new EffectRectangle(-1, 2, 3, -4),
+      new EffectRectangle(-5, 6, 7, -8),
+      0.25f);
+    var smoke = DynamicEffectRecipes.Smoke(
+      sprite,
+      shape,
+      "Textures\\fx\\smoke.tex",
+      new Vector3(0.4f, 0.5f, 0.6f),
+      0.5f,
+      alpha,
+      true);
+    var track = DynamicEffectRecipes.Track(
+      frames,
+      shape.StartEffectRectangle,
+      shape.EndEffectRectangle,
+      "Textures\\fx\\track.tex",
+      alpha,
+      false,
+      [smoke]);
+    var flat = DynamicEffectRecipes.FlatExplosion(
+      sprite,
+      shape,
+      "Textures\\fx\\flat.tex",
+      new Vector3(0.7f, 0.8f, 0.9f),
+      alpha,
+      false,
+      light);
+    var mapped = DynamicEffectRecipes.MappedExplosion(
+      frames,
+      shape.StartEffectRectangle,
+      shape.EndEffectRectangle,
+      "Textures\\fx\\mapped.tex",
+      new Vector3(0.2f, 0.3f, 0.4f),
+      alpha,
+      true,
+      light,
+      [flat]);
+    var build = DynamicMeshBuilder.Create(
+        Guid.Parse("12345678-9abc-4ef0-9234-56789abcdef0"),
+        new MeshAssetLineageId(Guid.Parse("99999999-8888-4777-a666-555555555555")))
+      .SetRoot(DynamicEffectRecipes.Group([track, mapped]))
+      .Build();
+    build.TryGetValue(out var asset).Should().BeTrue();
+    return asset!;
+  }
+
+  private static DynamicMeshAsset CreateSingleEffectAsset(CanonicalDynamicObject effect)
+  {
+    var build = DynamicMeshBuilder.Create(
+        Guid.Parse("12345678-9abc-4ef0-9234-56789abcdef0"),
+        new MeshAssetLineageId(Guid.Parse("99999999-8888-4777-a666-555555555555")))
+      .SetRoot(DynamicEffectRecipes.Group([effect]))
       .Build();
     build.TryGetValue(out var asset).Should().BeTrue();
     return asset!;

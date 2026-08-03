@@ -427,7 +427,7 @@ namespace EarthTool.GLTF
       }
     }
 
-    /// <summary>Exports one bounded dynamic Group/Explosion asset as a strictly validated GLB.</summary>
+    /// <summary>Exports one bounded supported dynamic asset as a strictly validated GLB.</summary>
     public async Task<OperationResult<GltfExportReceipt>> ExportGlbAsync(
       DynamicMeshAsset asset,
       Stream destination,
@@ -488,7 +488,7 @@ namespace EarthTool.GLTF
       }
     }
 
-    /// <summary>Transactionally exports one bounded dynamic Group/Explosion asset to a GLB file.</summary>
+    /// <summary>Transactionally exports one bounded supported dynamic asset to a GLB file.</summary>
     public async Task<OperationResult<GltfExportReceipt>> ExportGlbFileAsync(
       DynamicMeshAsset asset,
       string destinationPath,
@@ -538,7 +538,7 @@ namespace EarthTool.GLTF
       }
     }
 
-    /// <summary>Transactionally exports one bounded dynamic Group/Explosion asset as separate glTF.</summary>
+    /// <summary>Transactionally exports one bounded supported dynamic asset as separate glTF.</summary>
     public async Task<OperationResult<GltfExportReceipt>> ExportGltfFileAsync(
       DynamicMeshAsset asset,
       string destinationPath,
@@ -5984,6 +5984,11 @@ namespace EarthTool.GLTF
           dynamicGraph.EventId,
           dynamicGraph.Path,
           dynamicGraph.Message);
+      }
+
+      if (exception is DynamicPreviewException dynamicPreview)
+      {
+        return InvalidGeometry(dynamicPreview.Path, dynamicPreview.Message);
       }
 
       if (exception is StaticLightMetadataException staticLightMetadata)

@@ -11,7 +11,7 @@ A comprehensive suite of tools for working with Earth 2150 game data files.
 - **WD Archives** - Extract, create, and modify WD archive files
 - **TEX Textures** - Convert TEX format to PNG and other image formats
 - **MSH Models** - Safely read, validate, write, and author framed MSH assets
-- **glTF Interchange** - Export static MSH and Group/Explosion dynamic MSH to GLB or glTF
+- **glTF Interchange** - Export static MSH and supported Group/sprite-effect dynamic MSH to GLB or glTF
 - **PAR Parameters** - Parse and edit game parameter files
 - **GUI Applications** - User-friendly graphical interfaces for archive and parameter management
 

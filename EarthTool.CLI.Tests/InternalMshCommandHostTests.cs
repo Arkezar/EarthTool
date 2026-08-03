@@ -65,7 +65,7 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
-  public async Task ExportAcceptsDynamicGroupAndExplosionAndReportsItsAssetKind()
+  public async Task ExportAcceptsSupportedDynamicEffectsAndReportsItsAssetKind()
   {
     using var fixture = await CliFixture.CreateDynamicAsync();
     var reportPath = Path.Combine(fixture.Directory, "dynamic-export-report.json");
@@ -85,6 +85,41 @@ public sealed class InternalMshCommandHostTests
       .ValueKind.Should().Be(JsonValueKind.String);
     operation.GetProperty("identities").GetProperty("fingerprint").GetProperty("name")
       .GetString().Should().Be("dynamic-group-explosion-preview");
+  }
+
+  [Fact]
+  public async Task BatchExportsAllSpriteEffectsAsSeparateGltf()
+  {
+    using var fixture = await CliFixture.CreateDynamicAsync();
+    var inputDirectory = Path.Combine(fixture.Directory, "dynamic-inputs");
+    var outputDirectory = Path.Combine(fixture.Directory, "dynamic-exports");
+    System.IO.Directory.CreateDirectory(inputDirectory);
+    System.IO.Directory.CreateDirectory(outputDirectory);
+    File.Copy(fixture.MshPath, Path.Combine(inputDirectory, "alpha.msh"));
+    File.Copy(fixture.MshPath, Path.Combine(inputDirectory, "zeta.msh"));
+    var reportPath = Path.Combine(fixture.Directory, "dynamic-batch-report.json");
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "export", Path.Combine(inputDirectory, "*.msh"),
+      "--format", "gltf",
+      "--output", outputDirectory,
+      "--report", reportPath
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(CliExitCode.Success);
+    File.Exists(Path.Combine(outputDirectory, "alpha.gltf")).Should().BeTrue();
+    File.Exists(Path.Combine(outputDirectory, "zeta.gltf")).Should().BeTrue();
+    using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+    var operations = report.RootElement.GetProperty("operations").EnumerateArray().ToArray();
+    operations.Should().HaveCount(2);
+    operations.Select(item => item.GetProperty("assetKind").GetString()).Should()
+      .OnlyContain(item => item == "dynamic");
+    operations.Select(item => item.GetProperty("package").GetString()).Should()
+      .OnlyContain(item => item == "gltf");
+    operations.SelectMany(item => item.GetProperty("diagnostics").EnumerateArray())
+      .Select(item => item.GetProperty("code").GetString()).Should()
+      .NotContain(GltfDiagnosticCodes.UnsupportedDomain);
   }
 
   [Fact]
@@ -732,21 +767,52 @@ public sealed class InternalMshCommandHostTests
     {
       var fixture = new CliFixture(Path.Combine(Path.GetTempPath(), $"earthtool-cli-{Guid.NewGuid():N}"));
       System.IO.Directory.CreateDirectory(fixture.Directory);
-      var explosion = DynamicEffectRecipes.Explosion(
-        new CanonicalDynamicSpriteSheet(new CanonicalDynamicFrameSequence(0, 1, 0), 1, 1),
-        new CanonicalDynamicEffectShape(
-          new EffectRectangle(-1, 1, 1, -1),
-          new EffectRectangle(-2, 2, 2, -2),
-          0.25f),
-        "Textures\\fx\\explosion.tex",
+      var frames = new CanonicalDynamicFrameSequence(0, 1, 1);
+      var sprite = new CanonicalDynamicSpriteSheet(frames, 1, 1);
+      var shape = new CanonicalDynamicEffectShape(
+        new EffectRectangle(-1, 1, 1, -1),
+        new EffectRectangle(-2, 2, 2, -2),
+        0.25f);
+      var alpha = new CanonicalDynamicAlpha(1, 0, DynamicAlphaTiming.LifetimeProgress);
+      var light = new CanonicalDynamicTerrainLight(DynamicLightType.Pyramid, Vector3.One);
+      var smoke = DynamicEffectRecipes.Smoke(
+        sprite,
+        shape,
+        "Textures\\fx\\smoke.tex",
         new Vector3(1, 0.5f, 0.25f),
-        new CanonicalDynamicAlpha(1, 0, DynamicAlphaTiming.LifetimeProgress),
+        1,
+        alpha,
+        false);
+      var track = DynamicEffectRecipes.Track(
+        frames,
+        shape.StartEffectRectangle,
+        shape.EndEffectRectangle,
+        "Textures\\fx\\track.tex",
+        alpha,
+        false,
+        [smoke]);
+      var flat = DynamicEffectRecipes.FlatExplosion(
+        sprite,
+        shape,
+        "Textures\\fx\\flat.tex",
+        new Vector3(0.25f, 0.5f, 1),
+        alpha,
+        false,
+        light);
+      var mapped = DynamicEffectRecipes.MappedExplosion(
+        frames,
+        shape.StartEffectRectangle,
+        shape.EndEffectRectangle,
+        "Textures\\fx\\mapped.tex",
+        new Vector3(0.5f, 1, 0.25f),
+        alpha,
         true,
-        new CanonicalDynamicTerrainLight(DynamicLightType.Pyramid, Vector3.One));
+        light,
+        [flat]);
       var build = DynamicMeshBuilder.Create(
           Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"),
           new MeshAssetLineageId(Guid.Parse("11111111-2222-4333-8444-555555555555")))
-        .SetRoot(DynamicEffectRecipes.Group([explosion]))
+        .SetRoot(DynamicEffectRecipes.Group([track, mapped]))
         .Build();
       build.TryGetValue(out var asset).Should().BeTrue();
       var write = await new MshWriter().WriteFileAsync(asset!, fixture.MshPath);

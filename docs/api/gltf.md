@@ -39,37 +39,68 @@ winding and triangle multiplicity. The manifest records the preserved MSH byte
 length and SHA-256 as informational provenance; a contradiction reports
 `ETG2017` but never authorizes preservation state.
 
-## Dynamic Group and Explosion contract
+## Dynamic sprite-effect contract
 
 Dynamic exports use additive overloads that accept `DynamicMeshAsset`; existing
 static overloads remain strongly typed. Metadata version 2 identifies the
 dynamic package explicitly. The manifest contains the complete exact source MSH,
 an ordered object-scope inventory, a non-reusable next-ID boundary, and the
-`dynamic-group-explosion-preview` projection name/version/fingerprint. Every
+historical `dynamic-group-explosion-preview` projection name/version/fingerprint,
+which remains stable for version 1 packages while covering the expanded sprite
+family. Every
 object node has one stable local scope ID, its exact effect declaration, its
 ordered child IDs, exact inherited header and effect bytes, resource bindings,
 and a named/versioned ordered-child guard.
 
 `Group` is a native transform node with ordered children and no mesh, material,
-or synthetic effect geometry. `Explosion` is a deterministic stock-Blender
-preview: an unlit double-sided quad uses the start rectangle and depth offset,
-the node uses child start translation, UVs select the declared first source
-frame, and base color uses visible RGB plus start alpha. TEX lookup uses the same
-bounded root order and diagnostic/default fallback as static materials. Core
-glTF does not express game billboard orientation, additive blending, frame
-advance, alpha timing, random terrain-light behavior, or terrain lighting.
-EarthTool therefore does not claim runtime equivalence for the preview.
+or synthetic effect geometry. `Explosion`, `Track`, `MappedExplosion`,
+`FlatExplosion`, and `Smoke` receive unlit, double-sided stock-Blender preview
+quads. `Explosion` retains its version 1 declaration-start billboard. The four
+expanded effects use explicit deterministic inputs: total lifetime 100 ticks,
+remaining lifetime 100 ticks, global tick 0, texture scale 1, lifetime alpha
+progress 0, sampled terrain light `(1,1,1)`, output color scale 1, and terrain
+light random sample 0. A parent preview phase of 0 selects child start
+translation.
 
-Native edits own only ordered parent/child relationships, child start
-translation, the Explosion start rectangle and depth, visible RGB, and start
-alpha. Import rewrites those exact fields and record order while retaining end
-translation, end rectangle, full frame domain, alpha timing and end alpha,
-exact additive integer, light type/color/gain, reserved and inert fields,
-resource bytes, inherited headers, and trailing bytes. Unchanged import returns
-the exact source representation. Duplicate, missing, foreign, stale, dangling,
-or ambiguous scopes fail before a dynamic snapshot is returned. Other recognized
-effect families report `ETG1002`; unknown serialized values remain exact and are
-never converted to catch-all enum values.
+Core glTF material factors are limited to zero through one. Finite MSH colors,
+alpha, or gains that evaluate outside that range are clamped only in the preview
+and made read-only for that native material; their exact authoritative values
+remain in scoped metadata and round-trip unchanged. Non-finite active values are
+rejected instead of being normalized.
+
+The native preview behavior is effect-specific:
+
+| Effect | Shape and TEX region | Color, alpha, light, and hierarchy |
+| --- | --- | --- |
+| `Track` | Horizontal XZ quad approximating the runtime terrain-cell decal bounds; full decoded TEX image because atlas declarations are inactive | Neutral white deterministic terrain color; semantic alpha; no terrain-light preview; ordered children and child translation remain native |
+| `MappedExplosion` | Horizontal XZ quad approximating the runtime terrain-cell decal bounds; full decoded TEX image | Serialized visible RGB and semantic alpha; evaluated terrain light remains metadata-only; ordered children participate normally |
+| `FlatExplosion` | Horizontal XZ quad at the serialized local-plane depth; UVs use the selected source frame and exact reciprocal atlas values | Serialized visible RGB and semantic alpha; evaluated terrain light remains metadata-only; ordered children participate normally |
+| `Smoke` | Vertical XY billboard snapshot at the camera-depth offset; UVs use the selected source frame and exact reciprocal atlas values | Visible RGB is modulated by the explicit white terrain sample and serialized gain; semantic alpha; no terrain-light producer; ordered children participate normally |
+
+TEX lookup uses the same bounded root order and diagnostic/default fallback as
+static materials. Missing or unsafe resources retain their exact binding and
+receive deterministic diagnostics and, where available, the diagnostic preview.
+Core glTF `BLEND` is only an artist preview: it cannot express the game's
+additive `ONE,ONE` behavior. Core glTF also cannot express runtime billboard
+orientation, terrain tessellation, frame advance, terrain lighting, or random
+light behavior. Exact additive flags, resource bytes, light values, frame and
+atlas declarations, reciprocals, and inactive representations therefore remain
+metadata authority rather than claims of runtime equivalence.
+
+Native edits own ordered parent/child relationships, child start translation,
+and the displayed rectangle and alpha start representation. Depth edits are
+owned by `Explosion`, `FlatExplosion`, and `Smoke`; visible RGB edits are owned
+by every preview except `Track`. Smoke RGB edits are inverted through the
+documented deterministic light sample only when its gain is invertible. Import
+retains end translation, end rectangle, full frame domain, alpha timing and end
+alpha, exact additive integer, light type/color/gain, reserved and inactive
+fields, resource bytes, inherited headers, and trailing bytes. Unchanged import
+returns the exact source representation. Invalid active frame or atlas capacity,
+and non-finite active value domains report scoped `ETG1006` diagnostics without
+partial output. Duplicate, missing, foreign, stale, dangling, or ambiguous
+scopes fail before a dynamic snapshot is returned. Other recognized effect
+families report `ETG1002`; unknown serialized values remain exact and are never
+converted to catch-all enum values.
 
 Use `ImportEditDynamicGlbAsync` or `ImportEditDynamicGltfFileAsync` when the
 caller knows the package kind. `ImportEditMeshGlbAsync` and
