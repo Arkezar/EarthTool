@@ -29,7 +29,7 @@
     <PackageVersion Include="Spectre.Console.Cli" Version="0.55.0" />
   </ItemGroup>
   <ItemGroup Label="Graphics Packages">
-    <PackageVersion Include="SkiaSharp" Version="4.150.1" />
+    <PackageVersion Include="SkiaSharp" Version="4.151.0" />
     <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.150.1" />
   </ItemGroup>
   <ItemGroup Label="Test Packages">
