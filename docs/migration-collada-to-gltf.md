@@ -78,5 +78,20 @@ assets, options, plans, reports, operation results, streams, and paths with
 6. Treat metadata conflicts as explicit decisions; do not strip metadata to
    force an edit import through the new-model path.
 
+## Attachment helper name migration
+
+Attachment artist-object names are a case-sensitive contract. Existing glTF
+files using the earlier `ET_Attachment_...`, `ET_Cannon_..._Attachment_...`, or
+light names ending in `_Attachment_...` must be renamed before name-driven
+new-model import. EarthTool deliberately does not treat the former names as
+aliases. Export a fresh baseline for edit-import workflows whenever possible;
+its metadata identities remain authoritative independently of display names.
+
+The current identifiers are listed in the
+[attachment identifier cheat sheet](mesh-artist-quickstart.md#attachment-identifier-cheat-sheet).
+Matching `ET_Emitter_n` objects may now be children of `ET_Turret_n`; use a
+fresh export to obtain the correct relative transform and marker-attachment
+flag-dependent hierarchy.
+
 See the [quick start](quickstart.md), [MSH API](api/msh.md), and
 [glTF API](api/gltf.md) for the current contracts.

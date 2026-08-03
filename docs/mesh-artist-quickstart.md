@@ -160,28 +160,30 @@ New-model import creates a static MSH. A material with a base-color image also n
 
 ## Attachment Identifier Cheat Sheet
 
-Attachments are childless Blender Empty nodes unless the table says **Light**. Keep them inside the model's single rooted object tree, preferably as direct children of its root. Canonical names are case-sensitive and identify the physical MSH target. The legacy code is the name used by the original AOD converter and game research.
+Attachments are Blender Empty nodes unless the table says **Light**. Keep them inside the model's single rooted object tree. Most are direct children of its root; matching turret and emitter helpers use the hierarchy described below. Canonical names are case-sensitive and identify the physical MSH target. The legacy code is the name used by the original AOD converter and game research.
 
 | Physical records | Blender identifier(s) | Legacy ID | Purpose |
 |---:|---|---|---|
-| `1..4` | `ET_Cannon_1_Attachment_1` through `ET_Cannon_4_Attachment_4` | `BC1..4`, `SC1..4` | Combined full-precision render position, quantized weapon mount, center heading, and yaw limit. One helper is emitted per active slot; translation edits both position records, heading rotation edits only the attachment direction, finite scale is ignored, and the yaw-limit byte remains preserved. `BC` and `SC` are aliases. |
-| `5..8` | `ET_Attachment_05_Marker_1` through `ET_Attachment_08_Marker_4` | `MI1..4` | Attaches render objects by marker bit. `MI1` also anchors effects and projectiles. |
-| `9..12` | `ET_Attachment_09_SS_1` through `ET_Attachment_12_SS_4` | `SS1..4` | `SS1` supplies a position relative to the owner. No normal consumer for `SS2..4` is confirmed. |
-| `13..16` | `ET_SpotLight_1_Attachment_13` through `ET_SpotLight_4_Attachment_16` | Spot lights `1..4` | **Spot Light** objects. Position both drives the light and occupies the corresponding quantized attachment record. New-model lights need a positive custom distance/range or a plan-supplied target distance. |
-| `17..20` | `ET_OmniLight_1_Attachment_17` through `ET_OmniLight_4_Attachment_20` | Omni lights `1..4` | **Point Light** objects. Position both drives the light and occupies the corresponding quantized attachment record. |
-| `21..24` | `ET_Attachment_21_Transport_1` through `ET_Attachment_24_Transport_4` | `TR1..4` | Transport and placement matching; `TR1..3` are observed in game assets. |
-| `25..28` | `ET_Attachment_25_HT_1` through `ET_Attachment_28_HT_4` | `HT1..4` | Four optional world positions; the game can select the nearest present slot. |
-| `29..32` | `ET_Attachment_29_SmokeEffect_1` through `ET_Attachment_32_SmokeEffect_4` | `SM1..4` | Optional effect or smoke positions with nearest-slot selection. |
-| `33..36` | `ET_Attachment_33_WT_1` through `ET_Attachment_36_WT_4` | `WT1..4` | Preserved slots; no normal gameplay transform consumer is confirmed in the examined build. |
-| `37..38` | `ET_Attachment_37_CH_1`, `ET_Attachment_38_CH_2` | `CH1..2` | Paired emitter anchors used by direct setup paths. |
-| `39..40` | `ET_Attachment_39_ST_1`, `ET_Attachment_40_ST_2` | `ST1..2` | Paired state-specific emitter anchors. |
-| `41..42` | `ET_Attachment_41_SE_1`, `ET_Attachment_42_SE_2` | `SE1..2` | Paired general effect-emitter anchors. |
-| `43..44` | `ET_Attachment_43_SK_1`, `ET_Attachment_44_SK_2` | `SK1..2` | Paired general effect-emitter anchors using the alternate setup mode. |
-| `45` | `ET_Attachment_45_ChildAlignment_1` | `IN0` or `IN1` | Child alignment offset subtracted from a parent `MI` anchor. Original AOD commonly uses number `0`. |
-| `46` | `ET_Attachment_46_Center_1` | `CE0` or `CE1` | General center anchor for placement, previews, HUD, and render auxiliaries. Original AOD commonly uses number `0`. |
-| `47` | `ET_Attachment_47_Production_1` | `PR1` | Production and placement position plus heading. |
-| `48` | `ET_Attachment_48_Movement_1` | `MV1` | Movement and placement position plus heading; paired with production. |
-| `49` | `ET_Attachment_49_Landing_1` | `LN1` | Landing and placement position plus heading. |
+| `1..4` | `ET_Turret_1` through `ET_Turret_4` | `BC1..4`, `SC1..4` | Combined full-precision render position, quantized weapon mount, center heading, and yaw limit. One helper is emitted per active slot; translation edits both position records, heading rotation edits only the attachment direction, finite scale is ignored, and the yaw-limit byte remains preserved. `BC` and `SC` are aliases. |
+| `5..8` | `ET_Emitter_1` through `ET_Emitter_4` | `MI1..4` | Attaches render objects by marker bit. `MI1` also anchors effects and projectiles. |
+| `9..12` | `ET_TurretMuzzle_1` through `ET_TurretMuzzle_4` | `SS1..4` | `SS1` supplies a position relative to the owner. No normal consumer for `SS2..4` is confirmed. |
+| `13..16` | `ET_SpotLight_1` through `ET_SpotLight_4` | Spot lights `1..4` | **Spot Light** objects. Position both drives the light and occupies the corresponding quantized attachment record. New-model lights need a positive custom distance/range or a plan-supplied target distance. |
+| `17..20` | `ET_OmniLight_1` through `ET_OmniLight_4` | Omni lights `1..4` | **Point Light** objects. Position both drives the light and occupies the corresponding quantized attachment record. |
+| `21..24` | `ET_UnloadPoint_1` through `ET_UnloadPoint_4` | `TR1..4` | Transport and placement matching; `TR1..3` are observed in game assets. |
+| `25..28` | `ET_HitPoint_1` through `ET_HitPoint_4` | `HT1..4` | Four optional world positions; the game can select the nearest present slot. |
+| `29..32` | `ET_SmokePoint_1` through `ET_SmokePoint_4` | `SM1..4` | Optional effect or smoke positions with nearest-slot selection. |
+| `33..36` | `ET_WT_1` through `ET_WT_4` | `WT1..4` | Preserved slots; no normal gameplay transform consumer is confirmed in the examined build. |
+| `37..38` | `ET_Chimney_1`, `ET_Chimney_2` | `CH1..2` | Paired emitter anchors used by direct setup paths. |
+| `39..40` | `ET_SmokeTrace_1`, `ET_SmokeTrace_2` | `ST1..2` | Paired state-specific emitter anchors. |
+| `41..42` | `ET_Exhaust_1`, `ET_Exhaust_2` | `SE1..2` | Paired general effect-emitter anchors. |
+| `43..44` | `ET_KeelTrace_1`, `ET_KeelTrace_2` | `SK1..2` | Paired general effect-emitter anchors using the alternate setup mode. |
+| `45` | `ET_InterfacePivot_1` | `IN0` or `IN1` | Child alignment offset subtracted from a parent `MI` anchor. Original AOD commonly uses number `0`. |
+| `46` | `ET_CenterPivot_1` | `CE0` or `CE1` | General center anchor for placement, previews, HUD, and render auxiliaries. Original AOD commonly uses number `0`. |
+| `47` | `ET_ProductionSpotStart_1` | `PR1` | Production and placement position plus heading. |
+| `48` | `ET_ProductionSpotEnd_1` | `MV1` | Movement and placement position and heading, paired with production. |
+| `49` | `ET_LandingSpot_1` | `LN1` | Landing and placement position plus heading. |
+
+When object flag `MarkerAttachment1` (`MI1`, `0x00001000`), `MarkerAttachment2` (`MI2`, `0x00002000`), `MarkerAttachment3` (`MI3`, `0x00004000`), or `MarkerAttachment4` (`MI4`, `0x00008000`) is present and both matching helpers are active, export places `ET_Emitter_n` under `ET_Turret_n`. The emitter transform is relative to the turret, so moving the turret in Blender carries its emitter. If the marker flag, turret, or emitter is missing, export preserves any active emitter under the model root and reports `ETG1027` rather than dropping it. A marker flag without an active emitter also reports `ETG1027`.
 
 ### Directional Empty Presentation In Blender
 
@@ -191,15 +193,15 @@ glTF cannot prescribe Blender viewport Empty display shapes. As a Blender-only p
 import bpy
 
 directional_helpers = {
-    f"ET_Cannon_{number}_Attachment_{number}" for number in range(1, 5)
+    f"ET_Turret_{number}" for number in range(1, 5)
 }
 directional_helpers.update(
-    f"ET_Attachment_{number + 20:02d}_Transport_{number}" for number in range(1, 5)
+    f"ET_UnloadPoint_{number}" for number in range(1, 5)
 )
 directional_helpers.update({
-    "ET_Attachment_47_Production_1",
-    "ET_Attachment_48_Movement_1",
-    "ET_Attachment_49_Landing_1",
+    "ET_ProductionSpotStart_1",
+    "ET_ProductionSpotEnd_1",
+    "ET_LandingSpot_1",
 })
 
 for obj in bpy.context.scene.objects:
@@ -214,7 +216,7 @@ This changes only the Blender viewport presentation; it does not add glTF or MSH
 - The file is GLB or separate glTF 2.0 and has one intended scene.
 - Existing edits still contain their `earthtool` custom properties.
 - New objects have no copied EarthTool object or mesh identity.
-- Attachment helper names match the table exactly and helpers have no mesh or children.
+- Attachment helper names match the table exactly and helpers have no mesh. Only matching `ET_Turret_n` helpers may have an `ET_Emitter_n` child.
 - The scene is 24 FPS; animation names and frame limits follow the animation section above.
 - Geometry is triangular, finite, and has normals; textured primitives have UVs.
 - Blender export includes Extras, Attributes, Lights, and Animations.

@@ -59,6 +59,7 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String DanglingMetadataReference = "ETG2013"
   field System.String DocumentMismatch = "ETG2007"
   field System.String DuplicateScopeIdentity = "ETG2009"
+  field System.String EmitterHierarchyFallback = "ETG1027"
   field System.String ImportPlanMismatch = "ETG3004"
   field System.String ImportPlanResourceLimitExceeded = "ETG3002"
   field System.String InertDataIgnored = "ETG1019"

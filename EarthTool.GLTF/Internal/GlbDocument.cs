@@ -2765,10 +2765,31 @@ namespace EarthTool.GLTF.Internal
       var attachments = ProjectAttachments(asset);
       var cannons = ProjectCannons(asset);
       var staticLights = ProjectStaticLights(asset);
+      var turretsByNumber = cannons.ToDictionary(cannon => cannon.PhysicalNumber);
+      var nestedEmitterNumbers = Enumerable.Range(1, 4)
+        .Where(number => GetEmitterHierarchyState(asset, number) is (true, true, true))
+        .ToHashSet();
+      var parentedEmitters = attachments
+        .Where(attachment => attachment.PhysicalNumber is >= 5 and <= 8
+          && turretsByNumber.ContainsKey(attachment.PhysicalNumber - 4)
+          && nestedEmitterNumbers.Contains(attachment.PhysicalNumber - 4))
+        .ToDictionary(
+          attachment => attachment.PhysicalNumber,
+          attachment => turretsByNumber[attachment.PhysicalNumber - 4]);
       var placementRootIndex = sources.Length
         + attachments.Count
         + cannons.Count
         + staticLights.Count;
+      var attachmentNodeIndices = attachments
+        .Select((attachment, index) => new
+        {
+          attachment.PhysicalNumber,
+          Index = sources.Length + index
+        })
+        .ToDictionary(item => item.PhysicalNumber, item => item.Index);
+      var parentedEmitterNodeIndices = parentedEmitters.Keys
+        .Select(physicalNumber => attachmentNodeIndices[physicalNumber])
+        .ToHashSet();
       var nodeIndices = sources
         .Select((source, index) => new { source.Id, Index = index })
         .ToDictionary(item => item.Id, item => item.Index);
@@ -2893,7 +2914,11 @@ namespace EarthTool.GLTF.Internal
                 index < attachments.Count + cannons.Count + staticLights.Count;
                 index++)
               {
-                writer.WriteNumberValue(helperIndex + index);
+                var nodeIndex = helperIndex + index;
+                if (!parentedEmitterNodeIndices.Contains(nodeIndex))
+                {
+                  writer.WriteNumberValue(nodeIndex);
+                }
               }
             }
 
@@ -2916,7 +2941,15 @@ namespace EarthTool.GLTF.Internal
         {
           writer.WriteStartObject();
           writer.WriteString("name", GetAttachmentHelperName(attachment.PhysicalNumber));
-          WriteTransform(writer, attachment.Translation, attachment.Rotation);
+          if (parentedEmitters.TryGetValue(attachment.PhysicalNumber, out var turret))
+          {
+            var relative = CreateRelativeTransform(attachment, turret);
+            WriteTransform(writer, relative.Translation, relative.Rotation);
+          }
+          else
+          {
+            WriteTransform(writer, attachment.Translation, attachment.Rotation);
+          }
           WriteExtras(writer, CreateAttachmentMetadata(baseline, attachment, unknownMetadata));
           writer.WriteEndObject();
         }
@@ -2925,6 +2958,13 @@ namespace EarthTool.GLTF.Internal
           writer.WriteStartObject();
           writer.WriteString("name", GetCannonHelperName(cannon.PhysicalNumber));
           WriteTransform(writer, cannon.Translation, cannon.Rotation);
+          var emitterPhysicalNumber = cannon.PhysicalNumber + 4;
+          if (parentedEmitters.ContainsKey(emitterPhysicalNumber))
+          {
+            writer.WriteStartArray("children");
+            writer.WriteNumberValue(attachmentNodeIndices[emitterPhysicalNumber]);
+            writer.WriteEndArray();
+          }
           WriteExtras(writer, CreateCannonMetadata(baseline, cannon, unknownMetadata));
           writer.WriteEndObject();
         }
@@ -4615,6 +4655,93 @@ namespace EarthTool.GLTF.Internal
       return new Vector3(value.X, value.Z, -value.Y);
     }
 
+    internal static bool HasMarkerAttachment(StaticMeshAsset asset, int number)
+    {
+      var flag = number switch
+      {
+        1 => StaticRenderObjectFlags.MarkerAttachment1,
+        2 => StaticRenderObjectFlags.MarkerAttachment2,
+        3 => StaticRenderObjectFlags.MarkerAttachment3,
+        4 => StaticRenderObjectFlags.MarkerAttachment4,
+        _ => throw new ArgumentOutOfRangeException(nameof(number))
+      };
+      return asset.StaticRenderObjectSequence.Any(renderObject =>
+        (renderObject.KnownFlags & flag) != 0);
+    }
+
+    internal static (bool TurretActive, bool EmitterActive, bool MarkerPresent)
+      GetEmitterHierarchyState(StaticMeshAsset asset, int number)
+    {
+      if (number is < 1 or > 4)
+      {
+        throw new ArgumentOutOfRangeException(nameof(number));
+      }
+      var attachments = asset.CommonBaseHeader.AttachmentTable.ToArray();
+      var turretActive = BinaryPrimitives.ReadInt16LittleEndian(
+        attachments.AsSpan((number - 1) * 8, 8)) != short.MinValue;
+      var emitterActive = BinaryPrimitives.ReadInt16LittleEndian(
+        attachments.AsSpan((number + 3) * 8, 8)) != short.MinValue;
+      return (turretActive, emitterActive, HasMarkerAttachment(asset, number));
+    }
+
+    private static (Vector3 Translation, Quaternion Rotation) CreateRelativeTransform(
+      ProjectedAttachment emitter,
+      ProjectedCannon turret)
+    {
+      var turretTransform = Matrix4x4.CreateFromQuaternion(turret.Rotation)
+        * Matrix4x4.CreateTranslation(turret.Translation);
+      if (!Matrix4x4.Invert(turretTransform, out var inverseTurret))
+      {
+        throw new InvalidOperationException("A turret helper transform must be invertible.");
+      }
+
+      var targetTranslation = emitter.Translation;
+      for (var attempt = 0; attempt < 3; attempt++)
+      {
+        // Fixed-point values sit on a truncation boundary; stay inside the same bin after parent transforms.
+        targetTranslation = new Vector3(
+          MoveInsideTruncationBin(targetTranslation.X),
+          MoveInsideTruncationBin(targetTranslation.Y),
+          MoveInsideTruncationBin(targetTranslation.Z));
+        var emitterTransform = Matrix4x4.CreateFromQuaternion(emitter.Rotation)
+          * Matrix4x4.CreateTranslation(targetTranslation);
+        if (Matrix4x4.Decompose(
+            emitterTransform * inverseTurret,
+            out _,
+            out var rotation,
+            out var translation))
+        {
+          var normalizedRotation = Quaternion.Normalize(rotation);
+          var effective = Matrix4x4.CreateFromQuaternion(normalizedRotation)
+            * Matrix4x4.CreateTranslation(translation)
+            * turretTransform;
+          if (QuantizesToAttachment(effective.Translation, emitter.Record))
+          {
+            return (translation, normalizedRotation);
+          }
+        }
+      }
+      throw new InvalidOperationException("An emitter helper transform could not preserve its attachment record.");
+    }
+
+    private static float MoveInsideTruncationBin(float value)
+    {
+      const float bias = 1f / 1024;
+      return value switch
+      {
+        > 0 => value + bias,
+        < 0 => value - bias,
+        _ => 0
+      };
+    }
+
+    private static bool QuantizesToAttachment(Vector3 translation, byte[] record)
+    {
+      return Math.Truncate(translation.X * 256d) == BinaryPrimitives.ReadInt16LittleEndian(record)
+        && Math.Truncate(translation.Z * 256d) == BinaryPrimitives.ReadInt16LittleEndian(record.AsSpan(2))
+        && Math.Truncate(translation.Y * 256d) == BinaryPrimitives.ReadInt16LittleEndian(record.AsSpan(4));
+    }
+
     private static IReadOnlyList<ProjectedAttachment> ProjectAttachments(StaticMeshAsset asset)
     {
       var table = asset.CommonBaseHeader.AttachmentTable.ToArray();
@@ -4840,27 +4967,27 @@ namespace EarthTool.GLTF.Internal
       {
         throw new ArgumentOutOfRangeException(nameof(physicalNumber));
       }
-      var (range, localNumber) = physicalNumber switch
+      var (artistLabel, localNumber) = physicalNumber switch
       {
-        <= 8 => ("Marker", physicalNumber - 4),
-        <= 12 => ("SS", physicalNumber - 8),
+        <= 8 => ("Emitter", physicalNumber - 4),
+        <= 12 => ("TurretMuzzle", physicalNumber - 8),
         <= 16 => ("SpotLight", physicalNumber - 12),
         <= 20 => ("OmniLight", physicalNumber - 16),
-        <= 24 => ("Transport", physicalNumber - 20),
-        <= 28 => ("HT", physicalNumber - 24),
-        <= 32 => ("SmokeEffect", physicalNumber - 28),
+        <= 24 => ("UnloadPoint", physicalNumber - 20),
+        <= 28 => ("HitPoint", physicalNumber - 24),
+        <= 32 => ("SmokePoint", physicalNumber - 28),
         <= 36 => ("WT", physicalNumber - 32),
-        <= 38 => ("CH", physicalNumber - 36),
-        <= 40 => ("ST", physicalNumber - 38),
-        <= 42 => ("SE", physicalNumber - 40),
-        <= 44 => ("SK", physicalNumber - 42),
-        45 => ("ChildAlignment", 1),
-        46 => ("Center", 1),
-        47 => ("Production", 1),
-        48 => ("Movement", 1),
-        _ => ("Landing", 1)
+        <= 38 => ("Chimney", physicalNumber - 36),
+        <= 40 => ("SmokeTrace", physicalNumber - 38),
+        <= 42 => ("Exhaust", physicalNumber - 40),
+        <= 44 => ("KeelTrace", physicalNumber - 42),
+        45 => ("InterfacePivot", 1),
+        46 => ("CenterPivot", 1),
+        47 => ("ProductionSpotStart", 1),
+        48 => ("ProductionSpotEnd", 1),
+        _ => ("LandingSpot", 1)
       };
-      return $"ET_Attachment_{physicalNumber:00}_{range}_{localNumber}";
+      return $"ET_{artistLabel}_{localNumber}";
     }
 
     internal static bool TryParseAttachmentHelperName(string? name, out int physicalNumber)
@@ -4883,7 +5010,7 @@ namespace EarthTool.GLTF.Internal
       {
         throw new ArgumentOutOfRangeException(nameof(physicalNumber));
       }
-      return $"ET_Cannon_{physicalNumber}_Attachment_{physicalNumber}";
+      return $"ET_Turret_{physicalNumber}";
     }
 
     internal static bool TryParseCannonHelperName(string? name, out int physicalNumber)
@@ -4902,8 +5029,8 @@ namespace EarthTool.GLTF.Internal
     internal static string GetStaticLightHelperName(string type, int physicalNumber)
     {
       return type == "spot"
-        ? $"ET_SpotLight_{physicalNumber}_Attachment_{physicalNumber + 12}"
-        : $"ET_OmniLight_{physicalNumber}_Attachment_{physicalNumber + 16}";
+        ? $"ET_SpotLight_{physicalNumber}"
+        : $"ET_OmniLight_{physicalNumber}";
     }
 
     internal static bool TryParseStaticLightHelperName(

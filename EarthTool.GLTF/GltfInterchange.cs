@@ -70,7 +70,8 @@ namespace EarthTool.GLTF
         var animationDiagnostics = CreateAnimationDiagnostics(asset, baseline);
         var projectionDiagnostics = animationDiagnostics
           .Concat(CreateCannonRenderPositionDiagnostics(asset))
-          .Concat(CreateStaticLightDiagnostics(asset)).ToArray();
+          .Concat(CreateStaticLightDiagnostics(asset))
+          .Concat(CreateEmitterHierarchyDiagnostics(asset)).ToArray();
         var metadataLength = GlbDocument.GetMaximumMetadataByteCount(
           asset,
           baseline,
@@ -234,7 +235,8 @@ namespace EarthTool.GLTF
         var animationDiagnostics = CreateAnimationDiagnostics(asset, baseline);
         var projectionDiagnostics = animationDiagnostics
           .Concat(CreateCannonRenderPositionDiagnostics(asset))
-          .Concat(CreateStaticLightDiagnostics(asset)).ToArray();
+          .Concat(CreateStaticLightDiagnostics(asset))
+          .Concat(CreateEmitterHierarchyDiagnostics(asset)).ToArray();
         var metadataLength = GlbDocument.GetMaximumMetadataByteCount(
           asset,
           baseline,
@@ -4572,7 +4574,15 @@ namespace EarthTool.GLTF
       foreach (var candidate in attachmentCandidates.Concat(cannonCandidates))
       {
         var node = nodes[candidate.Value[0]].Parsed;
-        if (node.MeshIndex.HasValue || node.Children.Count != 0 || !transforms.ContainsKey(candidate.Value[0]))
+        var hasSupportedEmitterChild = candidate.Key is >= 1 and <= 4
+          && node.Children.Count == 1
+          && GlbDocument.HasMarkerAttachment(asset, candidate.Key)
+          && attachmentCandidates.TryGetValue(candidate.Key + 4, out var emitterCandidates)
+          && emitterCandidates.Count == 1
+          && node.Children[0] == emitterCandidates[0];
+        if (node.MeshIndex.HasValue
+          || node.Children.Count != 0 && !hasSupportedEmitterChild
+          || !transforms.ContainsKey(candidate.Value[0]))
         {
           throw new UnsupportedGltfDomainException("AttachmentOrCannonArtistObject");
         }
@@ -5468,9 +5478,10 @@ namespace EarthTool.GLTF
       if (isArtistObject)
       {
         result.Add(nodeIndex, effective);
-        return;
       }
-      var childInherited = node.Parsed.MeshIndex.HasValue ? Matrix4x4.Identity : effective;
+      var childInherited = node.Parsed.MeshIndex.HasValue && !isArtistObject
+        ? Matrix4x4.Identity
+        : effective;
       foreach (var child in node.Parsed.Children)
       {
         AddArtistObjectTransforms(child, childInherited, nodes, result, explicitArtistObjects);
@@ -6638,6 +6649,58 @@ namespace EarthTool.GLTF
           physicalNumber,
           attachments.AsSpan((physicalNumber + 15) * 8, 8),
           omnis.AsSpan((physicalNumber - 1) * 0x1C, 0x1C));
+      }
+      return diagnostics.AsReadOnly();
+    }
+
+    private static IReadOnlyList<OperationDiagnostic> CreateEmitterHierarchyDiagnostics(
+      StaticMeshAsset asset)
+    {
+      var diagnostics = new List<OperationDiagnostic>();
+      for (var number = 1; number <= 4; number++)
+      {
+        var emitterPhysicalNumber = number + 4;
+        var (turretActive, emitterActive, markerPresent) =
+          GlbDocument.GetEmitterHierarchyState(asset, number);
+        if (!emitterActive && !markerPresent)
+        {
+          continue;
+        }
+
+        var missing = new List<string>();
+        if (!emitterActive)
+        {
+          missing.Add("emitter");
+        }
+        else
+        {
+          if (!markerPresent)
+          {
+            missing.Add("markerFlag");
+          }
+          if (!turretActive)
+          {
+            missing.Add("turret");
+          }
+        }
+        if (missing.Count == 0)
+        {
+          continue;
+        }
+
+        diagnostics.Add(new OperationDiagnostic(
+          GltfDiagnosticCodes.EmitterHierarchyFallback,
+          1120,
+          DiagnosticSeverity.Warning,
+          $"CommonBaseHeader.AttachmentTable[{emitterPhysicalNumber}]",
+          emitterActive
+            ? "The emitter helper remains under the root because its turret hierarchy is incomplete."
+            : "A marker attachment flag has no corresponding emitter helper.",
+          data: new Dictionary<string, string>
+          {
+            ["number"] = number.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["missing"] = string.Join(",", missing)
+          }));
       }
       return diagnostics.AsReadOnly();
     }

@@ -192,6 +192,10 @@ _Avoid_: Mount point, synchronized cannon position
 A descriptive category based on confirmed use, such as Cannon, Marker, Spot Light, Omni Light, Transport, Smoke Effect, Child Alignment, Center, Production, Movement, or Landing. Ranges whose intended category remains unconfirmed retain their source code, such as SS, HT, WT, CH, ST, SE, or SK.
 _Avoid_: Turret, Barrel Muzzle, Production End, guessed source-code expansion
 
+**Attachment artist identifier**:
+The case-sensitive `ET_...` glTF object name used for authoring an attachment. These identifiers use concise historical editing labels such as Turret, Emitter, Turret Muzzle, Unload Point, Hit Point, Smoke Point, and Production Spot End. They identify physical records but do not replace the confirmed runtime range names or constitute evidence about game behavior.
+_Avoid_: Runtime semantic name, physical-number-only helper name
+
 **Static light**:
 A base-header spot or omni light record numbered 1 through 4 and composed of a position, RGB color, terrain-light amplitude, and shape-specific values. A static light is not itself a coordinate vector, and gaps in light numbers are meaningful.
 _Avoid_: Light vector
@@ -302,7 +306,7 @@ _Avoid_: Metadata fallback, failed edit import
 
 **Attachment artist object**:
 The artist-facing interchange representation of one runtime-available attachment record. Its physical attachment number remains authoritative, while its presence and pose expose activity, position, and heading for editing. Active light attachments use the corresponding static-light artist object instead.
-_Avoid_: Slot helper, name-identified attachment
+_Avoid_: Name-identified attachment
 
 **Cannon render-position artist object**:
 The position-only artist-facing representation of one full-precision cannon render position. It remains independent from the corresponding Cannon attachment artist object.

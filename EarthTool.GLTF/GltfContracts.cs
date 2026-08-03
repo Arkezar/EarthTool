@@ -76,6 +76,8 @@ namespace EarthTool.GLTF
     public const string UnsupportedMeshResource = "ETG1025";
     /// <summary>A referenced dynamic MSH resource chain contains a cycle.</summary>
     public const string MeshResourceCycle = "ETG1026";
+    /// <summary>An emitter helper cannot be nested under its matching turret helper.</summary>
+    public const string EmitterHierarchyFallback = "ETG1027";
     /// <summary>Required EarthTool manifest metadata is absent.</summary>
     public const string MissingManifest = "ETG2000";
     /// <summary>The edit-import scene contract is invalid.</summary>
