@@ -205,8 +205,8 @@
     "semantic_hash": "167d44cea04e814c63811f647368d290"
   },
   "EarthTool.Common/HostExtensions.cs": {
-    "mtime": 1785443453.6813867,
-    "ast_hash": "412622b30fdeebb62deabb70331fdc14",
+    "mtime": 1785751555.3342314,
+    "ast_hash": "054b526b7ba1ecc0616bfdcb19ccefcc",
     "semantic_hash": ""
   },
   "EarthTool.Common/Identifiers.cs": {
@@ -1060,8 +1060,8 @@
     "semantic_hash": "86a4680316d6be149780f845cc507a5e"
   },
   "EarthTool.TEX/HostExtensions.cs": {
-    "mtime": 1785443453.6843867,
-    "ast_hash": "e8de3d6d93fe3801a2ea81a1f5ee9de1",
+    "mtime": 1785751555.3362315,
+    "ast_hash": "d5f06cd6cfeab7ca136d806e3601126e",
     "semantic_hash": ""
   },
   "EarthTool.TEX/Interfaces/ITexFile.cs": {
@@ -1245,8 +1245,8 @@
     "semantic_hash": ""
   },
   "EarthTool.WD/HostExtensions.cs": {
-    "mtime": 1785443453.6843867,
-    "ast_hash": "32c16eb6a36fc66f7d2471087e69ec21",
+    "mtime": 1785751555.3362315,
+    "ast_hash": "324f0f5a8633667f0b4f79385197755c",
     "semantic_hash": ""
   },
   "EarthTool.WD/Interfaces/IArchiveDataSource.cs": {
@@ -1457,11 +1457,6 @@
   "graphify-out/memory/query_20260801_060715_analyze_complexity_of__earthtool_tex_texreader_cs.md": {
     "mtime": 1785564435.2137659,
     "ast_hash": "fa4ae1e8c5c02e4007d54fbb4b9a07d3",
-    "semantic_hash": ""
-  },
-  "pi-session-2026-08-01T06-03-40-941Z_019fbbeb-ce0d-7a7e-83e3-5dfe95a3e4c9.html": {
-    "mtime": 1785570577.287399,
-    "ast_hash": "0bd7f987de4c76a401459b17c458f1c9",
     "semantic_hash": ""
   },
   "EarthTool.Common/Operations/OperationResult.cs": {
@@ -1760,8 +1755,8 @@
     "semantic_hash": ""
   },
   "EarthTool.CLI.Tests/PublicCutoverAcceptanceTests.cs": {
-    "mtime": 1785750783.316988,
-    "ast_hash": "88daddc1fbf289d66856c6457a56b2bb",
+    "mtime": 1785751527.7462587,
+    "ast_hash": "3e817c73bd0bea6e866d68e55c547cbb",
     "semantic_hash": ""
   },
   "EarthTool.CLI/Commands/MSH/MshCommandComposition.cs": {
