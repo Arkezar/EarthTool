@@ -69,7 +69,8 @@ if (build.TryGetValue(out var asset))
 ## glTF interchange
 
 Static assets and dynamic assets composed of `Group`, `Explosion`, `Track`,
-`MappedExplosion`, `FlatExplosion`, and `Smoke` cross the
+`MappedExplosion`, `FlatExplosion`, `Smoke`, `Laser`, `LaserWall`,
+`ElectricalCannon`, and `Lightning` cross the
 artist boundary through `EarthTool.GLTF.GltfInterchange`. Other recognized
 dynamic effects remain supported by the binary API and fail closed at export.
 See the [glTF API](gltf.md) for package, metadata, reconciliation, validation,

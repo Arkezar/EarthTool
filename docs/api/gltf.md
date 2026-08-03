@@ -39,7 +39,7 @@ winding and triangle multiplicity. The manifest records the preserved MSH byte
 length and SHA-256 as informational provenance; a contradiction reports
 `ETG2017` but never authorizes preservation state.
 
-## Dynamic sprite-effect contract
+## Dynamic effect-preview contract
 
 Dynamic exports use additive overloads that accept `DynamicMeshAsset`; existing
 static overloads remain strongly typed. Metadata version 2 identifies the
@@ -47,7 +47,7 @@ dynamic package explicitly. The manifest contains the complete exact source MSH,
 an ordered object-scope inventory, a non-reusable next-ID boundary, and the
 historical `dynamic-group-explosion-preview` projection name/version/fingerprint,
 which remains stable for version 1 packages while covering the expanded sprite
-family. Every
+and ribbon families. Every
 object node has one stable local scope ID, its exact effect declaration, its
 ordered child IDs, exact inherited header and effect bytes, resource bindings,
 and a named/versioned ordered-child guard.
@@ -55,8 +55,10 @@ and a named/versioned ordered-child guard.
 `Group` is a native transform node with ordered children and no mesh, material,
 or synthetic effect geometry. `Explosion`, `Track`, `MappedExplosion`,
 `FlatExplosion`, and `Smoke` receive unlit, double-sided stock-Blender preview
-quads. `Explosion` retains its version 1 declaration-start billboard. The four
-expanded effects use explicit deterministic inputs: total lifetime 100 ticks,
+quads. `Laser`, `LaserWall`, `ElectricalCannon`, and `Lightning` receive
+unlit, double-sided triangle-strip ribbon previews. `Explosion` retains its
+version 1 declaration-start billboard. The framed effects use explicit
+deterministic inputs: total lifetime 100 ticks,
 remaining lifetime 100 ticks, global tick 0, texture scale 1, lifetime alpha
 progress 0, sampled terrain light `(1,1,1)`, output color scale 1, and terrain
 light random sample 0. A parent preview phase of 0 selects child start
@@ -76,6 +78,31 @@ The native preview behavior is effect-specific:
 | `MappedExplosion` | Horizontal XZ quad approximating the runtime terrain-cell decal bounds; full decoded TEX image | Serialized visible RGB and semantic alpha; evaluated terrain light remains metadata-only; ordered children participate normally |
 | `FlatExplosion` | Horizontal XZ quad at the serialized local-plane depth; UVs use the selected source frame and exact reciprocal atlas values | Serialized visible RGB and semantic alpha; evaluated terrain light remains metadata-only; ordered children participate normally |
 | `Smoke` | Vertical XY billboard snapshot at the camera-depth offset; UVs use the selected source frame and exact reciprocal atlas values | Visible RGB is modulated by the explicit white terrain sample and serialized gain; semantic alpha; no terrain-light producer; ordered children participate normally |
+
+Ribbon previews use explicit runtime-only inputs that are not serialized MSH
+state. `Laser` and `LaserWall` use the centerline `(0,0,0)` to `(8,0,0)` and a
+`+Y` heading side. `ElectricalCannon` uses the same endpoints, 21 center pairs,
+and a fixed bounded integer-derived deviation sequence. `Lightning` uses 31
+center pairs from `(0,12,0)` to `(0,0,0)`, a `+X` side, and a separate fixed
+bounded deviation sequence. These inputs replace runtime entity endpoints,
+heading, global angle, `RDTSC`, and shared CRT random state only for the stock
+preview. They are fingerprinted projection inputs, never claims about the
+serialized representation.
+
+| Effect | Ribbon, texture, material, and light preview | Hierarchy and authority |
+| --- | --- | --- |
+| `Laser` | One segment between the deterministic endpoints; selected atlas frame, semantic alpha, serialized RGB, ribbon half-width, and `BLEND`; its evaluated modulated terrain-light line remains metadata-only | Ordered children and child translation are native; frame/atlas, additive integer, light, resources, and inactive fields remain exact |
+| `LaserWall` | The same one-segment geometry; selected atlas frame, semantic alpha, serialized RGB, ribbon half-width, and `BLEND`; its unmodulated terrain-light line remains metadata-only | Ordered children participate normally; light type remains inactive and exact while terrain-light RGB remains authoritative |
+| `ElectricalCannon` | Twenty deterministic segments communicate the adaptive jagged path without pretending to reproduce runtime randomness; selected atlas frame, semantic alpha, serialized RGB, ribbon half-width, and `BLEND` | Ordered children participate normally; runtime subdivision/RNG and inactive terrain-light representations remain metadata-only |
+| `Lightning` | Thirty deterministic segments communicate the fixed vertical bolt; selected atlas frame, semantic alpha, serialized RGB, ribbon half-width, and `BLEND`; its modulated terrain-light line remains metadata-only | Ordered children participate normally; runtime endpoint/global-angle/RNG inputs and unrelated state remain metadata-only |
+
+Each ribbon pair stores logical left then logical right, with atlas U assigned by
+that logical side and V advancing along the path. Indices retain
+`(L[i],L[i+1],R[i])`, `(R[i],L[i+1],R[i+1])`. The serialized
+ribbon half-width is used with its sign: negating it exchanges physical sides,
+mirrors texture orientation, and reverses winding. Zero or non-finite serialized
+ribbon half-width is preserved by the MSH binary API but cannot form a preview
+and fails export with scoped `ETG1006`.
 
 TEX lookup uses the same bounded root order and diagnostic/default fallback as
 static materials. Missing or unsafe resources retain their exact binding and
@@ -101,6 +128,18 @@ partial output. Duplicate, missing, foreign, stale, dangling, or ambiguous
 scopes fail before a dynamic snapshot is returned. Other recognized effect
 families report `ETG1002`; unknown serialized values remain exact and are never
 converted to catch-all enum values.
+
+Ribbon material edits own representable visible RGB and alpha start values.
+Ribbon pair spacing owns the signed `RibbonHalfWidth`; import requires one
+finite, nonzero, consistent ribbon half-width, finite normals, nondegenerate path
+segments, fixed side UVs, and guarded index topology. Centerline and in-plane
+orientation edits are accepted as runtime-only preview input and reported
+separately without rewriting MSH fields; a later MSH export regenerates the
+documented deterministic path.
+Shared or overlapping POSITION, NORMAL, TEXCOORD, or index ownership is
+ambiguous and fails transactionally. Frame declarations, reciprocal atlas
+values, flags, terrain colors/gains, resource bytes, reserved values, inactive
+rectangles/depth/model scales, and child end translations remain exact.
 
 Use `ImportEditDynamicGlbAsync` or `ImportEditDynamicGltfFileAsync` when the
 caller knows the package kind. `ImportEditMeshGlbAsync` and

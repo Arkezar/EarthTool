@@ -2182,7 +2182,7 @@ semantics. Neither handler validates non-finite rectangles, matrices, UVs,
 colors, or alpha. Track requires a nonnull entity for lifetime fields and its
 heading even though the dispatcher does not universally reject null here.
 
-##### Laser, LaserWall, ElectricalCannon, and Lighting ribbons
+##### Laser, LaserWall, ElectricalCannon, and Lightning ribbons
 
 These four handlers build triangle ribbons from fixed-point entity data. Source
 XY is the entity's unsigned 8.8 pair at `+0x24/+0x26`; source Z is
@@ -2231,7 +2231,8 @@ The second half mirrors `noise[pair_count-i]`; the final pair is fixed directly
 at the endpoint. This produces 10..30 segments, 20..60 triangles, and 5..15 RNG
 calls. Even a zero-length bolt uses `k=5` and submits 20 degenerate triangles.
 
-Lighting (`0x005D16F0`) ignores source-to-endpoint distance for its visible
+Lightning (`Lighting` in the historical source, `0x005D16F0`) ignores
+source-to-endpoint distance for its visible
 bolt. It constructs 31 pairs from 12 world units above the endpoint down to the
 endpoint, using a side vector based on global angle `0x009FDA60`. It seeds from
 `RDTSC`, makes exactly 15 RNG calls with the same `q`, and accumulates

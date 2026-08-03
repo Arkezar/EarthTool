@@ -255,6 +255,498 @@ public class DynamicGltfInterchangeTests
   }
 
   [Fact]
+  public async Task RibbonEffectsExportThroughThePublicGlbSeam()
+  {
+    await using var destination = new MemoryStream();
+
+    var result = await new GltfInterchange().ExportGlbAsync(
+      CreateRibbonEffectsAsset(),
+      destination,
+      new GltfExportOptions(_lineageId, _documentId));
+
+    result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
+    result.Diagnostics.Should().NotContain(item => item.Code == GltfDiagnosticCodes.UnsupportedDomain);
+    result.Diagnostics.Count(item => item.Code == GltfDiagnosticCodes.TextureResourceMissing)
+      .Should().Be(4);
+    using var json = ReadGlbJson(destination.ToArray());
+    json.RootElement.GetProperty("nodes").GetArrayLength().Should().Be(5);
+    json.RootElement.GetProperty("meshes").GetArrayLength().Should().Be(4);
+  }
+
+  [Fact]
+  public async Task RibbonPreviewRetainsHalfWidthSignTextureSideAndWinding()
+  {
+    await using var destination = new MemoryStream();
+    var result = await new GltfInterchange().ExportGlbAsync(
+      CreateRibbonEffectsAsset(),
+      destination,
+      new GltfExportOptions(_lineageId, _documentId));
+    result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
+    var glb = destination.ToArray();
+    using var json = ReadGlbJson(glb);
+    var binary = ReadGlbBinary(glb);
+    var expected = new[]
+    {
+      (RibbonHalfWidth: 0.5f, Vertices: 4),
+      (RibbonHalfWidth: -0.25f, Vertices: 42),
+      (RibbonHalfWidth: 1f, Vertices: 4),
+      (RibbonHalfWidth: -0.75f, Vertices: 62)
+    };
+
+    for (var meshIndex = 0; meshIndex < expected.Length; meshIndex++)
+    {
+      var primitive = json.RootElement.GetProperty("meshes")[meshIndex]
+        .GetProperty("primitives")[0];
+      var positions = ReadVector3Accessor(
+        json.RootElement,
+        binary,
+        primitive.GetProperty("attributes").GetProperty("POSITION").GetInt32());
+      var textureCoordinates = ReadVector2Accessor(
+        json.RootElement,
+        binary,
+        primitive.GetProperty("attributes").GetProperty("TEXCOORD_0").GetInt32());
+      var indices = ReadUInt16Accessor(
+        json.RootElement,
+        binary,
+        primitive.GetProperty("indices").GetInt32());
+      positions.Should().HaveCount(expected[meshIndex].Vertices);
+      Vector3.Distance(positions[0], positions[1]).Should()
+        .BeApproximately(Math.Abs(expected[meshIndex].RibbonHalfWidth) * 2, 0.0001f);
+      textureCoordinates[0].X.Should().BeLessThan(textureCoordinates[1].X);
+      indices.Take(6).Should().Equal(0, 2, 1, 1, 2, 3);
+      var winding = Vector3.Cross(
+        positions[indices[1]] - positions[indices[0]],
+        positions[indices[2]] - positions[indices[0]]).Z;
+      Math.Sign(winding).Should().Be(-Math.Sign(expected[meshIndex].RibbonHalfWidth));
+    }
+  }
+
+  [Fact]
+  public async Task UnchangedRibbonGlbImportRestoresExactDynamicMsh()
+  {
+    var asset = CreateRibbonEffectsAsset();
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      package,
+      new GltfExportOptions(_lineageId, _documentId));
+    export.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(export.Diagnostics));
+    package.Position = 0;
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(package, export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
+    imported.Value!.Asset.GetSerializedRepresentation().Should()
+      .Equal(asset.GetSerializedRepresentation());
+  }
+
+  [Fact]
+  public async Task RibbonEffectsPreserveNoncanonicalAndInactiveStateExactly()
+  {
+    var canonical = CreateRibbonEffectsAsset();
+    var bytes = canonical.GetSerializedRepresentation();
+    const int firstChildOffset = 0x18 + 0x410;
+    WriteSingle(bytes, firstChildOffset + 0x384, 0.125f);
+    WriteSingle(bytes, firstChildOffset + 0x388, 0.2f);
+    WriteSingle(bytes, firstChildOffset + 0x38C, 17);
+    WriteSingle(bytes, firstChildOffset + 0x3AC, -9);
+    BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(firstChildOffset + 0x3B4), 0xAABBCCDD);
+    BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(firstChildOffset + 0x3B8), 7);
+    WriteSingle(bytes, firstChildOffset + 0x3D4, -3);
+    BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(firstChildOffset + 0x3D8), 9);
+    WriteSingle(bytes, firstChildOffset + 0x3E4, 23);
+    WriteSingle(bytes, firstChildOffset + 0x3E8, -29);
+    WriteSingle(bytes, firstChildOffset + 0x3F8, 31);
+    var expert = MshExpert.CreateDynamic(bytes, canonical.LineageId);
+    expert.TryGetValue(out var asset).Should().BeTrue();
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset!,
+      package,
+      new GltfExportOptions(_lineageId, _documentId));
+    export.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(export.Diagnostics));
+    package.Position = 0;
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(package, export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
+    imported.Value!.Asset.GetSerializedRepresentation().Should().Equal(bytes);
+  }
+
+  [Fact]
+  public async Task RibbonHalfWidthAndMaterialEditsRegenerateOnlyOwnedRepresentations()
+  {
+    var asset = CreateRibbonEffectsAsset();
+    var original = asset.RootDynamicObject.Children[0].Extension;
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      package,
+      new GltfExportOptions(_lineageId, _documentId));
+    var edited = RewriteGlb(package.ToArray(), (root, binary) =>
+    {
+      root["materials"]![0]!["pbrMetallicRoughness"]!["baseColorFactor"] =
+        new JsonArray(0.9f, 0.8f, 0.7f, 0.6f);
+      var accessor = root["accessors"]![0]!;
+      var view = root["bufferViews"]![accessor["bufferView"]!.GetValue<int>()]!;
+      var offset = view["byteOffset"]!.GetValue<int>();
+      WriteVector3(binary, offset, new Vector3(0, -1, 0));
+      WriteVector3(binary, offset + 12, new Vector3(0, 1, 0));
+      WriteVector3(binary, offset + 24, new Vector3(8, -1, 0));
+      WriteVector3(binary, offset + 36, new Vector3(8, 1, 0));
+      accessor["min"] = new JsonArray(0, -1, 0);
+      accessor["max"] = new JsonArray(8, 1, 0);
+    });
+    await using var editedStream = new MemoryStream(edited);
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(
+      editedStream,
+      export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
+    var extension = imported.Value!.Asset.RootDynamicObject.Children[0].Extension;
+    extension.RibbonHalfWidth.Should().BeApproximately(-1, 0.0001f);
+    extension.VisibleEffectColor.Should().Be(new Vector3(0.9f, 0.8f, 0.7f));
+    extension.StartAlpha.Should().BeApproximately(0.6f, 0.0001f);
+    extension.FrameCount.Should().Be(original.FrameCount);
+    extension.ReciprocalColumnCount.Should().Be(original.ReciprocalColumnCount);
+    extension.AdditiveFlag.Should().Be(original.AdditiveFlag);
+    extension.LightType.Should().Be(original.LightType);
+    extension.TerrainLightColor.Should().Be(original.TerrainLightColor);
+    extension.ReservedWord.Should().Be(original.ReservedWord);
+    extension.TexturePathBytes.Should().Equal(original.TexturePathBytes);
+  }
+
+  [Fact]
+  public async Task RibbonHalfWidthEditsCoverEveryEffect()
+  {
+    var expectedRibbonHalfWidths = new[] { 1.25f, -1.5f, 1.75f, -2f };
+    for (var meshIndex = 0; meshIndex < expectedRibbonHalfWidths.Length; meshIndex++)
+    {
+      var asset = CreateRibbonEffectsAsset();
+      var originals = GetRibbonExtensions(asset);
+      await using var package = new MemoryStream();
+      var interchange = new GltfInterchange();
+      var export = await interchange.ExportGlbAsync(
+        asset,
+        package,
+        new GltfExportOptions(_lineageId, _documentId));
+      var edited = RewriteGlb(package.ToArray(), (root, binary) =>
+      {
+        var accessor = root["accessors"]![meshIndex * 4]!;
+        var view = root["bufferViews"]![accessor["bufferView"]!.GetValue<int>()]!;
+        var offset = view["byteOffset"]!.GetValue<int>();
+        var positions = new List<Vector3>();
+        for (var vertex = 0; vertex < accessor["count"]!.GetValue<int>(); vertex += 2)
+        {
+          var left = ReadVector3(binary, offset + vertex * 12);
+          var right = ReadVector3(binary, offset + (vertex + 1) * 12);
+          var center = (left + right) * 0.5f;
+          var side = Vector3.Normalize(left - right) * Math.Abs(expectedRibbonHalfWidths[meshIndex]);
+          positions.Add(center + side);
+          positions.Add(center - side);
+        }
+        for (var vertex = 0; vertex < positions.Count; vertex++)
+        {
+          WriteVector3(binary, offset + vertex * 12, positions[vertex]);
+        }
+        accessor["min"] = new JsonArray(
+          positions.Min(item => item.X),
+          positions.Min(item => item.Y),
+          positions.Min(item => item.Z));
+        accessor["max"] = new JsonArray(
+          positions.Max(item => item.X),
+          positions.Max(item => item.Y),
+          positions.Max(item => item.Z));
+      });
+      await using var editedStream = new MemoryStream(edited);
+
+      var imported = await interchange.ImportEditDynamicGlbAsync(
+        editedStream,
+        export.Value!.Baseline);
+
+      imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
+      var actual = GetRibbonExtensions(imported.Value!.Asset);
+      actual[meshIndex].RibbonHalfWidth.Should()
+        .BeApproximately(expectedRibbonHalfWidths[meshIndex], 0.0001f);
+      actual[meshIndex].SerializedRepresentation.Take(0x48).Should()
+        .Equal(originals[meshIndex].SerializedRepresentation.Take(0x48));
+      actual[meshIndex].SerializedRepresentation.Skip(0x4C).Should()
+        .Equal(originals[meshIndex].SerializedRepresentation.Skip(0x4C));
+      for (var other = 0; other < actual.Count; other++)
+      {
+        if (other != meshIndex)
+        {
+          actual[other].SerializedRepresentation.Should()
+            .Equal(originals[other].SerializedRepresentation);
+        }
+      }
+    }
+  }
+
+  [Fact]
+  public async Task RibbonPathAndOrientationEditsRemainPreviewOnly()
+  {
+    var asset = CreateRibbonEffectsAsset();
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      package,
+      new GltfExportOptions(_lineageId, _documentId));
+    var edited = RewriteGlb(package.ToArray(), (root, binary) =>
+    {
+      var accessor = root["accessors"]![0]!;
+      var view = root["bufferViews"]![accessor["bufferView"]!.GetValue<int>()]!;
+      var offset = view["byteOffset"]!.GetValue<int>();
+      WriteVector3(binary, offset, new Vector3(-0.5f, 0, 0));
+      WriteVector3(binary, offset + 12, new Vector3(0.5f, 0, 0));
+      WriteVector3(binary, offset + 24, new Vector3(-0.5f, 8, 0));
+      WriteVector3(binary, offset + 36, new Vector3(0.5f, 8, 0));
+      accessor["min"] = new JsonArray(-0.5f, 0, 0);
+      accessor["max"] = new JsonArray(0.5f, 8, 0);
+    });
+    await using var editedStream = new MemoryStream(edited);
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(
+      editedStream,
+      export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
+    imported.Value!.Asset.GetSerializedRepresentation().Should()
+      .Equal(asset.GetSerializedRepresentation());
+    imported.Value.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "DynamicObjectScopes[2].PreviewPath"
+      && change.Disposition == PreservationDisposition.Retained
+      && change.Reason == "dynamic-runtime-preview-input");
+  }
+
+  [Fact]
+  public async Task DegenerateRibbonEditFailsWithScopedDiagnostic()
+  {
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      CreateRibbonEffectsAsset(),
+      package,
+      new GltfExportOptions(_lineageId, _documentId));
+    var edited = RewriteGlb(package.ToArray(), (root, binary) =>
+    {
+      var accessor = root["accessors"]![0]!;
+      var view = root["bufferViews"]![accessor["bufferView"]!.GetValue<int>()]!;
+      var offset = view["byteOffset"]!.GetValue<int>();
+      WriteVector3(binary, offset + 24, new Vector3(0, 0.5f, 0));
+      WriteVector3(binary, offset + 36, new Vector3(0, -0.5f, 0));
+      accessor["min"] = new JsonArray(0, -0.5f, 0);
+      accessor["max"] = new JsonArray(0, 0.5f, 0);
+    });
+    await using var editedStream = new MemoryStream(edited);
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(
+      editedStream,
+      export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    imported.Value.Should().BeNull();
+    imported.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.InvalidGeometry
+      && diagnostic.Path == "DynamicObjectScopes[2].RibbonPreview");
+  }
+
+  [Fact]
+  public async Task SharedRibbonTextureCoordinateAccessorFailsTransactionally()
+  {
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      CreateRibbonEffectsAsset(),
+      package,
+      new GltfExportOptions(_lineageId, _documentId));
+    var malformed = RewriteGlb(package.ToArray(), (root, _) =>
+      root["meshes"]![2]!["primitives"]![0]!["attributes"]!["TEXCOORD_0"] =
+        root["meshes"]![0]!["primitives"]![0]!["attributes"]!["TEXCOORD_0"]!.GetValue<int>());
+    await using var malformedStream = new MemoryStream(malformed);
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(
+      malformedStream,
+      export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    imported.Value.Should().BeNull();
+    imported.Diagnostics.Select(diagnostic => diagnostic.Code).Should()
+      .Contain(GltfDiagnosticCodes.AmbiguousPartitionCorrespondence);
+  }
+
+  [Fact]
+  public async Task EditedRibbonWindingFailsWithScopedDiagnostic()
+  {
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      CreateRibbonEffectsAsset(),
+      package,
+      new GltfExportOptions(_lineageId, _documentId));
+    var malformed = RewriteGlb(package.ToArray(), (root, binary) =>
+    {
+      var accessor = root["accessors"]![3]!;
+      var view = root["bufferViews"]![accessor["bufferView"]!.GetValue<int>()]!;
+      var offset = view["byteOffset"]!.GetValue<int>();
+      BinaryPrimitives.WriteUInt16LittleEndian(binary.AsSpan(offset), 0);
+      BinaryPrimitives.WriteUInt16LittleEndian(binary.AsSpan(offset + 2), 1);
+      BinaryPrimitives.WriteUInt16LittleEndian(binary.AsSpan(offset + 4), 2);
+    });
+    await using var malformedStream = new MemoryStream(malformed);
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(
+      malformedStream,
+      export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    imported.Value.Should().BeNull();
+    imported.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.InvalidGeometry
+      && diagnostic.Path == "DynamicObjectScopes[2].RibbonPreview");
+  }
+
+  [Fact]
+  public async Task EditedRibbonNormalCannotChangeSerializedHalfWidthSign()
+  {
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      CreateRibbonEffectsAsset(),
+      package,
+      new GltfExportOptions(_lineageId, _documentId));
+    var malformed = RewriteGlb(package.ToArray(), (root, binary) =>
+    {
+      var accessor = root["accessors"]![1]!;
+      var view = root["bufferViews"]![accessor["bufferView"]!.GetValue<int>()]!;
+      var offset = view["byteOffset"]!.GetValue<int>();
+      for (var index = 0; index < accessor["count"]!.GetValue<int>(); index++)
+      {
+        WriteVector3(binary, offset + index * 12, -Vector3.UnitZ);
+      }
+      accessor["min"] = new JsonArray(0, 0, -1);
+      accessor["max"] = new JsonArray(0, 0, -1);
+    });
+    await using var malformedStream = new MemoryStream(malformed);
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(
+      malformedStream,
+      export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    imported.Value.Should().BeNull();
+    imported.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.InvalidGeometry
+      && diagnostic.Path == "DynamicObjectScopes[2].RibbonPreview");
+  }
+
+  [Fact]
+  public async Task JaggedRibbonCannotMixSegmentWinding()
+  {
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      CreateRibbonEffectsAsset(),
+      package,
+      new GltfExportOptions(_lineageId, _documentId));
+    var malformed = RewriteGlb(package.ToArray(), (root, binary) =>
+    {
+      var accessor = root["accessors"]![4]!;
+      var view = root["bufferViews"]![accessor["bufferView"]!.GetValue<int>()]!;
+      var offset = view["byteOffset"]!.GetValue<int>();
+      WriteVector3(binary, offset + 48, new Vector3(-1, -0.25f, 0));
+      WriteVector3(binary, offset + 60, new Vector3(-1, 0.25f, 0));
+      accessor["min"] = new JsonArray(-1, -0.57f, 0);
+    });
+    await using var malformedStream = new MemoryStream(malformed);
+
+    var imported = await interchange.ImportEditDynamicGlbAsync(
+      malformedStream,
+      export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    imported.Value.Should().BeNull();
+    imported.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.InvalidGeometry
+      && diagnostic.Path == "DynamicObjectScopes[3].RibbonPreview");
+  }
+
+  [Theory]
+  [InlineData(0)]
+  [InlineData(float.NaN)]
+  [InlineData(float.PositiveInfinity)]
+  public async Task InvalidSerializedRibbonHalfWidthsFailWithoutPartialOutput(float ribbonHalfWidth)
+  {
+    var source = CreateRibbonEffectsAsset();
+    var bytes = source.GetSerializedRepresentation();
+    const int firstChildOffset = 0x18 + 0x410;
+    WriteSingle(bytes, firstChildOffset + 0x3B0, ribbonHalfWidth);
+    var expert = MshExpert.CreateDynamic(bytes, source.LineageId);
+    expert.TryGetValue(out var asset).Should().BeTrue();
+    await using var destination = new MemoryStream();
+
+    var result = await new GltfInterchange().ExportGlbAsync(asset!, destination);
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Value.Should().BeNull();
+    result.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.InvalidGeometry
+      && diagnostic.Path == "DynamicObjectScopes[2].Extension.RibbonHalfWidth");
+    destination.Length.Should().Be(0);
+  }
+
+  [Fact]
+  public async Task RibbonPreviewVertexLimitFailsWithoutPartialOutput()
+  {
+    await using var destination = new MemoryStream();
+
+    var result = await new GltfInterchange().ExportGlbAsync(
+      CreateRibbonEffectsAsset(),
+      destination,
+      profile: new GltfOperationProfile(maxActiveRenderVertices: 32));
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Value.Should().BeNull();
+    result.Diagnostics.Select(diagnostic => diagnostic.Code).Should()
+      .Contain(GltfDiagnosticCodes.ResourceLimitExceeded);
+    destination.Length.Should().Be(0);
+  }
+
+  [Fact]
+  public async Task SeparateGltfRoundTripsExactRibbonEffects()
+  {
+    var directory = Path.Combine(Path.GetTempPath(), $"earthtool-ribbon-gltf-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(directory);
+    try
+    {
+      var path = Path.Combine(directory, "ribbons.gltf");
+      var asset = CreateRibbonEffectsAsset();
+      var interchange = new GltfInterchange();
+      var export = await interchange.ExportGltfFileAsync(
+        asset,
+        path,
+        new GltfExportOptions(_lineageId, _documentId));
+      export.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(export.Diagnostics));
+
+      var imported = await interchange.ImportEditDynamicGltfFileAsync(path, export.Value!.Baseline);
+
+      imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
+      imported.Value!.Asset.GetSerializedRepresentation().Should()
+        .Equal(asset.GetSerializedRepresentation());
+      imported.Value.NextExportOptions.DynamicObjectIds.Should().Equal(1, 2, 3, 4, 5);
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
   public async Task InvalidSpritePreviewDomainsFailWithoutPartialOutput()
   {
     var frames = new CanonicalDynamicFrameSequence(0, 1, 1);
@@ -492,12 +984,18 @@ public class DynamicGltfInterchangeTests
     {
       var glbPath = Path.Combine(directory, "effect.glb");
       var gltfPath = Path.Combine(directory, "effect.gltf");
+      var ribbonGlbPath = Path.Combine(directory, "ribbons.glb");
+      var ribbonGltfPath = Path.Combine(directory, "ribbons.gltf");
       var groupPath = Path.Combine(directory, "group.glb");
       var asset = CreateSpriteEffectsAsset();
       var interchange = new GltfInterchange();
       (await interchange.ExportGlbFileAsync(asset, glbPath)).Status.Should()
         .Be(OperationStatus.Succeeded);
       (await interchange.ExportGltfFileAsync(asset, gltfPath)).Status.Should()
+        .Be(OperationStatus.Succeeded);
+      (await interchange.ExportGlbFileAsync(CreateRibbonEffectsAsset(), ribbonGlbPath)).Status.Should()
+        .Be(OperationStatus.Succeeded);
+      (await interchange.ExportGltfFileAsync(CreateRibbonEffectsAsset(), ribbonGltfPath)).Status.Should()
         .Be(OperationStatus.Succeeded);
       var groupBuild = DynamicMeshBuilder.Create()
         .SetRoot(DynamicEffectRecipes.Group([DynamicEffectRecipes.Group()]))
@@ -512,9 +1010,17 @@ public class DynamicGltfInterchangeTests
       }
       (await interchange.ValidateGltfFileAsync(gltfPath)).Status.Should()
         .Be(OperationStatus.Succeeded);
+      await using (var ribbonGlb = File.OpenRead(ribbonGlbPath))
+      {
+        (await interchange.ValidateGlbAsync(ribbonGlb)).Status.Should().Be(OperationStatus.Succeeded);
+      }
+      (await interchange.ValidateGltfFileAsync(ribbonGltfPath)).Status.Should()
+        .Be(OperationStatus.Succeeded);
 
       await AssertKhronosValidAsync(glbPath);
       await AssertKhronosValidAsync(gltfPath);
+      await AssertKhronosValidAsync(ribbonGlbPath);
+      await AssertKhronosValidAsync(ribbonGltfPath);
       await AssertKhronosValidAsync(groupPath);
     }
     finally
@@ -845,6 +1351,69 @@ public class DynamicGltfInterchangeTests
     return asset!;
   }
 
+  private static DynamicMeshAsset CreateRibbonEffectsAsset()
+  {
+    var sprite = new CanonicalDynamicSpriteSheet(
+      new CanonicalDynamicFrameSequence(2, 3, 4),
+      5,
+      2);
+    var alpha = new CanonicalDynamicAlpha(0.8f, 0.2f, DynamicAlphaTiming.LifetimeProgress);
+    var light = new CanonicalDynamicTerrainLight(
+      DynamicLightType.Trapezium,
+      new Vector3(0.1f, 0.2f, 0.3f));
+    var electrical = DynamicEffectRecipes.ElectricalCannon(
+      sprite,
+      -0.25f,
+      "Textures\\fx\\electrical.tex",
+      new Vector3(0.2f, 0.3f, 0.4f),
+      alpha,
+      true);
+    var laser = DynamicEffectRecipes.Laser(
+      sprite,
+      0.5f,
+      "Textures\\fx\\laser.tex",
+      new Vector3(0.4f, 0.5f, 0.6f),
+      alpha,
+      false,
+      light,
+      [electrical]);
+    var lightning = DynamicEffectRecipes.Lightning(
+      sprite,
+      -0.75f,
+      "Textures\\fx\\lightning.tex",
+      new Vector3(0.7f, 0.8f, 0.9f),
+      alpha,
+      true,
+      light);
+    var laserWall = DynamicEffectRecipes.LaserWall(
+      sprite,
+      1,
+      "Textures\\fx\\laser-wall.tex",
+      new Vector3(0.3f, 0.6f, 0.9f),
+      alpha,
+      false,
+      new Vector3(0.9f, 0.6f, 0.3f),
+      [lightning]);
+    var build = DynamicMeshBuilder.Create(
+        Guid.Parse("12345678-9abc-4ef0-9234-56789abcdef0"),
+        new MeshAssetLineageId(Guid.Parse("99999999-8888-4777-a666-555555555555")))
+      .SetRoot(DynamicEffectRecipes.Group([laser, laserWall]))
+      .Build();
+    build.TryGetValue(out var asset).Should().BeTrue();
+    return asset!;
+  }
+
+  private static IReadOnlyList<DynamicEffectExtension> GetRibbonExtensions(DynamicMeshAsset asset)
+  {
+    return new[]
+    {
+      asset.RootDynamicObject.Children[0].Extension,
+      asset.RootDynamicObject.Children[0].Children[0].Extension,
+      asset.RootDynamicObject.Children[1].Extension,
+      asset.RootDynamicObject.Children[1].Children[0].Extension
+    };
+  }
+
   private static DynamicMeshAsset CreateSingleEffectAsset(CanonicalDynamicObject effect)
   {
     var build = DynamicMeshBuilder.Create(
@@ -860,6 +1429,58 @@ public class DynamicGltfInterchangeTests
   {
     var jsonLength = BinaryPrimitives.ReadInt32LittleEndian(glb.AsSpan(12));
     return JsonDocument.Parse(glb.AsMemory(20, jsonLength));
+  }
+
+  private static byte[] ReadGlbBinary(byte[] glb)
+  {
+    var jsonLength = BinaryPrimitives.ReadInt32LittleEndian(glb.AsSpan(12));
+    var binaryHeader = 20 + jsonLength;
+    var binaryLength = BinaryPrimitives.ReadInt32LittleEndian(glb.AsSpan(binaryHeader));
+    return glb.AsSpan(binaryHeader + 8, binaryLength).ToArray();
+  }
+
+  private static Vector3[] ReadVector3Accessor(
+    JsonElement root,
+    byte[] binary,
+    int accessorIndex)
+  {
+    var accessor = root.GetProperty("accessors")[accessorIndex];
+    var view = root.GetProperty("bufferViews")[accessor.GetProperty("bufferView").GetInt32()];
+    var offset = view.GetProperty("byteOffset").GetInt32();
+    return Enumerable.Range(0, accessor.GetProperty("count").GetInt32())
+      .Select(index => new Vector3(
+        BitConverter.ToSingle(binary, offset + index * 12),
+        BitConverter.ToSingle(binary, offset + index * 12 + 4),
+        BitConverter.ToSingle(binary, offset + index * 12 + 8)))
+      .ToArray();
+  }
+
+  private static Vector2[] ReadVector2Accessor(
+    JsonElement root,
+    byte[] binary,
+    int accessorIndex)
+  {
+    var accessor = root.GetProperty("accessors")[accessorIndex];
+    var view = root.GetProperty("bufferViews")[accessor.GetProperty("bufferView").GetInt32()];
+    var offset = view.GetProperty("byteOffset").GetInt32();
+    return Enumerable.Range(0, accessor.GetProperty("count").GetInt32())
+      .Select(index => new Vector2(
+        BitConverter.ToSingle(binary, offset + index * 8),
+        BitConverter.ToSingle(binary, offset + index * 8 + 4)))
+      .ToArray();
+  }
+
+  private static ushort[] ReadUInt16Accessor(
+    JsonElement root,
+    byte[] binary,
+    int accessorIndex)
+  {
+    var accessor = root.GetProperty("accessors")[accessorIndex];
+    var view = root.GetProperty("bufferViews")[accessor.GetProperty("bufferView").GetInt32()];
+    var offset = view.GetProperty("byteOffset").GetInt32();
+    return Enumerable.Range(0, accessor.GetProperty("count").GetInt32())
+      .Select(index => BinaryPrimitives.ReadUInt16LittleEndian(binary.AsSpan(offset + index * 2)))
+      .ToArray();
   }
 
   private static byte[] RewriteGlb(
@@ -895,6 +1516,14 @@ public class DynamicGltfInterchangeTests
     WriteSingle(destination, offset, value.X);
     WriteSingle(destination, offset + 4, value.Y);
     WriteSingle(destination, offset + 8, value.Z);
+  }
+
+  private static Vector3 ReadVector3(byte[] source, int offset)
+  {
+    return new Vector3(
+      BitConverter.ToSingle(source, offset),
+      BitConverter.ToSingle(source, offset + 4),
+      BitConverter.ToSingle(source, offset + 8));
   }
 
   private static void WriteSingle(byte[] destination, int offset, float value)

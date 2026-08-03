@@ -88,7 +88,7 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
-  public async Task BatchExportsAllSpriteEffectsAsSeparateGltf()
+  public async Task BatchExportsAllSupportedDynamicEffectsAsSeparateGltf()
   {
     using var fixture = await CliFixture.CreateDynamicAsync();
     var inputDirectory = Path.Combine(fixture.Directory, "dynamic-inputs");
@@ -809,10 +809,43 @@ public sealed class InternalMshCommandHostTests
         true,
         light,
         [flat]);
+      var electrical = DynamicEffectRecipes.ElectricalCannon(
+        sprite,
+        -0.25f,
+        "Textures\\fx\\electrical.tex",
+        new Vector3(0.25f, 0.5f, 1),
+        alpha,
+        true);
+      var laser = DynamicEffectRecipes.Laser(
+        sprite,
+        0.5f,
+        "Textures\\fx\\laser.tex",
+        new Vector3(1, 0.5f, 0.25f),
+        alpha,
+        false,
+        light,
+        [electrical]);
+      var lightning = DynamicEffectRecipes.Lightning(
+        sprite,
+        -0.75f,
+        "Textures\\fx\\lightning.tex",
+        new Vector3(0.5f, 1, 0.25f),
+        alpha,
+        true,
+        light);
+      var laserWall = DynamicEffectRecipes.LaserWall(
+        sprite,
+        1,
+        "Textures\\fx\\laser-wall.tex",
+        new Vector3(0.25f, 0.5f, 1),
+        alpha,
+        false,
+        Vector3.One,
+        [lightning]);
       var build = DynamicMeshBuilder.Create(
           Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"),
           new MeshAssetLineageId(Guid.Parse("11111111-2222-4333-8444-555555555555")))
-        .SetRoot(DynamicEffectRecipes.Group([track, mapped]))
+        .SetRoot(DynamicEffectRecipes.Group([track, mapped, laser, laserWall]))
         .Build();
       build.TryGetValue(out var asset).Should().BeTrue();
       var write = await new MshWriter().WriteFileAsync(asset!, fixture.MshPath);
