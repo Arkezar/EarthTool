@@ -102,6 +102,7 @@ public sealed class PublicCutoverAcceptanceTests
       UseShellExecute = false,
       WorkingDirectory = root
     };
+    startInfo.Environment["DOTNET_ENVIRONMENT"] = "Development";
     foreach (var argument in arguments)
     {
       startInfo.ArgumentList.Add(argument);

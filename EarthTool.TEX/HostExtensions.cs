@@ -8,6 +8,6 @@ namespace EarthTool.TEX
   {
     public static IServiceCollection AddTexServices(this IServiceCollection services)
       => services
-        .AddScoped<IReader<ITexFile>, TexReader>();
+        .AddSingleton<IReader<ITexFile>, TexReader>();
   }
 }

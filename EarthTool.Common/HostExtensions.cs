@@ -10,6 +10,6 @@ namespace EarthTool.Common
     public static IServiceCollection AddCommonServices(this IServiceCollection services)
       => services
         .AddSingleton(Encoding.GetEncoding("ISO-8859-2"))
-        .AddScoped<IEarthInfoFactory, EarthInfoFactory>();
+        .AddSingleton<IEarthInfoFactory, EarthInfoFactory>();
   }
 }

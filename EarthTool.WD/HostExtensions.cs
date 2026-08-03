@@ -9,10 +9,10 @@ namespace EarthTool.WD
   {
     public static IServiceCollection AddWdServices(this IServiceCollection services)
       => services
-        .AddScoped<IWDExtractor, WDExtractor>()
-        .AddScoped<IArchiver, ArchiverService>()
-        .AddScoped<IArchiveFactory, ArchiveFactory>()
-        .AddScoped<ICompressor, CompressorService>()
-        .AddScoped<IDecompressor, DecompressorService>();
+        .AddSingleton<IWDExtractor, WDExtractor>()
+        .AddSingleton<IArchiver, ArchiverService>()
+        .AddSingleton<IArchiveFactory, ArchiveFactory>()
+        .AddSingleton<ICompressor, CompressorService>()
+        .AddSingleton<IDecompressor, DecompressorService>();
   }
 }
