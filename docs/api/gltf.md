@@ -74,6 +74,17 @@ Effective animation classes A through D export as `EarthTool A` through
 translation, canonical-quaternion rotation, and scale channels sampled at
 `frame / 24` with `LINEAR` interpolation. Absent MSH tracks contribute their
 runtime identity or pivot fallback without losing their exact absent state.
+Blender activates only the first imported glTF animation and stores the other
+class clips as muted, zero-influence NLA strips. Activate the desired Action
+and its object slot to preview that class.
+
+[F3D](https://f3d.app/) is recommended for previewing all independent class
+animations together. Select **All animations** in F3D, or launch it with:
+
+```bash
+f3d --animation-indices=-1 --animation-autoplay=true model.glb
+```
+
 Declared zero-length animation with present tracks projects effective frame
 zero; longer serialized tails remain metadata and do not extend the clip.
 Unrecognized serialized animation-class values remain exact and report
