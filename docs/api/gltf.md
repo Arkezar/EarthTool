@@ -39,6 +39,43 @@ winding and triangle multiplicity. The manifest records the preserved MSH byte
 length and SHA-256 as informational provenance; a contradiction reports
 `ETG2017` but never authorizes preservation state.
 
+## Dynamic Group and Explosion contract
+
+Dynamic exports use additive overloads that accept `DynamicMeshAsset`; existing
+static overloads remain strongly typed. Metadata version 2 identifies the
+dynamic package explicitly. The manifest contains the complete exact source MSH,
+an ordered object-scope inventory, a non-reusable next-ID boundary, and the
+`dynamic-group-explosion-preview` projection name/version/fingerprint. Every
+object node has one stable local scope ID, its exact effect declaration, its
+ordered child IDs, exact inherited header and effect bytes, resource bindings,
+and a named/versioned ordered-child guard.
+
+`Group` is a native transform node with ordered children and no mesh, material,
+or synthetic effect geometry. `Explosion` is a deterministic stock-Blender
+preview: an unlit double-sided quad uses the start rectangle and depth offset,
+the node uses child start translation, UVs select the declared first source
+frame, and base color uses visible RGB plus start alpha. TEX lookup uses the same
+bounded root order and diagnostic/default fallback as static materials. Core
+glTF does not express game billboard orientation, additive blending, frame
+advance, alpha timing, random terrain-light behavior, or terrain lighting.
+EarthTool therefore does not claim runtime equivalence for the preview.
+
+Native edits own only ordered parent/child relationships, child start
+translation, the Explosion start rectangle and depth, visible RGB, and start
+alpha. Import rewrites those exact fields and record order while retaining end
+translation, end rectangle, full frame domain, alpha timing and end alpha,
+exact additive integer, light type/color/gain, reserved and inert fields,
+resource bytes, inherited headers, and trailing bytes. Unchanged import returns
+the exact source representation. Duplicate, missing, foreign, stale, dangling,
+or ambiguous scopes fail before a dynamic snapshot is returned. Other recognized
+effect families report `ETG1002`; unknown serialized values remain exact and are
+never converted to catch-all enum values.
+
+Use `ImportEditDynamicGlbAsync` or `ImportEditDynamicGltfFileAsync` when the
+caller knows the package kind. `ImportEditMeshGlbAsync` and
+`ImportEditMeshGltfFileAsync` preserve the existing kind-specific APIs while
+allowing CLI and batch callers to accept either static or dynamic packages.
+
 Import plans and machine reports are separate protocols from embedded metadata.
 Version 1 plans use format `earthtool.msh.import-plan`; version 1 reports use
 format `earthtool.msh.cli-report`. `GltfImportPlanFormat` and
@@ -62,7 +99,7 @@ partial asset.
 
 `GltfCliReport` collects complete export, edit-import, new-model-import, and
 validation outcomes. `GltfCliReportSerializer` writes fixed-order UTF-8 JSON with
-an invocation status and every operation's input, destination, package kind,
+an invocation status and every operation's input, destination, package kind, asset kind,
 status, diagnostics, identities, fingerprint, applied conflict actions, restored
 paths, and preservation effects. Operation order and diagnostic/preservation
 order are retained; diagnostic data keys are sorted ordinally. Reports contain

@@ -26,7 +26,7 @@ internal static class MshCommandComposition
     {
       msh.SetDescription("MSH and glTF interchange commands");
       msh.AddCommand<ExportGltfCommand>("export")
-        .WithDescription("Export static MSH assets to GLB or separate glTF");
+        .WithDescription("Export supported MSH assets to GLB or separate glTF");
       msh.AddBranch("import", import =>
       {
         import.SetDescription("Import glTF into MSH");

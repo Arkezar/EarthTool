@@ -59,10 +59,10 @@ internal sealed class GltfCommandExecutor
       return CliExitCode.Failure;
     }
     var plan = await ReadPlanAsync(settings.PlanPath, cancellationToken).ConfigureAwait(false);
-    OperationResult<GltfEditImportResult> imported;
+    OperationResult<GltfMeshEditImportResult> imported;
     if (plan is not null && !plan.Succeeded)
     {
-      imported = new OperationResult<GltfEditImportResult>(plan.Status, diagnostics: plan.Diagnostics);
+      imported = new OperationResult<GltfMeshEditImportResult>(plan.Status, diagnostics: plan.Diagnostics);
     }
     else if (packageKind == GltfPackageKind.Glb)
     {
@@ -70,11 +70,11 @@ internal sealed class GltfCommandExecutor
       {
         await using var source = new FileStream(input, FileMode.Open, FileAccess.Read, FileShare.Read);
         imported = plan?.Value is null
-          ? await _interchange.ImportEditGlbAsync(
+          ? await _interchange.ImportEditMeshGlbAsync(
             source,
             expectedBaseline!,
             cancellationToken: cancellationToken).ConfigureAwait(false)
-          : await _interchange.ImportEditGlbWithPlanAsync(
+          : await _interchange.ImportEditMeshGlbWithPlanAsync(
             source,
             expectedBaseline!,
             plan.Value,
@@ -82,21 +82,21 @@ internal sealed class GltfCommandExecutor
       }
       catch (OperationCanceledException)
       {
-        imported = Cancelled<GltfEditImportResult>();
+        imported = Cancelled<GltfMeshEditImportResult>();
       }
       catch (Exception ex)
       {
-        imported = IoFailure<GltfEditImportResult>(ex);
+        imported = IoFailure<GltfMeshEditImportResult>(ex);
       }
     }
     else
     {
       imported = plan?.Value is null
-        ? await _interchange.ImportEditGltfFileAsync(
+        ? await _interchange.ImportEditMeshGltfFileAsync(
           input,
           expectedBaseline!,
           cancellationToken: cancellationToken).ConfigureAwait(false)
-        : await _interchange.ImportEditGltfFileWithPlanAsync(
+        : await _interchange.ImportEditMeshGltfFileWithPlanAsync(
           input,
           expectedBaseline!,
           plan.Value,
@@ -292,25 +292,9 @@ internal sealed class GltfCommandExecutor
     var read = await scope.ServiceProvider.GetRequiredService<IMshReader>()
       .ReadFileAsync(input, cancellationToken: cancellationToken)
       .ConfigureAwait(false);
-    if (read.Value is not StaticMeshAsset asset)
+    if (read.Value is null)
     {
-      var diagnostics = read.Diagnostics;
-      var status = read.Status;
-      if (read.Succeeded)
-      {
-        status = OperationStatus.Failed;
-        diagnostics = read.Diagnostics.Concat(
-        [
-          new OperationDiagnostic(
-            GltfDiagnosticCodes.UnsupportedDomain,
-            1102,
-            DiagnosticSeverity.Error,
-            "$",
-            "Dynamic mesh glTF transport is not supported.",
-            data: new Dictionary<string, string> { ["domain"] = "DynamicMesh" })
-        ]).ToArray();
-      }
-      var failed = new OperationResult<GltfExportReceipt>(status, diagnostics: diagnostics);
+      var failed = new OperationResult<GltfExportReceipt>(read.Status, diagnostics: read.Diagnostics);
       var failedOperation = GltfCliReportOperation.ForFailedExport(
         input,
         destination,
@@ -320,27 +304,47 @@ internal sealed class GltfCommandExecutor
     }
 
     var options = new GltfExportOptions(textureSearchRoots: settings.TextureSearchRoots);
-    var exported = settings.Format == GltfPackageKind.Glb
-      ? await _interchange.ExportGlbFileAsync(
-        asset,
-        destination,
-        options,
-        cancellationToken: cancellationToken).ConfigureAwait(false)
-      : await _interchange.ExportGltfFileAsync(
-        asset,
-        destination,
-        options,
-        cancellationToken: cancellationToken).ConfigureAwait(false);
+    var asset = read.Value;
+    var exported = await asset.Match(
+      onStatic: staticAsset => settings.Format == GltfPackageKind.Glb
+        ? _interchange.ExportGlbFileAsync(
+          staticAsset,
+          destination,
+          options,
+          cancellationToken: cancellationToken)
+        : _interchange.ExportGltfFileAsync(
+          staticAsset,
+          destination,
+          options,
+          cancellationToken: cancellationToken),
+      onDynamic: dynamicAsset => settings.Format == GltfPackageKind.Glb
+        ? _interchange.ExportGlbFileAsync(
+          dynamicAsset,
+          destination,
+          options,
+          cancellationToken: cancellationToken)
+        : _interchange.ExportGltfFileAsync(
+          dynamicAsset,
+          destination,
+          options,
+          cancellationToken: cancellationToken)).ConfigureAwait(false);
     var combined = new OperationResult<GltfExportReceipt>(
       exported.Status,
       exported.Value,
       read.Diagnostics.Concat(exported.Diagnostics));
-    var operation = GltfCliReportOperation.ForExport(
-      input,
-      destination,
-      settings.Format,
-      asset,
-      combined);
+    var operation = asset.Match(
+      onStatic: staticAsset => GltfCliReportOperation.ForExport(
+        input,
+        destination,
+        settings.Format,
+        staticAsset,
+        combined),
+      onDynamic: dynamicAsset => GltfCliReportOperation.ForExport(
+        input,
+        destination,
+        settings.Format,
+        dynamicAsset,
+        combined));
     return operation;
   }
 

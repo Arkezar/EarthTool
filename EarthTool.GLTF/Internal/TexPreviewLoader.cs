@@ -46,6 +46,22 @@ namespace EarthTool.GLTF.Internal
     }
   }
 
+  internal sealed class DynamicTexPreviewLoadResult
+  {
+    internal IReadOnlyDictionary<int, TexPreview> Previews { get; }
+    internal IReadOnlyList<OperationDiagnostic> Diagnostics { get; }
+    internal bool HasErrors => Diagnostics.Any(diagnostic =>
+      diagnostic.Severity == DiagnosticSeverity.Error);
+
+    internal DynamicTexPreviewLoadResult(
+      IReadOnlyDictionary<int, TexPreview> previews,
+      IReadOnlyList<OperationDiagnostic> diagnostics)
+    {
+      Previews = previews;
+      Diagnostics = diagnostics;
+    }
+  }
+
   internal static class TexPreviewLoader
   {
     private static readonly byte[] _identifier = { 0x54, 0x45, 0x58, 0, 1, 0, 0, 0 };
@@ -125,6 +141,187 @@ namespace EarthTool.GLTF.Internal
       }
 
       return new TexPreviewLoadResult(previews, diagnostics);
+    }
+
+    internal static DynamicTexPreviewLoadResult Load(
+      DynamicMeshAsset asset,
+      GltfExportOptions options,
+      GltfOperationProfile profile,
+      int maxPreviewOutputBytes,
+      CancellationToken cancellationToken)
+    {
+      if (options.TextureSearchRoots.Count > profile.MaxTextureSearchRoots)
+      {
+        throw new ResourceLimitException(
+          options.TextureSearchRoots.Count,
+          profile.MaxTextureSearchRoots);
+      }
+      var previews = new Dictionary<int, TexPreview>();
+      var diagnostics = new List<OperationDiagnostic>();
+      var cache = new Dictionary<string, PreviewResolution>(StringComparer.OrdinalIgnoreCase);
+      var previewOutputBytes = 0;
+      var budget = new TexResolutionBudget(profile);
+      var objects = new List<DynamicObject>();
+      FlattenDynamic(asset.RootDynamicObject, 1, profile, objects);
+      for (var index = 0; index < objects.Count; index++)
+      {
+        var extension = objects[index].Extension;
+        var localId = options.DynamicObjectIds.Count == objects.Count
+          ? options.DynamicObjectIds[index]
+          : index + 1;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (extension.KnownEffectType != DynamicEffectType.Explosion
+          || extension.TexturePathBytes.Count == 0)
+        {
+          continue;
+        }
+        var path = TryGetRelativePath(extension.TexturePathBytes);
+        if (path is null)
+        {
+          diagnostics.Add(DynamicWarning(
+            GltfDiagnosticCodes.TexturePreviewUnavailable,
+            1109,
+            localId,
+            "The exact TEX binding cannot be used as a safe host resource path."));
+          continue;
+        }
+        if (!cache.TryGetValue(path, out var resolution))
+        {
+          resolution = LoadPreview(path, options.TextureSearchRoots, profile, budget);
+          cache.Add(path, resolution);
+        }
+        var preview = resolution.Preview;
+        if (preview is null)
+        {
+          AddDynamicDiagnostics(diagnostics, resolution, localId, false);
+          continue;
+        }
+        var isNewPreview = !previews.Values.Any(existing =>
+          existing.ContentAddress == preview.ContentAddress);
+        if (isNewPreview && preview.Png.Length > maxPreviewOutputBytes - previewOutputBytes)
+        {
+          AddDynamicDiagnostics(diagnostics, resolution, localId, false);
+          diagnostics.Add(DynamicWarning(
+            GltfDiagnosticCodes.TexturePreviewUnavailable,
+            1109,
+            localId,
+            "The decoded TEX previews exceed the remaining output budget."));
+          continue;
+        }
+        if (isNewPreview)
+        {
+          previewOutputBytes += preview.Png.Length;
+        }
+        AddDynamicDiagnostics(diagnostics, resolution, localId, true);
+        previews.Add(localId, preview);
+      }
+      return new DynamicTexPreviewLoadResult(previews, diagnostics);
+    }
+
+    private static void FlattenDynamic(
+      DynamicObject item,
+      int depth,
+      GltfOperationProfile profile,
+      ICollection<DynamicObject> result)
+    {
+      if (depth > profile.MaxHierarchyDepth)
+      {
+        throw new ResourceLimitException(depth, profile.MaxHierarchyDepth);
+      }
+      if (result.Count == profile.MaxNodes)
+      {
+        throw new ResourceLimitException(result.Count + 1, profile.MaxNodes);
+      }
+      result.Add(item);
+      foreach (var child in item.Children)
+      {
+        FlattenDynamic(child, depth + 1, profile, result);
+      }
+    }
+
+    private static void AddDynamicDiagnostics(
+      ICollection<OperationDiagnostic> diagnostics,
+      PreviewResolution resolution,
+      int localId,
+      bool previewEmitted)
+    {
+      if (resolution.Ambiguous)
+      {
+        diagnostics.Add(new OperationDiagnostic(
+          GltfDiagnosticCodes.AmbiguousTextureResource,
+          1108,
+          DiagnosticSeverity.Error,
+          DynamicBindingPath(localId),
+          "The TEX resource key has more than one case-insensitive match in the winning root."));
+        return;
+      }
+      if (resolution.Missing)
+      {
+        diagnostics.Add(DynamicWarning(
+          GltfDiagnosticCodes.TextureResourceMissing,
+          1107,
+          localId,
+          "The explicit TEX resource binding was not found in the configured roots."));
+      }
+      if (resolution.Shadowed)
+      {
+        diagnostics.Add(DynamicWarning(
+          GltfDiagnosticCodes.TextureResourceShadowed,
+          1110,
+          localId,
+          "A later TEX search root contains a shadowed match for this preview resource."));
+      }
+      if (resolution.DefaultUsed && previewEmitted)
+      {
+        diagnostics.Add(DynamicWarning(
+          GltfDiagnosticCodes.TextureDefaultPreviewUsed,
+          1111,
+          localId,
+          "The unresolved TEX binding uses the runtime default resource as its preview."));
+      }
+      if (resolution.DiagnosticUsed && previewEmitted)
+      {
+        diagnostics.Add(DynamicWarning(
+          GltfDiagnosticCodes.TextureDiagnosticPreviewUsed,
+          1112,
+          localId,
+          "The unresolved TEX binding uses EarthTool's deterministic diagnostic preview."));
+      }
+      if (resolution.HasVariants && previewEmitted)
+      {
+        diagnostics.Add(DynamicWarning(
+          GltfDiagnosticCodes.TextureVariantsNotRepresented,
+          1113,
+          localId,
+          "The decoded preview represents only the first highest-resolution TEX image."));
+      }
+      if (resolution.UnavailableReason is not null)
+      {
+        diagnostics.Add(DynamicWarning(
+          GltfDiagnosticCodes.TexturePreviewUnavailable,
+          1109,
+          localId,
+          resolution.UnavailableReason));
+      }
+    }
+
+    private static OperationDiagnostic DynamicWarning(
+      string code,
+      int eventId,
+      int localId,
+      string message)
+    {
+      return new OperationDiagnostic(
+        code,
+        eventId,
+        DiagnosticSeverity.Warning,
+        DynamicBindingPath(localId),
+        message);
+    }
+
+    private static string DynamicBindingPath(int localId)
+    {
+      return $"DynamicObjectScopes[{localId}].Extension.TexturePathBytes";
     }
 
     private static PreviewResolution LoadPreview(

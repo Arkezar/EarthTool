@@ -68,8 +68,9 @@ if (build.TryGetValue(out var asset))
 
 ## glTF interchange
 
-Static assets cross the artist boundary through `EarthTool.GLTF.GltfInterchange`.
-Dynamic MSH remains supported by the binary API but does not have glTF transport.
+Static assets and dynamic assets composed of `Group` and `Explosion` cross the
+artist boundary through `EarthTool.GLTF.GltfInterchange`. Other recognized
+dynamic effects remain supported by the binary API and fail closed at export.
 See the [glTF API](gltf.md) for package, metadata, reconciliation, validation,
 plan, and report contracts.
 

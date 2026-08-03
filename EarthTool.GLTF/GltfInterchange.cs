@@ -20,7 +20,7 @@ using System.Threading.Tasks;
 
 namespace EarthTool.GLTF
 {
-  /// <summary>Provides the sealed static MSH and GLB interchange facade.</summary>
+  /// <summary>Provides the sealed MSH and glTF interchange facade.</summary>
   public sealed class GltfInterchange
   {
     private readonly ITransactionalFileSystem _fileSystem;
@@ -425,6 +425,496 @@ namespace EarthTool.GLTF
           _fileSystem.TryDelete(temporaryPath);
         }
       }
+    }
+
+    /// <summary>Exports one bounded dynamic Group/Explosion asset as a strictly validated GLB.</summary>
+    public async Task<OperationResult<GltfExportReceipt>> ExportGlbAsync(
+      DynamicMeshAsset asset,
+      Stream destination,
+      GltfExportOptions? options = null,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      if (asset is null)
+      {
+        throw new ArgumentNullException(nameof(asset));
+      }
+      if (destination is null)
+      {
+        throw new ArgumentNullException(nameof(destination));
+      }
+
+      profile ??= GltfOperationProfile.Default;
+      options ??= new GltfExportOptions();
+      try
+      {
+        cancellationToken.ThrowIfCancellationRequested();
+        var baseline = new InterchangeBaseline(
+          options.AssetLineageId ?? Guid.NewGuid(),
+          options.DocumentId ?? Guid.NewGuid());
+        var previewResult = TexPreviewLoader.Load(
+          asset,
+          options,
+          profile,
+          profile.MaxOutputBytes,
+          cancellationToken);
+        if (previewResult.HasErrors)
+        {
+          return Failed<GltfExportReceipt>(previewResult.Diagnostics.First(diagnostic =>
+            diagnostic.Severity == DiagnosticSeverity.Error));
+        }
+        var glb = DynamicGltfDocument.Create(
+          asset,
+          baseline,
+          profile,
+          previewResult.Previews,
+          options.DynamicObjectIds,
+          out var fingerprint);
+        DynamicGltfDocument.ValidateGlb(glb, profile);
+        cancellationToken.ThrowIfCancellationRequested();
+        await destination.WriteAsync(glb, 0, glb.Length, cancellationToken).ConfigureAwait(false);
+        return new OperationResult<GltfExportReceipt>(
+          OperationStatus.Succeeded,
+          new GltfExportReceipt(baseline, fingerprint),
+          previewResult.Diagnostics);
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfExportReceipt>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfExportReceipt>(ToDiagnostic(ex));
+      }
+    }
+
+    /// <summary>Transactionally exports one bounded dynamic Group/Explosion asset to a GLB file.</summary>
+    public async Task<OperationResult<GltfExportReceipt>> ExportGlbFileAsync(
+      DynamicMeshAsset asset,
+      string destinationPath,
+      GltfExportOptions? options = null,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      if (asset is null)
+      {
+        throw new ArgumentNullException(nameof(asset));
+      }
+      if (destinationPath is null)
+      {
+        throw new ArgumentNullException(nameof(destinationPath));
+      }
+
+      var temporaryPath = _fileSystem.GetTemporaryPath(destinationPath);
+      try
+      {
+        cancellationToken.ThrowIfCancellationRequested();
+        OperationResult<GltfExportReceipt> result;
+        using (var temporary = _fileSystem.CreateTemporary(temporaryPath))
+        {
+          result = await ExportGlbAsync(asset, temporary, options, profile, cancellationToken)
+            .ConfigureAwait(false);
+          if (!result.Succeeded)
+          {
+            return result;
+          }
+          await temporary.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        _fileSystem.Commit(temporaryPath, destinationPath);
+        return result;
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfExportReceipt>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfExportReceipt>(ToDiagnostic(ex, destinationPath));
+      }
+      finally
+      {
+        _fileSystem.TryDelete(temporaryPath);
+      }
+    }
+
+    /// <summary>Transactionally exports one bounded dynamic Group/Explosion asset as separate glTF.</summary>
+    public async Task<OperationResult<GltfExportReceipt>> ExportGltfFileAsync(
+      DynamicMeshAsset asset,
+      string destinationPath,
+      GltfExportOptions? options = null,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      if (asset is null)
+      {
+        throw new ArgumentNullException(nameof(asset));
+      }
+      if (destinationPath is null)
+      {
+        throw new ArgumentNullException(nameof(destinationPath));
+      }
+
+      profile ??= GltfOperationProfile.Default;
+      options ??= new GltfExportOptions();
+      var manifestTemporaryPath = _fileSystem.GetTemporaryPath(destinationPath);
+      string? sidecarTemporaryPath = null;
+      string? committedSidecarPath = null;
+      var manifestCommitted = false;
+      try
+      {
+        cancellationToken.ThrowIfCancellationRequested();
+        var baseline = new InterchangeBaseline(
+          options.AssetLineageId ?? Guid.NewGuid(),
+          options.DocumentId ?? Guid.NewGuid());
+        var previewResult = TexPreviewLoader.Load(
+          asset,
+          options,
+          profile,
+          profile.MaxOutputBytes,
+          cancellationToken);
+        if (previewResult.HasErrors)
+        {
+          return Failed<GltfExportReceipt>(previewResult.Diagnostics.First(diagnostic =>
+            diagnostic.Severity == DiagnosticSeverity.Error));
+        }
+        var package = DynamicGltfDocument.CreateSeparate(
+          asset,
+          baseline,
+          profile,
+          previewResult.Previews,
+          options.DynamicObjectIds,
+          out var fingerprint);
+        GlbDocument.ValidateSeparate(
+          package.Json,
+          package.Binary,
+          package.BufferFileName,
+          package.ImageSidecars);
+        var directory = Path.GetDirectoryName(Path.GetFullPath(destinationPath))
+          ?? Directory.GetCurrentDirectory();
+        var sidecarPath = Path.Combine(directory, package.BufferFileName);
+        if (Directory.Exists(sidecarPath)
+          || File.Exists(sidecarPath) && !HasSameContent(sidecarPath, package.Binary))
+        {
+          throw new IOException("A content-addressed dynamic glTF sidecar has conflicting content.");
+        }
+        if (!File.Exists(sidecarPath))
+        {
+          sidecarTemporaryPath = _fileSystem.GetTemporaryPath(sidecarPath);
+          using (var temporary = _fileSystem.CreateTemporary(sidecarTemporaryPath))
+          {
+            await temporary.WriteAsync(
+              package.Binary,
+              0,
+              package.Binary.Length,
+              cancellationToken).ConfigureAwait(false);
+            await temporary.FlushAsync(cancellationToken).ConfigureAwait(false);
+          }
+          cancellationToken.ThrowIfCancellationRequested();
+          _fileSystem.Commit(sidecarTemporaryPath, sidecarPath);
+          committedSidecarPath = sidecarPath;
+          sidecarTemporaryPath = null;
+        }
+        using (var temporary = _fileSystem.CreateTemporary(manifestTemporaryPath))
+        {
+          await temporary.WriteAsync(
+            package.Json,
+            0,
+            package.Json.Length,
+            cancellationToken).ConfigureAwait(false);
+          await temporary.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        _fileSystem.Commit(manifestTemporaryPath, destinationPath);
+        manifestCommitted = true;
+        return new OperationResult<GltfExportReceipt>(
+          OperationStatus.Succeeded,
+          new GltfExportReceipt(baseline, fingerprint),
+          previewResult.Diagnostics);
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfExportReceipt>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfExportReceipt>(ToDiagnostic(ex, destinationPath));
+      }
+      finally
+      {
+        _fileSystem.TryDelete(manifestTemporaryPath);
+        if (sidecarTemporaryPath is not null)
+        {
+          _fileSystem.TryDelete(sidecarTemporaryPath);
+        }
+        if (!manifestCommitted && committedSidecarPath is not null)
+        {
+          _fileSystem.TryDelete(committedSidecarPath);
+        }
+      }
+    }
+
+    /// <summary>Imports a dynamic GLB into an expected lineage and document baseline.</summary>
+    public async Task<OperationResult<GltfDynamicEditImportResult>> ImportEditDynamicGlbAsync(
+      Stream source,
+      InterchangeBaseline expectedBaseline,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      if (source is null)
+      {
+        throw new ArgumentNullException(nameof(source));
+      }
+      if (expectedBaseline is null)
+      {
+        throw new ArgumentNullException(nameof(expectedBaseline));
+      }
+      profile ??= GltfOperationProfile.Default;
+      try
+      {
+        var glb = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
+          .ConfigureAwait(false);
+        var imported = DynamicGltfDocument.ImportGlb(
+          glb,
+          expectedBaseline,
+          profile,
+          cancellationToken);
+        var nextBaseline = new InterchangeBaseline(expectedBaseline.AssetLineageId, Guid.NewGuid());
+        return new OperationResult<GltfDynamicEditImportResult>(
+          OperationStatus.Succeeded,
+          new GltfDynamicEditImportResult(
+            imported.Asset,
+            nextBaseline,
+            imported.Fingerprint,
+            imported.Preservation,
+            new[] { "RootDynamicObject" },
+            imported.ObjectIds));
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfDynamicEditImportResult>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfDynamicEditImportResult>(ToDiagnostic(ex));
+      }
+    }
+
+    /// <summary>Imports a dynamic separate-glTF package into an expected baseline.</summary>
+    public async Task<OperationResult<GltfDynamicEditImportResult>> ImportEditDynamicGltfFileAsync(
+      string sourcePath,
+      InterchangeBaseline expectedBaseline,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      if (sourcePath is null)
+      {
+        throw new ArgumentNullException(nameof(sourcePath));
+      }
+      if (expectedBaseline is null)
+      {
+        throw new ArgumentNullException(nameof(expectedBaseline));
+      }
+      profile ??= GltfOperationProfile.Default;
+      try
+      {
+        var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
+          .ConfigureAwait(false);
+        var imported = DynamicGltfDocument.ImportSeparate(
+          package.Json,
+          package.Binary,
+          package.BufferUri,
+          package.Images,
+          expectedBaseline,
+          profile,
+          cancellationToken);
+        var nextBaseline = new InterchangeBaseline(expectedBaseline.AssetLineageId, Guid.NewGuid());
+        return new OperationResult<GltfDynamicEditImportResult>(
+          OperationStatus.Succeeded,
+          new GltfDynamicEditImportResult(
+            imported.Asset,
+            nextBaseline,
+            imported.Fingerprint,
+            imported.Preservation,
+            new[] { "RootDynamicObject" },
+            imported.ObjectIds));
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfDynamicEditImportResult>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfDynamicEditImportResult>(ToDiagnostic(ex, sourcePath));
+      }
+    }
+
+    /// <summary>Imports a static or dynamic GLB while preserving existing kind-specific contracts.</summary>
+    public async Task<OperationResult<GltfMeshEditImportResult>> ImportEditMeshGlbAsync(
+      Stream source,
+      InterchangeBaseline expectedBaseline,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      if (source is null)
+      {
+        throw new ArgumentNullException(nameof(source));
+      }
+      if (expectedBaseline is null)
+      {
+        throw new ArgumentNullException(nameof(expectedBaseline));
+      }
+      profile ??= GltfOperationProfile.Default;
+      try
+      {
+        var glb = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
+          .ConfigureAwait(false);
+        var jsonLength = glb.Length >= 20
+          ? checked((int)BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(12, sizeof(uint))))
+          : 0;
+        if (jsonLength > 0 && 20 + jsonLength <= glb.Length
+          && DynamicGltfDocument.HasDynamicManifest(
+            glb.AsMemory(20, jsonLength),
+            profile.MaxJsonDepth))
+        {
+          await using var dynamicSource = new MemoryStream(glb, false);
+          return ToMeshResult(await ImportEditDynamicGlbAsync(
+            dynamicSource,
+            expectedBaseline,
+            profile,
+            cancellationToken).ConfigureAwait(false));
+        }
+        await using var staticSource = new MemoryStream(glb, false);
+        return ToMeshResult(await ImportEditGlbAsync(
+          staticSource,
+          expectedBaseline,
+          profile,
+          cancellationToken).ConfigureAwait(false));
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfMeshEditImportResult>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfMeshEditImportResult>(ToDiagnostic(ex));
+      }
+    }
+
+    /// <summary>Imports a static or dynamic separate-glTF package.</summary>
+    public async Task<OperationResult<GltfMeshEditImportResult>> ImportEditMeshGltfFileAsync(
+      string sourcePath,
+      InterchangeBaseline expectedBaseline,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      if (sourcePath is null)
+      {
+        throw new ArgumentNullException(nameof(sourcePath));
+      }
+      if (expectedBaseline is null)
+      {
+        throw new ArgumentNullException(nameof(expectedBaseline));
+      }
+      profile ??= GltfOperationProfile.Default;
+      try
+      {
+        await using var source = new FileStream(
+          sourcePath,
+          FileMode.Open,
+          FileAccess.Read,
+          FileShare.Read,
+          81920,
+          true);
+        var json = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
+          .ConfigureAwait(false);
+        return DynamicGltfDocument.HasDynamicManifest(json, profile.MaxJsonDepth)
+          ? ToMeshResult(await ImportEditDynamicGltfFileAsync(
+            sourcePath,
+            expectedBaseline,
+            profile,
+            cancellationToken).ConfigureAwait(false))
+          : ToMeshResult(await ImportEditGltfFileAsync(
+            sourcePath,
+            expectedBaseline,
+            profile,
+            cancellationToken).ConfigureAwait(false));
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfMeshEditImportResult>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfMeshEditImportResult>(ToDiagnostic(ex, sourcePath));
+      }
+    }
+
+    /// <summary>Imports a planned static GLB through the kind-neutral result contract.</summary>
+    public async Task<OperationResult<GltfMeshEditImportResult>> ImportEditMeshGlbWithPlanAsync(
+      Stream source,
+      InterchangeBaseline expectedBaseline,
+      GltfImportPlan plan,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      return ToMeshResult(await ImportEditGlbWithPlanAsync(
+        source,
+        expectedBaseline,
+        plan,
+        profile,
+        cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>Imports a planned static separate-glTF package through the kind-neutral result contract.</summary>
+    public async Task<OperationResult<GltfMeshEditImportResult>> ImportEditMeshGltfFileWithPlanAsync(
+      string sourcePath,
+      InterchangeBaseline expectedBaseline,
+      GltfImportPlan plan,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default)
+    {
+      return ToMeshResult(await ImportEditGltfFileWithPlanAsync(
+        sourcePath,
+        expectedBaseline,
+        plan,
+        profile,
+        cancellationToken).ConfigureAwait(false));
+    }
+
+    private static OperationResult<GltfMeshEditImportResult> ToMeshResult(
+      OperationResult<GltfEditImportResult> result)
+    {
+      return result.Succeeded
+        ? new OperationResult<GltfMeshEditImportResult>(
+          OperationStatus.Succeeded,
+          new GltfMeshEditImportResult(
+            result.Value!.Asset,
+            result.Value.NextBaseline,
+            result.Value.AppliedFingerprint,
+            result.Value.Preservation,
+            result.Value.RestoredSerializedRepresentationPaths,
+            result.Value.LineageDisposition,
+            result.Value.AppliedConflictResolutions),
+          result.Diagnostics)
+        : new OperationResult<GltfMeshEditImportResult>(result.Status, diagnostics: result.Diagnostics);
+    }
+
+    private static OperationResult<GltfMeshEditImportResult> ToMeshResult(
+      OperationResult<GltfDynamicEditImportResult> result)
+    {
+      return result.Succeeded
+        ? new OperationResult<GltfMeshEditImportResult>(
+          OperationStatus.Succeeded,
+          new GltfMeshEditImportResult(
+            result.Value!.Asset,
+            result.Value.NextBaseline,
+            result.Value.AppliedFingerprint,
+            result.Value.Preservation,
+            result.Value.RestoredSerializedRepresentationPaths,
+            GltfMetadataLineageDisposition.Retained),
+          result.Diagnostics)
+        : new OperationResult<GltfMeshEditImportResult>(result.Status, diagnostics: result.Diagnostics);
     }
 
     private static bool HasSameContent(string path, byte[] expected)
@@ -1035,6 +1525,17 @@ namespace EarthTool.GLTF
       try
       {
         var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken).ConfigureAwait(false);
+        var jsonLength = bytes.Length >= 20
+          ? checked((int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(12, sizeof(uint))))
+          : 0;
+        if (jsonLength > 0 && 20 + jsonLength <= bytes.Length
+          && DynamicGltfDocument.HasDynamicManifest(
+            bytes.AsMemory(20, jsonLength),
+            profile.MaxJsonDepth))
+        {
+          DynamicGltfDocument.ValidateGlb(bytes, profile);
+          return new OperationResult(OperationStatus.Succeeded);
+        }
         var parsed = GlbDocument.Parse(bytes, profile);
         ValidateGeometryProfile(parsed, profile);
         var metadataConflicts = parsed.MetadataConflicts.Build();
@@ -1072,6 +1573,16 @@ namespace EarthTool.GLTF
       {
         var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
           .ConfigureAwait(false);
+        if (DynamicGltfDocument.HasDynamicManifest(package.Json, profile.MaxJsonDepth))
+        {
+          DynamicGltfDocument.ValidateSeparatePackage(
+            package.Json,
+            package.Binary,
+            package.BufferUri,
+            package.Images,
+            profile);
+          return new OperationResult(OperationStatus.Succeeded);
+        }
         var parsed = GlbDocument.ParseSeparate(package.Json, package.Binary, profile);
         ValidateGeometryProfile(parsed, profile);
         GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri, package.Images);
@@ -5450,6 +5961,29 @@ namespace EarthTool.GLTF
           identity.Path ?? path,
           identity.Message,
           actions);
+      }
+
+      if (exception is DynamicMetadataIdentityException dynamicIdentity)
+      {
+        return MetadataDiagnostic(
+          dynamicIdentity.IsLineage
+            ? GltfDiagnosticCodes.AssetLineageMismatch
+            : GltfDiagnosticCodes.DocumentMismatch,
+          dynamicIdentity.IsLineage ? 2006 : 2007,
+          "scenes[0].extras.earthtool",
+          dynamicIdentity.Message,
+          dynamicIdentity.IsLineage
+            ? GltfMetadataConflictActions.AdoptAsNew
+            : GltfMetadataConflictActions.AcceptBranch);
+      }
+
+      if (exception is DynamicMetadataGraphException dynamicGraph)
+      {
+        return MetadataDiagnostic(
+          dynamicGraph.Code,
+          dynamicGraph.EventId,
+          dynamicGraph.Path,
+          dynamicGraph.Message);
       }
 
       if (exception is StaticLightMetadataException staticLightMetadata)

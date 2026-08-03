@@ -1141,6 +1141,8 @@ namespace EarthTool.GLTF
     public GltfCliReportOperationKind Kind { get; }
     /// <summary>Gets the glTF package form.</summary>
     public GltfPackageKind PackageKind { get; }
+    /// <summary>Gets the source or produced MSH asset kind, when available.</summary>
+    public MeshAssetKind? AssetKind { get; }
     /// <summary>Gets the terminal operation status.</summary>
     public OperationStatus Status { get; }
     /// <summary>Gets every operation diagnostic in result order.</summary>
@@ -1194,6 +1196,7 @@ namespace EarthTool.GLTF
       Diagnostics = Array.AsReadOnly(result.Diagnostics.ToArray());
       MeshAssetLineageId = meshAsset?.LineageId.Value;
       MeshCreationGuid = meshAsset?.ArchiveFraming.CreationGuid;
+      AssetKind = meshAsset?.Kind;
       ExpectedBaseline = expectedBaseline;
       Baseline = baseline;
       NextBaseline = nextBaseline;
@@ -1210,6 +1213,29 @@ namespace EarthTool.GLTF
       string destination,
       GltfPackageKind packageKind,
       StaticMeshAsset asset,
+      OperationResult<GltfExportReceipt> result)
+    {
+      if (result is null)
+      {
+        throw new ArgumentNullException(nameof(result));
+      }
+      return new GltfCliReportOperation(
+        input,
+        destination ?? throw new ArgumentNullException(nameof(destination)),
+        GltfCliReportOperationKind.Export,
+        packageKind,
+        result,
+        asset ?? throw new ArgumentNullException(nameof(asset)),
+        baseline: result.Value?.Baseline,
+        fingerprint: result.Value?.Fingerprint);
+    }
+
+    /// <summary>Captures one complete dynamic export outcome.</summary>
+    public static GltfCliReportOperation ForExport(
+      string input,
+      string destination,
+      GltfPackageKind packageKind,
+      DynamicMeshAsset asset,
       OperationResult<GltfExportReceipt> result)
     {
       if (result is null)
@@ -1279,6 +1305,34 @@ namespace EarthTool.GLTF
       GltfPackageKind packageKind,
       InterchangeBaseline expectedBaseline,
       OperationResult<GltfEditImportResult> result)
+    {
+      if (result is null)
+      {
+        throw new ArgumentNullException(nameof(result));
+      }
+      return new GltfCliReportOperation(
+        input,
+        destination ?? throw new ArgumentNullException(nameof(destination)),
+        GltfCliReportOperationKind.ImportEdit,
+        packageKind,
+        result,
+        result.Value?.Asset,
+        expectedBaseline ?? throw new ArgumentNullException(nameof(expectedBaseline)),
+        nextBaseline: result.Value?.NextBaseline,
+        fingerprint: result.Value?.AppliedFingerprint,
+        lineageDisposition: result.Value?.LineageDisposition,
+        appliedConflictActions: result.Value?.AppliedConflictResolutions,
+        restoredPaths: result.Value?.RestoredSerializedRepresentationPaths,
+        preservationChanges: result.Value?.Preservation.Changes);
+    }
+
+    /// <summary>Captures one complete kind-neutral expected-baseline edit-import outcome.</summary>
+    public static GltfCliReportOperation ForEditImport(
+      string input,
+      string destination,
+      GltfPackageKind packageKind,
+      InterchangeBaseline expectedBaseline,
+      OperationResult<GltfMeshEditImportResult> result)
     {
       if (result is null)
       {
@@ -1442,6 +1496,16 @@ namespace EarthTool.GLTF
       writer.WriteString("input", operation.Input);
       writer.WriteString("kind", OperationName(operation.Kind));
       writer.WriteString("package", operation.PackageKind == GltfPackageKind.Glb ? "glb" : "gltf");
+      if (operation.AssetKind.HasValue)
+      {
+        writer.WriteString(
+          "assetKind",
+          operation.AssetKind == MeshAssetKind.Static ? "static" : "dynamic");
+      }
+      else
+      {
+        writer.WriteNull("assetKind");
+      }
       writer.WriteString("status", StatusName(operation.Status));
       if (operation.Destination is null)
       {

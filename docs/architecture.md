@@ -41,10 +41,11 @@ serialized-construction boundary.
 
 ## Interchange boundary
 
-`GltfInterchange` projects static mesh assets to GLB or separate glTF. EarthTool
-metadata envelopes retain MSH-only state only while native projection
-fingerprints prove that state remains applicable. Native glTF owns deliberate
-artist edits.
+`GltfInterchange` projects static mesh assets and supported dynamic
+`Group`/`Explosion` assets to GLB or separate glTF. EarthTool metadata envelopes
+retain MSH-only state only while native projection fingerprints prove that state
+remains applicable. Native glTF owns only the deliberately documented artist
+projection; runtime-only dynamic behavior remains metadata authority.
 
 Edit import requires an expected asset lineage and document identity. New-model
 import is a separate operation for intentionally metadata-free input. Both paths

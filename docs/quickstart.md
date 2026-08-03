@@ -343,7 +343,7 @@ EarthTool.CLI wd info archive.wd
 | `wd add <archive> <files>` | Add files |
 | `wd remove <archive>` | Remove files |
 | `wd info <archive>` | Show details |
-| `msh export <file>` | Export static MSH to GLB or glTF |
+| `msh export <file>` | Export supported static or dynamic MSH to GLB or glTF |
 | `msh import edit <file>` | Import an edit into an expected interchange lineage |
 | `msh import new <file>` | Author canonical MSH from metadata-free glTF |
 | `tex <file>` | Convert TEX to PNG |

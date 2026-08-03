@@ -10,12 +10,13 @@ data.
 | WD | Read, create, extract, add, remove, and inspect archives |
 | TEX | Read textures and produce standard image previews |
 | MSH | Read, validate, write, canonically author, and safely edit framed version-1 assets |
-| GLB/glTF | Export static MSH, reconcile artist edits, and author new static MSH models |
+| GLB/glTF | Export static MSH and Group/Explosion dynamic MSH, reconcile artist edits, and author new static MSH models |
 | PAR | Read, edit, and serialize parameter data |
 
-The MSH API supports both static mesh assets and dynamic mesh assets. Artist
-interchange is intentionally limited to static assets; dynamic effects remain a
-binary API capability.
+The MSH API supports both static and dynamic mesh assets. Artist interchange
+supports the complete static contract plus the first dynamic slice: ordered
+`Group` hierarchies and deterministic `Explosion` previews. Other recognized
+dynamic effect families remain binary-only until their dedicated slices land.
 
 ## Blender workflow
 

@@ -65,6 +65,29 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
+  public async Task ExportAcceptsDynamicGroupAndExplosionAndReportsItsAssetKind()
+  {
+    using var fixture = await CliFixture.CreateDynamicAsync();
+    var reportPath = Path.Combine(fixture.Directory, "dynamic-export-report.json");
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+      ["msh", "export", fixture.MshPath, "--report", reportPath],
+      TextWriter.Null);
+
+    exitCode.Should().Be(CliExitCode.Success);
+    File.Exists(fixture.GlbPath).Should().BeTrue();
+    using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+    var operation = report.RootElement.GetProperty("operations")[0];
+    operation.GetProperty("assetKind").GetString().Should().Be("dynamic");
+    operation.GetProperty("package").GetString().Should().Be("glb");
+    operation.GetProperty("status").GetString().Should().Be("succeeded");
+    operation.GetProperty("identities").GetProperty("meshAssetLineageId")
+      .ValueKind.Should().Be(JsonValueKind.String);
+    operation.GetProperty("identities").GetProperty("fingerprint").GetProperty("name")
+      .GetString().Should().Be("dynamic-group-explosion-preview");
+  }
+
+  [Fact]
   public async Task ExportRetainsRepeatedTexRootArgumentOrder()
   {
     using var fixture = await CliFixture.CreateAsync("Textures\\preview.tex");
@@ -258,6 +281,35 @@ public sealed class InternalMshCommandHostTests
       .GetProperty("documentId").GetString().Should().Be(expected.DocumentId.ToString("D"));
     operation.GetProperty("identities").GetProperty("nextBaseline")
       .GetProperty("documentId").GetString().Should().NotBe(expected.DocumentId.ToString("D"));
+  }
+
+  [Fact]
+  public async Task EditImportRestoresAnUnchangedDynamicPackage()
+  {
+    using var fixture = await CliFixture.CreateDynamicAsync();
+    var expected = await fixture.CreateEditDynamicGlbAsync();
+    var outputDirectory = Path.Combine(fixture.Directory, "dynamic-edited");
+    System.IO.Directory.CreateDirectory(outputDirectory);
+    var reportPath = Path.Combine(fixture.Directory, "dynamic-edit-report.json");
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "import", "edit", fixture.GlbPath,
+      "--expected-lineage", expected.AssetLineageId.ToString("D"),
+      "--expected-document", expected.DocumentId.ToString("D"),
+      "--output", outputDirectory,
+      "--report", reportPath
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(CliExitCode.Success);
+    var restored = await new MshReader().ReadFileAsync(Path.Combine(outputDirectory, "model.msh"));
+    restored.Value.Should().BeOfType<DynamicMeshAsset>();
+    (await File.ReadAllBytesAsync(Path.Combine(outputDirectory, "model.msh"))).Should()
+      .Equal(await File.ReadAllBytesAsync(fixture.MshPath));
+    using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+    var operation = report.RootElement.GetProperty("operations")[0];
+    operation.GetProperty("assetKind").GetString().Should().Be("dynamic");
+    operation.GetProperty("status").GetString().Should().Be("succeeded");
   }
 
   [Fact]
@@ -676,10 +728,51 @@ public sealed class InternalMshCommandHostTests
       return fixture;
     }
 
+    public static async Task<CliFixture> CreateDynamicAsync()
+    {
+      var fixture = new CliFixture(Path.Combine(Path.GetTempPath(), $"earthtool-cli-{Guid.NewGuid():N}"));
+      System.IO.Directory.CreateDirectory(fixture.Directory);
+      var explosion = DynamicEffectRecipes.Explosion(
+        new CanonicalDynamicSpriteSheet(new CanonicalDynamicFrameSequence(0, 1, 0), 1, 1),
+        new CanonicalDynamicEffectShape(
+          new EffectRectangle(-1, 1, 1, -1),
+          new EffectRectangle(-2, 2, 2, -2),
+          0.25f),
+        "Textures\\fx\\explosion.tex",
+        new Vector3(1, 0.5f, 0.25f),
+        new CanonicalDynamicAlpha(1, 0, DynamicAlphaTiming.LifetimeProgress),
+        true,
+        new CanonicalDynamicTerrainLight(DynamicLightType.Pyramid, Vector3.One));
+      var build = DynamicMeshBuilder.Create(
+          Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"),
+          new MeshAssetLineageId(Guid.Parse("11111111-2222-4333-8444-555555555555")))
+        .SetRoot(DynamicEffectRecipes.Group([explosion]))
+        .Build();
+      build.TryGetValue(out var asset).Should().BeTrue();
+      var write = await new MshWriter().WriteFileAsync(asset!, fixture.MshPath);
+      write.Succeeded.Should().BeTrue();
+      return fixture;
+    }
+
     public async Task<InterchangeBaseline> CreateEditGlbAsync()
     {
       var read = await new MshReader().ReadFileAsync(MshPath);
       var asset = read.Value.Should().BeOfType<StaticMeshAsset>().Subject;
+      var expected = new InterchangeBaseline(
+        Guid.Parse("aaaaaaaa-1111-4222-8333-bbbbbbbbbbbb"),
+        Guid.Parse("cccccccc-4444-4555-8666-dddddddddddd"));
+      var export = await new GltfInterchange().ExportGlbFileAsync(
+        asset,
+        GlbPath,
+        new GltfExportOptions(expected.AssetLineageId, expected.DocumentId));
+      export.Status.Should().Be(OperationStatus.Succeeded);
+      return expected;
+    }
+
+    public async Task<InterchangeBaseline> CreateEditDynamicGlbAsync()
+    {
+      var read = await new MshReader().ReadFileAsync(MshPath);
+      var asset = read.Value.Should().BeOfType<DynamicMeshAsset>().Subject;
       var expected = new InterchangeBaseline(
         Guid.Parse("aaaaaaaa-1111-4222-8333-bbbbbbbbbbbb"),
         Guid.Parse("cccccccc-4444-4555-8666-dddddddddddd"));

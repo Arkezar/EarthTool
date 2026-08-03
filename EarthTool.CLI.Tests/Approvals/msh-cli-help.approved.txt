@@ -22,7 +22,7 @@ OPTIONS:
     -h, --help    Prints help information
 
 COMMANDS:
-    export <INPUT>    Export static MSH assets to GLB or separate glTF
+    export <INPUT>    Export supported MSH assets to GLB or separate glTF
     import            Import glTF into MSH
 
 # earthtool msh import --help

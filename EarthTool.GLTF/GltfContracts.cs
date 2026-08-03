@@ -583,6 +583,7 @@ namespace EarthTool.GLTF
     public IReadOnlyDictionary<string, string> PreservedUnknownMetadata { get; }
 
     internal IReadOnlyDictionary<string, int> MetadataNextIds { get; }
+    internal IReadOnlyList<int> DynamicObjectIds { get; private set; }
 
     /// <summary>Initializes GLB export options.</summary>
     public GltfExportOptions(
@@ -619,6 +620,7 @@ namespace EarthTool.GLTF
       }
       PreservedUnknownMetadata = new ReadOnlyDictionary<string, string>(unknownMetadata);
       MetadataNextIds = new ReadOnlyDictionary<string, int>(new Dictionary<string, int>());
+      DynamicObjectIds = Array.Empty<int>();
     }
 
     internal GltfExportOptions(
@@ -630,6 +632,15 @@ namespace EarthTool.GLTF
     {
       MetadataNextIds = new ReadOnlyDictionary<string, int>(
         metadataNextIds.ToDictionary(pair => pair.Key, pair => pair.Value));
+    }
+
+    internal GltfExportOptions(
+      Guid assetLineageId,
+      Guid documentId,
+      IReadOnlyList<int> dynamicObjectIds)
+      : this(assetLineageId, documentId)
+    {
+      DynamicObjectIds = Array.AsReadOnly(dynamicObjectIds.ToArray());
     }
 
     private static void ValidateUnknownMetadata(string key, string value, string parameterName)
@@ -1116,6 +1127,93 @@ namespace EarthTool.GLTF
         nextBaseline.DocumentId,
         PreservedUnknownMetadata,
         metadataNextIds ?? new Dictionary<string, int>());
+      LineageDisposition = lineageDisposition;
+      AppliedConflictResolutions = Array.AsReadOnly(
+        appliedConflictResolutions?.ToArray() ?? Array.Empty<GltfMetadataConflictResolution>());
+    }
+  }
+
+  /// <summary>Reports a successful reconciled dynamic edit import.</summary>
+  public sealed class GltfDynamicEditImportResult
+  {
+    /// <summary>Gets the restored immutable dynamic mesh asset.</summary>
+    public DynamicMeshAsset Asset { get; }
+
+    /// <summary>Gets the retained lineage and rotated document baseline.</summary>
+    public InterchangeBaseline NextBaseline { get; }
+
+    /// <summary>Gets the fingerprint that proved metadata applicability.</summary>
+    public NativeProjectionFingerprint AppliedFingerprint { get; }
+
+    /// <summary>Gets exact retained and regenerated MSH paths.</summary>
+    public PreservationReport Preservation { get; }
+
+    /// <summary>Gets the serialized representation paths restored from metadata.</summary>
+    public IReadOnlyList<string> RestoredSerializedRepresentationPaths { get; }
+
+    /// <summary>Gets export options that retain the next baseline.</summary>
+    public GltfExportOptions NextExportOptions { get; }
+
+    internal GltfDynamicEditImportResult(
+      DynamicMeshAsset asset,
+      InterchangeBaseline nextBaseline,
+      NativeProjectionFingerprint appliedFingerprint,
+      PreservationReport preservation,
+      IEnumerable<string> restoredSerializedRepresentationPaths,
+      IReadOnlyList<int> dynamicObjectIds)
+    {
+      Asset = asset;
+      NextBaseline = nextBaseline;
+      AppliedFingerprint = appliedFingerprint;
+      Preservation = preservation;
+      RestoredSerializedRepresentationPaths = Array.AsReadOnly(
+        restoredSerializedRepresentationPaths.ToArray());
+      NextExportOptions = new GltfExportOptions(
+        nextBaseline.AssetLineageId,
+        nextBaseline.DocumentId,
+        dynamicObjectIds);
+    }
+  }
+
+  /// <summary>Reports a successful edit import without weakening kind-specific APIs.</summary>
+  public sealed class GltfMeshEditImportResult
+  {
+    /// <summary>Gets the restored immutable static or dynamic mesh asset.</summary>
+    public MeshAsset Asset { get; }
+
+    /// <summary>Gets the retained lineage and rotated document baseline.</summary>
+    public InterchangeBaseline NextBaseline { get; }
+
+    /// <summary>Gets the fingerprint that proved metadata applicability.</summary>
+    public NativeProjectionFingerprint? AppliedFingerprint { get; }
+
+    /// <summary>Gets exact retained and regenerated MSH paths.</summary>
+    public PreservationReport Preservation { get; }
+
+    /// <summary>Gets serialized representation paths restored from metadata.</summary>
+    public IReadOnlyList<string> RestoredSerializedRepresentationPaths { get; }
+
+    /// <summary>Gets how the successful transaction treated metadata lineage.</summary>
+    public GltfMetadataLineageDisposition LineageDisposition { get; }
+
+    /// <summary>Gets conflict resolutions applied by the successful transaction.</summary>
+    public IReadOnlyList<GltfMetadataConflictResolution> AppliedConflictResolutions { get; }
+
+    internal GltfMeshEditImportResult(
+      MeshAsset asset,
+      InterchangeBaseline nextBaseline,
+      NativeProjectionFingerprint? appliedFingerprint,
+      PreservationReport preservation,
+      IEnumerable<string> restoredSerializedRepresentationPaths,
+      GltfMetadataLineageDisposition lineageDisposition,
+      IEnumerable<GltfMetadataConflictResolution>? appliedConflictResolutions = null)
+    {
+      Asset = asset;
+      NextBaseline = nextBaseline;
+      AppliedFingerprint = appliedFingerprint;
+      Preservation = preservation;
+      RestoredSerializedRepresentationPaths = Array.AsReadOnly(
+        restoredSerializedRepresentationPaths.ToArray());
       LineageDisposition = lineageDisposition;
       AppliedConflictResolutions = Array.AsReadOnly(
         appliedConflictResolutions?.ToArray() ?? Array.Empty<GltfMetadataConflictResolution>());
