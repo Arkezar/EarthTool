@@ -58,7 +58,7 @@
     },
     "EarthTool - Export All Meshes": {
       "commandName": "Project",
-      "commandLineArgs": "msh export -o %HOME%/earthwork/Meshes_exported %HOME%/earthwork/WDFiles_extracted/meshes/*.msh",
+      "commandLineArgs": "msh export --tex-root %HOME%/earthwork/WDFiles_extracted -o %HOME%/earthwork/Meshes_exported %HOME%/earthwork/WDFiles_extracted/meshes/*.msh",
       "environmentVariables": {
         "Logging:LogLevel:Default": "Information"
       }
