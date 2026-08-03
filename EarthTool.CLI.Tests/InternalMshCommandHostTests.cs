@@ -123,6 +123,42 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
+  public async Task ExportAllMeshesBatchExportsStaticAndDynamicAssetsWithoutUnsupportedDomainFailures()
+  {
+    using var staticFixture = await CliFixture.CreateAsync();
+    using var dynamicFixture = await CliFixture.CreateDynamicAsync();
+    var inputDirectory = Path.Combine(staticFixture.Directory, "meshes");
+    var outputDirectory = Path.Combine(staticFixture.Directory, "exports");
+    System.IO.Directory.CreateDirectory(inputDirectory);
+    System.IO.Directory.CreateDirectory(outputDirectory);
+    File.Copy(staticFixture.MshPath, Path.Combine(inputDirectory, "static.msh"));
+    File.Copy(dynamicFixture.MshPath, Path.Combine(inputDirectory, "dynamic.msh"));
+    var reportPath = Path.Combine(staticFixture.Directory, "export-all-report.json");
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "export",
+      "--tex-root", staticFixture.Directory,
+      "--msh-root", staticFixture.Directory,
+      "--output", outputDirectory,
+      "--report", reportPath,
+      Path.Combine(inputDirectory, "*.msh")
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(CliExitCode.Success);
+    File.Exists(Path.Combine(outputDirectory, "static.glb")).Should().BeTrue();
+    File.Exists(Path.Combine(outputDirectory, "dynamic.glb")).Should().BeTrue();
+    using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+    report.RootElement.GetProperty("status").GetString().Should().Be("succeeded");
+    var operations = report.RootElement.GetProperty("operations").EnumerateArray().ToArray();
+    operations.Select(operation => operation.GetProperty("assetKind").GetString()).Should()
+      .Equal("dynamic", "static");
+    operations.SelectMany(operation => operation.GetProperty("diagnostics").EnumerateArray())
+      .Select(diagnostic => diagnostic.GetProperty("code").GetString()).Should()
+      .NotContain(GltfDiagnosticCodes.UnsupportedDomain);
+  }
+
+  [Fact]
   public async Task ExportRetainsRepeatedTexRootArgumentOrder()
   {
     using var fixture = await CliFixture.CreateAsync("Textures\\preview.tex");
@@ -209,6 +245,41 @@ public sealed class InternalMshCommandHostTests
     report.RootElement.GetProperty("operations").EnumerateArray()
       .Select(operation => operation.GetProperty("input").GetString()).Should()
       .Equal(Path.GetFullPath(alpha), Path.GetFullPath(zeta));
+  }
+
+  [Fact]
+  public async Task ExportCreatesTheRequestedOutputDirectory()
+  {
+    using var fixture = await CliFixture.CreateAsync();
+    var outputDirectory = Path.Combine(fixture.Directory, "new", "exports");
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "export", fixture.MshPath,
+      "--output", outputDirectory
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(CliExitCode.Success);
+    File.Exists(Path.Combine(outputDirectory, "model.glb")).Should().BeTrue();
+  }
+
+  [Fact]
+  public async Task ExportFailsPreflightWhenTheOutputDirectoryCannotBeCreated()
+  {
+    using var fixture = await CliFixture.CreateAsync();
+    var blockingFile = Path.Combine(fixture.Directory, "blocked");
+    await File.WriteAllTextAsync(blockingFile, "not a directory");
+    using var output = new StringWriter();
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "export", fixture.MshPath,
+      "--output", Path.Combine(blockingFile, "exports")
+    ], output);
+
+    exitCode.Should().Be(CliExitCode.Failure);
+    File.Exists(fixture.GlbPath).Should().BeFalse();
+    output.ToString().Should().Contain("Output directory could not be created");
   }
 
   [Fact]

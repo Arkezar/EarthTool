@@ -54,6 +54,12 @@ Edit import requires an expected asset lineage and document identity. New-model
 import is a separate operation for intentionally metadata-free input. Both paths
 are bounded, validated, and transactional.
 
+Release qualification applies the same GLB and separate-glTF export, strict
+validation, unchanged-import, and canonical-baseline oracles to every accepted
+static and dynamic corpus asset. A packaged CLI byte-parity oracle and the
+single-invocation `Export All Meshes` batch prevent a static-only rollout from
+passing release gates.
+
 ## CLI boundary
 
 The supported MSH command topology is:

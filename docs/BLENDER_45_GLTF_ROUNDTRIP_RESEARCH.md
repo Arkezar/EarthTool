@@ -32,7 +32,9 @@ a valid mesh containing underscore attributes of different accessor arities
 can raise `ValueError` during import. Until that is narrowed or fixed, a stock
 workflow should not depend on a heterogeneous set of custom attributes.
 
-Dynamic-effect glTF remains out of scope.
+Dynamic-effect glTF was outside this research spike's scope. EarthTool now
+transports all recognized dynamic effect types through the metadata-backed
+preview contract documented in [the glTF API](api/gltf.md#dynamic-effect-preview-contract).
 
 ## Evidence model
 

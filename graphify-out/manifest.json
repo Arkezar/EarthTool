@@ -100,8 +100,8 @@
     "semantic_hash": ""
   },
   "EarthTool.CLI/Properties/launchSettings.json": {
-    "mtime": 1785703675.576,
-    "ast_hash": "244af3e611ae7df16ae4abeada2502f5",
+    "mtime": 1785769516.3261397,
+    "ast_hash": "6fab66e1d06c888242b47adfbf9e75a5",
     "semantic_hash": ""
   },
   "EarthTool.Common.GUI/EarthTool.Common.GUI.csproj": {
@@ -1370,8 +1370,8 @@
     "semantic_hash": ""
   },
   "docs/MSH_FORMAT.md": {
-    "mtime": 1785761742.9752173,
-    "ast_hash": "7b659a74b984ffad732518df9f1d6ff4",
+    "mtime": 1785769523.978412,
+    "ast_hash": "5620618b3c7fd1c2d26007da8f47c71b",
     "semantic_hash": ""
   },
   "docs/PAR_Structure.md": {
@@ -1405,8 +1405,8 @@
     "semantic_hash": ""
   },
   "docs/architecture.md": {
-    "mtime": 1785765699.4107194,
-    "ast_hash": "83c4d42d48dbbf87fa10e4f52523613f",
+    "mtime": 1785769516.3271396,
+    "ast_hash": "0a5aa169924b9a10834431fa4be8cf41",
     "semantic_hash": ""
   },
   "docs/installation.md": {
@@ -1415,8 +1415,8 @@
     "semantic_hash": "e5b019fd72f35925bbb253bda08215b0"
   },
   "docs/overview.md": {
-    "mtime": 1785765671.5347307,
-    "ast_hash": "3b8d29bcea51dbc96a863a643e993a78",
+    "mtime": 1785769516.3261397,
+    "ast_hash": "75c654dec1317bbed3167117d3ddffd2",
     "semantic_hash": ""
   },
   "docs/project-structure.md": {
@@ -1425,8 +1425,8 @@
     "semantic_hash": ""
   },
   "docs/quickstart.md": {
-    "mtime": 1785755812.8327427,
-    "ast_hash": "749fd4e7546d3fa289267a63f2044b0d",
+    "mtime": 1785769516.3271396,
+    "ast_hash": "37f037d19028cff1efdf0c416630da0b",
     "semantic_hash": ""
   },
   "docs/MSH_DYNAMIC.bytefield.svg": {
@@ -1445,8 +1445,8 @@
     "semantic_hash": ""
   },
   "docs/BLENDER_45_GLTF_ROUNDTRIP_RESEARCH.md": {
-    "mtime": 1785521342.6003523,
-    "ast_hash": "beb80f3280256ddcf2cc0e5703e47cdb",
+    "mtime": 1785769516.3271396,
+    "ast_hash": "f3add5f6b5472b6780d29747ce39494c",
     "semantic_hash": ""
   },
   "docs/GLTF_LIBRARY_RESEARCH.md": {
@@ -1725,13 +1725,13 @@
     "semantic_hash": ""
   },
   "EarthTool.CLI.Tests/InternalMshCommandHostTests.cs": {
-    "mtime": 1785765419.360789,
-    "ast_hash": "d00ea1e0d6580d393f22633d71bff32f",
+    "mtime": 1785770366.3433533,
+    "ast_hash": "74d32fb5a5d38c956f1678e96bd93dd5",
     "semantic_hash": ""
   },
   "EarthTool.CLI/Commands/MSH/GltfCommandExecutor.cs": {
-    "mtime": 1785766911.6356041,
-    "ast_hash": "f86f43157db5705df67fe8127049e5a6",
+    "mtime": 1785769378.6532397,
+    "ast_hash": "f7cd40989aaa5dce27cec11e07fc8089",
     "semantic_hash": ""
   },
   "EarthTool.CLI/Commands/MSH/GltfCommandSettings.cs": {
@@ -1775,8 +1775,8 @@
     "semantic_hash": ""
   },
   "docs/migration-collada-to-gltf.md": {
-    "mtime": 1785765683.6571608,
-    "ast_hash": "2cf617caab4e2ff334f090d1be205cd1",
+    "mtime": 1785769516.3271396,
+    "ast_hash": "6e8192977867db35f0b808da256ad7c7",
     "semantic_hash": ""
   },
   "test-tools/blender-matrix.v1.json": {
@@ -1795,8 +1795,8 @@
     "semantic_hash": ""
   },
   "test-tools/README.md": {
-    "mtime": 1785749091.72217,
-    "ast_hash": "8534e7fef0e4be68f1b56b1a31817bd9",
+    "mtime": 1785770515.932667,
+    "ast_hash": "01ca6175649614834a56227eb97771ef",
     "semantic_hash": ""
   },
   ".github/workflows/blender-qualification.yml": {
@@ -1805,28 +1805,23 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/OfficialCorpusQualification.cs": {
-    "mtime": 1785766542.0715892,
-    "ast_hash": "cdae9f5a58704efb93a539cb1b89fddc",
+    "mtime": 1785770821.8303864,
+    "ast_hash": "a96e9d87711a07de9ba487330aa768fe",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/OfficialCorpusQualificationTests.cs": {
-    "mtime": 1785743228.7988667,
-    "ast_hash": "b30adda00c105dbf623c1ca6111b4995",
-    "semantic_hash": ""
-  },
-  "test-tools/official-corpus-profile.v1.json": {
-    "mtime": 1785701868.0676084,
-    "ast_hash": "81b7b86625a25463db6213325abc7ca9",
+    "mtime": 1785770821.8303864,
+    "ast_hash": "5f1704832b143188f1173be517007bcb",
     "semantic_hash": ""
   },
   "test-tools/official-corpus-qualification.mjs": {
-    "mtime": 1785743264.7590766,
-    "ast_hash": "ded83a0440616895858342f07521c1b7",
+    "mtime": 1785770406.0387633,
+    "ast_hash": "90ab6af0c72818c052c04e3acf3587b9",
     "semantic_hash": ""
   },
   "test-tools/official-corpus-qualification.test.mjs": {
-    "mtime": 1785743406.292783,
-    "ast_hash": "a5fd161accf0faabc6b9a7c97061bb08",
+    "mtime": 1785770415.1410866,
+    "ast_hash": "31c43d135d3305197ff17581d7767931",
     "semantic_hash": ""
   },
   "test-tools/validate-glb.test.mjs": {
@@ -1840,23 +1835,23 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/OfficialCorpusCliOracle.cs": {
-    "mtime": 1785750783.316988,
-    "ast_hash": "5dbe78a461c13a85550e35894f7fca5d",
+    "mtime": 1785770821.8303864,
+    "ast_hash": "9285082c8bb4fe01a747fc6a236c55ab",
     "semantic_hash": ""
   },
   "docs/official-msh-qualification-performance.md": {
-    "mtime": 1785747805.6010442,
-    "ast_hash": "eabb0be4c515894dd6706405f1aa0bd0",
+    "mtime": 1785770515.933667,
+    "ast_hash": "3126f2c52387aa423c6fe8ca7442b741",
     "semantic_hash": ""
   },
   "test-tools/release-qualification.mjs": {
-    "mtime": 1785749456.1390576,
-    "ast_hash": "3cd171b281bdc3644a26bb168bf26707",
+    "mtime": 1785770821.8303864,
+    "ast_hash": "eabda5dcb1183eb00d2eef2f1a09d195",
     "semantic_hash": ""
   },
   "test-tools/release-qualification.test.mjs": {
-    "mtime": 1785749344.9531302,
-    "ast_hash": "1d5e5b549d962cc75fa53690ce39b3b1",
+    "mtime": 1785770406.0397635,
+    "ast_hash": "fcbea411f10804ed8ab9dc5ad15160da",
     "semantic_hash": ""
   },
   ".github/actionlint.yaml": {
@@ -1882,6 +1877,16 @@
   "EarthTool.GLTF/Internal/SafeResourceLookup.cs": {
     "mtime": 1785767165.2895644,
     "ast_hash": "45b390126b27c00a7f7419ac0858fca6",
+    "semantic_hash": ""
+  },
+  "test-tools/official-corpus-profile.v2.json": {
+    "mtime": 1785769292.216162,
+    "ast_hash": "0a0f4686b86aad45de9d513a4370a34f",
+    "semantic_hash": ""
+  },
+  "test-tools/official-corpus-contract.mjs": {
+    "mtime": 1785770406.0387633,
+    "ast_hash": "2ba42bb13eb22837a74deb8b7085880c",
     "semantic_hash": ""
   }
 }

@@ -248,6 +248,8 @@ internal static class OfficialCorpusQualification
     private readonly Dictionary<string, int> _failures = new(StringComparer.Ordinal);
     private readonly List<ContentFingerprint> _contentFingerprints = [];
     private readonly ValidatorAggregate _khronos = new();
+    private readonly DynamicCoverage _dynamicCoverage = new();
+    private CliBatchOracleResult? _exportAllMeshes;
     private long _inputBytes;
     private long _canonicalMshBytes;
     private long _glbBytes;
@@ -336,6 +338,18 @@ internal static class OfficialCorpusQualification
       try
       {
         await QualifyAssetsAsync(files, temporaryRoot);
+        _exportAllMeshes = await OfficialCorpusCliOracle.RunExportAllMeshesAsync(
+          _corpusRoot,
+          temporaryRoot);
+        if (!_exportAllMeshes.Succeeded
+          || _exportAllMeshes.FailedOperations != 0
+          || _exportAllMeshes.CancelledOperations != 0
+          || _exportAllMeshes.UnsupportedDomainDiagnostics != 0
+          || _exportAllMeshes.SuccessfulOperations != _exportAllMeshes.Assets
+          || _exportAllMeshes.OutputFiles != _exportAllMeshes.Assets)
+        {
+          Fail("export-all-meshes-failure");
+        }
       }
       finally
       {
@@ -442,7 +456,7 @@ internal static class OfficialCorpusQualification
       var summary = new
       {
         format = "earthtool.official-msh-corpus-event",
-        version = 1,
+        version = 2,
         corpus = new
         {
           fingerprintAlgorithm = "sha256-content-multiset-v1",
@@ -454,6 +468,18 @@ internal static class OfficialCorpusQualification
           staticAssets = _staticCount,
           dynamicAssets = _dynamicCount,
           inputBytes = _inputBytes
+        },
+        dynamicCoverage = _dynamicCoverage.CreateSummary(),
+        exportAllMeshes = _exportAllMeshes is null ? null : new
+        {
+          assets = _exportAllMeshes.Assets,
+          staticAssets = _exportAllMeshes.StaticAssets,
+          dynamicAssets = _exportAllMeshes.DynamicAssets,
+          succeeded = _exportAllMeshes.SuccessfulOperations,
+          failed = _exportAllMeshes.FailedOperations,
+          cancelled = _exportAllMeshes.CancelledOperations,
+          unsupportedDomainDiagnostics = _exportAllMeshes.UnsupportedDomainDiagnostics,
+          outputFiles = _exportAllMeshes.OutputFiles
         },
         operations = _operations
           .OrderBy(pair => pair.Key, StringComparer.Ordinal)
@@ -589,6 +615,7 @@ internal static class OfficialCorpusQualification
       else
       {
         result.DynamicCount++;
+        result.DynamicCoverage.Add((DynamicMeshAsset)asset);
       }
 
       result.Begin("msh.validate");
@@ -661,10 +688,10 @@ internal static class OfficialCorpusQualification
         }
       }
 
-      if (asset is StaticMeshAsset staticAsset && canonicalBytes is not null)
+      if (canonicalBytes is not null)
       {
-        await QualifyStaticAssetAsync(
-          staticAsset,
+        await QualifyInterchangeAsync(
+          asset,
           canonicalBytes,
           sourceDigest,
           index,
@@ -675,8 +702,8 @@ internal static class OfficialCorpusQualification
       return result;
     }
 
-    private async Task QualifyStaticAssetAsync(
-      StaticMeshAsset asset,
+    private async Task QualifyInterchangeAsync(
+      MeshAsset asset,
       byte[] canonicalBytes,
       byte[] sourceDigest,
       int index,
@@ -694,16 +721,32 @@ internal static class OfficialCorpusQualification
         var options = new GltfExportOptions(
           CreateVersion4Guid(sourceDigest, "lineage"),
           CreateVersion4Guid(sourceDigest, "document"),
+          [_corpusRoot],
+          null,
           [_corpusRoot]);
         var khronos = await worker.GetKhronosAsync();
         await QualifyGlbAsync(asset, canonicalBytes, options, directory, worker, khronos, result);
         await QualifySeparateGltfAsync(asset, canonicalBytes, options, directory, worker, khronos, result);
-        await QualifyCliPackageAsync("glb", canonicalBytes, directory, worker, khronos, result);
-        await QualifyCliPackageAsync("gltf", canonicalBytes, directory, worker, khronos, result);
+        await QualifyCliPackageAsync(
+          GltfPackageKind.Glb,
+          asset,
+          canonicalBytes,
+          directory,
+          worker,
+          khronos,
+          result);
+        await QualifyCliPackageAsync(
+          GltfPackageKind.Gltf,
+          asset,
+          canonicalBytes,
+          directory,
+          worker,
+          khronos,
+          result);
       }
       catch
       {
-        result.Fail("unexpected-static-oracle-failure");
+        result.Fail("unexpected-interchange-oracle-failure");
       }
       finally
       {
@@ -722,7 +765,7 @@ internal static class OfficialCorpusQualification
     }
 
     private async Task QualifyGlbAsync(
-      StaticMeshAsset asset,
+      MeshAsset asset,
       byte[] canonicalBytes,
       GltfExportOptions options,
       string directory,
@@ -732,7 +775,17 @@ internal static class OfficialCorpusQualification
     {
       result.Begin("glb.export");
       var stream = new MemoryStream();
-      var export = await worker.Interchange.ExportGlbAsync(asset, stream, options, _gltfProfile);
+      var export = await asset.Match(
+        onStatic: staticAsset => worker.Interchange.ExportGlbAsync(
+          staticAsset,
+          stream,
+          options,
+          _gltfProfile),
+        onDynamic: dynamicAsset => worker.Interchange.ExportGlbAsync(
+          dynamicAsset,
+          stream,
+          options,
+          _gltfProfile));
       result.AddDiagnostics("glb.export", export.Diagnostics);
       if (!export.Succeeded)
       {
@@ -762,7 +815,7 @@ internal static class OfficialCorpusQualification
       await ValidateKhronosAsync("glb.khronos-validate", packagePath, khronos, result);
 
       result.Begin("glb.unchanged-import");
-      var import = await worker.Interchange.ImportEditGlbAsync(
+      var import = await worker.Interchange.ImportEditMeshGlbAsync(
         new MemoryStream(bytes),
         export.Value!.Baseline,
         _gltfProfile);
@@ -783,7 +836,7 @@ internal static class OfficialCorpusQualification
     }
 
     private async Task QualifySeparateGltfAsync(
-      StaticMeshAsset asset,
+      MeshAsset asset,
       byte[] canonicalBytes,
       GltfExportOptions options,
       string directory,
@@ -795,11 +848,17 @@ internal static class OfficialCorpusQualification
       Directory.CreateDirectory(packageDirectory);
       var packagePath = Path.Combine(packageDirectory, "package.gltf");
       result.Begin("gltf.export");
-      var export = await worker.Interchange.ExportGltfFileAsync(
-        asset,
-        packagePath,
-        options,
-        _gltfProfile);
+      var export = await asset.Match(
+        onStatic: staticAsset => worker.Interchange.ExportGltfFileAsync(
+          staticAsset,
+          packagePath,
+          options,
+          _gltfProfile),
+        onDynamic: dynamicAsset => worker.Interchange.ExportGltfFileAsync(
+          dynamicAsset,
+          packagePath,
+          options,
+          _gltfProfile));
       result.AddDiagnostics("gltf.export", export.Diagnostics);
       if (!export.Succeeded)
       {
@@ -827,7 +886,7 @@ internal static class OfficialCorpusQualification
       await ValidateKhronosAsync("gltf.khronos-validate", packagePath, khronos, result);
 
       result.Begin("gltf.unchanged-import");
-      var import = await worker.Interchange.ImportEditGltfFileAsync(
+      var import = await worker.Interchange.ImportEditMeshGltfFileAsync(
         packagePath,
         export.Value!.Baseline,
         _gltfProfile);
@@ -870,7 +929,7 @@ internal static class OfficialCorpusQualification
 
     private async Task ValidateImportedBaselineAsync(
       string stage,
-      StaticMeshAsset asset,
+      MeshAsset asset,
       byte[] canonicalBytes,
       WorkerContext worker,
       AssetResult aggregate)
@@ -892,13 +951,15 @@ internal static class OfficialCorpusQualification
     }
 
     private async Task QualifyCliPackageAsync(
-      string package,
+      GltfPackageKind packageKind,
+      MeshAsset asset,
       byte[] canonicalBytes,
       string directory,
       WorkerContext worker,
       KhronosValidatorServer khronos,
       AssetResult aggregate)
     {
+      var package = packageKind == GltfPackageKind.Glb ? "glb" : "gltf";
       var exportStage = $"{package}.cli-export";
       var sharpValidationStage = $"{package}.cli-sharp-gltf-validate";
       var khronosValidationStage = $"{package}.cli-khronos-validate";
@@ -907,7 +968,7 @@ internal static class OfficialCorpusQualification
       aggregate.Begin(importStage, measure: false);
       var result = await OfficialCorpusCliOracle.RunAsync(
         canonicalBytes,
-        package,
+        packageKind,
         directory,
         _corpusRoot);
       _profiler.Add(exportStage, result.ExportDuration);
@@ -918,18 +979,22 @@ internal static class OfficialCorpusQualification
       aggregate.AddDiagnostics(exportStage, result.ExportDiagnostics);
       aggregate.AddDiagnostics(importStage, result.ImportDiagnostics);
       aggregate.Begin(sharpValidationStage);
-      if (result.ExportSucceeded)
+      var publicParity = result.ExportSucceeded
+        && await HasPublicCliPackageParityAsync(asset, packageKind, directory, worker, result);
+      if (publicParity)
       {
         aggregate.CompleteSuccess(exportStage);
       }
       else
       {
-        aggregate.CompleteFailure(exportStage, "cli-export-failure");
+        aggregate.CompleteFailure(
+          exportStage,
+          result.ExportSucceeded ? "cli-public-parity-failure" : "cli-export-failure");
       }
       if (result.ExportSucceeded && result.PackagePath is not null)
       {
         OperationResult strictValidation;
-        if (package == "glb")
+        if (packageKind == GltfPackageKind.Glb)
         {
           strictValidation = await worker.Interchange.ValidateGlbAsync(
             new MemoryStream(await File.ReadAllBytesAsync(result.PackagePath)),
@@ -963,7 +1028,97 @@ internal static class OfficialCorpusQualification
       }
     }
 
-    private static bool HasChangedPreservation(GltfEditImportResult result)
+    private async Task<bool> HasPublicCliPackageParityAsync(
+      MeshAsset asset,
+      GltfPackageKind packageKind,
+      string directory,
+      WorkerContext worker,
+      CliOracleResult cli)
+    {
+      if (cli.PackagePath is null || cli.Baseline is null || cli.Fingerprint is null)
+      {
+        return false;
+      }
+      var expectedAssetKind = asset.Kind == MeshAssetKind.Static ? "static" : "dynamic";
+      if (cli.AssetKind != expectedAssetKind)
+      {
+        return false;
+      }
+      var options = new GltfExportOptions(
+        cli.Baseline.AssetLineageId,
+        cli.Baseline.DocumentId,
+        [_corpusRoot],
+        null,
+        [_corpusRoot]);
+      OperationResult<GltfExportReceipt> export;
+      if (packageKind == GltfPackageKind.Glb)
+      {
+        var destination = new MemoryStream();
+        export = await asset.Match(
+          onStatic: staticAsset => worker.Interchange.ExportGlbAsync(
+            staticAsset,
+            destination,
+            options,
+            _gltfProfile),
+          onDynamic: dynamicAsset => worker.Interchange.ExportGlbAsync(
+            dynamicAsset,
+            destination,
+            options,
+            _gltfProfile));
+        var cliBytes = await File.ReadAllBytesAsync(cli.PackagePath);
+        if (!export.Succeeded || !destination.ToArray().AsSpan().SequenceEqual(cliBytes))
+        {
+          return false;
+        }
+      }
+      else
+      {
+        var parityDirectory = Path.Combine(directory, "cli-gltf-parity");
+        Directory.CreateDirectory(parityDirectory);
+        var destination = Path.Combine(parityDirectory, "source.gltf");
+        export = await asset.Match(
+          onStatic: staticAsset => worker.Interchange.ExportGltfFileAsync(
+            staticAsset,
+            destination,
+            options,
+            _gltfProfile),
+          onDynamic: dynamicAsset => worker.Interchange.ExportGltfFileAsync(
+            dynamicAsset,
+            destination,
+            options,
+            _gltfProfile));
+        if (!export.Succeeded || !PackagesEqual(cli.PackagePath, destination))
+        {
+          return false;
+        }
+      }
+      return export.Value!.Baseline.AssetLineageId == cli.Baseline.AssetLineageId
+        && export.Value.Baseline.DocumentId == cli.Baseline.DocumentId
+        && export.Value.Fingerprint.Name == cli.Fingerprint.Name
+        && export.Value.Fingerprint.Version == cli.Fingerprint.Version
+        && export.Value.Fingerprint.Sha256 == cli.Fingerprint.Sha256;
+    }
+
+    private static bool PackagesEqual(string firstManifest, string secondManifest)
+    {
+      var firstRoot = Path.GetDirectoryName(firstManifest)!;
+      var secondRoot = Path.GetDirectoryName(secondManifest)!;
+      var first = Directory.EnumerateFiles(firstRoot, "*", SearchOption.AllDirectories)
+        .ToDictionary(
+          path => Path.GetRelativePath(firstRoot, path),
+          File.ReadAllBytes,
+          StringComparer.Ordinal);
+      var second = Directory.EnumerateFiles(secondRoot, "*", SearchOption.AllDirectories)
+        .ToDictionary(
+          path => Path.GetRelativePath(secondRoot, path),
+          File.ReadAllBytes,
+          StringComparer.Ordinal);
+      return first.Count == second.Count
+        && first.All(item => second.TryGetValue(item.Key, out var bytes)
+          && item.Value.AsSpan().SequenceEqual(bytes));
+    }
+
+    private static bool HasChangedPreservation(GltfMeshEditImportResult result)
     {
       return result.Preservation.Changes.Any(change =>
         change.Disposition != PreservationDisposition.Retained);
@@ -1032,6 +1187,7 @@ internal static class OfficialCorpusQualification
       _cliImportedMshBytes += result.CliImportedMshBytes;
       _staticCount += result.StaticCount;
       _dynamicCount += result.DynamicCount;
+      _dynamicCoverage.Merge(result.DynamicCoverage);
       foreach (var operation in result.Operations)
       {
         var target = GetOperation(operation.Key);
@@ -1112,6 +1268,7 @@ internal static class OfficialCorpusQualification
     internal Dictionary<DiagnosticKey, int> Diagnostics { get; } = [];
     internal Dictionary<string, int> Failures { get; } = new(StringComparer.Ordinal);
     internal ValidatorAggregate Khronos { get; } = new();
+    internal DynamicCoverage DynamicCoverage { get; } = new();
     internal ContentFingerprint? ContentFingerprint { get; set; }
     internal long InputBytes { get; set; }
     internal long CanonicalMshBytes { get; set; }
@@ -1245,6 +1402,229 @@ internal static class OfficialCorpusQualification
       if (_timingStarts.Remove(stage, out var started))
       {
         _profiler.Add(stage, Stopwatch.GetElapsedTime(started));
+      }
+    }
+  }
+
+  private sealed class DynamicCoverage
+  {
+    private readonly Dictionary<DynamicEffectType, int> _effectTypes = [];
+    private readonly Dictionary<DynamicAlphaTiming, int> _alphaTimingModes = [];
+    private readonly Dictionary<DynamicLightType, int> _terrainLightModes = [];
+
+    private int _assets;
+    private int _objects;
+    private int _maximumDepth;
+    private int _nestedAssets;
+    private int _mixedEffectAssets;
+    private int _unknownEffectObjects;
+    private int _meshResourceBindings;
+    private int _textureResourceBindings;
+    private int _positiveRibbonHalfWidths;
+    private int _negativeRibbonHalfWidths;
+    private int _zeroRibbonHalfWidths;
+    private int _frameDeclarations;
+    private int _atlasDeclarations;
+    private int _unknownAlphaTimingObjects;
+    private int _unknownTerrainLightObjects;
+    private int _additiveObjects;
+    private int _nonAdditiveObjects;
+    private int _translatedObjects;
+    private int _scaledObjects;
+    private int _metadataOnlyObjects;
+
+    internal void Add(DynamicMeshAsset asset)
+    {
+      _assets++;
+      if (asset.RootDynamicObject.Children.Count > 0)
+      {
+        _nestedAssets++;
+      }
+      var assetEffectTypes = new HashSet<DynamicEffectType>();
+      AddObject(asset.RootDynamicObject, 1, assetEffectTypes);
+      if (assetEffectTypes.Count > 1)
+      {
+        _mixedEffectAssets++;
+      }
+    }
+
+    internal void Merge(DynamicCoverage other)
+    {
+      _assets += other._assets;
+      _objects += other._objects;
+      _maximumDepth = Math.Max(_maximumDepth, other._maximumDepth);
+      _nestedAssets += other._nestedAssets;
+      _mixedEffectAssets += other._mixedEffectAssets;
+      _unknownEffectObjects += other._unknownEffectObjects;
+      _meshResourceBindings += other._meshResourceBindings;
+      _textureResourceBindings += other._textureResourceBindings;
+      _positiveRibbonHalfWidths += other._positiveRibbonHalfWidths;
+      _negativeRibbonHalfWidths += other._negativeRibbonHalfWidths;
+      _zeroRibbonHalfWidths += other._zeroRibbonHalfWidths;
+      _frameDeclarations += other._frameDeclarations;
+      _atlasDeclarations += other._atlasDeclarations;
+      _unknownAlphaTimingObjects += other._unknownAlphaTimingObjects;
+      _unknownTerrainLightObjects += other._unknownTerrainLightObjects;
+      _additiveObjects += other._additiveObjects;
+      _nonAdditiveObjects += other._nonAdditiveObjects;
+      _translatedObjects += other._translatedObjects;
+      _scaledObjects += other._scaledObjects;
+      _metadataOnlyObjects += other._metadataOnlyObjects;
+      MergeCounts(_effectTypes, other._effectTypes);
+      MergeCounts(_alphaTimingModes, other._alphaTimingModes);
+      MergeCounts(_terrainLightModes, other._terrainLightModes);
+    }
+
+    internal object CreateSummary()
+    {
+      return new
+      {
+        assets = _assets,
+        objects = _objects,
+        maximumDepth = _maximumDepth,
+        nestedAssets = _nestedAssets,
+        mixedEffectAssets = _mixedEffectAssets,
+        effectTypes = _effectTypes
+          .OrderBy(pair => pair.Key)
+          .Select(pair => new { effectType = pair.Key.ToString(), count = pair.Value }),
+        unknownEffectObjects = _unknownEffectObjects,
+        meshResourceBindings = _meshResourceBindings,
+        textureResourceBindings = _textureResourceBindings,
+        ribbonHalfWidths = new
+        {
+          positive = _positiveRibbonHalfWidths,
+          negative = _negativeRibbonHalfWidths,
+          zero = _zeroRibbonHalfWidths
+        },
+        frameDeclarations = _frameDeclarations,
+        atlasDeclarations = _atlasDeclarations,
+        alphaTimingModes = _alphaTimingModes
+          .OrderBy(pair => pair.Key)
+          .Select(pair => new { mode = pair.Key.ToString(), count = pair.Value }),
+        unknownAlphaTimingObjects = _unknownAlphaTimingObjects,
+        terrainLightModes = _terrainLightModes
+          .OrderBy(pair => pair.Key)
+          .Select(pair => new { mode = pair.Key.ToString(), count = pair.Value }),
+        unknownTerrainLightObjects = _unknownTerrainLightObjects,
+        additiveObjects = _additiveObjects,
+        nonAdditiveObjects = _nonAdditiveObjects,
+        translatedObjects = _translatedObjects,
+        scaledObjects = _scaledObjects,
+        metadataOnlyObjects = _metadataOnlyObjects
+      };
+    }
+
+    private void AddObject(
+      DynamicObject item,
+      int depth,
+      ISet<DynamicEffectType> assetEffectTypes)
+    {
+      _objects++;
+      _maximumDepth = Math.Max(_maximumDepth, depth);
+      var extension = item.Extension;
+      if (extension.KnownEffectType is { } effectType)
+      {
+        _effectTypes[effectType] = _effectTypes.GetValueOrDefault(effectType) + 1;
+        assetEffectTypes.Add(effectType);
+        if (effectType == DynamicEffectType.Group)
+        {
+          _metadataOnlyObjects++;
+        }
+        if (effectType == DynamicEffectType.ScalableObject
+          && (extension.StartModelScale != 1
+            || extension.EndModelScale != 1
+            || extension.StartModelScale != extension.EndModelScale))
+        {
+          _scaledObjects++;
+        }
+        if (effectType is DynamicEffectType.Laser
+          or DynamicEffectType.LaserWall
+          or DynamicEffectType.ElectricalCannon
+          or DynamicEffectType.Lightning)
+        {
+          if (extension.RibbonHalfWidth > 0)
+          {
+            _positiveRibbonHalfWidths++;
+          }
+          else if (extension.RibbonHalfWidth < 0)
+          {
+            _negativeRibbonHalfWidths++;
+          }
+          else
+          {
+            _zeroRibbonHalfWidths++;
+          }
+        }
+      }
+      else
+      {
+        _unknownEffectObjects++;
+      }
+      if (extension.MeshNameBytes.Count > 0)
+      {
+        _meshResourceBindings++;
+      }
+      if (extension.TexturePathBytes.Count > 0)
+      {
+        _textureResourceBindings++;
+      }
+      if (extension.FirstSourceFrame != 0
+        || extension.FrameCount != 0
+        || extension.FramePeriodTicks != 0)
+      {
+        _frameDeclarations++;
+      }
+      if (extension.SpriteSheetColumnCount != 0
+        || extension.SpriteSheetRowCount != 0
+        || extension.ReciprocalColumnCount != 0
+        || extension.ReciprocalRowCount != 0)
+      {
+        _atlasDeclarations++;
+      }
+      if (extension.KnownAlphaTiming is { } alphaTiming)
+      {
+        _alphaTimingModes[alphaTiming] = _alphaTimingModes.GetValueOrDefault(alphaTiming) + 1;
+      }
+      else
+      {
+        _unknownAlphaTimingObjects++;
+      }
+      if (extension.KnownLightType is { } lightType)
+      {
+        _terrainLightModes[lightType] = _terrainLightModes.GetValueOrDefault(lightType) + 1;
+      }
+      else
+      {
+        _unknownTerrainLightObjects++;
+      }
+      if (extension.UsesAdditiveBlending)
+      {
+        _additiveObjects++;
+      }
+      else
+      {
+        _nonAdditiveObjects++;
+      }
+      if (extension.ChildStartTranslation != System.Numerics.Vector3.Zero
+        || extension.ChildEndTranslation != System.Numerics.Vector3.Zero)
+      {
+        _translatedObjects++;
+      }
+      foreach (var child in item.Children)
+      {
+        AddObject(child, depth + 1, assetEffectTypes);
+      }
+    }
+
+    private static void MergeCounts<TKey>(
+      IDictionary<TKey, int> target,
+      IReadOnlyDictionary<TKey, int> source)
+      where TKey : notnull
+    {
+      foreach (var item in source)
+      {
+        target.TryGetValue(item.Key, out var current);
+        target[item.Key] = current + item.Value;
       }
     }
   }

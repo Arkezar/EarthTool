@@ -188,13 +188,17 @@ EarthTool.CLI wd create TextureMod.wd -i ./modified_textures -r
 ### Task 3: Export Models For Blender
 
 ```bash
-# Extract MSH assets and export GLB packages
-EarthTool.CLI wd extract archive.wd --filter "*.msh" -o ./models
-for file in ./models/*.msh; do
-  EarthTool.CLI msh export "$file"
-done
+# Extract resources and export every static or dynamic MSH in one GLB batch
+EarthTool.CLI wd extract archive.wd -o ./extracted
+EarthTool.CLI msh export \
+  --tex-root "$(pwd)/extracted" \
+  --msh-root "$(pwd)/extracted" \
+  --output ./models \
+  --report ./models/export-report.json \
+  "./extracted/meshes/*.msh"
 
-# Open the resulting .glb files in Blender 4.5 LTS or later.
+# The output directory is created when needed. Open the resulting .glb files in
+# Blender 4.5 LTS or later.
 # After editing, use `msh import edit` with the baseline identities.
 ```
 

@@ -30,8 +30,9 @@ Replace the former implicit conversion commands with an explicit intent:
 | Import an edited EarthTool baseline | `EarthTool.CLI msh import edit model.glb --expected-lineage <UUID> --expected-document <UUID>` |
 | Author MSH from metadata-free input | `EarthTool.CLI msh import new model.glb` |
 
-Export defaults to GLB. Export and new-model import accept deterministic input
-patterns. Edit import accepts exactly one concrete package because it binds one
+Export defaults to GLB and accepts static assets plus all 15 recognized dynamic
+effect types. Export and new-model import accept deterministic, case-insensitive
+input patterns. Edit import accepts exactly one concrete package because it binds one
 expected asset lineage and document identity. Use `--tex-root` repeatedly to
 supply ordered absolute TEX preview roots and `--msh-root` repeatedly for
 `ScalableObject` resource previews. Use `--plan` for a versioned typed import

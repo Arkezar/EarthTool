@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Enumeration;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -262,6 +263,19 @@ internal sealed class GltfCommandExecutor
     {
       await WritePreflightFailureAsync("Derived destinations collide.").ConfigureAwait(false);
       return CliExitCode.Failure;
+    }
+    if (settings.OutputDirectory is not null)
+    {
+      try
+      {
+        Directory.CreateDirectory(Path.GetFullPath(settings.OutputDirectory));
+      }
+      catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+      {
+        await WritePreflightFailureAsync($"Output directory could not be created: {ex.Message}")
+          .ConfigureAwait(false);
+        return CliExitCode.Failure;
+      }
     }
 
     var operations = new List<GltfCliReportOperation>(inputs.Count);
@@ -593,7 +607,11 @@ internal sealed class GltfCommandExecutor
           return (false, null, $"Input pattern matched no files: {value}");
         }
 
-        var matches = Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly)
+        var matches = Directory.EnumerateFiles(directory, "*", SearchOption.TopDirectoryOnly)
+          .Where(path => FileSystemName.MatchesSimpleExpression(
+            pattern,
+            Path.GetFileName(path),
+            ignoreCase: true))
           .Select(Path.GetFullPath)
           .OrderBy(path => path, StringComparer.Ordinal)
           .ToArray();

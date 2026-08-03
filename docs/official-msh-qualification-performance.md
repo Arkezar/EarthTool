@@ -18,7 +18,7 @@ change qualification evidence.
 
 ## Stage Profiling
 
-Profiling is explicitly opt-in and does not change the version-1 qualification
+Profiling is explicitly opt-in and does not change the version-2 qualification
 evidence. `--timings true` writes a temporary aggregate event, prints it after
 the gate passes, and removes it with the other private intermediate files:
 
@@ -73,7 +73,19 @@ for run in 1 2 3; do
 done
 ```
 
-## Measured Result
+## Historical Measured Result
+
+The following timing predates the version-2 dynamic interchange expansion. It
+measured all binary stages but only static interchange stages. Keep it as the
+worker-queue before/after record; do not use its operation totals as the current
+release baseline. The current gate runs 26,473 per-asset oracle operations,
+4,604 Khronos validations, exact public/packaged-CLI package parity, and one
+additional 1,149-file mixed static/dynamic GLB batch.
+
+The private corpus has no `Line` record and no negative ribbon half-width. The
+release qualification separately requires and runs named synthetic all-effect,
+signed-ribbon, package-form, resource, and limit tests so those contract domains
+remain gated without misrepresenting the observed corpus histogram.
 
 Measured on 2026-08-03 using an AMD Ryzen 9 9950X3D with 16 cores and
 32 logical processors, Linux 7.1.5-arch1-2, .NET SDK 10.0.302, Node.js
@@ -93,8 +105,8 @@ runs used a fixed 16 workers.
 | Median reduction | - | **92.15%** |
 | Speedup | 1.00x | **12.74x** |
 
-Every run passed with 1,151 assets, 22,981 successful oracle operations,
-3,828 Khronos validations, and zero operation failures, aggregate failures,
+Every historical run passed with 1,151 assets, 22,981 successful oracle operations,
+3,828 static-only interchange Khronos validations, and zero operation failures, aggregate failures,
 validator errors, or validator warnings. Evidence was byte-identical across
 all three runs of each revision. The baseline evidence SHA-256 was
 `1bf6370099ed389a93867b81a1b60c9839f71d7d7fc62554230a0d7da1aaeaf2`;

@@ -3,6 +3,7 @@ import { access, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promise
 import { platform as hostPlatform, release as osRelease } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { corpusInterchangeStages } from "./official-corpus-contract.mjs";
 
 export const requiredGates = Object.freeze([
   "tooling",
@@ -19,7 +20,21 @@ export const requiredGates = Object.freeze([
   "official-corpus"
 ]);
 
-export const expectedTestCounts = Object.freeze({ msh: 354, cli: 24 });
+export const expectedTestCounts = Object.freeze({ msh: 431, cli: 31 });
+
+const requiredDynamicQualificationTests = Object.freeze({
+  msh: [
+    "EveryKnownDynamicEffectHasAnExplicitCanonicalRecipe",
+    "SpriteEffectsExportThroughThePublicGlbSeam",
+    "RibbonEffectsExportThroughThePublicGlbSeam",
+    "AttachedAndProceduralEffectsExportWithExplicitPreviewContexts",
+    "RibbonPreviewRetainsHalfWidthSignTextureSideAndWinding",
+    "UnsupportedEffectAndObjectLimitFailWithoutOutput",
+    "ScalableObjectUsesAReferencedStaticMeshPreviewAndRoundTripsExactly",
+    "SeparateGltfRoundTripsTheExactDynamicMsh"
+  ],
+  cli: ["BatchExportsAllSupportedDynamicEffectsAsSeparateGltf"]
+});
 
 const expectedArtifacts = Object.freeze([
   "EarthTool.CLI-Linux-x64.tar.gz",
@@ -75,6 +90,13 @@ export function validateGateResults(gates, commit) {
   return gates;
 }
 
+export function validateDynamicQualificationTests(mshTests, cliTests) {
+  if (requiredDynamicQualificationTests.msh.some(test => !mshTests.includes(test))
+    || requiredDynamicQualificationTests.cli.some(test => !cliTests.includes(test))) {
+    fail("Dynamic qualification test inventory is incomplete.");
+  }
+}
+
 function validateBlenderEvidence(blender, commit, platform) {
   const requestedLanes = blender?.requestedLanes?.map(lane => lane.name) ?? [];
   const requestedByName = new Map(
@@ -109,11 +131,44 @@ function validateBlenderEvidence(blender, commit, platform) {
 }
 
 function validateCorpusEvidence(corpus, commit, platform) {
+  const assetCount = corpus?.corpus?.assets;
+  const operations = new Map((corpus?.operations ?? []).map(operation => [operation.stage, operation]));
   if (corpus?.format !== "earthtool.official-msh-qualification-evidence"
-    || corpus.version !== 1
+    || corpus.version !== 2
+    || corpus.profile?.format !== "earthtool.official-msh-corpus-profile"
+    || corpus.profile.version !== 2
     || corpus.outcome !== "passed"
     || corpus.earthToolCommit !== commit
     || corpus.platform !== platform
+    || !Number.isSafeInteger(assetCount)
+    || assetCount <= 0
+    || !Number.isSafeInteger(corpus.corpus?.dynamicAssets)
+    || corpus.corpus.dynamicAssets <= 0
+    || corpus.corpus.staticAssets + corpus.corpus.dynamicAssets !== assetCount
+    || corpus.dynamicCoverage?.assets !== corpus.corpus.dynamicAssets
+    || corpus.dynamicCoverage?.objects < corpus.dynamicCoverage?.assets
+    || corpus.dynamicCoverage?.unknownEffectObjects !== 0
+    || !Array.isArray(corpus.dynamicCoverage?.effectTypes)
+    || corpus.dynamicCoverage.effectTypes.length === 0
+    || corpusInterchangeStages.some(stage => {
+      const operation = operations.get(stage);
+      return operation?.attempted !== assetCount
+        || operation.passed !== assetCount
+        || operation.failed !== 0;
+    })
+    || corpus.validators?.khronos?.packages !== assetCount * 4
+    || corpus.validators.khronos.errors !== 0
+    || corpus.validators.khronos.warnings !== 0
+    || corpus.exportAllMeshes?.assets <= 0
+    || corpus.exportAllMeshes?.dynamicAssets !== corpus.corpus.dynamicAssets
+    || corpus.exportAllMeshes?.staticAssets + corpus.exportAllMeshes?.dynamicAssets
+      !== corpus.exportAllMeshes?.assets
+    || corpus.exportAllMeshes?.succeeded !== corpus.exportAllMeshes?.assets
+    || corpus.exportAllMeshes?.failed !== 0
+    || corpus.exportAllMeshes?.cancelled !== 0
+    || corpus.exportAllMeshes?.unsupportedDomainDiagnostics !== 0
+    || corpus.exportAllMeshes?.outputFiles !== corpus.exportAllMeshes?.assets
+    || (corpus.diagnostics ?? []).some(diagnostic => diagnostic.code === "ETG1002")
     || corpus.passFail?.failedOperations !== 0
     || corpus.passFail?.aggregateFailures !== 0) {
     fail("Official corpus evidence is incomplete or does not match this release.");
@@ -203,7 +258,8 @@ export function validateReleaseBoundary(boundary) {
     "EarthTool.GLTF",
     "msh export",
     "msh import edit",
-    "msh import new"
+    "msh import new",
+    "all 15 recognized dynamic effect"
   ];
   const unsupportedLegacyReferences = (boundary.activeDocumentation ?? "")
     .split(/\r?\n/)
@@ -520,7 +576,7 @@ async function publishArtifacts(root, workDirectory) {
     const rightIndex = expectedArtifacts.indexOf(right);
     return leftIndex - rightIndex;
   });
-  return validateArtifactInventory(artifacts);
+  return { artifacts: validateArtifactInventory(artifacts), cli };
 }
 
 async function main() {
@@ -556,6 +612,7 @@ async function main() {
   let commit;
   let blenderEvidence;
   let corpusEvidence;
+  let publishedCli;
   await gate("tooling", async () => {
     const [npm, dotnet, gitVersion, gitCommit, gitStatus, tar, unzip, strings] = await Promise.all([
       run("npm", ["--version"], { cwd: root, stream: false }),
@@ -612,6 +669,7 @@ async function main() {
     if (counts.msh !== expectedTestCounts.msh || counts.cli !== expectedTestCounts.cli) {
       fail(`Unexpected test discovery: MSH=${counts.msh}, CLI=${counts.cli}.`);
     }
+    validateDynamicQualificationTests(msh.stdout, cli.stdout);
     return counts;
   });
   await gate("reproducible-tests", async () => {
@@ -644,7 +702,11 @@ async function main() {
     await inspectReleaseBoundary(root);
     return { interchange: "GLTF", removed: "DAE", migrationFrom: "v0.4.4" };
   });
-  await gate("linux-artifacts", async () => ({ artifacts: await publishArtifacts(root, workDirectory) }));
+  await gate("linux-artifacts", async () => {
+    const published = await publishArtifacts(root, workDirectory);
+    publishedCli = published.cli;
+    return { artifacts: published.artifacts };
+  });
   await gate("blender-matrix", async () => {
     const arguments_ = [
       "test-tools/blender-qualification.mjs",
@@ -670,7 +732,8 @@ async function main() {
     const arguments_ = [
       "test-tools/official-corpus-qualification.mjs",
       "--corpus", corpus,
-      "--evidence", corpusEvidencePath
+      "--evidence", corpusEvidencePath,
+      "--cli", publishedCli
     ];
     if (options.workers) {
       arguments_.push("--workers", options.workers);

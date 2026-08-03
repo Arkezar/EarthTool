@@ -14,7 +14,8 @@ data.
 | PAR | Read, edit, and serialize parameter data |
 
 The MSH API supports both static and dynamic mesh assets. Artist interchange
-supports the complete static contract plus the available dynamic slices: ordered
+supports the complete static contract plus all 15 recognized dynamic effect
+types: ordered
 `Group` hierarchies and deterministic `Explosion`, `Track`, `MappedExplosion`,
 `FlatExplosion`, `Smoke`, `Laser`, `LaserWall`, `ElectricalCannon`, and
 `Lightning` previews, attached-context `Shockwave`, `Line`, and `Keelwater`

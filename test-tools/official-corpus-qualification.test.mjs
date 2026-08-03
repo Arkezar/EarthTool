@@ -1,5 +1,6 @@
 ﻿import assert from "node:assert/strict";
 import test from "node:test";
+import { recognizedDynamicEffectTypes } from "./official-corpus-contract.mjs";
 
 import {
   assertPrivacySafe,
@@ -14,6 +15,41 @@ import {
 } from "./official-corpus-qualification.mjs";
 
 const fingerprint = "a".repeat(64);
+const effectTypes = recognizedDynamicEffectTypes;
+
+function dynamicCoverage() {
+  return {
+    assets: 1,
+    objects: 20,
+    maximumDepth: 3,
+    nestedAssets: 1,
+    mixedEffectAssets: 1,
+    effectTypes: effectTypes.map(effectType => ({ effectType, count: effectType === "Group" ? 6 : 1 })),
+    unknownEffectObjects: 0,
+    meshResourceBindings: 1,
+    textureResourceBindings: 12,
+    ribbonHalfWidths: { positive: 2, negative: 2, zero: 0 },
+    frameDeclarations: 10,
+    atlasDeclarations: 10,
+    alphaTimingModes: [
+      { mode: "FramePhase", count: 10 },
+      { mode: "LifetimeProgress", count: 10 }
+    ],
+    unknownAlphaTimingObjects: 0,
+    terrainLightModes: [
+      { mode: "Constant", count: 5 },
+      { mode: "Pyramid", count: 5 },
+      { mode: "Trapezium", count: 5 },
+      { mode: "Random", count: 5 }
+    ],
+    unknownTerrainLightObjects: 0,
+    additiveObjects: 5,
+    nonAdditiveObjects: 15,
+    translatedObjects: 2,
+    scaledObjects: 1,
+    metadataOnlyObjects: 1
+  };
+}
 
 function operation(stage, attempted) {
   return { stage, attempted, passed: attempted, failed: 0 };
@@ -22,7 +58,7 @@ function operation(stage, attempted) {
 function passingSummary() {
   return {
     format: "earthtool.official-msh-corpus-event",
-    version: 1,
+    version: 2,
     corpus: {
       fingerprintAlgorithm: "sha256-content-multiset-v1",
       fingerprint,
@@ -34,30 +70,41 @@ function passingSummary() {
       dynamicAssets: 1,
       inputBytes: 300
     },
+    dynamicCoverage: dynamicCoverage(),
+    exportAllMeshes: {
+      assets: 3,
+      staticAssets: 2,
+      dynamicAssets: 1,
+      succeeded: 3,
+      failed: 0,
+      cancelled: 0,
+      unsupportedDomainDiagnostics: 0,
+      outputFiles: 3
+    },
     operations: [
       operation("msh.read", 3),
       operation("msh.validate", 3),
       operation("msh.write", 3),
       operation("msh.semantic-equivalence", 3),
       operation("msh.canonical-idempotence", 3),
-      operation("glb.export", 2),
-      operation("glb.sharp-gltf-validate", 2),
-      operation("glb.khronos-validate", 2),
-      operation("glb.unchanged-import", 2),
-      operation("glb.canonical-baseline", 2),
-      operation("gltf.export", 2),
-      operation("gltf.sharp-gltf-validate", 2),
-      operation("gltf.khronos-validate", 2),
-      operation("gltf.unchanged-import", 2),
-      operation("gltf.canonical-baseline", 2),
-      operation("glb.cli-export", 2),
-      operation("glb.cli-sharp-gltf-validate", 2),
-      operation("glb.cli-khronos-validate", 2),
-      operation("glb.cli-unchanged-import", 2),
-      operation("gltf.cli-export", 2),
-      operation("gltf.cli-sharp-gltf-validate", 2),
-      operation("gltf.cli-khronos-validate", 2),
-      operation("gltf.cli-unchanged-import", 2)
+      operation("glb.export", 3),
+      operation("glb.sharp-gltf-validate", 3),
+      operation("glb.khronos-validate", 3),
+      operation("glb.unchanged-import", 3),
+      operation("glb.canonical-baseline", 3),
+      operation("gltf.export", 3),
+      operation("gltf.sharp-gltf-validate", 3),
+      operation("gltf.khronos-validate", 3),
+      operation("gltf.unchanged-import", 3),
+      operation("gltf.canonical-baseline", 3),
+      operation("glb.cli-export", 3),
+      operation("glb.cli-sharp-gltf-validate", 3),
+      operation("glb.cli-khronos-validate", 3),
+      operation("glb.cli-unchanged-import", 3),
+      operation("gltf.cli-export", 3),
+      operation("gltf.cli-sharp-gltf-validate", 3),
+      operation("gltf.cli-khronos-validate", 3),
+      operation("gltf.cli-unchanged-import", 3)
     ],
     bytes: {
       canonicalMsh: 300,
@@ -72,7 +119,7 @@ function passingSummary() {
     validators: {
       khronos: {
         version: "2.0.0-dev.3.10",
-        packages: 8,
+        packages: 12,
         errors: 0,
         warnings: 0,
         infos: 0,
@@ -91,7 +138,7 @@ function passingSummary() {
 function profile() {
   return {
     format: "earthtool.official-msh-corpus-profile",
-    version: 1,
+    version: 2,
     corpus: {
       fingerprint,
       discoveredMshFiles: 3,
@@ -100,6 +147,17 @@ function profile() {
       assets: 3,
       staticAssets: 2,
       dynamicAssets: 1
+    },
+    dynamicCoverage: dynamicCoverage(),
+    exportAllMeshes: {
+      assets: 3,
+      staticAssets: 2,
+      dynamicAssets: 1,
+      succeeded: 3,
+      failed: 0,
+      cancelled: 0,
+      unsupportedDomainDiagnostics: 0,
+      outputFiles: 3
     },
     diagnostics: [],
     validators: {
@@ -122,6 +180,19 @@ test("qualification summary requires every oracle with exact aggregate counts", 
 test("qualification summary rejects duplicate oracle stages", () => {
   const summary = passingSummary();
   summary.operations.push({ ...summary.operations[0] });
+
+  assert.throws(
+    () => validateQualificationSummary(summary, profile()),
+    error => error.category === "oracle-inventory");
+});
+
+test("qualification summary rejects static-only dynamic interchange coverage", () => {
+  const summary = passingSummary();
+  for (const item of summary.operations.slice(5)) {
+    item.attempted = 2;
+    item.passed = 2;
+  }
+  summary.validators.khronos.packages = 8;
 
   assert.throws(
     () => validateQualificationSummary(summary, profile()),
@@ -160,6 +231,29 @@ test("qualification summary requires an exact profile fingerprint", () => {
   assert.throws(
     () => validateQualificationSummary(passingSummary(), changedFingerprint),
     error => error.category === "corpus-mismatch");
+});
+
+test("qualification summary requires exact complete dynamic coverage", () => {
+  const incomplete = passingSummary();
+  incomplete.dynamicCoverage.effectTypes.pop();
+  assert.throws(
+    () => validateQualificationSummary(incomplete, profile()),
+    error => error.category === "dynamic-coverage");
+
+  const driftedProfile = profile();
+  driftedProfile.dynamicCoverage.ribbonHalfWidths.negative = 3;
+  assert.throws(
+    () => validateQualificationSummary(passingSummary(), driftedProfile),
+    error => error.category === "dynamic-coverage-drift");
+});
+
+test("qualification summary requires the complete Export All Meshes batch", () => {
+  const failed = passingSummary();
+  failed.exportAllMeshes.dynamicAssets = 0;
+  failed.exportAllMeshes.failed = 1;
+  assert.throws(
+    () => validateQualificationSummary(failed, profile()),
+    error => error.category === "export-all-meshes");
 });
 
 test("qualification summary rejects lower-severity validator drift", () => {
@@ -212,6 +306,21 @@ test("qualification summary rejects every error and aggregate diagnostic drift",
     error => error.category === "diagnostic-drift");
 });
 
+test("qualification summary rejects unsupported dynamic-domain diagnostics", () => {
+  const summary = passingSummary();
+  summary.diagnostics = [{
+    stage: "glb.export",
+    code: "ETG1002",
+    eventId: 1102,
+    severity: "Warning",
+    count: 1
+  }];
+
+  assert.throws(
+    () => validateQualificationSummary(summary, profile()),
+    error => error.category === "unsupported-dynamic-domain");
+});
+
 test("qualification summary rejects missing byte and profile evidence", () => {
   const missingBytes = passingSummary();
   delete missingBytes.bytes;
@@ -243,11 +352,12 @@ test("evidence is deterministic and contains only aggregate corpus data", () => 
 
   assert.deepEqual(first, second);
   assert.equal(first.format, "earthtool.official-msh-qualification-evidence");
+  assert.equal(first.version, 2);
   assert.equal(first.outcome, "passed");
   assert.equal(first.corpus.fingerprint, fingerprint);
   assert.equal(first.corpus.assets, 3);
   assert.ok(!JSON.stringify(first).includes("inputPath"));
-  assert.ok(!JSON.stringify(first).includes("texture"));
+  assert.ok(!JSON.stringify(first).includes("textureKey"));
 });
 
 test("privacy gate rejects paths, asset names, texture keys, and forbidden values", () => {

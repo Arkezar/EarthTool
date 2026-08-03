@@ -1,6 +1,7 @@
 ﻿using AwesomeAssertions;
 using EarthTool.GLTF;
 using EarthTool.MSH.Assets;
+using EarthTool.MSH.Authoring;
 using EarthTool.MSH.Services;
 using System.Numerics;
 using System.Text.Json;
@@ -118,6 +119,8 @@ public class OfficialCorpusQualificationTests
     Directory.CreateDirectory(directory);
     try
     {
+      var meshesDirectory = Path.Combine(directory, "meshes");
+      Directory.CreateDirectory(meshesDirectory);
       var privateNames = new[]
       {
         "private-fixture-name.MSH",
@@ -128,9 +131,16 @@ public class OfficialCorpusQualificationTests
       foreach (var privateName in privateNames)
       {
         await File.WriteAllBytesAsync(
-          Path.Combine(directory, privateName),
+          Path.Combine(meshesDirectory, privateName),
           OneTriangleMshFixture.Create());
       }
+      var dynamicBuild = DynamicMeshBuilder.Create()
+        .SetRoot(DynamicEffectRecipes.Group([DynamicEffectRecipes.Group()]))
+        .Build();
+      dynamicBuild.TryGetValue(out var dynamicAsset).Should().BeTrue();
+      var dynamicPath = Path.Combine(meshesDirectory, "dynamic-private-fixture-name.msh");
+      var dynamicWrite = await new MshWriter().WriteFileAsync(dynamicAsset!, dynamicPath);
+      dynamicWrite.Succeeded.Should().BeTrue();
       await File.WriteAllBytesAsync(Path.Combine(directory, "not-framed.msh"), [0, 1, 2, 3]);
       var eventPath = Path.Combine(directory, "aggregate.json");
       var profilePath = Path.Combine(directory, "profile.json");
@@ -150,15 +160,34 @@ public class OfficialCorpusQualificationTests
         json.Should().NotContain(privateName);
       }
       using var document = JsonDocument.Parse(json);
-      document.RootElement.GetProperty("corpus").GetProperty("assets").GetInt32().Should().Be(4);
-      document.RootElement.GetProperty("corpus").GetProperty("discoveredMshFiles").GetInt32().Should().Be(5);
+      document.RootElement.GetProperty("version").GetInt32().Should().Be(2);
+      document.RootElement.GetProperty("corpus").GetProperty("assets").GetInt32().Should().Be(5);
+      document.RootElement.GetProperty("corpus").GetProperty("discoveredMshFiles").GetInt32().Should().Be(6);
       document.RootElement.GetProperty("corpus").GetProperty("excludedNonFramedOrUnsupported")
         .GetInt32().Should().Be(1);
       document.RootElement.GetProperty("corpus").GetProperty("staticAssets").GetInt32().Should().Be(4);
+      document.RootElement.GetProperty("corpus").GetProperty("dynamicAssets").GetInt32().Should().Be(1);
+      var dynamicCoverage = document.RootElement.GetProperty("dynamicCoverage");
+      dynamicCoverage.GetProperty("assets").GetInt32().Should().Be(1);
+      dynamicCoverage.GetProperty("objects").GetInt32().Should().Be(2);
+      dynamicCoverage.GetProperty("maximumDepth").GetInt32().Should().Be(2);
+      dynamicCoverage.GetProperty("nestedAssets").GetInt32().Should().Be(1);
+      dynamicCoverage.GetProperty("effectTypes").EnumerateArray().Should().ContainSingle(item =>
+        item.GetProperty("effectType").GetString() == "Group"
+        && item.GetProperty("count").GetInt32() == 2);
+      var exportAllMeshes = document.RootElement.GetProperty("exportAllMeshes");
+      exportAllMeshes.GetProperty("assets").GetInt32().Should().Be(5);
+      exportAllMeshes.GetProperty("staticAssets").GetInt32().Should().Be(4);
+      exportAllMeshes.GetProperty("dynamicAssets").GetInt32().Should().Be(1);
+      exportAllMeshes.GetProperty("succeeded").GetInt32().Should().Be(5);
+      exportAllMeshes.GetProperty("failed").GetInt32().Should().Be(0);
+      exportAllMeshes.GetProperty("cancelled").GetInt32().Should().Be(0);
+      exportAllMeshes.GetProperty("unsupportedDomainDiagnostics").GetInt32().Should().Be(0);
+      exportAllMeshes.GetProperty("outputFiles").GetInt32().Should().Be(5);
       document.RootElement.GetProperty("operations").GetArrayLength().Should().Be(23);
       document.RootElement.GetProperty("operations").EnumerateArray().Should().OnlyContain(operation =>
-        operation.GetProperty("attempted").GetInt32() == 4
-        && operation.GetProperty("passed").GetInt32() == 4
+        operation.GetProperty("attempted").GetInt32() == 5
+        && operation.GetProperty("passed").GetInt32() == 5
         && operation.GetProperty("failed").GetInt32() == 0);
       document.RootElement.GetProperty("failures").GetProperty("total").GetInt32().Should().Be(0);
 
@@ -174,7 +203,7 @@ public class OfficialCorpusQualificationTests
       profile.RootElement.GetProperty("wallClockMilliseconds").GetDouble().Should().BeGreaterThan(0);
       profile.RootElement.GetProperty("stages").EnumerateArray().Should().Contain(stage =>
         stage.GetProperty("stage").GetString() == "glb.cli-export"
-        && stage.GetProperty("count").GetInt32() == 4);
+        && stage.GetProperty("count").GetInt32() == 5);
       var validatorStarts = profile.RootElement.GetProperty("stages").EnumerateArray().Single(stage =>
         stage.GetProperty("stage").GetString() == "khronos.process-start");
       validatorStarts.GetProperty("count").GetInt32().Should().BeInRange(1, 2);
@@ -239,7 +268,7 @@ public class OfficialCorpusQualificationTests
     {
       var result = await OfficialCorpusCliOracle.RunAsync(
         [0, 1, 2, 3],
-        "glb",
+        GltfPackageKind.Glb,
         directory,
         directory);
 

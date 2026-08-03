@@ -2562,6 +2562,13 @@ and the only populated-track/header-length mismatch is the documented
 in this document are binary-corpus observations rather than source-level
 reconstructions.
 
+The version-2 release qualification runs all 957 static and 194 dynamic assets
+through public and packaged-CLI GLB and separate-glTF export, strict SharpGLTF
+and Khronos validation, unchanged edit import, semantic equivalence, and
+canonical idempotence. Its checked-in aggregate profile records the 445 dynamic
+objects, observed effect/domain histograms, resource bindings, hierarchy depth,
+and exact warning categories without exposing private asset names or paths.
+
 ### Tools
 
 Bytefield SVG descriptions are provided in `MSH_STATIC.bytefield.edn` and

@@ -1,36 +1,13 @@
-﻿import { readFile, readdir, mkdir, rm, writeFile } from "node:fs/promises";
+﻿import { access, readFile, readdir, mkdir, rm, writeFile } from "node:fs/promises";
 import { platform as hostPlatform, release as osRelease } from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-
-const binaryStages = [
-  "msh.read",
-  "msh.validate",
-  "msh.write",
-  "msh.semantic-equivalence",
-  "msh.canonical-idempotence"
-];
-const staticStages = [
-  "glb.export",
-  "glb.sharp-gltf-validate",
-  "glb.khronos-validate",
-  "glb.unchanged-import",
-  "glb.canonical-baseline",
-  "gltf.export",
-  "gltf.sharp-gltf-validate",
-  "gltf.khronos-validate",
-  "gltf.unchanged-import",
-  "gltf.canonical-baseline",
-  "glb.cli-export",
-  "glb.cli-sharp-gltf-validate",
-  "glb.cli-khronos-validate",
-  "glb.cli-unchanged-import",
-  "gltf.cli-export",
-  "gltf.cli-sharp-gltf-validate",
-  "gltf.cli-khronos-validate",
-  "gltf.cli-unchanged-import"
-];
+import {
+  corpusBinaryStages,
+  corpusInterchangeStages,
+  recognizedDynamicEffectTypes
+} from "./official-corpus-contract.mjs";
 const requiredByteTotals = [
   "canonicalMsh",
   "glb",
@@ -75,10 +52,10 @@ function canonicalValidatorCodes(codes) {
 }
 
 export function validateQualificationSummary(summary, profile) {
-  if (summary?.format !== "earthtool.official-msh-corpus-event" || summary.version !== 1) {
+  if (summary?.format !== "earthtool.official-msh-corpus-event" || summary.version !== 2) {
     fail("event-contract");
   }
-  if (profile?.format !== "earthtool.official-msh-corpus-profile" || profile.version !== 1) {
+  if (profile?.format !== "earthtool.official-msh-corpus-profile" || profile.version !== 2) {
     fail("profile-contract");
   }
   const corpus = summary.corpus;
@@ -112,13 +89,76 @@ export function validateQualificationSummary(summary, profile) {
     fail("evidence-contract");
   }
 
+  const coverage = summary.dynamicCoverage;
+  const effectTypeCounts = new Map(
+    (coverage?.effectTypes ?? []).map(item => [item.effectType, item.count]));
+  const alphaCount = (coverage?.alphaTimingModes ?? [])
+    .reduce((total, item) => total + item.count, 0);
+  const terrainLightCount = (coverage?.terrainLightModes ?? [])
+    .reduce((total, item) => total + item.count, 0);
+  if (!coverage
+    || coverage.assets !== corpus.dynamicAssets
+    || !Number.isSafeInteger(coverage.objects)
+    || coverage.objects < coverage.assets
+    || !Number.isSafeInteger(coverage.maximumDepth)
+    || coverage.maximumDepth < 2
+    || coverage.nestedAssets <= 0
+    || coverage.mixedEffectAssets <= 0
+    || coverage.unknownEffectObjects !== 0
+    || effectTypeCounts.size === 0
+    || [...effectTypeCounts].some(([effectType, count]) => !recognizedDynamicEffectTypes.includes(effectType)
+      || !Number.isSafeInteger(count)
+      || count <= 0)
+    || [...effectTypeCounts.values()].reduce((total, count) => total + count, 0)
+      !== coverage.objects
+    || coverage.meshResourceBindings <= 0
+    || coverage.textureResourceBindings <= 0
+    || coverage.ribbonHalfWidths?.positive
+      + coverage.ribbonHalfWidths?.negative
+      + coverage.ribbonHalfWidths?.zero <= 0
+    || coverage.frameDeclarations <= 0
+    || coverage.atlasDeclarations <= 0
+    || !(coverage.alphaTimingModes ?? []).some(item => item.mode === "FramePhase" && item.count > 0)
+    || !(coverage.alphaTimingModes ?? []).some(item => item.mode === "LifetimeProgress" && item.count > 0)
+    || alphaCount + coverage.unknownAlphaTimingObjects !== coverage.objects
+    || !Array.isArray(coverage.terrainLightModes)
+    || coverage.terrainLightModes.length === 0
+    || terrainLightCount + coverage.unknownTerrainLightObjects !== coverage.objects
+    || coverage.additiveObjects + coverage.nonAdditiveObjects !== coverage.objects
+    || coverage.translatedObjects <= 0
+    || coverage.scaledObjects <= 0
+    || coverage.metadataOnlyObjects <= 0) {
+    fail("dynamic-coverage");
+  }
+  if (JSON.stringify(coverage) !== JSON.stringify(profile.dynamicCoverage)) {
+    fail("dynamic-coverage-drift");
+  }
+
+  const exportAllMeshes = summary.exportAllMeshes;
+  if (!exportAllMeshes
+    || !Number.isSafeInteger(exportAllMeshes.assets)
+    || exportAllMeshes.assets <= 0
+    || exportAllMeshes.assets > corpus.assets
+    || exportAllMeshes.staticAssets + exportAllMeshes.dynamicAssets !== exportAllMeshes.assets
+    || exportAllMeshes.dynamicAssets !== corpus.dynamicAssets
+    || exportAllMeshes.succeeded !== exportAllMeshes.assets
+    || exportAllMeshes.failed !== 0
+    || exportAllMeshes.cancelled !== 0
+    || exportAllMeshes.unsupportedDomainDiagnostics !== 0
+    || exportAllMeshes.outputFiles !== exportAllMeshes.assets) {
+    fail("export-all-meshes");
+  }
+  if (JSON.stringify(exportAllMeshes) !== JSON.stringify(profile.exportAllMeshes)) {
+    fail("export-all-meshes-drift");
+  }
+
   if (!Array.isArray(summary.operations)) {
     fail("oracle-inventory");
   }
   const operations = new Map(summary.operations.map(item => [item.stage, item]));
   const expectedStages = new Map([
-    ...binaryStages.map(stage => [stage, corpus.assets]),
-    ...staticStages.map(stage => [stage, corpus.staticAssets])
+    ...corpusBinaryStages.map(stage => [stage, corpus.assets]),
+    ...corpusInterchangeStages.map(stage => [stage, corpus.assets])
   ]);
   if (summary.operations.length !== expectedStages.size
     || operations.size !== summary.operations.length) {
@@ -141,6 +181,9 @@ export function validateQualificationSummary(summary, profile) {
     fail("evidence-contract");
   }
   const diagnostics = canonicalDiagnostics(summary.diagnostics);
+  if (diagnostics.some(item => item.code === "ETG1002")) {
+    fail("unsupported-dynamic-domain");
+  }
   if (diagnostics.some(item => item.severity === "Error")) {
     fail("operation-diagnostic");
   }
@@ -150,7 +193,7 @@ export function validateQualificationSummary(summary, profile) {
 
   const khronos = summary.validators?.khronos;
   if (!khronos
-    || khronos.packages !== corpus.staticAssets * 4
+    || khronos.packages !== corpus.assets * 4
     || !khronos.validatorVersion && !khronos.version
     || khronos.errors !== 0
     || khronos.warnings !== 0) {
@@ -185,10 +228,10 @@ export function buildEvidence({
       : null);
   return {
     format: "earthtool.official-msh-qualification-evidence",
-    version: 1,
+    version: 2,
     profile: {
       format: profile?.format ?? "earthtool.official-msh-corpus-profile",
-      version: profile?.version ?? 1
+      version: profile?.version ?? 2
     },
     outcome: effectiveFailure ? "failed" : "passed",
     failureCategory: effectiveFailure,
@@ -208,9 +251,14 @@ export function buildEvidence({
       "SharpGLTF strict validation",
       "Khronos glTF Validator: zero errors and zero warnings; all findings recorded",
       "unchanged import reproduces the canonical MSH baseline",
+      "public API and packaged CLI identities, fingerprints, manifests, and sidecars agree",
+      "Export All Meshes succeeds for the complete top-level static and dynamic corpus",
+      "exact dynamic effect and representation coverage profile",
       "exact aggregate diagnostic profile"
     ],
     corpus: summary?.corpus ?? null,
+    dynamicCoverage: summary?.dynamicCoverage ?? null,
+    exportAllMeshes: summary?.exportAllMeshes ?? null,
     profiles: summary?.profiles ?? null,
     bytes: summary?.bytes ?? null,
     operations: summary?.operations ?? [],
@@ -426,6 +474,43 @@ function currentPlatform() {
   return `${platform}-${process.arch}`;
 }
 
+async function resolvePackagedCli(root, resultsDirectory, configuredPath) {
+  if (configuredPath) {
+    const executable = path.resolve(configuredPath);
+    await access(executable);
+    return executable;
+  }
+  const platform = currentPlatform();
+  const runtime = platform === "windows-x64" ? "win-x64"
+    : platform === "linux-x64" ? "linux-x64"
+      : null;
+  if (!runtime) {
+    fail("unsupported-platform");
+  }
+  const publishDirectory = path.join(resultsDirectory, "packaged-cli");
+  const publish = await run("dotnet", [
+    "publish", "EarthTool.CLI/EarthTool.CLI.csproj",
+    "--configuration", "Release",
+    "--runtime", runtime,
+    "--self-contained", "false",
+    "--output", publishDirectory,
+    "-p:PublishSingleFile=true",
+    "-p:DebugType=none",
+    "-p:DebugSymbols=false"
+  ], { cwd: root, timeoutMs: 10 * 60 * 1000 });
+  if (publish.timedOut) {
+    fail("tool-timeout");
+  }
+  if (publish.code !== 0) {
+    fail("cli-publish-failure");
+  }
+  const executable = path.join(
+    publishDirectory,
+    process.platform === "win32" ? "EarthTool.CLI.exe" : "EarthTool.CLI");
+  await access(executable);
+  return executable;
+}
+
 async function readJson(filePath) {
   return JSON.parse((await readFile(filePath, "utf8")).replace(/^\uFEFF/, ""));
 }
@@ -458,7 +543,7 @@ async function main() {
     ?? "");
   const profileOptions = resolveProfileOptions(
     options,
-    path.join(root, "test-tools", "official-corpus-profile.v1.json"));
+    path.join(root, "test-tools", "official-corpus-profile.v2.json"));
   const profilePath = path.resolve(profileOptions.expectedProfile);
   const evidencePath = path.resolve(options.evidence
     ?? path.join(root, "artifacts", "official-msh-corpus-qualification.json"));
@@ -484,6 +569,7 @@ async function main() {
     await readFile(path.join(root, "test-tools", "node_modules", "gltf-validator", "package.json"));
     await rm(resultsDirectory, { recursive: true, force: true });
     await mkdir(resultsDirectory, { recursive: true });
+    const cliExecutable = await resolvePackagedCli(root, resultsDirectory, options.cli);
     const dotnet = await run("dotnet", ["--version"], { cwd: root, timeoutMs: 30_000 });
     const git = await run("git", ["rev-parse", "HEAD"], { cwd: root, timeoutMs: 30_000 });
     if (dotnet.timedOut || git.timedOut) {
@@ -518,6 +604,7 @@ async function main() {
           EARTHTOOL_OFFICIAL_MSH_PROFILE_EVENT: profileOptions.timingsEnabled
             ? profileEventPath
             : "",
+          EARTHTOOL_OFFICIAL_CLI_EXECUTABLE: cliExecutable,
           ...(workerCount === null
             ? {}
             : { EARTHTOOL_OFFICIAL_MSH_WORKERS: String(workerCount) })
@@ -560,6 +647,8 @@ async function main() {
     evidence.outcome = "failed";
     evidence.failureCategory = "privacy-violation";
     evidence.corpus = null;
+    evidence.dynamicCoverage = null;
+    evidence.exportAllMeshes = null;
     evidence.profiles = null;
     evidence.bytes = null;
     evidence.operations = [];

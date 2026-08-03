@@ -1,0 +1,113 @@
+{
+  "format": "earthtool.official-msh-corpus-profile",
+  "version": 2,
+  "corpus": {
+    "fingerprint": "2b3a67e46aec82e5851effeba748cb262dd907009dba60300195e3bf5360ce7f",
+    "discoveredMshFiles": 1153,
+    "excludedNonFramedOrUnsupported": 2,
+    "excludedByProfile": 0,
+    "assets": 1151,
+    "staticAssets": 957,
+    "dynamicAssets": 194
+  },
+  "dynamicCoverage": {
+    "assets": 194,
+    "objects": 445,
+    "maximumDepth": 2,
+    "nestedAssets": 60,
+    "mixedEffectAssets": 60,
+    "effectTypes": [
+      { "effectType": "Group", "count": 56 },
+      { "effectType": "Explosion", "count": 144 },
+      { "effectType": "Track", "count": 27 },
+      { "effectType": "ScalableObject", "count": 32 },
+      { "effectType": "MappedExplosion", "count": 18 },
+      { "effectType": "FlatExplosion", "count": 25 },
+      { "effectType": "Laser", "count": 2 },
+      { "effectType": "LaserWall", "count": 2 },
+      { "effectType": "Shockwave", "count": 4 },
+      { "effectType": "Sphere", "count": 1 },
+      { "effectType": "ElectricalCannon", "count": 2 },
+      { "effectType": "Lightning", "count": 1 },
+      { "effectType": "Smoke", "count": 126 },
+      { "effectType": "Keelwater", "count": 5 }
+    ],
+    "unknownEffectObjects": 0,
+    "meshResourceBindings": 32,
+    "textureResourceBindings": 388,
+    "ribbonHalfWidths": { "positive": 7, "negative": 0, "zero": 0 },
+    "frameDeclarations": 402,
+    "atlasDeclarations": 402,
+    "alphaTimingModes": [
+      { "mode": "FramePhase", "count": 434 },
+      { "mode": "LifetimeProgress", "count": 11 }
+    ],
+    "unknownAlphaTimingObjects": 0,
+    "terrainLightModes": [
+      { "mode": "Constant", "count": 353 },
+      { "mode": "Trapezium", "count": 88 },
+      { "mode": "Random", "count": 4 }
+    ],
+    "unknownTerrainLightObjects": 0,
+    "additiveObjects": 162,
+    "nonAdditiveObjects": 283,
+    "translatedObjects": 179,
+    "scaledObjects": 32,
+    "metadataOnlyObjects": 56
+  },
+  "exportAllMeshes": {
+    "assets": 1149,
+    "staticAssets": 955,
+    "dynamicAssets": 194,
+    "succeeded": 1149,
+    "failed": 0,
+    "cancelled": 0,
+    "unsupportedDomainDiagnostics": 0,
+    "outputFiles": 1149
+  },
+  "diagnostics": [
+    { "stage": "glb.canonical-baseline", "code": "ETM1009", "eventId": 1009, "severity": "Warning", "count": 391 },
+    { "stage": "glb.cli-export", "code": "ETG1007", "eventId": 1107, "severity": "Warning", "count": 11 },
+    { "stage": "glb.cli-export", "code": "ETG1009", "eventId": 1109, "severity": "Warning", "count": 1 },
+    { "stage": "glb.cli-export", "code": "ETG1011", "eventId": 1111, "severity": "Warning", "count": 11 },
+    { "stage": "glb.cli-export", "code": "ETG1013", "eventId": 1113, "severity": "Warning", "count": 1558 },
+    { "stage": "glb.cli-export", "code": "ETG1014", "eventId": 1114, "severity": "Warning", "count": 10 },
+    { "stage": "glb.cli-export", "code": "ETM1009", "eventId": 1009, "severity": "Warning", "count": 391 },
+    { "stage": "glb.cli-unchanged-import", "code": "ETM1009", "eventId": 1009, "severity": "Warning", "count": 392 },
+    { "stage": "glb.export", "code": "ETG1007", "eventId": 1107, "severity": "Warning", "count": 11 },
+    { "stage": "glb.export", "code": "ETG1009", "eventId": 1109, "severity": "Warning", "count": 1 },
+    { "stage": "glb.export", "code": "ETG1011", "eventId": 1111, "severity": "Warning", "count": 11 },
+    { "stage": "glb.export", "code": "ETG1013", "eventId": 1113, "severity": "Warning", "count": 1558 },
+    { "stage": "glb.export", "code": "ETG1014", "eventId": 1114, "severity": "Warning", "count": 10 },
+    { "stage": "glb.unchanged-import", "code": "ETM1009", "eventId": 1009, "severity": "Warning", "count": 1 },
+    { "stage": "gltf.canonical-baseline", "code": "ETM1009", "eventId": 1009, "severity": "Warning", "count": 391 },
+    { "stage": "gltf.cli-export", "code": "ETG1007", "eventId": 1107, "severity": "Warning", "count": 11 },
+    { "stage": "gltf.cli-export", "code": "ETG1009", "eventId": 1109, "severity": "Warning", "count": 1 },
+    { "stage": "gltf.cli-export", "code": "ETG1011", "eventId": 1111, "severity": "Warning", "count": 11 },
+    { "stage": "gltf.cli-export", "code": "ETG1013", "eventId": 1113, "severity": "Warning", "count": 1558 },
+    { "stage": "gltf.cli-export", "code": "ETG1014", "eventId": 1114, "severity": "Warning", "count": 10 },
+    { "stage": "gltf.cli-export", "code": "ETM1009", "eventId": 1009, "severity": "Warning", "count": 391 },
+    { "stage": "gltf.cli-unchanged-import", "code": "ETM1009", "eventId": 1009, "severity": "Warning", "count": 392 },
+    { "stage": "gltf.export", "code": "ETG1007", "eventId": 1107, "severity": "Warning", "count": 11 },
+    { "stage": "gltf.export", "code": "ETG1009", "eventId": 1109, "severity": "Warning", "count": 1 },
+    { "stage": "gltf.export", "code": "ETG1011", "eventId": 1111, "severity": "Warning", "count": 11 },
+    { "stage": "gltf.export", "code": "ETG1013", "eventId": 1113, "severity": "Warning", "count": 1558 },
+    { "stage": "gltf.export", "code": "ETG1014", "eventId": 1114, "severity": "Warning", "count": 10 },
+    { "stage": "gltf.unchanged-import", "code": "ETM1009", "eventId": 1009, "severity": "Warning", "count": 1 },
+    { "stage": "msh.canonical-idempotence", "code": "ETM1009", "eventId": 1009, "severity": "Warning", "count": 391 },
+    { "stage": "msh.read", "code": "ETM1009", "eventId": 1009, "severity": "Warning", "count": 391 },
+    { "stage": "msh.semantic-equivalence", "code": "ETM1009", "eventId": 1009, "severity": "Warning", "count": 391 },
+    { "stage": "msh.validate", "code": "ETM1009", "eventId": 1009, "severity": "Warning", "count": 391 },
+    { "stage": "msh.write", "code": "ETM1009", "eventId": 1009, "severity": "Warning", "count": 391 }
+  ],
+  "validators": {
+    "khronos": {
+      "infos": 52,
+      "hints": 0,
+      "codes": [
+        { "code": "ACCESSOR_INDEX_TRIANGLE_DEGENERATE", "count": 48 },
+        { "code": "UNUSED_OBJECT", "count": 4 }
+      ]
+    }
+  }
+}
