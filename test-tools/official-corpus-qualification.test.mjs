@@ -5,8 +5,11 @@ import {
   assertPrivacySafe,
   buildEvidence,
   renderProgress,
+  renderProfile,
+  resolveProfileOptions,
   run,
   shouldReportProgress,
+  validateWorkerCount,
   validateQualificationSummary
 } from "./official-corpus-qualification.mjs";
 
@@ -295,4 +298,65 @@ test("non-TTY progress reports aggregate milestones and completion", () => {
   assert.equal(shouldReportProgress({ completed: 1151, total: 1151 }, 1100, false), true);
   assert.equal(shouldReportProgress({ completed: 1, total: 1151 }, 0, true), true);
   assert.equal(shouldReportProgress({ completed: 99, total: 1151 }, 0, false, true), true);
+});
+
+test("worker count accepts only positive integers", () => {
+  assert.equal(validateWorkerCount(undefined), null);
+  assert.equal(validateWorkerCount("6"), 6);
+  assert.throws(() => validateWorkerCount("0"), error => error.category === "invalid-arguments");
+  assert.throws(() => validateWorkerCount("1.5"), error => error.category === "invalid-arguments");
+  assert.throws(
+    () => validateWorkerCount("2147483648"),
+    error => error.category === "invalid-arguments");
+});
+
+test("profile rendering contains only aggregate timings", () => {
+  const output = renderProfile({
+    format: "earthtool.official-msh-corpus-profile-event",
+    version: 1,
+    workers: 2,
+    wallClockMilliseconds: 1234.5,
+    stages: [{
+      stage: "glb.cli-export",
+      count: 4,
+      totalMilliseconds: 800,
+      averageMilliseconds: 200
+    }]
+  });
+
+  assert.match(output, /workers=2 wall=1234.500ms/);
+  assert.match(output, /glb\.cli-export count=4 total=800\.000ms average=200\.000ms/);
+  assert.ok(!output.includes("path"));
+});
+
+test("profile rendering rejects malformed aggregate timing contracts", () => {
+  assert.throws(
+    () => renderProfile({ format: "wrong", version: 1, workers: 1, stages: [] }),
+    error => error.category === "profile-contract");
+  assert.throws(
+    () => renderProfile({
+      format: "earthtool.official-msh-corpus-profile-event",
+      version: 1,
+      workers: 1,
+      wallClockMilliseconds: 1,
+      stages: [{
+        stage: "/private/package.gltf",
+        count: 1,
+        totalMilliseconds: 1,
+        averageMilliseconds: 1
+      }]
+    }),
+    error => error.category === "profile-contract");
+});
+
+test("timings remain separate from the expected corpus profile path", () => {
+  assert.deepEqual(
+    resolveProfileOptions({ profile: "custom-profile.json", timings: "true" }, "default-profile.json"),
+    { expectedProfile: "custom-profile.json", timingsEnabled: true });
+  assert.deepEqual(
+    resolveProfileOptions({}, "default-profile.json"),
+    { expectedProfile: "default-profile.json", timingsEnabled: false });
+  assert.throws(
+    () => resolveProfileOptions({ timings: "yes" }, "default-profile.json"),
+    error => error.category === "invalid-arguments");
 });

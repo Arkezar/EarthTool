@@ -257,6 +257,59 @@ export function renderProgress(progress, width = 30) {
     + `static=${progress.staticAssets} dynamic=${progress.dynamicAssets} failures=${progress.failures}`;
 }
 
+export function validateWorkerCount(value) {
+  if (value === undefined) {
+    return null;
+  }
+  if (!/^\d+$/.test(value)
+    || Number(value) <= 0
+    || Number(value) > 2_147_483_647
+    || !Number.isSafeInteger(Number(value))) {
+    fail("invalid-arguments");
+  }
+  return Number(value);
+}
+
+export function resolveProfileOptions(options, defaultProfile) {
+  if (options.timings !== undefined && options.timings !== "true" && options.timings !== "false") {
+    fail("invalid-arguments");
+  }
+  return {
+    expectedProfile: options.profile ?? defaultProfile,
+    timingsEnabled: options.timings === "true"
+  };
+}
+
+export function renderProfile(profile) {
+  if (profile?.format !== "earthtool.official-msh-corpus-profile-event"
+    || profile.version !== 1
+    || !Number.isSafeInteger(profile.workers)
+    || profile.workers <= 0
+    || !Number.isFinite(profile.wallClockMilliseconds)
+    || profile.wallClockMilliseconds < 0
+    || !Array.isArray(profile.stages)) {
+    fail("profile-contract");
+  }
+  const lines = [
+    `Official MSH profile workers=${profile.workers} wall=${profile.wallClockMilliseconds.toFixed(3)}ms`
+  ];
+  for (const stage of profile.stages) {
+    if (!/^[a-z0-9.-]+$/.test(stage?.stage ?? "")
+      || !Number.isSafeInteger(stage.count)
+      || stage.count <= 0
+      || !Number.isFinite(stage.totalMilliseconds)
+      || stage.totalMilliseconds < 0
+      || !Number.isFinite(stage.averageMilliseconds)
+      || stage.averageMilliseconds < 0) {
+      fail("profile-contract");
+    }
+    lines.push(
+      `${stage.stage} count=${stage.count} total=${stage.totalMilliseconds.toFixed(3)}ms `
+      + `average=${stage.averageMilliseconds.toFixed(3)}ms`);
+  }
+  return lines.join("\n") + "\n";
+}
+
 export function shouldReportProgress(progress, lastReported, isTTY, force = false) {
   return force
     || isTTY
@@ -403,13 +456,16 @@ async function main() {
   const corpus = path.resolve(options.corpus
     ?? process.env.EARTHTOOL_OFFICIAL_MSH_CORPUS
     ?? "");
-  const profilePath = path.resolve(options.profile
-    ?? path.join(root, "test-tools", "official-corpus-profile.v1.json"));
+  const profileOptions = resolveProfileOptions(
+    options,
+    path.join(root, "test-tools", "official-corpus-profile.v1.json"));
+  const profilePath = path.resolve(profileOptions.expectedProfile);
   const evidencePath = path.resolve(options.evidence
     ?? path.join(root, "artifacts", "official-msh-corpus-qualification.json"));
   const resultsDirectory = path.join(root, "artifacts", "official-corpus-results");
   const eventsPath = path.join(resultsDirectory, "aggregate-event.json");
   const progressPath = path.join(resultsDirectory, "aggregate-progress.json");
+  const profileEventPath = path.join(resultsDirectory, "aggregate-profile.json");
   const trxPath = path.join(resultsDirectory, "official-corpus.trx");
   let profile;
   let summary;
@@ -422,6 +478,7 @@ async function main() {
     if (!options.corpus && !process.env.EARTHTOOL_OFFICIAL_MSH_CORPUS) {
       fail("corpus-unavailable");
     }
+    const workerCount = validateWorkerCount(options.workers);
     profile = await readJson(profilePath);
     forbiddenValues = await collectPrivateNames(corpus);
     await readFile(path.join(root, "test-tools", "node_modules", "gltf-validator", "package.json"));
@@ -457,7 +514,13 @@ async function main() {
           ...process.env,
           EARTHTOOL_OFFICIAL_MSH_CORPUS: corpus,
           EARTHTOOL_OFFICIAL_MSH_EVIDENCE_EVENT: eventsPath,
-          EARTHTOOL_OFFICIAL_MSH_PROGRESS_EVENT: progressPath
+          EARTHTOOL_OFFICIAL_MSH_PROGRESS_EVENT: progressPath,
+          EARTHTOOL_OFFICIAL_MSH_PROFILE_EVENT: profileOptions.timingsEnabled
+            ? profileEventPath
+            : "",
+          ...(workerCount === null
+            ? {}
+            : { EARTHTOOL_OFFICIAL_MSH_WORKERS: String(workerCount) })
         }
       });
     } finally {
@@ -471,6 +534,9 @@ async function main() {
     }
     if (testResult.code !== 0) {
       fail("test-execution");
+    }
+    if (profileOptions.timingsEnabled) {
+      process.stdout.write(renderProfile(await readJson(profileEventPath)));
     }
   } catch (error) {
     failureCategory = error instanceof QualificationError

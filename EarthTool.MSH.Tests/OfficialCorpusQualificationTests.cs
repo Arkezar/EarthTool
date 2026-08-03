@@ -118,25 +118,66 @@ public class OfficialCorpusQualificationTests
     Directory.CreateDirectory(directory);
     try
     {
-      var privateName = "private-fixture-name.MSH";
-      await File.WriteAllBytesAsync(
-        Path.Combine(directory, privateName),
-        OneTriangleMshFixture.Create());
+      var privateNames = new[]
+      {
+        "private-fixture-name.MSH",
+        "second-private-fixture-name.msh",
+        "third-private-fixture-name.msh",
+        "fourth-private-fixture-name.msh"
+      };
+      foreach (var privateName in privateNames)
+      {
+        await File.WriteAllBytesAsync(
+          Path.Combine(directory, privateName),
+          OneTriangleMshFixture.Create());
+      }
       await File.WriteAllBytesAsync(Path.Combine(directory, "not-framed.msh"), [0, 1, 2, 3]);
       var eventPath = Path.Combine(directory, "aggregate.json");
+      var profilePath = Path.Combine(directory, "profile.json");
 
-      await OfficialCorpusQualification.RunAsync(directory, eventPath);
+      await OfficialCorpusQualification.RunAsync(
+        directory,
+        eventPath,
+        workerCount: 2,
+        profilePath);
+      var serialEventPath = Path.Combine(directory, "serial-aggregate.json");
+      await OfficialCorpusQualification.RunAsync(directory, serialEventPath, workerCount: 1);
 
       var json = await File.ReadAllTextAsync(eventPath);
-      json.Should().NotContain(privateName);
+      json.Should().Be(await File.ReadAllTextAsync(serialEventPath));
+      foreach (var privateName in privateNames)
+      {
+        json.Should().NotContain(privateName);
+      }
       using var document = JsonDocument.Parse(json);
-      document.RootElement.GetProperty("corpus").GetProperty("assets").GetInt32().Should().Be(1);
-      document.RootElement.GetProperty("corpus").GetProperty("discoveredMshFiles").GetInt32().Should().Be(2);
+      document.RootElement.GetProperty("corpus").GetProperty("assets").GetInt32().Should().Be(4);
+      document.RootElement.GetProperty("corpus").GetProperty("discoveredMshFiles").GetInt32().Should().Be(5);
       document.RootElement.GetProperty("corpus").GetProperty("excludedNonFramedOrUnsupported")
         .GetInt32().Should().Be(1);
-      document.RootElement.GetProperty("corpus").GetProperty("staticAssets").GetInt32().Should().Be(1);
+      document.RootElement.GetProperty("corpus").GetProperty("staticAssets").GetInt32().Should().Be(4);
       document.RootElement.GetProperty("operations").GetArrayLength().Should().Be(23);
+      document.RootElement.GetProperty("operations").EnumerateArray().Should().OnlyContain(operation =>
+        operation.GetProperty("attempted").GetInt32() == 4
+        && operation.GetProperty("passed").GetInt32() == 4
+        && operation.GetProperty("failed").GetInt32() == 0);
       document.RootElement.GetProperty("failures").GetProperty("total").GetInt32().Should().Be(0);
+
+      var profileJson = await File.ReadAllTextAsync(profilePath);
+      foreach (var privateName in privateNames)
+      {
+        profileJson.Should().NotContain(privateName);
+      }
+      using var profile = JsonDocument.Parse(profileJson);
+      profile.RootElement.GetProperty("format").GetString()
+        .Should().Be("earthtool.official-msh-corpus-profile-event");
+      profile.RootElement.GetProperty("workers").GetInt32().Should().Be(2);
+      profile.RootElement.GetProperty("wallClockMilliseconds").GetDouble().Should().BeGreaterThan(0);
+      profile.RootElement.GetProperty("stages").EnumerateArray().Should().Contain(stage =>
+        stage.GetProperty("stage").GetString() == "glb.cli-export"
+        && stage.GetProperty("count").GetInt32() == 4);
+      var validatorStarts = profile.RootElement.GetProperty("stages").EnumerateArray().Single(stage =>
+        stage.GetProperty("stage").GetString() == "khronos.process-start");
+      validatorStarts.GetProperty("count").GetInt32().Should().BeInRange(1, 2);
     }
     finally
     {

@@ -23,5 +23,6 @@
 
 - [Architecture](architecture.md)
 - [Project structure](project-structure.md)
+- [Official MSH qualification performance](official-msh-qualification-performance.md)
 - [Contributing](../CONTRIBUTING.md)
 - [CI workflows](../.github/workflows/README.md)

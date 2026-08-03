@@ -22,10 +22,16 @@ internal static class OfficialCorpusCliOracle
     var inputPath = Path.Combine(directory, "source.msh");
     var exportReport = Path.Combine(directory, "export-report.json");
     var importReport = Path.Combine(directory, "import-report.json");
+    var temporaryIoDuration = TimeSpan.Zero;
+    var exportDuration = TimeSpan.Zero;
+    var importDuration = TimeSpan.Zero;
+    var ioStarted = Stopwatch.GetTimestamp();
     await File.WriteAllBytesAsync(inputPath, canonicalMsh);
+    temporaryIoDuration += Stopwatch.GetElapsedTime(ioStarted);
 
     try
     {
+      var exportStarted = Stopwatch.GetTimestamp();
       var export = await RunProcessAsync(root, [
         "msh", "export", inputPath,
         "--format", package == "glb" ? "Glb" : "Gltf",
@@ -34,14 +40,28 @@ internal static class OfficialCorpusCliOracle
         "--report", exportReport
       ]);
       var exportOperation = await ReadOperationAsync(exportReport);
+      exportDuration = Stopwatch.GetElapsedTime(exportStarted);
       if (export.ExitCode != 0 || !exportOperation.Succeeded)
       {
-        return new CliOracleResult(false, false, null, 0, 0, exportOperation.Diagnostics, []);
+        return new CliOracleResult(
+          false,
+          false,
+          null,
+          0,
+          0,
+          exportOperation.Diagnostics,
+          [],
+          exportDuration,
+          importDuration,
+          temporaryIoDuration);
       }
 
       var packagePath = Path.Combine(exportDirectory, "source." + package);
+      ioStarted = Stopwatch.GetTimestamp();
       var packageBytes = Directory.EnumerateFiles(exportDirectory, "*", SearchOption.AllDirectories)
         .Sum(path => new FileInfo(path).Length);
+      temporaryIoDuration += Stopwatch.GetElapsedTime(ioStarted);
+      var importStarted = Stopwatch.GetTimestamp();
       var import = await RunProcessAsync(root, [
         "msh", "import", "edit", packagePath,
         "--expected-lineage", exportOperation.AssetLineageId!.Value.ToString("D"),
@@ -50,10 +70,13 @@ internal static class OfficialCorpusCliOracle
         "--report", importReport
       ]);
       var importOperation = await ReadOperationAsync(importReport);
+      importDuration = Stopwatch.GetElapsedTime(importStarted);
       var outputPath = Path.Combine(importDirectory, "source.msh");
+      ioStarted = Stopwatch.GetTimestamp();
       var importedBytes = File.Exists(outputPath)
         ? await File.ReadAllBytesAsync(outputPath)
         : [];
+      temporaryIoDuration += Stopwatch.GetElapsedTime(ioStarted);
       var importedMatches = import.ExitCode == 0
         && importOperation.Succeeded
         && importedBytes.AsSpan().SequenceEqual(canonicalMsh);
@@ -64,11 +87,24 @@ internal static class OfficialCorpusCliOracle
         packageBytes,
         importedBytes.LongLength,
         exportOperation.Diagnostics,
-        importOperation.Diagnostics);
+        importOperation.Diagnostics,
+        exportDuration,
+        importDuration,
+        temporaryIoDuration);
     }
     catch
     {
-      return new CliOracleResult(false, false, null, 0, 0, [], []);
+      return new CliOracleResult(
+        false,
+        false,
+        null,
+        0,
+        0,
+        [],
+        [],
+        exportDuration,
+        importDuration,
+        temporaryIoDuration);
     }
   }
 
@@ -179,7 +215,10 @@ internal sealed record CliOracleResult(
   long PackageBytes,
   long ImportedMshBytes,
   IReadOnlyList<CliDiagnostic> ExportDiagnostics,
-  IReadOnlyList<CliDiagnostic> ImportDiagnostics);
+  IReadOnlyList<CliDiagnostic> ImportDiagnostics,
+  TimeSpan ExportDuration,
+  TimeSpan ImportDuration,
+  TimeSpan TemporaryIoDuration);
 
 internal sealed record CliDiagnostic(
   string Code,

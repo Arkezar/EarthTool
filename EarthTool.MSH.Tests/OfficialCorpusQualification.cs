@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 
 namespace EarthTool.MSH.Tests;
 
@@ -18,6 +19,8 @@ internal static class OfficialCorpusQualification
   private const string CorpusEnvironmentVariable = "EARTHTOOL_OFFICIAL_MSH_CORPUS";
   private const string EventEnvironmentVariable = "EARTHTOOL_OFFICIAL_MSH_EVIDENCE_EVENT";
   private const string ProgressEnvironmentVariable = "EARTHTOOL_OFFICIAL_MSH_PROGRESS_EVENT";
+  private const string ProfileEnvironmentVariable = "EARTHTOOL_OFFICIAL_MSH_PROFILE_EVENT";
+  private const string WorkersEnvironmentVariable = "EARTHTOOL_OFFICIAL_MSH_WORKERS";
 
   internal static async Task RunAsync()
   {
@@ -30,14 +33,34 @@ internal static class OfficialCorpusQualification
     string.IsNullOrWhiteSpace(eventPath).Should().BeFalse(
       "official corpus qualification requires a private aggregate event destination");
 
-    await RunAsync(corpusRoot, eventPath!);
+    var workerValue = Environment.GetEnvironmentVariable(WorkersEnvironmentVariable);
+    var parsedWorkers = int.TryParse(workerValue, out var configuredWorkers);
+    var workerCount = string.IsNullOrWhiteSpace(workerValue)
+      ? Math.Max(1, Environment.ProcessorCount / 2)
+      : configuredWorkers;
+    (string.IsNullOrWhiteSpace(workerValue) || parsedWorkers).Should().BeTrue(
+      "official corpus worker count must be an integer");
+    workerCount.Should().BeGreaterThan(0, "official corpus worker count must be positive");
+
+    await RunAsync(
+      corpusRoot,
+      eventPath!,
+      workerCount,
+      Environment.GetEnvironmentVariable(ProfileEnvironmentVariable));
   }
 
-  internal static async Task RunAsync(string corpusRoot, string eventPath)
+  internal static async Task RunAsync(
+    string corpusRoot,
+    string eventPath,
+    int workerCount = 1,
+    string? profilePath = null)
   {
+    workerCount.Should().BeGreaterThan(0);
     var runner = new Runner(
       corpusRoot,
-      Environment.GetEnvironmentVariable(ProgressEnvironmentVariable));
+      Environment.GetEnvironmentVariable(ProgressEnvironmentVariable),
+      workerCount,
+      profilePath);
     await runner.RunAsync();
     await runner.WriteSummaryAsync(eventPath);
 
@@ -216,12 +239,10 @@ internal static class OfficialCorpusQualification
   {
     private readonly string _corpusRoot;
     private readonly string? _progressPath;
+    private readonly int _workerCount;
+    private readonly QualificationProfiler _profiler;
     private readonly MshOperationProfile _mshProfile = MshOperationProfile.Default;
     private readonly GltfOperationProfile _gltfProfile = GltfOperationProfile.Default;
-    private readonly MshReader _reader = new();
-    private readonly MshValidator _validator = new();
-    private readonly MshWriter _writer = new();
-    private readonly GltfInterchange _interchange = new();
     private readonly Dictionary<string, OperationCounts> _operations = new(StringComparer.Ordinal);
     private readonly Dictionary<DiagnosticKey, int> _diagnostics = [];
     private readonly Dictionary<string, int> _failures = new(StringComparer.Ordinal);
@@ -247,41 +268,52 @@ internal static class OfficialCorpusQualification
     internal string FailureSummary => string.Join(", ", FailureCategories)
       + _khronos.DescribeIssues();
 
-    internal Runner(string corpusRoot, string? progressPath)
+    internal Runner(
+      string corpusRoot,
+      string? progressPath,
+      int workerCount,
+      string? profilePath)
     {
       _corpusRoot = corpusRoot;
       _progressPath = progressPath;
+      _workerCount = workerCount;
+      _profiler = new QualificationProfiler(profilePath, workerCount);
     }
 
     internal async Task RunAsync()
     {
+      var wallClockStarted = Stopwatch.GetTimestamp();
       string[] files;
       try
       {
-        var discovered = Directory.EnumerateFiles(_corpusRoot, "*", SearchOption.AllDirectories)
-          .Where(file => string.Equals(Path.GetExtension(file), ".msh", StringComparison.OrdinalIgnoreCase))
-          .OrderBy(file => file, StringComparer.Ordinal)
-          .ToArray();
-        _discoveredMshFiles = discovered.Length;
-        files = discovered.Where(file =>
+        using (_profiler.Measure("corpus.discovery"))
         {
-          if (new FileInfo(file).Length > _mshProfile.MaxInputBytes)
+          var discovered = Directory.EnumerateFiles(_corpusRoot, "*", SearchOption.AllDirectories)
+            .Where(file => string.Equals(Path.GetExtension(file), ".msh", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(file => file, StringComparer.Ordinal)
+            .ToArray();
+          _discoveredMshFiles = discovered.Length;
+          files = discovered.Where(file =>
           {
-            _excludedByProfile++;
-            return false;
-          }
-          if (!IsFramedVersionOne(file))
-          {
-            _excludedNonFramedOrUnsupported++;
-            return false;
-          }
-          return true;
-        }).ToArray();
+            if (new FileInfo(file).Length > _mshProfile.MaxInputBytes)
+            {
+              _excludedByProfile++;
+              return false;
+            }
+            if (!IsFramedVersionOne(file))
+            {
+              _excludedNonFramedOrUnsupported++;
+              return false;
+            }
+            return true;
+          }).ToArray();
+        }
       }
       catch
       {
         Fail("corpus-discovery-failure");
         await WriteProgressAsync(0);
+        await _profiler.WriteAsync(Stopwatch.GetElapsedTime(wallClockStarted));
         return;
       }
       _assetCount = files.Length;
@@ -290,27 +322,29 @@ internal static class OfficialCorpusQualification
       {
         Fail("empty-corpus");
         await WriteProgressAsync(0);
+        await _profiler.WriteAsync(Stopwatch.GetElapsedTime(wallClockStarted));
         return;
       }
 
       var temporaryRoot = Path.Combine(
         Path.GetTempPath(),
         "earthtool-official-corpus-" + Guid.NewGuid().ToString("N"));
-      Directory.CreateDirectory(temporaryRoot);
-      await using var khronos = await KhronosValidatorServer.StartAsync();
+      using (_profiler.Measure("io.temporary-root-create"))
+      {
+        Directory.CreateDirectory(temporaryRoot);
+      }
       try
       {
-        for (var index = 0; index < files.Length; index++)
-        {
-          await QualifyAssetAsync(files[index], index, temporaryRoot, khronos);
-          await WriteProgressAsync(index + 1);
-        }
+        await QualifyAssetsAsync(files, temporaryRoot);
       }
       finally
       {
         try
         {
-          Directory.Delete(temporaryRoot, recursive: true);
+          using (_profiler.Measure("io.temporary-root-delete"))
+          {
+            Directory.Delete(temporaryRoot, recursive: true);
+          }
         }
         catch
         {
@@ -318,6 +352,89 @@ internal static class OfficialCorpusQualification
         }
       }
       await WriteProgressAsync(_assetCount);
+      await _profiler.WriteAsync(Stopwatch.GetElapsedTime(wallClockStarted));
+    }
+
+    private async Task QualifyAssetsAsync(string[] files, string temporaryRoot)
+    {
+      var workers = Math.Min(_workerCount, files.Length);
+      var jobs = Channel.CreateBounded<int>(new BoundedChannelOptions(workers)
+      {
+        FullMode = BoundedChannelFullMode.Wait,
+        SingleReader = false,
+        SingleWriter = true
+      });
+      var completions = Channel.CreateUnbounded<AssetResult>(new UnboundedChannelOptions
+      {
+        SingleReader = true,
+        SingleWriter = false
+      });
+      var results = new AssetResult[files.Length];
+      var workerTasks = Enumerable.Range(0, workers)
+        .Select(_ => RunWorkerAsync(files, temporaryRoot, jobs.Reader, completions.Writer, results))
+        .ToArray();
+      var progressTask = ReportProgressAsync(completions.Reader);
+
+      for (var index = 0; index < files.Length; index++)
+      {
+        await jobs.Writer.WriteAsync(index);
+      }
+      jobs.Writer.Complete();
+      try
+      {
+        await Task.WhenAll(workerTasks);
+      }
+      finally
+      {
+        completions.Writer.Complete();
+      }
+      await progressTask;
+
+      foreach (var result in results)
+      {
+        Merge(result);
+      }
+    }
+
+    private async Task RunWorkerAsync(
+      string[] files,
+      string temporaryRoot,
+      ChannelReader<int> jobs,
+      ChannelWriter<AssetResult> completions,
+      AssetResult[] results)
+    {
+      await using var worker = new WorkerContext(_profiler);
+      await foreach (var index in jobs.ReadAllAsync())
+      {
+        AssetResult result;
+        try
+        {
+          result = await QualifyAssetAsync(files[index], index, temporaryRoot, worker);
+        }
+        catch
+        {
+          result = new AssetResult(_profiler);
+          result.Fail("unexpected-asset-failure");
+        }
+        results[index] = result;
+        await completions.WriteAsync(result);
+      }
+    }
+
+    private async Task ReportProgressAsync(ChannelReader<AssetResult> completions)
+    {
+      var completed = 0;
+      var staticAssets = 0;
+      var dynamicAssets = 0;
+      var failures = 0;
+      await foreach (var result in completions.ReadAllAsync())
+      {
+        completed++;
+        staticAssets += result.StaticCount;
+        dynamicAssets += result.DynamicCount;
+        failures += result.FailureCount;
+        await WriteProgressAsync(completed, staticAssets, dynamicAssets, failures);
+      }
     }
 
     internal async Task WriteSummaryAsync(string eventPath)
@@ -397,7 +514,11 @@ internal static class OfficialCorpusQualification
         JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true }) + "\n");
     }
 
-    private async Task WriteProgressAsync(int completed)
+    private async Task WriteProgressAsync(
+      int completed,
+      int? staticAssets = null,
+      int? dynamicAssets = null,
+      int? failures = null)
     {
       if (string.IsNullOrWhiteSpace(_progressPath))
       {
@@ -409,130 +530,134 @@ internal static class OfficialCorpusQualification
         {
           completed,
           total = _assetCount,
-          staticAssets = _staticCount,
-          dynamicAssets = _dynamicCount,
-          failures = FailureCount
+          staticAssets = staticAssets ?? _staticCount,
+          dynamicAssets = dynamicAssets ?? _dynamicCount,
+          failures = failures ?? FailureCount
         }));
     }
 
-    private async Task QualifyAssetAsync(
+    private async Task<AssetResult> QualifyAssetAsync(
       string file,
       int index,
       string temporaryRoot,
-      KhronosValidatorServer khronos)
+      WorkerContext worker)
     {
+      var result = new AssetResult(_profiler);
       byte[] source;
       try
       {
-        source = await File.ReadAllBytesAsync(file);
+        using (_profiler.Measure("io.source-read"))
+        {
+          source = await File.ReadAllBytesAsync(file);
+        }
       }
       catch
       {
-        Fail("corpus-read-failure");
-        FailBlockedBinaryStages();
-        return;
+        result.Fail("corpus-read-failure");
+        result.FailBlockedBinaryStages();
+        return result;
       }
-      _inputBytes += source.LongLength;
+      result.InputBytes += source.LongLength;
       var sourceDigest = SHA256.HashData(source);
-      _contentFingerprints.Add(new ContentFingerprint(source.LongLength, sourceDigest));
+      result.ContentFingerprint = new ContentFingerprint(source.LongLength, sourceDigest);
 
-      Begin("msh.read");
+      result.Begin("msh.read");
       OperationResult<MeshAsset> read;
       try
       {
-        read = await _reader.ReadAsync(new MemoryStream(source), _mshProfile);
+        read = await worker.Reader.ReadAsync(new MemoryStream(source), _mshProfile);
       }
       catch
       {
-        CompleteFailure("msh.read", "unexpected-operation-failure");
-        FailBlockedBinaryStages(after: "msh.read");
-        return;
+        result.CompleteFailure("msh.read", "unexpected-operation-failure");
+        result.FailBlockedBinaryStages(after: "msh.read");
+        return result;
       }
-      AddDiagnostics("msh.read", read.Diagnostics);
+      result.AddDiagnostics("msh.read", read.Diagnostics);
       if (!read.Succeeded)
       {
-        CompleteFailure("msh.read", "msh-read-failure");
-        FailBlockedBinaryStages(after: "msh.read");
-        return;
+        result.CompleteFailure("msh.read", "msh-read-failure");
+        result.FailBlockedBinaryStages(after: "msh.read");
+        return result;
       }
-      CompleteSuccess("msh.read");
+      result.CompleteSuccess("msh.read");
       var asset = read.Value!;
       if (asset is StaticMeshAsset)
       {
-        _staticCount++;
+        result.StaticCount++;
       }
       else
       {
-        _dynamicCount++;
+        result.DynamicCount++;
       }
 
-      Begin("msh.validate");
-      var validation = await _validator.ValidateAsync(asset, _mshProfile);
-      AddDiagnostics("msh.validate", validation.Diagnostics);
-      CompleteFromResult("msh.validate", validation, "msh-validation-failure");
+      result.Begin("msh.validate");
+      var validation = await worker.Validator.ValidateAsync(asset, _mshProfile);
+      result.AddDiagnostics("msh.validate", validation.Diagnostics);
+      result.CompleteFromResult("msh.validate", validation, "msh-validation-failure");
 
-      Begin("msh.write");
+      result.Begin("msh.write");
       var canonical = new MemoryStream();
-      var write = await _writer.WriteAsync(asset, canonical, _mshProfile);
-      AddDiagnostics("msh.write", write.Diagnostics);
+      var write = await worker.Writer.WriteAsync(asset, canonical, _mshProfile);
+      result.AddDiagnostics("msh.write", write.Diagnostics);
       byte[]? canonicalBytes = null;
       if (write.Succeeded)
       {
         canonicalBytes = canonical.ToArray();
-        _canonicalMshBytes += canonicalBytes.LongLength;
+        result.CanonicalMshBytes += canonicalBytes.LongLength;
         if (canonicalBytes.AsSpan().SequenceEqual(source))
         {
-          CompleteSuccess("msh.write");
+          result.CompleteSuccess("msh.write");
         }
         else
         {
-          CompleteFailure("msh.write", "msh-byte-divergence");
+          result.CompleteFailure("msh.write", "msh-byte-divergence");
         }
       }
       else
       {
-        CompleteFailure("msh.write", "msh-write-failure");
+        result.CompleteFailure("msh.write", "msh-write-failure");
       }
 
       MeshAsset? rereadAsset = null;
-      Begin("msh.semantic-equivalence");
+      result.Begin("msh.semantic-equivalence");
       if (canonicalBytes is null)
       {
-        CompleteFailure("msh.semantic-equivalence", "blocked-oracle");
+        result.CompleteFailure("msh.semantic-equivalence", "blocked-oracle");
       }
       else
       {
-        var reread = await _reader.ReadAsync(new MemoryStream(canonicalBytes), _mshProfile);
-        AddDiagnostics("msh.semantic-equivalence", reread.Diagnostics);
+        var reread = await worker.Reader.ReadAsync(new MemoryStream(canonicalBytes), _mshProfile);
+        result.AddDiagnostics("msh.semantic-equivalence", reread.Diagnostics);
         rereadAsset = reread.Value;
         if (reread.Succeeded
           && ComputeSemanticDigest(asset) == ComputeSemanticDigest(reread.Value!))
         {
-          CompleteSuccess("msh.semantic-equivalence");
+          result.CompleteSuccess("msh.semantic-equivalence");
         }
         else
         {
-          CompleteFailure("msh.semantic-equivalence", "semantic-divergence");
+          result.CompleteFailure("msh.semantic-equivalence", "semantic-divergence");
         }
       }
 
-      Begin("msh.canonical-idempotence");
+      result.Begin("msh.canonical-idempotence");
       if (canonicalBytes is null || rereadAsset is null)
       {
-        CompleteFailure("msh.canonical-idempotence", "blocked-oracle");
+        result.CompleteFailure("msh.canonical-idempotence", "blocked-oracle");
       }
       else
       {
         var second = new MemoryStream();
-        var secondWrite = await _writer.WriteAsync(rereadAsset, second, _mshProfile);
-        AddDiagnostics("msh.canonical-idempotence", secondWrite.Diagnostics);
+        var secondWrite = await worker.Writer.WriteAsync(rereadAsset, second, _mshProfile);
+        result.AddDiagnostics("msh.canonical-idempotence", secondWrite.Diagnostics);
         if (secondWrite.Succeeded && second.ToArray().AsSpan().SequenceEqual(canonicalBytes))
         {
-          CompleteSuccess("msh.canonical-idempotence");
+          result.CompleteSuccess("msh.canonical-idempotence");
         }
         else
         {
-          CompleteFailure("msh.canonical-idempotence", "canonical-idempotence-failure");
+          result.CompleteFailure("msh.canonical-idempotence", "canonical-idempotence-failure");
         }
       }
 
@@ -544,8 +669,10 @@ internal static class OfficialCorpusQualification
           sourceDigest,
           index,
           temporaryRoot,
-          khronos);
+          worker,
+          result);
       }
+      return result;
     }
 
     private async Task QualifyStaticAssetAsync(
@@ -554,34 +681,42 @@ internal static class OfficialCorpusQualification
       byte[] sourceDigest,
       int index,
       string temporaryRoot,
-      KhronosValidatorServer khronos)
+      WorkerContext worker,
+      AssetResult result)
     {
       var directory = Path.Combine(temporaryRoot, $"asset-{index:D4}");
-      Directory.CreateDirectory(directory);
+      using (_profiler.Measure("io.asset-directory-create"))
+      {
+        Directory.CreateDirectory(directory);
+      }
       try
       {
         var options = new GltfExportOptions(
           CreateVersion4Guid(sourceDigest, "lineage"),
           CreateVersion4Guid(sourceDigest, "document"),
           [_corpusRoot]);
-        await QualifyGlbAsync(asset, canonicalBytes, options, directory, khronos);
-        await QualifySeparateGltfAsync(asset, canonicalBytes, options, directory, khronos);
-        await QualifyCliPackageAsync("glb", canonicalBytes, directory, khronos);
-        await QualifyCliPackageAsync("gltf", canonicalBytes, directory, khronos);
+        var khronos = await worker.GetKhronosAsync();
+        await QualifyGlbAsync(asset, canonicalBytes, options, directory, worker, khronos, result);
+        await QualifySeparateGltfAsync(asset, canonicalBytes, options, directory, worker, khronos, result);
+        await QualifyCliPackageAsync("glb", canonicalBytes, directory, worker, khronos, result);
+        await QualifyCliPackageAsync("gltf", canonicalBytes, directory, worker, khronos, result);
       }
       catch
       {
-        Fail("unexpected-static-oracle-failure");
+        result.Fail("unexpected-static-oracle-failure");
       }
       finally
       {
         try
         {
-          Directory.Delete(directory, recursive: true);
+          using (_profiler.Measure("io.asset-directory-delete"))
+          {
+            Directory.Delete(directory, recursive: true);
+          }
         }
         catch
         {
-          Fail("cleanup-failure");
+          result.Fail("cleanup-failure");
         }
       }
     }
@@ -591,53 +726,60 @@ internal static class OfficialCorpusQualification
       byte[] canonicalBytes,
       GltfExportOptions options,
       string directory,
-      KhronosValidatorServer khronos)
+      WorkerContext worker,
+      KhronosValidatorServer khronos,
+      AssetResult result)
     {
-      Begin("glb.export");
+      result.Begin("glb.export");
       var stream = new MemoryStream();
-      var export = await _interchange.ExportGlbAsync(asset, stream, options, _gltfProfile);
-      AddDiagnostics("glb.export", export.Diagnostics);
+      var export = await worker.Interchange.ExportGlbAsync(asset, stream, options, _gltfProfile);
+      result.AddDiagnostics("glb.export", export.Diagnostics);
       if (!export.Succeeded)
       {
-        CompleteFailure("glb.export", "glb-export-failure");
-        FailBlockedPackageStages("glb");
+        result.CompleteFailure("glb.export", "glb-export-failure");
+        result.FailBlockedPackageStages("glb");
         return;
       }
-      CompleteSuccess("glb.export");
+      result.CompleteSuccess("glb.export");
       var bytes = stream.ToArray();
-      _glbBytes += bytes.LongLength;
+      result.GlbBytes += bytes.LongLength;
       var packagePath = Path.Combine(directory, "package.glb");
-      await File.WriteAllBytesAsync(packagePath, bytes);
+      using (_profiler.Measure("io.glb-package-write"))
+      {
+        await File.WriteAllBytesAsync(packagePath, bytes);
+      }
 
-      Begin("glb.sharp-gltf-validate");
-      var sharpValidation = await _interchange.ValidateGlbAsync(
+      result.Begin("glb.sharp-gltf-validate");
+      var sharpValidation = await worker.Interchange.ValidateGlbAsync(
         new MemoryStream(bytes),
         _gltfProfile);
-      AddDiagnostics("glb.sharp-gltf-validate", sharpValidation.Diagnostics);
-      CompleteFromResult(
+      result.AddDiagnostics("glb.sharp-gltf-validate", sharpValidation.Diagnostics);
+      result.CompleteFromResult(
         "glb.sharp-gltf-validate",
         sharpValidation,
         "sharp-gltf-validation-failure");
 
-      await ValidateKhronosAsync("glb.khronos-validate", packagePath, khronos);
+      await ValidateKhronosAsync("glb.khronos-validate", packagePath, khronos, result);
 
-      Begin("glb.unchanged-import");
-      var import = await _interchange.ImportEditGlbAsync(
+      result.Begin("glb.unchanged-import");
+      var import = await worker.Interchange.ImportEditGlbAsync(
         new MemoryStream(bytes),
         export.Value!.Baseline,
         _gltfProfile);
-      AddDiagnostics("glb.unchanged-import", import.Diagnostics);
+      result.AddDiagnostics("glb.unchanged-import", import.Diagnostics);
       if (!import.Succeeded || HasChangedPreservation(import.Value!))
       {
-        CompleteFailure("glb.unchanged-import", "unchanged-import-failure");
-        FailStage("glb.canonical-baseline", "blocked-oracle");
+        result.CompleteFailure("glb.unchanged-import", "unchanged-import-failure");
+        result.FailStage("glb.canonical-baseline", "blocked-oracle");
         return;
       }
-      CompleteSuccess("glb.unchanged-import");
+      result.CompleteSuccess("glb.unchanged-import");
       await ValidateImportedBaselineAsync(
         "glb.canonical-baseline",
         import.Value!.Asset,
-        canonicalBytes);
+        canonicalBytes,
+        worker,
+        result);
     }
 
     private async Task QualifySeparateGltfAsync(
@@ -645,97 +787,107 @@ internal static class OfficialCorpusQualification
       byte[] canonicalBytes,
       GltfExportOptions options,
       string directory,
-      KhronosValidatorServer khronos)
+      WorkerContext worker,
+      KhronosValidatorServer khronos,
+      AssetResult result)
     {
       var packageDirectory = Path.Combine(directory, "separate");
       Directory.CreateDirectory(packageDirectory);
       var packagePath = Path.Combine(packageDirectory, "package.gltf");
-      Begin("gltf.export");
-      var export = await _interchange.ExportGltfFileAsync(
+      result.Begin("gltf.export");
+      var export = await worker.Interchange.ExportGltfFileAsync(
         asset,
         packagePath,
         options,
         _gltfProfile);
-      AddDiagnostics("gltf.export", export.Diagnostics);
+      result.AddDiagnostics("gltf.export", export.Diagnostics);
       if (!export.Succeeded)
       {
-        CompleteFailure("gltf.export", "gltf-export-failure");
-        FailBlockedPackageStages("gltf");
+        result.CompleteFailure("gltf.export", "gltf-export-failure");
+        result.FailBlockedPackageStages("gltf");
         return;
       }
-      CompleteSuccess("gltf.export");
-      _gltfManifestBytes += new FileInfo(packagePath).Length;
-      _gltfSidecarBytes += Directory.EnumerateFiles(packageDirectory, "*", SearchOption.AllDirectories)
-        .Where(path => !string.Equals(path, packagePath, StringComparison.Ordinal))
-        .Sum(path => new FileInfo(path).Length);
+      result.CompleteSuccess("gltf.export");
+      using (_profiler.Measure("io.gltf-package-inventory"))
+      {
+        result.GltfManifestBytes += new FileInfo(packagePath).Length;
+        result.GltfSidecarBytes += Directory.EnumerateFiles(packageDirectory, "*", SearchOption.AllDirectories)
+          .Where(path => !string.Equals(path, packagePath, StringComparison.Ordinal))
+          .Sum(path => new FileInfo(path).Length);
+      }
 
-      Begin("gltf.sharp-gltf-validate");
-      var sharpValidation = await _interchange.ValidateGltfFileAsync(packagePath, _gltfProfile);
-      AddDiagnostics("gltf.sharp-gltf-validate", sharpValidation.Diagnostics);
-      CompleteFromResult(
+      result.Begin("gltf.sharp-gltf-validate");
+      var sharpValidation = await worker.Interchange.ValidateGltfFileAsync(packagePath, _gltfProfile);
+      result.AddDiagnostics("gltf.sharp-gltf-validate", sharpValidation.Diagnostics);
+      result.CompleteFromResult(
         "gltf.sharp-gltf-validate",
         sharpValidation,
         "sharp-gltf-validation-failure");
 
-      await ValidateKhronosAsync("gltf.khronos-validate", packagePath, khronos);
+      await ValidateKhronosAsync("gltf.khronos-validate", packagePath, khronos, result);
 
-      Begin("gltf.unchanged-import");
-      var import = await _interchange.ImportEditGltfFileAsync(
+      result.Begin("gltf.unchanged-import");
+      var import = await worker.Interchange.ImportEditGltfFileAsync(
         packagePath,
         export.Value!.Baseline,
         _gltfProfile);
-      AddDiagnostics("gltf.unchanged-import", import.Diagnostics);
+      result.AddDiagnostics("gltf.unchanged-import", import.Diagnostics);
       if (!import.Succeeded || HasChangedPreservation(import.Value!))
       {
-        CompleteFailure("gltf.unchanged-import", "unchanged-import-failure");
-        FailStage("gltf.canonical-baseline", "blocked-oracle");
+        result.CompleteFailure("gltf.unchanged-import", "unchanged-import-failure");
+        result.FailStage("gltf.canonical-baseline", "blocked-oracle");
         return;
       }
-      CompleteSuccess("gltf.unchanged-import");
+      result.CompleteSuccess("gltf.unchanged-import");
       await ValidateImportedBaselineAsync(
         "gltf.canonical-baseline",
         import.Value!.Asset,
-        canonicalBytes);
+        canonicalBytes,
+        worker,
+        result);
     }
 
     private async Task ValidateKhronosAsync(
       string stage,
       string packagePath,
-      KhronosValidatorServer khronos)
+      KhronosValidatorServer khronos,
+      AssetResult aggregate)
     {
-      Begin(stage);
-      var result = await khronos.ValidateAsync(packagePath);
-      _khronos.Add(result);
-      if (result.Passed
-        && result.Errors == 0
-        && result.Warnings == 0)
+      aggregate.Begin(stage);
+      var validation = await khronos.ValidateAsync(packagePath);
+      aggregate.Khronos.Add(validation);
+      if (validation.Passed
+        && validation.Errors == 0
+        && validation.Warnings == 0)
       {
-        CompleteSuccess(stage);
+        aggregate.CompleteSuccess(stage);
       }
       else
       {
-        CompleteFailure(stage, result.Failure ?? "khronos-validator-issue");
+        aggregate.CompleteFailure(stage, validation.Failure ?? "khronos-validator-issue");
       }
     }
 
     private async Task ValidateImportedBaselineAsync(
       string stage,
       StaticMeshAsset asset,
-      byte[] canonicalBytes)
+      byte[] canonicalBytes,
+      WorkerContext worker,
+      AssetResult aggregate)
     {
-      Begin(stage);
+      aggregate.Begin(stage);
       var stream = new MemoryStream();
-      var result = await _writer.WriteAsync(asset, stream, _mshProfile);
-      AddDiagnostics(stage, result.Diagnostics);
+      var result = await worker.Writer.WriteAsync(asset, stream, _mshProfile);
+      aggregate.AddDiagnostics(stage, result.Diagnostics);
       var imported = stream.ToArray();
-      _unchangedImportedMshBytes += imported.LongLength;
+      aggregate.UnchangedImportedMshBytes += imported.LongLength;
       if (result.Succeeded && imported.AsSpan().SequenceEqual(canonicalBytes))
       {
-        CompleteSuccess(stage);
+        aggregate.CompleteSuccess(stage);
       }
       else
       {
-        CompleteFailure(stage, "canonical-baseline-divergence");
+        aggregate.CompleteFailure(stage, "canonical-baseline-divergence");
       }
     }
 
@@ -743,64 +895,69 @@ internal static class OfficialCorpusQualification
       string package,
       byte[] canonicalBytes,
       string directory,
-      KhronosValidatorServer khronos)
+      WorkerContext worker,
+      KhronosValidatorServer khronos,
+      AssetResult aggregate)
     {
       var exportStage = $"{package}.cli-export";
       var sharpValidationStage = $"{package}.cli-sharp-gltf-validate";
       var khronosValidationStage = $"{package}.cli-khronos-validate";
       var importStage = $"{package}.cli-unchanged-import";
-      Begin(exportStage);
-      Begin(sharpValidationStage);
-      Begin(importStage);
+      aggregate.Begin(exportStage, measure: false);
+      aggregate.Begin(importStage, measure: false);
       var result = await OfficialCorpusCliOracle.RunAsync(
         canonicalBytes,
         package,
         directory,
         _corpusRoot);
-      _cliPackageBytes += result.PackageBytes;
-      _cliImportedMshBytes += result.ImportedMshBytes;
-      AddDiagnostics(exportStage, result.ExportDiagnostics);
-      AddDiagnostics(importStage, result.ImportDiagnostics);
+      _profiler.Add(exportStage, result.ExportDuration);
+      _profiler.Add(importStage, result.ImportDuration);
+      _profiler.Add("io.cli-temporary-package", result.TemporaryIoDuration);
+      aggregate.CliPackageBytes += result.PackageBytes;
+      aggregate.CliImportedMshBytes += result.ImportedMshBytes;
+      aggregate.AddDiagnostics(exportStage, result.ExportDiagnostics);
+      aggregate.AddDiagnostics(importStage, result.ImportDiagnostics);
+      aggregate.Begin(sharpValidationStage);
       if (result.ExportSucceeded)
       {
-        CompleteSuccess(exportStage);
+        aggregate.CompleteSuccess(exportStage);
       }
       else
       {
-        CompleteFailure(exportStage, "cli-export-failure");
+        aggregate.CompleteFailure(exportStage, "cli-export-failure");
       }
       if (result.ExportSucceeded && result.PackagePath is not null)
       {
         OperationResult strictValidation;
         if (package == "glb")
         {
-          strictValidation = await _interchange.ValidateGlbAsync(
+          strictValidation = await worker.Interchange.ValidateGlbAsync(
             new MemoryStream(await File.ReadAllBytesAsync(result.PackagePath)),
             _gltfProfile);
         }
         else
         {
-          strictValidation = await _interchange.ValidateGltfFileAsync(result.PackagePath, _gltfProfile);
+          strictValidation = await worker.Interchange.ValidateGltfFileAsync(result.PackagePath, _gltfProfile);
         }
-        AddDiagnostics(sharpValidationStage, strictValidation.Diagnostics);
-        CompleteFromResult(
+        aggregate.AddDiagnostics(sharpValidationStage, strictValidation.Diagnostics);
+        aggregate.CompleteFromResult(
           sharpValidationStage,
           strictValidation,
           "cli-sharp-gltf-validation-failure");
-        await ValidateKhronosAsync(khronosValidationStage, result.PackagePath, khronos);
+        await ValidateKhronosAsync(khronosValidationStage, result.PackagePath, khronos, aggregate);
       }
       else
       {
-        CompleteFailure(sharpValidationStage, "blocked-oracle");
-        FailStage(khronosValidationStage, "blocked-oracle");
+        aggregate.CompleteFailure(sharpValidationStage, "blocked-oracle");
+        aggregate.FailStage(khronosValidationStage, "blocked-oracle");
       }
       if (result.ImportSucceeded)
       {
-        CompleteSuccess(importStage);
+        aggregate.CompleteSuccess(importStage);
       }
       else
       {
-        CompleteFailure(importStage, result.ExportSucceeded
+        aggregate.CompleteFailure(importStage, result.ExportSucceeded
           ? "cli-unchanged-import-failure"
           : "blocked-oracle");
       }
@@ -859,7 +1016,155 @@ internal static class OfficialCorpusQualification
         && BinaryPrimitives.ReadUInt32LittleEndian(prefix.Slice(baseOffset + 8, 4)) <= 1;
     }
 
-    private void FailBlockedBinaryStages(string? after = null)
+    private void Merge(AssetResult result)
+    {
+      if (result.ContentFingerprint is not null)
+      {
+        _contentFingerprints.Add(result.ContentFingerprint);
+      }
+      _inputBytes += result.InputBytes;
+      _canonicalMshBytes += result.CanonicalMshBytes;
+      _glbBytes += result.GlbBytes;
+      _gltfManifestBytes += result.GltfManifestBytes;
+      _gltfSidecarBytes += result.GltfSidecarBytes;
+      _unchangedImportedMshBytes += result.UnchangedImportedMshBytes;
+      _cliPackageBytes += result.CliPackageBytes;
+      _cliImportedMshBytes += result.CliImportedMshBytes;
+      _staticCount += result.StaticCount;
+      _dynamicCount += result.DynamicCount;
+      foreach (var operation in result.Operations)
+      {
+        var target = GetOperation(operation.Key);
+        target.Attempted += operation.Value.Attempted;
+        target.Passed += operation.Value.Passed;
+        target.Failed += operation.Value.Failed;
+      }
+      foreach (var diagnostic in result.Diagnostics)
+      {
+        _diagnostics[diagnostic.Key] = _diagnostics.GetValueOrDefault(diagnostic.Key)
+          + diagnostic.Value;
+      }
+      foreach (var failure in result.Failures)
+      {
+        _failures[failure.Key] = _failures.GetValueOrDefault(failure.Key) + failure.Value;
+      }
+      _khronos.Merge(result.Khronos);
+    }
+
+    private OperationCounts GetOperation(string stage)
+    {
+      if (!_operations.TryGetValue(stage, out var counts))
+      {
+        counts = new OperationCounts();
+        _operations.Add(stage, counts);
+      }
+      return counts;
+    }
+
+    private void Fail(string category)
+    {
+      _failures[category] = _failures.GetValueOrDefault(category) + 1;
+    }
+  }
+
+  private sealed class WorkerContext : IAsyncDisposable
+  {
+    private readonly QualificationProfiler _profiler;
+    private KhronosValidatorServer? _khronos;
+
+    internal MshReader Reader { get; } = new();
+    internal MshValidator Validator { get; } = new();
+    internal MshWriter Writer { get; } = new();
+    internal GltfInterchange Interchange { get; } = new();
+
+    internal WorkerContext(QualificationProfiler profiler)
+    {
+      _profiler = profiler;
+    }
+
+    internal async Task<KhronosValidatorServer> GetKhronosAsync()
+    {
+      if (_khronos is null)
+      {
+        using (_profiler.Measure("khronos.process-start"))
+        {
+          _khronos = await KhronosValidatorServer.StartAsync();
+        }
+      }
+      return _khronos;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+      if (_khronos is not null)
+      {
+        await _khronos.DisposeAsync();
+      }
+    }
+  }
+
+  private sealed class AssetResult
+  {
+    private readonly QualificationProfiler _profiler;
+    private readonly Dictionary<string, long> _timingStarts = new(StringComparer.Ordinal);
+
+    internal Dictionary<string, OperationCounts> Operations { get; } = new(StringComparer.Ordinal);
+    internal Dictionary<DiagnosticKey, int> Diagnostics { get; } = [];
+    internal Dictionary<string, int> Failures { get; } = new(StringComparer.Ordinal);
+    internal ValidatorAggregate Khronos { get; } = new();
+    internal ContentFingerprint? ContentFingerprint { get; set; }
+    internal long InputBytes { get; set; }
+    internal long CanonicalMshBytes { get; set; }
+    internal long GlbBytes { get; set; }
+    internal long GltfManifestBytes { get; set; }
+    internal long GltfSidecarBytes { get; set; }
+    internal long UnchangedImportedMshBytes { get; set; }
+    internal long CliPackageBytes { get; set; }
+    internal long CliImportedMshBytes { get; set; }
+    internal int StaticCount { get; set; }
+    internal int DynamicCount { get; set; }
+    internal int FailureCount => Failures.Values.Sum();
+
+    internal AssetResult(QualificationProfiler profiler)
+    {
+      _profiler = profiler;
+    }
+
+    internal void Begin(string stage, bool measure = true)
+    {
+      GetOperation(stage).Attempted++;
+      if (measure && _profiler.Enabled)
+      {
+        _timingStarts[stage] = Stopwatch.GetTimestamp();
+      }
+    }
+
+    internal void CompleteSuccess(string stage)
+    {
+      GetOperation(stage).Passed++;
+      CompleteTiming(stage);
+    }
+
+    internal void CompleteFailure(string stage, string category)
+    {
+      GetOperation(stage).Failed++;
+      CompleteTiming(stage);
+      Fail(category);
+    }
+
+    internal void CompleteFromResult(string stage, OperationResult result, string category)
+    {
+      if (result.Succeeded)
+      {
+        CompleteSuccess(stage);
+      }
+      else
+      {
+        CompleteFailure(stage, category);
+      }
+    }
+
+    internal void FailBlockedBinaryStages(string? after = null)
     {
       foreach (var stage in new[]
       {
@@ -874,7 +1179,7 @@ internal static class OfficialCorpusQualification
       }
     }
 
-    private void FailBlockedPackageStages(string package)
+    internal void FailBlockedPackageStages(string package)
     {
       foreach (var suffix in new[]
       {
@@ -888,79 +1193,162 @@ internal static class OfficialCorpusQualification
       }
     }
 
-    private void FailStage(string stage, string category)
+    internal void FailStage(string stage, string category)
     {
       Begin(stage);
       CompleteFailure(stage, category);
     }
 
-    private void Begin(string stage)
+    internal void AddDiagnostics(string stage, IEnumerable<OperationDiagnostic> diagnostics)
     {
-      GetOperation(stage).Attempted++;
-    }
-
-    private void CompleteSuccess(string stage)
-    {
-      GetOperation(stage).Passed++;
-    }
-
-    private void CompleteFailure(string stage, string category)
-    {
-      GetOperation(stage).Failed++;
-      Fail(category);
-    }
-
-    private void CompleteFromResult(string stage, OperationResult result, string category)
-    {
-      if (result.Succeeded)
+      foreach (var diagnostic in diagnostics)
       {
-        CompleteSuccess(stage);
+        AddDiagnostic(stage, diagnostic.Code, diagnostic.EventId, diagnostic.Severity);
       }
-      else
+    }
+
+    internal void AddDiagnostics(string stage, IEnumerable<CliDiagnostic> diagnostics)
+    {
+      foreach (var diagnostic in diagnostics)
       {
-        CompleteFailure(stage, category);
+        AddDiagnostic(stage, diagnostic.Code, diagnostic.EventId, diagnostic.Severity);
       }
+    }
+
+    internal void Fail(string category)
+    {
+      Failures[category] = Failures.GetValueOrDefault(category) + 1;
+    }
+
+    private void AddDiagnostic(
+      string stage,
+      string code,
+      int eventId,
+      DiagnosticSeverity severity)
+    {
+      var key = new DiagnosticKey(stage, code, eventId, severity);
+      Diagnostics[key] = Diagnostics.GetValueOrDefault(key) + 1;
     }
 
     private OperationCounts GetOperation(string stage)
     {
-      if (!_operations.TryGetValue(stage, out var counts))
+      if (!Operations.TryGetValue(stage, out var counts))
       {
         counts = new OperationCounts();
-        _operations.Add(stage, counts);
+        Operations.Add(stage, counts);
       }
       return counts;
     }
 
-    private void AddDiagnostics(string stage, IEnumerable<OperationDiagnostic> diagnostics)
+    private void CompleteTiming(string stage)
     {
-      foreach (var diagnostic in diagnostics)
+      if (_timingStarts.Remove(stage, out var started))
       {
-        var key = new DiagnosticKey(
-          stage,
-          diagnostic.Code,
-          diagnostic.EventId,
-          diagnostic.Severity);
-        _diagnostics[key] = _diagnostics.GetValueOrDefault(key) + 1;
+        _profiler.Add(stage, Stopwatch.GetElapsedTime(started));
+      }
+    }
+  }
+
+  private sealed class QualificationProfiler
+  {
+    private readonly object _gate = new();
+    private readonly string? _path;
+    private readonly int _workers;
+    private readonly Dictionary<string, TimingAggregate> _timings = new(StringComparer.Ordinal);
+
+    internal QualificationProfiler(string? path, int workers)
+    {
+      _path = path;
+      _workers = workers;
+    }
+
+    internal bool Enabled => !string.IsNullOrWhiteSpace(_path);
+
+    internal ProfileScope Measure(string stage)
+    {
+      return new ProfileScope(this, stage);
+    }
+
+    internal void Add(string stage, TimeSpan elapsed)
+    {
+      if (string.IsNullOrWhiteSpace(_path))
+      {
+        return;
+      }
+      lock (_gate)
+      {
+        if (!_timings.TryGetValue(stage, out var timing))
+        {
+          timing = new TimingAggregate();
+          _timings.Add(stage, timing);
+        }
+        timing.Count++;
+        timing.Elapsed += elapsed;
       }
     }
 
-    private void AddDiagnostics(string stage, IEnumerable<CliDiagnostic> diagnostics)
+    internal async Task WriteAsync(TimeSpan wallClock)
     {
-      foreach (var diagnostic in diagnostics)
+      if (string.IsNullOrWhiteSpace(_path))
       {
-        var key = new DiagnosticKey(
-          stage,
-          diagnostic.Code,
-          diagnostic.EventId,
-          diagnostic.Severity);
-        _diagnostics[key] = _diagnostics.GetValueOrDefault(key) + 1;
+        return;
+      }
+      object[] stages;
+      lock (_gate)
+      {
+        stages = _timings
+          .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+          .Select(pair => (object)new
+          {
+            stage = pair.Key,
+            count = pair.Value.Count,
+            totalMilliseconds = Math.Round(pair.Value.Elapsed.TotalMilliseconds, 3),
+            averageMilliseconds = Math.Round(
+              pair.Value.Elapsed.TotalMilliseconds / pair.Value.Count,
+              3)
+          })
+          .ToArray();
+      }
+      var directory = Path.GetDirectoryName(_path);
+      if (!string.IsNullOrEmpty(directory))
+      {
+        Directory.CreateDirectory(directory);
+      }
+      var profile = new
+      {
+        format = "earthtool.official-msh-corpus-profile-event",
+        version = 1,
+        workers = _workers,
+        wallClockMilliseconds = Math.Round(wallClock.TotalMilliseconds, 3),
+        stages
+      };
+      await File.WriteAllTextAsync(
+        _path,
+        JsonSerializer.Serialize(profile, new JsonSerializerOptions { WriteIndented = true }) + "\n");
+    }
+
+    internal sealed class ProfileScope : IDisposable
+    {
+      private readonly QualificationProfiler _owner;
+      private readonly string _stage;
+      private readonly long _started = Stopwatch.GetTimestamp();
+
+      internal ProfileScope(QualificationProfiler owner, string stage)
+      {
+        _owner = owner;
+        _stage = stage;
+      }
+
+      public void Dispose()
+      {
+        _owner.Add(_stage, Stopwatch.GetElapsedTime(_started));
       }
     }
 
-    private void Fail(string category)
+    private sealed class TimingAggregate
     {
-      _failures[category] = _failures.GetValueOrDefault(category) + 1;
+      internal int Count { get; set; }
+      internal TimeSpan Elapsed { get; set; }
     }
   }
 
@@ -1083,6 +1471,20 @@ internal static class OfficialCorpusQualification
       foreach (var code in result.Codes)
       {
         _codes[code.Code] = _codes.GetValueOrDefault(code.Code) + code.Count;
+      }
+    }
+
+    internal void Merge(ValidatorAggregate aggregate)
+    {
+      _version ??= aggregate._version;
+      _packages += aggregate._packages;
+      _errors += aggregate._errors;
+      _warnings += aggregate._warnings;
+      _infos += aggregate._infos;
+      _hints += aggregate._hints;
+      foreach (var code in aggregate._codes)
+      {
+        _codes[code.Key] = _codes.GetValueOrDefault(code.Key) + code.Value;
       }
     }
 
