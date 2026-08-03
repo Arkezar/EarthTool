@@ -10,6 +10,7 @@ on:
       - "EarthTool.PAR.GUI/**"
       - "EarthTool.TEX.GUI/**"
       - "EarthTool.Common/**"
+      - "EarthTool.Common.GUI/**"
       - "EarthTool.WD/**"
       - "EarthTool.MSH/**"
       - "EarthTool.MSH.Tests/**"
@@ -21,6 +22,7 @@ on:
       - "Directory.Build.props"
       - "Directory.Packages.props"
       - "EarthTool.sln"
+      - "GitVersion.yml"
       - ".github/workflows/ci-unified.yml"
       - ".github/workflows/blender-qualification.yml"
       - ".github/workflows/official-msh-corpus-qualification.yml"
@@ -33,6 +35,7 @@ on:
       - "EarthTool.PAR.GUI/**"
       - "EarthTool.TEX.GUI/**"
       - "EarthTool.Common/**"
+      - "EarthTool.Common.GUI/**"
       - "EarthTool.WD/**"
       - "EarthTool.MSH/**"
       - "EarthTool.MSH.Tests/**"
@@ -44,6 +47,8 @@ on:
       - "Directory.Build.props"
       - "Directory.Packages.props"
       - "EarthTool.sln"
+      - "GitVersion.yml"
+      - ".github/workflows/ci-unified.yml"
       - ".github/workflows/blender-qualification.yml"
       - ".github/workflows/official-msh-corpus-qualification.yml"
   workflow_dispatch:
@@ -80,18 +85,41 @@ jobs:
               - 'EarthTool.GLTF/**'
               - 'EarthTool.PAR/**'
               - 'EarthTool.TEX/**'
+              - 'Directory.Build.props'
+              - 'Directory.Packages.props'
+              - 'EarthTool.sln'
+              - 'GitVersion.yml'
+              - '.github/workflows/ci-unified.yml'
             gui:
               - 'EarthTool.WD.GUI/**'
               - 'EarthTool.WD/**'
               - 'EarthTool.Common/**'
+              - 'EarthTool.Common.GUI/**'
+              - 'Directory.Build.props'
+              - 'Directory.Packages.props'
+              - 'EarthTool.sln'
+              - 'GitVersion.yml'
+              - '.github/workflows/ci-unified.yml'
             par_gui:
               - 'EarthTool.PAR.GUI/**'
               - 'EarthTool.PAR/**'
               - 'EarthTool.Common/**'
+              - 'EarthTool.Common.GUI/**'
+              - 'Directory.Build.props'
+              - 'Directory.Packages.props'
+              - 'EarthTool.sln'
+              - 'GitVersion.yml'
+              - '.github/workflows/ci-unified.yml'
             tex_gui:
               - 'EarthTool.TEX.GUI/**'
               - 'EarthTool.TEX/**'
               - 'EarthTool.Common/**'
+              - 'EarthTool.Common.GUI/**'
+              - 'Directory.Build.props'
+              - 'Directory.Packages.props'
+              - 'EarthTool.sln'
+              - 'GitVersion.yml'
+              - '.github/workflows/ci-unified.yml'
             libraries:
               - 'EarthTool.WD/**'
               - 'EarthTool.MSH/**'
@@ -106,6 +134,8 @@ jobs:
               - 'Directory.Build.props'
               - 'Directory.Packages.props'
               - 'EarthTool.sln'
+              - 'GitVersion.yml'
+              - '.github/workflows/ci-unified.yml'
               - '.github/workflows/blender-qualification.yml'
               - '.github/workflows/official-msh-corpus-qualification.yml'
 
