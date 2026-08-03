@@ -842,10 +842,42 @@ public sealed class InternalMshCommandHostTests
         false,
         Vector3.One,
         [lightning]);
+      var line = DynamicEffectRecipes.Line(
+        sprite,
+        shape,
+        "Textures\\fx\\line.tex",
+        new Vector3(0.2f, 0.3f, 0.4f),
+        0.5f,
+        0.8f,
+        0.2f,
+        true);
+      var shockwave = DynamicEffectRecipes.Shockwave(
+        sprite,
+        shape,
+        "Textures\\fx\\shockwave.tex",
+        new Vector3(0.4f, 0.5f, 0.6f),
+        0.5f,
+        0.8f,
+        0.2f,
+        false,
+        [line]);
+      var keelwater = DynamicEffectRecipes.Keelwater(
+        sprite,
+        shape,
+        "Textures\\fx\\keelwater.tex",
+        0.8f,
+        0.2f,
+        false);
+      var sphere = DynamicEffectRecipes.Sphere(
+        "Textures\\fx\\sphere.tex",
+        new Vector3(0.7f, 0.8f, 0.9f),
+        true,
+        [keelwater]);
       var build = DynamicMeshBuilder.Create(
           Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"),
           new MeshAssetLineageId(Guid.Parse("11111111-2222-4333-8444-555555555555")))
-        .SetRoot(DynamicEffectRecipes.Group([track, mapped, laser, laserWall]))
+        .SetRoot(DynamicEffectRecipes.Group(
+          [track, mapped, laser, laserWall, shockwave, sphere]))
         .Build();
       build.TryGetValue(out var asset).Should().BeTrue();
       var write = await new MshWriter().WriteFileAsync(asset!, fixture.MshPath);

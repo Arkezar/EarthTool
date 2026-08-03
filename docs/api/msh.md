@@ -70,9 +70,9 @@ if (build.TryGetValue(out var asset))
 
 Static assets and dynamic assets composed of `Group`, `Explosion`, `Track`,
 `MappedExplosion`, `FlatExplosion`, `Smoke`, `Laser`, `LaserWall`,
-`ElectricalCannon`, and `Lightning` cross the
-artist boundary through `EarthTool.GLTF.GltfInterchange`. Other recognized
-dynamic effects remain supported by the binary API and fail closed at export.
+`ElectricalCannon`, `Lightning`, `Shockwave`, `Line`, `Sphere`, and `Keelwater`
+cross the artist boundary through `EarthTool.GLTF.GltfInterchange`.
+`ScalableObject` remains supported by the binary API and fails closed at export.
 See the [glTF API](gltf.md) for package, metadata, reconciliation, validation,
 plan, and report contracts.
 

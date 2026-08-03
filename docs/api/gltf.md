@@ -47,22 +47,27 @@ dynamic package explicitly. The manifest contains the complete exact source MSH,
 an ordered object-scope inventory, a non-reusable next-ID boundary, and the
 historical `dynamic-group-explosion-preview` projection name/version/fingerprint,
 which remains stable for version 1 packages while covering the expanded sprite
-and ribbon families. Every
+and ribbon families plus attached-particle and procedural previews. Every
 object node has one stable local scope ID, its exact effect declaration, its
 ordered child IDs, exact inherited header and effect bytes, resource bindings,
-and a named/versioned ordered-child guard.
+and a named/versioned ordered-child guard. `Shockwave`, `Line`, `Sphere`, and
+`Keelwater` preview scopes additionally record and guard their evaluation
+context, frame domain and selected frame, total and remaining lifetime, global
+tick, texture scale, lifetime progress, and parent phase.
 
 `Group` is a native transform node with ordered children and no mesh, material,
 or synthetic effect geometry. `Explosion`, `Track`, `MappedExplosion`,
 `FlatExplosion`, and `Smoke` receive unlit, double-sided stock-Blender preview
 quads. `Laser`, `LaserWall`, `ElectricalCannon`, and `Lightning` receive
-unlit, double-sided triangle-strip ribbon previews. `Explosion` retains its
+unlit, double-sided triangle-strip ribbon previews. `Shockwave`, `Line`, and
+`Keelwater` receive explicitly attached-particle billboard snapshots. `Sphere`
+receives a deterministic generated unit-sphere snapshot. `Explosion` retains its
 version 1 declaration-start billboard. The framed effects use explicit
 deterministic inputs: total lifetime 100 ticks,
 remaining lifetime 100 ticks, global tick 0, texture scale 1, lifetime alpha
 progress 0, sampled terrain light `(1,1,1)`, output color scale 1, and terrain
-light random sample 0. A parent preview phase of 0 selects child start
-translation.
+light random sample 0. The `Keelwater` preview uses fixed water RGB
+`(0.2,0.45,0.7)`. A parent preview phase of 0 selects child start translation.
 
 Core glTF material factors are limited to zero through one. Finite MSH colors,
 alpha, or gains that evaluate outside that range are clamped only in the preview
@@ -78,6 +83,20 @@ The native preview behavior is effect-specific:
 | `MappedExplosion` | Horizontal XZ quad approximating the runtime terrain-cell decal bounds; full decoded TEX image | Serialized visible RGB and semantic alpha; evaluated terrain light remains metadata-only; ordered children participate normally |
 | `FlatExplosion` | Horizontal XZ quad at the serialized local-plane depth; UVs use the selected source frame and exact reciprocal atlas values | Serialized visible RGB and semantic alpha; evaluated terrain light remains metadata-only; ordered children participate normally |
 | `Smoke` | Vertical XY billboard snapshot at the camera-depth offset; UVs use the selected source frame and exact reciprocal atlas values | Visible RGB is modulated by the explicit white terrain sample and serialized gain; semantic alpha; no terrain-light producer; ordered children participate normally |
+| `Shockwave` | Vertical XY billboard snapshot at the camera-depth offset; UVs use the attached-particle selected source frame and exact reciprocal atlas values | Explicitly uses attached-particle RGB modulation and frame-phase alpha; primary dispatch has no own geometry or terrain light; ordered children still use normal hierarchy dispatch |
+| `Line` | Same attached-particle billboard contract as `Shockwave` | Explicitly uses attached-particle RGB modulation and frame-phase alpha; primary dispatch has no own geometry or terrain light; ordered children still use normal hierarchy dispatch |
+| `Keelwater` | Vertical XY billboard snapshot at the camera-depth offset; UVs use its dedicated attached-particle frame selection | Uses fixed preview water RGB and frame-phase alpha; primary dispatch has no own geometry or terrain light; serialized visible RGB/gain remain inactive and exact |
+| `Sphere` | Generated unit sphere with full decoded TEX preview; metadata identifies the selected `builtIn16` lifetime frame | Serialized visible RGB and additive selection are represented; ordinary frame, rectangle, alpha, and scale declarations remain inactive and exact; ordered children participate normally |
+
+The attached-particle billboards are metadata-backed demonstrations of the
+confirmed attached route. A dynamic hierarchy still invokes these records by
+primary dispatch, where `Shockwave`, `Line`, and `Keelwater` have no own visible
+geometry. Exporting their billboards does not change that contract or infer a
+game attachment. `Sphere` frame selection calls its confirmed hardcoded
+`((D-R)<<4)/D` domain and clamps values above 15; it never authors or interprets
+ordinary serialized frame declarations. The selected frame is preview metadata,
+not a new MSH field. Generated sphere shape edits and runtime-dependent preview
+inputs remain preview-only and are reported without rewriting MSH.
 
 Ribbon previews use explicit runtime-only inputs that are not serialized MSH
 state. `Laser` and `LaserWall` use the centerline `(0,0,0)` to `(8,0,0)` and a
@@ -116,18 +135,20 @@ metadata authority rather than claims of runtime equivalence.
 
 Native edits own ordered parent/child relationships, child start translation,
 and the displayed rectangle and alpha start representation. Depth edits are
-owned by `Explosion`, `FlatExplosion`, and `Smoke`; visible RGB edits are owned
-by every preview except `Track`. Smoke RGB edits are inverted through the
-documented deterministic light sample only when its gain is invertible. Import
+owned by `Explosion`, `FlatExplosion`, `Smoke`, and attached billboards; visible
+RGB edits are owned by every preview except `Track` and `Keelwater`. Smoke,
+Shockwave, and Line RGB edits are inverted through the documented deterministic
+light sample only when their gain is invertible. Sphere material RGB owns its
+serialized visible color while generated sphere geometry remains preview-only. Import
 retains end translation, end rectangle, full frame domain, alpha timing and end
 alpha, exact additive integer, light type/color/gain, reserved and inactive
 fields, resource bytes, inherited headers, and trailing bytes. Unchanged import
 returns the exact source representation. Invalid active frame or atlas capacity,
 and non-finite active value domains report scoped `ETG1006` diagnostics without
 partial output. Duplicate, missing, foreign, stale, dangling, or ambiguous
-scopes fail before a dynamic snapshot is returned. Other recognized effect
-families report `ETG1002`; unknown serialized values remain exact and are never
-converted to catch-all enum values.
+scopes fail before a dynamic snapshot is returned. `ScalableObject` reports
+`ETG1002`; unknown serialized values remain exact and are never converted to
+catch-all enum values.
 
 Ribbon material edits own representable visible RGB and alpha start values.
 Ribbon pair spacing owns the signed `RibbonHalfWidth`; import requires one

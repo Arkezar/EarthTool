@@ -49,6 +49,8 @@ namespace EarthTool.GLTF.Internal
     private const uint PreviewGlobalTick = 0;
     private const float PreviewTextureScale = 1;
     private const float PreviewLifetimeProgress = 0;
+    private const float _previewParentPhase = 0;
+    private static readonly Vector3 _previewWaterColor = new(0.2f, 0.45f, 0.7f);
     private const uint GlbMagic = 0x46546C67;
     private const uint JsonChunkType = 0x4E4F534A;
     private const uint BinaryChunkType = 0x004E4942;
@@ -439,6 +441,7 @@ namespace EarthTool.GLTF.Internal
             $"nodes[{nodeIndex}].extras.earthtool",
             "The dynamic ordered-child guard is stale.");
         }
+        ValidateEffectPreviewMetadata(metadataRoot, payload, source.Object.Extension, nodeIndex);
       }
       if (seen.Count != sourceObjects.Count)
       {
@@ -624,6 +627,61 @@ namespace EarthTool.GLTF.Internal
         message);
     }
 
+    private static void ValidateEffectPreviewMetadata(
+      JsonElement metadata,
+      JsonElement payload,
+      DynamicEffectExtension source,
+      int nodeIndex)
+    {
+      if (!HasExplicitPreviewContract(source.KnownEffectType))
+      {
+        return;
+      }
+      var expectedContext = PreviewContextName(source.KnownEffectType);
+      if (payload.GetProperty("previewContext").GetString() != expectedContext
+        || payload.GetProperty("previewFrameDomain").GetString() != PreviewFrameDomain(source)
+        || payload.GetProperty("previewSourceFrame").GetInt32() != PreviewSourceFrame(source)
+        || payload.GetProperty("previewTotalLifetimeTicks").GetInt32() != PreviewTotalLifetimeTicks
+        || payload.GetProperty("previewRemainingLifetimeTicks").GetInt32()
+          != PreviewRemainingLifetimeTicks
+        || payload.GetProperty("previewGlobalTick").GetUInt32() != PreviewGlobalTick
+        || payload.GetProperty("previewTextureScale").GetSingle() != PreviewTextureScale
+        || payload.GetProperty("previewLifetimeProgress").GetSingle() != PreviewLifetimeProgress
+        || payload.GetProperty("previewParentPhase").GetSingle() != _previewParentPhase)
+      {
+        throw new DynamicMetadataGraphException(
+          GltfDiagnosticCodes.StaleNativeProjection,
+          2016,
+          $"nodes[{nodeIndex}].extras.earthtool",
+          "Dynamic effect preview inputs are stale.");
+      }
+      if (!metadata.GetProperty("guards").TryGetProperty("effectPreview", out var guard))
+      {
+        throw new DynamicMetadataGraphException(
+          GltfDiagnosticCodes.MissingRequiredGuard,
+          2014,
+          $"nodes[{nodeIndex}].extras.earthtool",
+          "The dynamic effect-preview guard is missing.");
+      }
+      if (guard.GetProperty("projection").GetString() != "dynamic-effect-preview"
+        || guard.GetProperty("version").GetInt32() != 1)
+      {
+        throw new DynamicMetadataGraphException(
+          GltfDiagnosticCodes.UnsupportedGuard,
+          2015,
+          $"nodes[{nodeIndex}].extras.earthtool",
+          "The dynamic effect-preview guard is unsupported.");
+      }
+      if (guard.GetProperty("sha256").GetString() != HashPreviewContract(source))
+      {
+        throw new DynamicMetadataGraphException(
+          GltfDiagnosticCodes.StaleNativeProjection,
+          2016,
+          $"nodes[{nodeIndex}].extras.earthtool",
+          "The dynamic effect-preview guard is stale.");
+      }
+    }
+
     private static IReadOnlyList<int> ReadObjectIds(
       JsonElement root,
       GltfOperationProfile profile)
@@ -757,6 +815,7 @@ namespace EarthTool.GLTF.Internal
         or "localId"
         or "guards"
         or "orderedChildren"
+        or "effectPreview"
         or "projection"
         or "sha256"
         or "payload"
@@ -767,6 +826,15 @@ namespace EarthTool.GLTF.Internal
         or "nativeProjection"
         or "name"
         or "effectType"
+        or "previewContext"
+        or "previewFrameDomain"
+        or "previewSourceFrame"
+        or "previewTotalLifetimeTicks"
+        or "previewRemainingLifetimeTicks"
+        or "previewGlobalTick"
+        or "previewTextureScale"
+        or "previewLifetimeProgress"
+        or "previewParentPhase"
         or "orderedChildIds"
         or "commonBaseHeader"
         or "effectRepresentation"
@@ -941,6 +1009,16 @@ namespace EarthTool.GLTF.Internal
               "dynamic-runtime-preview-input"));
           }
         }
+        else if (sourcePreview.IsSphere)
+        {
+          if (preview.GeometryChanged)
+          {
+            changes.Add(new PreservationChange(
+              $"DynamicObjectScopes[{id}].PreviewShape",
+              PreservationDisposition.Retained,
+              "dynamic-runtime-preview-input"));
+          }
+        }
         else if (!preview.Rectangle.Equals(sourcePreview.Rectangle))
         {
           var rectangle = SolveStartRectangle(
@@ -965,7 +1043,8 @@ namespace EarthTool.GLTF.Internal
         if (sourcePreview.OwnsColor && preview.Color != sourcePreview.Color)
         {
           var color = source.KnownEffectType == DynamicEffectType.Smoke
-            ? SolveSmokeColor(preview.Color, source.VisibleTerrainLightGain, id)
+            || IsAttachedPreview(source.KnownEffectType)
+            ? SolveModulatedColor(preview.Color, source.VisibleTerrainLightGain, id)
             : preview.Color;
           WriteVector(prefix, 0x3C8, color);
           changes.Add(new PreservationChange(
@@ -1028,6 +1107,10 @@ namespace EarthTool.GLTF.Internal
       {
         return ReadRibbonPreview(root, binary, id, primitive, positions, sourcePreview, profile);
       }
+      if (sourcePreview.IsSphere)
+      {
+        return ReadSpherePreview(root, binary, id, primitive, positions, sourcePreview, profile);
+      }
       if (positions.Length != 4 || positions.Any(value => !IsFinite(value)))
       {
         throw new InvalidDataException("A sprite-effect preview must contain four finite vertices.");
@@ -1083,6 +1166,64 @@ namespace EarthTool.GLTF.Internal
         depth,
         new Vector3(baseColorFactor[0], baseColorFactor[1], baseColorFactor[2]),
         baseColorFactor[3]);
+    }
+
+    private static DynamicEditedPreview ReadSpherePreview(
+      JsonElement root,
+      ReadOnlySpan<byte> binary,
+      int id,
+      JsonElement primitive,
+      IReadOnlyList<Vector3> positions,
+      DynamicEffectPreview sourcePreview,
+      GltfOperationProfile profile)
+    {
+      if (positions.Count != sourcePreview.Positions.Count
+        || positions.Count > profile.MaxActiveRenderVertices
+        || positions.Any(value => !IsFinite(value)))
+      {
+        throw SphereEditFailure(id, "A Sphere preview must retain its bounded finite vertex inventory.");
+      }
+      var attributes = primitive.GetProperty("attributes");
+      var normals = ReadVector3Accessor(
+        root,
+        binary,
+        attributes.GetProperty("NORMAL").GetInt32());
+      var textureCoordinates = ReadVector2Accessor(
+        root,
+        binary,
+        attributes.GetProperty("TEXCOORD_0").GetInt32());
+      var indices = ReadUInt16Accessor(
+        root,
+        binary,
+        primitive.GetProperty("indices").GetInt32());
+      if (normals.Length != positions.Count
+        || normals.Any(value => !IsFinite(value))
+        || !textureCoordinates.SequenceEqual(sourcePreview.TextureCoordinates)
+        || !indices.SequenceEqual(sourcePreview.Indices))
+      {
+        throw SphereEditFailure(id,
+          "A Sphere preview must retain finite normals, texture coordinates, and guarded topology.");
+      }
+      var materialIndex = primitive.GetProperty("material").GetInt32();
+      var baseColorFactor = root.GetProperty("materials")[materialIndex]
+        .GetProperty("pbrMetallicRoughness").GetProperty("baseColorFactor")
+        .EnumerateArray().Select(item => item.GetSingle()).ToArray();
+      if (baseColorFactor.Length != 4 || baseColorFactor.Any(value => !float.IsFinite(value)))
+      {
+        throw SphereEditFailure(id, "A Sphere preview base color must contain four finite values.");
+      }
+      return new DynamicEditedPreview(
+        new Vector3(baseColorFactor[0], baseColorFactor[1], baseColorFactor[2]),
+        baseColorFactor[3],
+        !positions.SequenceEqual(sourcePreview.Positions)
+          || !normals.SequenceEqual(sourcePreview.Normals));
+    }
+
+    private static DynamicPreviewException SphereEditFailure(int id, string message)
+    {
+      return new DynamicPreviewException(
+        $"DynamicObjectScopes[{id}].SpherePreview",
+        message);
     }
 
     private static DynamicEditedPreview ReadRibbonPreview(
@@ -1822,9 +1963,26 @@ namespace EarthTool.GLTF.Internal
         WriteMetadataStart(writer, baseline, "object", scope.Id);
         writer.WriteStartObject("guards");
         WriteGuard(writer, "orderedChildren", "dynamic-ordered-children", HashIds(scope.ChildIds));
+        if (HasExplicitPreviewContract(scope.Object.Extension.KnownEffectType))
+        {
+          WriteGuard(writer, "effectPreview", "dynamic-effect-preview",
+            HashPreviewContract(scope.Object.Extension));
+        }
         writer.WriteEndObject();
         writer.WriteStartObject("payload");
         writer.WriteNumber("effectType", scope.Object.Extension.EffectType);
+        if (HasExplicitPreviewContract(scope.Object.Extension.KnownEffectType))
+        {
+          writer.WriteString("previewContext", PreviewContextName(scope.Object.Extension.KnownEffectType));
+          writer.WriteString("previewFrameDomain", PreviewFrameDomain(scope.Object.Extension));
+          writer.WriteNumber("previewSourceFrame", PreviewSourceFrame(scope.Object.Extension));
+          writer.WriteNumber("previewTotalLifetimeTicks", PreviewTotalLifetimeTicks);
+          writer.WriteNumber("previewRemainingLifetimeTicks", PreviewRemainingLifetimeTicks);
+          writer.WriteNumber("previewGlobalTick", PreviewGlobalTick);
+          writer.WriteNumber("previewTextureScale", PreviewTextureScale);
+          writer.WriteNumber("previewLifetimeProgress", PreviewLifetimeProgress);
+          writer.WriteNumber("previewParentPhase", _previewParentPhase);
+        }
         writer.WriteStartArray("orderedChildIds");
         foreach (var childId in scope.ChildIds)
         {
@@ -2035,9 +2193,18 @@ namespace EarthTool.GLTF.Internal
           0);
       }
 
+      if (extension.KnownEffectType == DynamicEffectType.Sphere)
+      {
+        return CreateSpherePreview(id, extension);
+      }
+
+      var context = IsAttachedPreview(extension.KnownEffectType)
+        ? DynamicEffectEvaluationContext.AttachedParticle
+        : DynamicEffectEvaluationContext.Primary;
+
       if (!DynamicEffectSemantics.TrySelectFrame(
         extension,
-        DynamicEffectEvaluationContext.Primary,
+        context,
         PreviewTotalLifetimeTicks,
         PreviewRemainingLifetimeTicks,
         PreviewGlobalTick,
@@ -2048,7 +2215,7 @@ namespace EarthTool.GLTF.Internal
       }
       if (!DynamicEffectSemantics.TryInterpolateAlpha(
         extension,
-        DynamicEffectEvaluationContext.Primary,
+        context,
         frame.Phase,
         PreviewLifetimeProgress,
         out var alpha,
@@ -2069,7 +2236,7 @@ namespace EarthTool.GLTF.Internal
       }
       else if (DynamicEffectSemantics.TrySelectTextureRegion(
         extension,
-        DynamicEffectEvaluationContext.Primary,
+        context,
         frame,
         PreviewTextureScale,
         out var region,
@@ -2101,11 +2268,16 @@ namespace EarthTool.GLTF.Internal
       {
         color = Vector3.One;
       }
-      else if (extension.KnownEffectType == DynamicEffectType.Smoke)
+      else if (extension.KnownEffectType == DynamicEffectType.Keelwater)
+      {
+        color = _previewWaterColor;
+      }
+      else if (extension.KnownEffectType == DynamicEffectType.Smoke
+        || IsAttachedPreview(extension.KnownEffectType))
       {
         if (!DynamicEffectSemantics.TryEvaluateVisibleEffectColor(
           extension,
-          DynamicEffectEvaluationContext.Primary,
+          context,
           Vector3.One,
           1,
           out color,
@@ -2159,7 +2331,7 @@ namespace EarthTool.GLTF.Internal
 
       if (!DynamicEffectSemantics.TryInterpolateEffectRectangle(
         extension,
-        DynamicEffectEvaluationContext.Primary,
+        context,
         frame.Phase,
         out var rectangle,
         out var rectangleFailure))
@@ -2170,8 +2342,11 @@ namespace EarthTool.GLTF.Internal
         or DynamicEffectType.MappedExplosion
         or DynamicEffectType.FlatExplosion;
       var ownsDepth = extension.KnownEffectType is DynamicEffectType.FlatExplosion
-        or DynamicEffectType.Smoke;
-      var ownsColor = extension.KnownEffectType != DynamicEffectType.Track && IsUnitRange(color);
+        or DynamicEffectType.Smoke
+        || IsAttachedPreview(extension.KnownEffectType);
+      var ownsColor = extension.KnownEffectType is not DynamicEffectType.Track
+        and not DynamicEffectType.Keelwater
+        && IsUnitRange(color);
       var ownsAlpha = IsUnitRange(alpha);
       var depth = ownsDepth ? extension.EffectDepthOffset : 0;
       if (!float.IsFinite(depth))
@@ -2180,9 +2355,11 @@ namespace EarthTool.GLTF.Internal
           $"DynamicObjectScopes[{id}].Extension.EffectDepthOffset",
           "The deterministic sprite preview requires a finite depth offset.");
       }
-      var alphaPhase = extension.UsesLifetimeProgressAlpha
-        ? PreviewLifetimeProgress
-        : frame.Phase;
+      var alphaPhase = context == DynamicEffectEvaluationContext.AttachedParticle
+        ? frame.Phase
+        : extension.UsesLifetimeProgressAlpha
+          ? PreviewLifetimeProgress
+          : frame.Phase;
       return new DynamicEffectPreview(
         rectangle,
         depth,
@@ -2195,6 +2372,68 @@ namespace EarthTool.GLTF.Internal
         ownsAlpha,
         frame.Phase,
         alphaPhase);
+    }
+
+    private static DynamicEffectPreview CreateSpherePreview(
+      int id,
+      DynamicEffectExtension extension)
+    {
+      if (!DynamicEffectSemantics.TrySelectSphereFrame(
+        PreviewTotalLifetimeTicks,
+        PreviewRemainingLifetimeTicks,
+        out _,
+        out var frameFailure))
+      {
+        throw PreviewFailure(id, "SphereLifetime", frameFailure);
+      }
+      ValidateFiniteMaterial(id, extension.VisibleEffectColor, 1);
+      const int latitudeSegments = 8;
+      const int longitudeSegments = 16;
+      var positions = new Vector3[(latitudeSegments + 1) * (longitudeSegments + 1)];
+      var normals = new Vector3[positions.Length];
+      var textureCoordinates = new Vector2[positions.Length];
+      for (var latitude = 0; latitude <= latitudeSegments; latitude++)
+      {
+        var v = (float)latitude / latitudeSegments;
+        var polar = MathF.PI * v;
+        for (var longitude = 0; longitude <= longitudeSegments; longitude++)
+        {
+          var u = (float)longitude / longitudeSegments;
+          var azimuth = MathF.PI * 2 * u;
+          var index = latitude * (longitudeSegments + 1) + longitude;
+          var normal = new Vector3(
+            MathF.Sin(polar) * MathF.Cos(azimuth),
+            MathF.Cos(polar),
+            MathF.Sin(polar) * MathF.Sin(azimuth));
+          positions[index] = normal;
+          normals[index] = normal;
+          textureCoordinates[index] = new Vector2(u, v);
+        }
+      }
+      var indices = new ushort[latitudeSegments * longitudeSegments * 6];
+      var offset = 0;
+      for (var latitude = 0; latitude < latitudeSegments; latitude++)
+      {
+        for (var longitude = 0; longitude < longitudeSegments; longitude++)
+        {
+          var topLeft = checked((ushort)(latitude * (longitudeSegments + 1) + longitude));
+          var bottomLeft = checked((ushort)((latitude + 1) * (longitudeSegments + 1) + longitude));
+          indices[offset++] = topLeft;
+          indices[offset++] = bottomLeft;
+          indices[offset++] = checked((ushort)(topLeft + 1));
+          indices[offset++] = checked((ushort)(topLeft + 1));
+          indices[offset++] = bottomLeft;
+          indices[offset++] = checked((ushort)(bottomLeft + 1));
+        }
+      }
+      return new DynamicEffectPreview(
+        Array.AsReadOnly(positions),
+        Array.AsReadOnly(normals),
+        Array.AsReadOnly(textureCoordinates),
+        Array.AsReadOnly(indices),
+        Clamp(extension.VisibleEffectColor),
+        1,
+        IsUnitRange(extension.VisibleEffectColor));
     }
 
     private static DynamicEffectPreview CreateRibbonPreview(
@@ -2382,7 +2621,68 @@ namespace EarthTool.GLTF.Internal
         or DynamicEffectType.LaserWall
         or DynamicEffectType.ElectricalCannon
         or DynamicEffectType.Lightning
-        or DynamicEffectType.Smoke;
+        or DynamicEffectType.Smoke
+        or DynamicEffectType.Shockwave
+        or DynamicEffectType.Line
+        or DynamicEffectType.Sphere
+        or DynamicEffectType.Keelwater;
+    }
+
+    private static bool IsAttachedPreview(DynamicEffectType? effectType)
+    {
+      return effectType is DynamicEffectType.Shockwave
+        or DynamicEffectType.Line
+        or DynamicEffectType.Keelwater;
+    }
+
+    private static bool HasExplicitPreviewContract(DynamicEffectType? effectType)
+    {
+      return IsAttachedPreview(effectType) || effectType == DynamicEffectType.Sphere;
+    }
+
+    private static string PreviewContextName(DynamicEffectType? effectType)
+    {
+      return IsAttachedPreview(effectType) ? "attachedParticle" : "primary";
+    }
+
+    private static string PreviewFrameDomain(DynamicEffectExtension extension)
+    {
+      return extension.KnownEffectType == DynamicEffectType.Sphere
+        ? "builtIn16"
+        : extension.KnownEffectType == DynamicEffectType.Explosion
+          ? "declarationStart"
+          : "serialized";
+    }
+
+    private static int PreviewSourceFrame(DynamicEffectExtension extension)
+    {
+      if (extension.KnownEffectType == DynamicEffectType.Sphere)
+      {
+        return DynamicEffectSemantics.TrySelectSphereFrame(
+          PreviewTotalLifetimeTicks,
+          PreviewRemainingLifetimeTicks,
+          out var sourceFrame,
+          out _)
+          ? sourceFrame
+          : throw new InvalidOperationException("The fixed Sphere preview lifetime is invalid.");
+      }
+      if (extension.KnownEffectType == DynamicEffectType.Explosion)
+      {
+        return extension.FirstSourceFrame;
+      }
+      var context = IsAttachedPreview(extension.KnownEffectType)
+        ? DynamicEffectEvaluationContext.AttachedParticle
+        : DynamicEffectEvaluationContext.Primary;
+      return DynamicEffectSemantics.TrySelectFrame(
+        extension,
+        context,
+        PreviewTotalLifetimeTicks,
+        PreviewRemainingLifetimeTicks,
+        PreviewGlobalTick,
+        out var frame,
+        out _)
+        ? frame.SourceFrame
+        : throw new InvalidOperationException("The fixed dynamic preview frame domain is invalid.");
     }
 
     private static EffectRectangle SolveStartRectangle(
@@ -2411,23 +2711,45 @@ namespace EarthTool.GLTF.Internal
       return result;
     }
 
-    private static Vector3 SolveSmokeColor(Vector3 value, float gain, int id)
+    private static Vector3 SolveModulatedColor(Vector3 value, float gain, int id)
     {
       var factor = Math.Min(1, gain);
       if (!float.IsFinite(factor) || factor == 0)
       {
         throw new DynamicPreviewException(
           $"DynamicObjectScopes[{id}].Extension.VisibleEffectColor",
-          "The edited Smoke color cannot be inverted through its deterministic light sample.");
+          "The edited modulated color cannot be inverted through its deterministic light sample.");
       }
       var result = value / factor;
       if (!IsFinite(result))
       {
         throw new DynamicPreviewException(
           $"DynamicObjectScopes[{id}].Extension.VisibleEffectColor",
-          "The edited Smoke color produces a non-finite authoritative value.");
+          "The edited modulated color produces a non-finite authoritative value.");
       }
       return result;
+    }
+
+    private static string HashPreviewContract(DynamicEffectExtension extension)
+    {
+      using var stream = new MemoryStream();
+      using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
+      {
+        writer.Write(extension.EffectType);
+        writer.Write(PreviewContextName(extension.KnownEffectType));
+        writer.Write(PreviewFrameDomain(extension));
+        writer.Write(PreviewSourceFrame(extension));
+        writer.Write(PreviewTotalLifetimeTicks);
+        writer.Write(PreviewRemainingLifetimeTicks);
+        writer.Write(PreviewGlobalTick);
+        writer.Write(PreviewTextureScale);
+        writer.Write(PreviewLifetimeProgress);
+        writer.Write(_previewParentPhase);
+        writer.Write(_previewWaterColor.X);
+        writer.Write(_previewWaterColor.Y);
+        writer.Write(_previewWaterColor.Z);
+      }
+      return Hash(stream.ToArray());
     }
 
     private static void ValidateSupportedEffects(IReadOnlyList<DynamicObjectScope> objects)
@@ -2528,7 +2850,7 @@ namespace EarthTool.GLTF.Internal
             writer.Write(preview.Color.Y);
             writer.Write(preview.Color.Z);
             writer.Write(preview.Alpha);
-            if (preview.IsRibbon)
+            if (preview.IsRibbon || preview.IsSphere)
             {
               writer.Write(preview.RibbonHalfWidth);
               foreach (var position in preview.Positions)
@@ -2709,6 +3031,7 @@ namespace EarthTool.GLTF.Internal
       internal IReadOnlyList<ushort> Indices { get; }
       internal bool Horizontal { get; }
       internal bool IsRibbon { get; }
+      internal bool IsSphere { get; }
       internal float RibbonHalfWidth { get; }
       internal bool OwnsDepth { get; }
       internal bool OwnsColor { get; }
@@ -2754,6 +3077,7 @@ namespace EarthTool.GLTF.Internal
         Indices = Array.AsReadOnly(new ushort[] { 0, 1, 2, 0, 2, 3 });
         Horizontal = horizontal;
         IsRibbon = false;
+        IsSphere = false;
         RibbonHalfWidth = 0;
         OwnsDepth = ownsDepth;
         OwnsColor = ownsColor;
@@ -2784,12 +3108,41 @@ namespace EarthTool.GLTF.Internal
         Indices = indices;
         Horizontal = false;
         IsRibbon = true;
+        IsSphere = false;
         RibbonHalfWidth = ribbonHalfWidth;
         OwnsDepth = false;
         OwnsColor = ownsColor;
         OwnsAlpha = ownsAlpha;
         RectanglePhase = 0;
         AlphaPhase = alphaPhase;
+      }
+
+      internal DynamicEffectPreview(
+        IReadOnlyList<Vector3> positions,
+        IReadOnlyList<Vector3> normals,
+        IReadOnlyList<Vector2> textureCoordinates,
+        IReadOnlyList<ushort> indices,
+        Vector3 color,
+        float alpha,
+        bool ownsColor)
+      {
+        Rectangle = default;
+        Depth = 0;
+        Color = color;
+        Alpha = alpha;
+        Positions = positions;
+        Normals = normals;
+        TextureCoordinates = textureCoordinates;
+        Indices = indices;
+        Horizontal = false;
+        IsRibbon = false;
+        IsSphere = true;
+        RibbonHalfWidth = 0;
+        OwnsDepth = false;
+        OwnsColor = ownsColor;
+        OwnsAlpha = false;
+        RectanglePhase = 0;
+        AlphaPhase = 0;
       }
     }
 
@@ -2801,6 +3154,7 @@ namespace EarthTool.GLTF.Internal
       internal float Alpha { get; }
       internal float? RibbonHalfWidth { get; }
       internal bool RibbonPathChanged { get; }
+      internal bool GeometryChanged { get; }
 
       internal DynamicEditedPreview(
         EffectRectangle rectangle,
@@ -2814,6 +3168,7 @@ namespace EarthTool.GLTF.Internal
         Alpha = alpha;
         RibbonHalfWidth = null;
         RibbonPathChanged = false;
+        GeometryChanged = false;
       }
 
       internal DynamicEditedPreview(
@@ -2828,6 +3183,21 @@ namespace EarthTool.GLTF.Internal
         Alpha = alpha;
         RibbonHalfWidth = ribbonHalfWidth;
         RibbonPathChanged = ribbonPathChanged;
+        GeometryChanged = false;
+      }
+
+      internal DynamicEditedPreview(
+        Vector3 color,
+        float alpha,
+        bool geometryChanged)
+      {
+        Rectangle = default;
+        Depth = 0;
+        Color = color;
+        Alpha = alpha;
+        RibbonHalfWidth = null;
+        RibbonPathChanged = false;
+        GeometryChanged = geometryChanged;
       }
     }
 
