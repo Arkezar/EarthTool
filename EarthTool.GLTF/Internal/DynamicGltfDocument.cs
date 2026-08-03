@@ -52,6 +52,8 @@ namespace EarthTool.GLTF.Internal
     private const int MetadataVersion = 2;
     private const int PreviewTotalLifetimeTicks = 100;
     private const int PreviewRemainingLifetimeTicks = 100;
+    private const float PreviewTicksPerSecond = 20;
+    private const float PreviewDurationSeconds = PreviewTotalLifetimeTicks / PreviewTicksPerSecond;
     private const uint PreviewGlobalTick = 0;
     private const float PreviewTextureScale = 1;
     private const float PreviewLifetimeProgress = 0;
@@ -216,6 +218,7 @@ namespace EarthTool.GLTF.Internal
       }
       ValidateSupportedEffects(objects);
       var effectPreviews = CreateEffectPreviews(objects, profile, meshPreviews);
+      var animationTracks = CreateAnimationTracks(objects, effectPreviews);
       var binary = CreateBinary(objects, effectPreviews, out var layouts);
       var previewImages = objects
         .Where(scope => previews.ContainsKey(scope.Id))
@@ -224,6 +227,7 @@ namespace EarthTool.GLTF.Internal
         .Select(group => group.First())
         .ToArray();
       binary = AppendPreviewImages(binary, previewImages, out var previewLayouts);
+      binary = AppendAnimationTracks(binary, animationTracks, out var animationLayout);
       if (binary.Length == 0)
       {
         binary = new byte[4];
@@ -246,6 +250,8 @@ namespace EarthTool.GLTF.Internal
         previewImages,
         previewLayouts,
         effectPreviews,
+        animationTracks,
+        animationLayout,
         sourceBaseName);
       var outputLength = separate
         ? checked(json.Length + binary.Length)
@@ -1887,6 +1893,35 @@ namespace EarthTool.GLTF.Internal
       return stream.ToArray();
     }
 
+    private static byte[] AppendAnimationTracks(
+      byte[] content,
+      IReadOnlyList<DynamicAnimationTrack> tracks,
+      out DynamicAnimationLayout? layout)
+    {
+      if (tracks.Count == 0)
+      {
+        layout = null;
+        return content;
+      }
+      using var stream = new MemoryStream();
+      stream.Write(content, 0, content.Length);
+      using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
+      Align(writer, stream);
+      var timeOffset = checked((int)stream.Position);
+      writer.Write(0f);
+      writer.Write(PreviewDurationSeconds);
+      var outputOffsets = new List<int>(tracks.Count);
+      foreach (var track in tracks)
+      {
+        Align(writer, stream);
+        outputOffsets.Add(checked((int)stream.Position));
+        Write(writer, track.Start);
+        Write(writer, track.End);
+      }
+      layout = new DynamicAnimationLayout(timeOffset, outputOffsets.AsReadOnly());
+      return stream.ToArray();
+    }
+
     private static byte[] CreateJson(
       InterchangeBaseline baseline,
       IReadOnlyList<DynamicObjectScope> objects,
@@ -1898,6 +1933,8 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyList<TexPreview> previewImages,
       IReadOnlyDictionary<string, DynamicImageLayout> previewLayouts,
       IReadOnlyDictionary<int, DynamicEffectPreview> effectPreviews,
+      IReadOnlyList<DynamicAnimationTrack> animationTracks,
+      DynamicAnimationLayout? animationLayout,
       string? sourceBaseName)
     {
       var nodeIndicesById = objects
@@ -1979,6 +2016,39 @@ namespace EarthTool.GLTF.Internal
           writer.WriteEndObject();
         }
         writer.WriteEndArray();
+
+        if (animationLayout.HasValue)
+        {
+          var animationAccessorIndex = layouts.Count * 4;
+          writer.WriteStartArray("animations");
+          writer.WriteStartObject();
+          writer.WriteString("name", "EarthTool Dynamic Preview");
+          writer.WriteStartArray("samplers");
+          for (var index = 0; index < animationTracks.Count; index++)
+          {
+            writer.WriteStartObject();
+            writer.WriteNumber("input", animationAccessorIndex);
+            writer.WriteNumber("output", animationAccessorIndex + index + 1);
+            writer.WriteString("interpolation", "LINEAR");
+            writer.WriteEndObject();
+          }
+          writer.WriteEndArray();
+          writer.WriteStartArray("channels");
+          for (var index = 0; index < animationTracks.Count; index++)
+          {
+            var track = animationTracks[index];
+            writer.WriteStartObject();
+            writer.WriteNumber("sampler", index);
+            writer.WriteStartObject("target");
+            writer.WriteNumber("node", nodeIndicesById[track.ObjectId]);
+            writer.WriteString("path", track.Path);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+          }
+          writer.WriteEndArray();
+          writer.WriteEndObject();
+          writer.WriteEndArray();
+        }
 
         if (layouts.Count != 0)
         {
@@ -2069,7 +2139,7 @@ namespace EarthTool.GLTF.Internal
           writer.WriteEndArray();
         }
 
-        if (layouts.Count != 0)
+        if (layouts.Count != 0 || animationLayout.HasValue)
         {
           writer.WriteStartArray("bufferViews");
           foreach (var scope in objects.Where(item => layouts.ContainsKey(item.Id)))
@@ -2087,6 +2157,14 @@ namespace EarthTool.GLTF.Internal
           {
             var layout = previewLayouts[preview.ContentAddress];
             WriteBufferView(writer, layout.Offset, layout.Length, null);
+          }
+          if (animationLayout.HasValue)
+          {
+            WriteBufferView(writer, animationLayout.Value.TimeOffset, 2 * sizeof(float), null);
+            foreach (var outputOffset in animationLayout.Value.OutputOffsets)
+            {
+              WriteBufferView(writer, outputOffset, 2 * 3 * sizeof(float), null);
+            }
           }
           writer.WriteEndArray();
 
@@ -2129,6 +2207,29 @@ namespace EarthTool.GLTF.Internal
               preview.Indices.Count, "SCALAR",
               new[] { 0f }, new[] { (float)preview.Positions.Count - 1 });
             bufferViewIndex += 4;
+          }
+          if (animationLayout.HasValue)
+          {
+            var animationBufferViewIndex = layouts.Count * 4 + previewImages.Count;
+            WriteAccessor(
+              writer,
+              animationBufferViewIndex,
+              5126,
+              2,
+              "SCALAR",
+              new[] { 0f },
+              new[] { PreviewDurationSeconds });
+            for (var index = 0; index < animationTracks.Count; index++)
+            {
+              WriteAccessor(
+                writer,
+                animationBufferViewIndex + index + 1,
+                5126,
+                2,
+                "VEC3",
+                null,
+                null);
+            }
           }
           writer.WriteEndArray();
         }
@@ -2420,6 +2521,55 @@ namespace EarthTool.GLTF.Internal
         result.Add(scope.Id, preview);
       }
       return result;
+    }
+
+    private static IReadOnlyList<DynamicAnimationTrack> CreateAnimationTracks(
+      IReadOnlyList<DynamicObjectScope> objects,
+      IReadOnlyDictionary<int, DynamicEffectPreview> effectPreviews)
+    {
+      var objectsById = objects.ToDictionary(item => item.Id);
+      var tracks = new List<DynamicAnimationTrack>();
+      foreach (var parent in objects.Where(item => item.Object.Extension.FramePeriodTicks == 0))
+      {
+        foreach (var childId in parent.ChildIds)
+        {
+          var child = objectsById[childId];
+          var extension = child.Object.Extension;
+          if (IsFinite(extension.ChildStartTranslation)
+            && IsFinite(extension.ChildEndTranslation)
+            && extension.ChildStartTranslation != extension.ChildEndTranslation)
+          {
+            tracks.Add(new DynamicAnimationTrack(
+              child.Id,
+              "translation",
+              GlbDocument.ProjectToGltf(extension.ChildStartTranslation),
+              GlbDocument.ProjectToGltf(extension.ChildEndTranslation)));
+          }
+        }
+      }
+      foreach (var scope in objects.Where(item =>
+        item.Object.Extension.KnownEffectType == DynamicEffectType.ScalableObject
+        && item.Object.Extension.FramePeriodTicks == 0))
+      {
+        var extension = scope.Object.Extension;
+        if (!float.IsFinite(extension.StartModelScale)
+          || !float.IsFinite(extension.EndModelScale))
+        {
+          throw new DynamicPreviewException(
+            $"DynamicObjectScopes[{scope.Id}].Extension.ModelScale",
+            "Dynamic scale animation requires finite start and end scales.");
+        }
+        if (extension.StartModelScale != extension.EndModelScale)
+        {
+          var preview = effectPreviews[scope.Id];
+          tracks.Add(new DynamicAnimationTrack(
+            scope.Id,
+            "scale",
+            new Vector3(preview.ModelScale),
+            new Vector3(extension.EndModelScale)));
+        }
+      }
+      return tracks.AsReadOnly();
     }
 
     private static DynamicEffectPreview CreateEffectPreview(
@@ -3727,6 +3877,34 @@ namespace EarthTool.GLTF.Internal
       {
         Offset = offset;
         Length = length;
+      }
+    }
+
+    private sealed class DynamicAnimationTrack
+    {
+      internal int ObjectId { get; }
+      internal string Path { get; }
+      internal Vector3 Start { get; }
+      internal Vector3 End { get; }
+
+      internal DynamicAnimationTrack(int objectId, string path, Vector3 start, Vector3 end)
+      {
+        ObjectId = objectId;
+        Path = path;
+        Start = start;
+        End = end;
+      }
+    }
+
+    private readonly struct DynamicAnimationLayout
+    {
+      internal int TimeOffset { get; }
+      internal IReadOnlyList<int> OutputOffsets { get; }
+
+      internal DynamicAnimationLayout(int timeOffset, IReadOnlyList<int> outputOffsets)
+      {
+        TimeOffset = timeOffset;
+        OutputOffsets = outputOffsets;
       }
     }
 

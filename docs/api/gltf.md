@@ -91,6 +91,18 @@ asset. Missing, ambiguous, unsafe, malformed, or dynamic references retain the
 exact binding and use a deterministic triangle placeholder with scoped
 diagnostics.
 
+Finite, changing lifetime-driven transforms export as one `EarthTool Dynamic
+Preview` action. Linear child translation channels use each child's `Position`
+and `Position2`; linear `ScalableObject` scale channels run from the guarded
+initial preview scale to its end `Scale`. The deterministic 100-tick preview
+runs for five seconds at the normal 20-update scheduler rate. Periodic
+global-tick transforms, atlas changes, and
+material alpha remain snapshot metadata because their runtime timing or target
+properties do not have an equivalent portable core glTF animation contract.
+The generated action is an artist preview; dynamic import continues to own MSH
+edits through the node rest transform and exact metadata rather than animation
+channel edits.
+
 Core glTF material factors are limited to zero through one. Finite MSH colors,
 alpha, or gains that evaluate outside that range are clamped only in the preview
 and made read-only for that native material; their exact authoritative values

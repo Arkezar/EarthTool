@@ -1737,6 +1737,11 @@ public class DynamicGltfInterchangeTests
       var staticBytes = CreateReferencedStaticAsset().GetSerializedRepresentation();
       await File.WriteAllBytesAsync(Path.Combine(meshes, "ambiguous.msh"), staticBytes);
       await File.WriteAllBytesAsync(Path.Combine(meshes, "AMBIGUOUS.MSH"), staticBytes);
+      var supportsCaseDistinctFiles = Directory.EnumerateFiles(meshes)
+        .Count(path => string.Equals(
+          Path.GetFileName(path),
+          "ambiguous.msh",
+          StringComparison.OrdinalIgnoreCase)) == 2;
       await File.WriteAllBytesAsync(
         Path.Combine(meshes, "dynamic.msh"),
         CreateAsset().GetSerializedRepresentation());
@@ -1752,9 +1757,18 @@ public class DynamicGltfInterchangeTests
         new GltfExportOptions(null, null, null, null, [root]));
 
       ambiguous.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(ambiguous.Diagnostics));
-      ambiguous.Diagnostics.Select(item => item.Code).Should()
-        .Contain(GltfDiagnosticCodes.AmbiguousMeshResource)
-        .And.Contain(GltfDiagnosticCodes.MeshDiagnosticPreviewUsed);
+      if (supportsCaseDistinctFiles)
+      {
+        ambiguous.Diagnostics.Select(item => item.Code).Should()
+          .Contain(GltfDiagnosticCodes.AmbiguousMeshResource)
+          .And.Contain(GltfDiagnosticCodes.MeshDiagnosticPreviewUsed);
+      }
+      else
+      {
+        ambiguous.Diagnostics.Select(item => item.Code).Should()
+          .NotContain(GltfDiagnosticCodes.AmbiguousMeshResource)
+          .And.NotContain(GltfDiagnosticCodes.MeshDiagnosticPreviewUsed);
+      }
       dynamic.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(dynamic.Diagnostics));
       dynamic.Diagnostics.Select(item => item.Code).Should()
         .Contain(GltfDiagnosticCodes.UnsupportedMeshResource)
@@ -1900,6 +1914,61 @@ public class DynamicGltfInterchangeTests
     {
       Directory.Delete(directory, true);
       Directory.Delete(outside, true);
+    }
+  }
+
+  [Fact]
+  public async Task ScalableObjectExportsLifetimeTranslationAndScaleAnimation()
+  {
+    var asset = CreateSingleEffectAsset(
+      CreateScalableRecipe("preview", 2, 5)
+        .SetChildTranslation(new Vector3(1, 2, 3), new Vector3(4, 5, 6)));
+    await using var destination = new MemoryStream();
+
+    var result = await new GltfInterchange().ExportGlbAsync(
+      asset,
+      destination,
+      new GltfExportOptions(_lineageId, _documentId));
+
+    result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
+    var glb = destination.ToArray();
+    using var json = ReadGlbJson(glb);
+    var root = json.RootElement;
+    var animation = root.GetProperty("animations").EnumerateArray().Single();
+    animation.GetProperty("name").GetString().Should().Be("EarthTool Dynamic Preview");
+    var channels = animation.GetProperty("channels").EnumerateArray().ToArray();
+    channels.Select(channel => channel.GetProperty("target").GetProperty("path").GetString())
+      .Should().BeEquivalentTo(["translation", "scale"]);
+    channels.Select(channel => channel.GetProperty("target").GetProperty("node").GetInt32())
+      .Should().OnlyContain(node => node == 2);
+    var samplers = animation.GetProperty("samplers");
+    var inputAccessor = samplers[0].GetProperty("input").GetInt32();
+    ReadFloatAccessor(root, ReadGlbBinary(glb), inputAccessor).Should().Equal(0, 5);
+    var node = root.GetProperty("nodes")[2];
+    var restTranslation = node.GetProperty("translation").EnumerateArray()
+      .Select(value => value.GetSingle()).ToArray();
+    var restScale = node.GetProperty("scale").EnumerateArray()
+      .Select(value => value.GetSingle()).ToArray();
+    foreach (var channel in channels)
+    {
+      var path = channel.GetProperty("target").GetProperty("path").GetString();
+      var sampler = samplers[channel.GetProperty("sampler").GetInt32()];
+      sampler.GetProperty("input").GetInt32().Should().Be(inputAccessor);
+      sampler.GetProperty("interpolation").GetString().Should().Be("LINEAR");
+      var values = ReadVector3Accessor(
+        root,
+        ReadGlbBinary(glb),
+        sampler.GetProperty("output").GetInt32());
+      if (path == "translation")
+      {
+        values.Should().Equal(new Vector3(1, 3, -2), new Vector3(4, 6, -5));
+        values[0].Should().Be(new Vector3(restTranslation[0], restTranslation[1], restTranslation[2]));
+      }
+      else
+      {
+        values[0].Should().Be(new Vector3(restScale[0], restScale[1], restScale[2]));
+        values[1].Should().Be(new Vector3(5));
+      }
     }
   }
 
@@ -2705,6 +2774,19 @@ public class DynamicGltfInterchangeTests
         BitConverter.ToSingle(binary, offset + index * 12),
         BitConverter.ToSingle(binary, offset + index * 12 + 4),
         BitConverter.ToSingle(binary, offset + index * 12 + 8)))
+      .ToArray();
+  }
+
+  private static float[] ReadFloatAccessor(
+    JsonElement root,
+    byte[] binary,
+    int accessorIndex)
+  {
+    var accessor = root.GetProperty("accessors")[accessorIndex];
+    var view = root.GetProperty("bufferViews")[accessor.GetProperty("bufferView").GetInt32()];
+    var offset = view.GetProperty("byteOffset").GetInt32();
+    return Enumerable.Range(0, accessor.GetProperty("count").GetInt32())
+      .Select(index => BitConverter.ToSingle(binary, offset + index * sizeof(float)))
       .ToArray();
   }
 

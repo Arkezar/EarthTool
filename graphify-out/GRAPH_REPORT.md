@@ -1,16 +1,16 @@
 # Graph Report - EarthTool  (2026-08-03)
 
 ## Corpus Check
-- 363 files · ~280,310 words
+- 363 files · ~281,094 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 4555 nodes · 13383 edges · 181 communities (169 shown, 12 thin omitted)
+- 4563 nodes · 13417 edges · 178 communities (171 shown, 7 thin omitted)
 - Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 852 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `12be5090`
+- Built from commit: `28866e1c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -21,15 +21,15 @@
 - FramedMshBaseHeaderTests
 - .Compress
 - GltfPlanAndReportTests
-- .ReadAssetAsync
+- Task
 - .ToByteArray
-- .ResolveAndLoad
+- .Load
 - IValueConverter
 - MainWindowViewModel
 - OperationResult
 - DynamicGltfInterchangeTests
-- .CreateStaticLightGuards
-- MshOperationProfile
+- GlbDocument
+- MshV1Decoder
 - .OpenArchive
 - DynamicEffectSemantics
 - Dynamic MESH Binary Layout
@@ -43,87 +43,87 @@
 - Vehicle
 - Common MSH Base Header
 - MetadataGraphValidationTests
-- .CreateMockHeader
+- ArchiveTests
 - EarthTool.MSH.Assets
-- GlbDocument
+- JsonElement
 - EarthTool.CLI
 - DynamicMeshAssetTests
 - .Create
-- StaticMeshAsset.cs
-- EarthTool.PAR.Factories
+- MshCanonicalSerializer
+- WDExtractorTests
 - IReadOnlyList
 - StaticMeshEditSession
 - InteractableEntity
-- GltfInterchange
+- ParsedGlb
 - ArchiverService
 - .GenerateSampleData
 - GltfWalkingSkeletonTests
 - Static Mesh Header
 - StaticObject Record
-- Equipment
+- EditableEntity
 - StaticAnimationProjection
 - EntityDetailsViewModel
 - ParFile
 - PublicApiApproval
 - IEarthInfo
 - CanonicalMeshAuthoringTests
-- GltfCliReportSerializer
+- GltfPlanAndReport.cs
 - OfficialCorpusQualification
 - IReadOnlyList
-- MetadataEnvelope
+- GltfInterchange
 - Entity
 - EarthTool.MSH.Tests
-- GltfCommandSettings.cs
+- EarthTool.PAR.Factories
 - DialogService
 - EarthTool.PAR
-- DynamicGltfDocument
+- .CreateEffectPreview
 - EarthTool.PAR.Enums
 - DestructibleEntity
-- TreeItemViewModel
-- IArchiver
+- ArchiveInfoViewModel
+- WdSettings.cs
 - EarthTool.PAR.GUI
-- StaticMeshAsset
+- MetadataEnvelope
 - IArchiveItem
 - EarthTool.TEX.GUI
 - EarthTool.WD.GUI
 - Runner
-- TexPreviewLoader
+- PassiveEntity
 - Task
-- MeshAssetLineageId
-- AuthoringValidation
-- JsonElement
+- TreeItemViewModel
+- MshOperationProfile
+- DynamicGltfDocument
 - EarthTool.sln
 - EarthTool.Common.Interfaces
-- EarthTool.TEX
+- EarthTool.Common
 - BinaryExtensions
 - .Create
-- .CreateJson
+- StaticMeshAsset
 - Blender 4.5 glTF round-trip research
-- MshCanonicalSerializer
+- ItemCommand
 - OfficialCorpusQualificationTests
 - EarthTool.Common.GUI
 - IUndoRedoService
 - DynamicEffectExtension
 - ResearchReferenceCollectionEditorViewModel
 - EarthTool WD Archive Manager
-- PublicCutoverAcceptanceTests
+- .WriteReconciledRecord
 - EarthTool.WD.Tests
 - EarthTool.WD Test Suite
 - EarthTool.Common.GUI.Enums
 - QualificationProfiler
 - ViewLocator
-- GltfCliReportOperation
+- .Resolve
 - EarthTool Suite
 - WD Central Directory
 - VerticalTransporter
-- IArchive
+- ArchiverServiceTests
 - EarthTool Documentation
 - EarthTool.Common
 - Entity
 - DestructibleEntity
 - WorkerContext
 - Reader
-- GltfOperationProfile
+- EarthTool.CLI.Commands.WD
 - .Decode
 - GltfCommandExecutor
 - glTF .NET foundation research
@@ -136,65 +136,62 @@
 - NotificationService
 - .ValidateMetadataGraph
 - EarthTool.TEX
-- PassiveEntity
+- MeshAsset
 - .ExportGlbAsync
 - EarthTool.TEX.Tests
 - EarthTool
 - Static Light
 - OfficialCorpusCliOracle
-- PropertyEditorViewModel
-- TexPreview
+- PropertyEditorFactory
+- .LoadPreview
 - Base Header
-- ArchiveItem
+- .CreateMockHeader
 - UnitTest1.cs
 - EarthTool Installation Guide
-- EarthTool.CLI.Commands.MSH
-- GltfInterchange.cs
+- .ResolveAndLoad
+- WdSettings
 - ConvertCommand
 - Dependabot Dependency Automation
 - ConvertCommand
 - Setup .NET Environment
 - Mesh Attachments 1..49
-- OperationDiagnostic
+- IArchiver
 - Code Quality Analysis Job
 - Dynamic Color
 - FlagsPropertyEditorViewModel
-- MeshAsset
-- Task
+- .RoundTripAsync
+- ResolutionBudget
 - package.json
 - CommandTypeRegistrar
-- InterchangeBaseline
+- MappedArchiveDataSource
 - Q: analyze complexity of @EarthTool.TEX/TexReader.cs
 - App
-- MainWindow
+- EarthTool.TEX.GUI/App.axaml.cs
 - CommonCommand
-- .Load
+- AnimationClassBytes
+- TexPreviewLoader
 - validate-glb.mjs
-- EarthTool.GLTF/HostExtensions.cs
-- TexFile
+- InfoCommand
+- .Execute
 - Official MSH Qualification Performance
 - IDialogService
 - InMemoryArchiveDataSourceTests
-- .ValidateOwnedAccessor
+- .Execute
 - EarthTool.CLI.Tests
 - OneTriangleMshFixture
 - GlbDocument.cs
-- .CreateCurrentStaticLightGuards
-- IDisposable
-- IExtractor
+- Program
+- ITextFlagService
 - .ToByteArray
-- ParameterReaderTests
-- GltfAnimationHandle
-- MshDiagnosticCodes
 - EquipableEntity
-- .Create
+- .ImportEditGlbAsync
 
 ## God Nodes (most connected - your core abstractions)
 1. `GltfWalkingSkeletonTests` - 181 edges
 2. `GltfInterchange` - 175 edges
 3. `GlbDocument` - 141 edges
-4. `DynamicGltfDocument` - 117 edges
-5. `DynamicGltfInterchangeTests` - 94 edges
+4. `DynamicGltfDocument` - 121 edges
+5. `DynamicGltfInterchangeTests` - 96 edges
 6. `OperationDiagnostic` - 90 edges
 7. `EarthTool.PAR.Enums` - 90 edges
 8. `OperationResult` - 79 edges
@@ -230,7 +227,7 @@
 - **Spatial Coverage Metadata** — docs_msh_static_bytefield_box_presence_mask, docs_msh_static_bytefield_box_heights, docs_msh_static_bytefield_box_flags, docs_msh_static_bytefield_coverage_descriptors, docs_msh_static_bytefield_coverage_bitmaps [INFERRED 0.85]
 - **StaticObject Variable Record Layout** — docs_msh_static_bytefield_staticobject_record, docs_msh_static_bytefield_object_flags, docs_msh_static_bytefield_texture_path, docs_msh_static_bytefield_triangle_array, docs_msh_static_bytefield_baked_tcbscale_vectors, docs_msh_static_bytefield_baked_translation_vectors, docs_msh_static_bytefield_baked_transform_matrices, docs_msh_static_bytefield_animation_type, docs_msh_static_bytefield_object_pivot, docs_msh_static_bytefield_barrel_angle, docs_msh_static_bytefield_next_record_marker [INFERRED 0.85]
 
-## Communities (181 total, 12 thin omitted)
+## Communities (178 total, 7 thin omitted)
 
 ### Community 0 - "blender-qualification.mjs"
 Cohesion: 0.15
@@ -241,8 +238,8 @@ Cohesion: 0.12
 Nodes (12): Stream, ITransactionalFileSystem, TransactionalFileSystem, CancellationToken, Exception, IEnumerable, ILogger, Stream (+4 more)
 
 ### Community 2 - "AssetResult"
-Cohesion: 0.22
-Nodes (7): AssetResult, DiagnosticKey, AssetResult, KhronosValidatorServer, OperationCounts, ProfileScope, WorkerContext
+Cohesion: 0.26
+Nodes (6): AssetResult, DiagnosticKey, AssetResult, OperationCounts, ProfileScope, WorkerContext
 
 ### Community 3 - "FramedMshBaseHeaderTests"
 Cohesion: 0.06
@@ -256,41 +253,45 @@ Nodes (18): EarthTool.WD.Tests.Services, EarthTool.WD.Services, ILogger, Stream,
 Cohesion: 0.13
 Nodes (14): BufferPath, ConflictKey, Directory, Fact, Guid, InlineData, JsonNode, Task (+6 more)
 
+### Community 6 - "Task"
+Cohesion: 0.12
+Nodes (3): Fact, Task, Action
+
 ### Community 7 - ".ToByteArray"
 Cohesion: 0.07
 Nodes (23): Encoding, IEnumerable, TypelessEntity, Encoding, IEnumerable, Parameter, Encoding, IEnumerable (+15 more)
 
-### Community 8 - ".ResolveAndLoad"
-Cohesion: 0.08
-Nodes (21): CancellationToken, GltfExportOptions, GltfOperationProfile, ICollection, IEnumerable, int, IReadOnlyDictionary, IReadOnlyList (+13 more)
+### Community 8 - ".Load"
+Cohesion: 0.21
+Nodes (9): CancellationToken, GltfExportOptions, GltfOperationProfile, ICollection, IReadOnlyDictionary, IReadOnlyList, Vector3, MshPreviewLoader (+1 more)
 
 ### Community 9 - "IValueConverter"
 Cohesion: 0.07
 Nodes (22): EarthTool.PAR.GUI.Converters, EarthTool.TEX.GUI.Converters, EarthTool.WD.GUI.Converters, CultureInfo, Type, GroupNameToIconConverter, CultureInfo, Type (+14 more)
 
 ### Community 10 - "MainWindowViewModel"
-Cohesion: 0.11
+Cohesion: 0.10
 Nodes (8): bool, ILogger, ObservableCollection, ReactiveCommand, string, Task, Unit, MainWindowViewModel
 
 ### Community 11 - "OperationResult"
-Cohesion: 0.17
-Nodes (10): IReadOnlyList, OperationResult, GltfNewModelImportResult, GltfOperationProfile, CancellationToken, SeparateGltfPackage, Stream, Task (+2 more)
+Cohesion: 0.12
+Nodes (19): IReadOnlyList, OperationResult, GltfDynamicEditImportResult, GltfEditImportOptions, GltfEditImportResult, GltfMeshEditImportResult, GltfMetadataConflictResolution, GltfNewModelImportResult (+11 more)
 
 ### Community 12 - "DynamicGltfInterchangeTests"
 Cohesion: 0.06
-Nodes (35): DynamicAlphaTiming, DynamicEffectType, DynamicMeshAsset, EffectRectangle, IEnumerable, Vector3, CanonicalDynamicAlpha, CanonicalDynamicEffectShape (+27 more)
+Nodes (36): DynamicAlphaTiming, DynamicEffectType, DynamicLightType, DynamicMeshAsset, EffectRectangle, IEnumerable, Vector3, CanonicalDynamicAlpha (+28 more)
 
-### Community 13 - ".CreateStaticLightGuards"
-Cohesion: 0.17
-Nodes (7): BinaryWriter, MemoryStream, Quaternion, Vector3, ProjectedAttachment, ProjectedCannonRenderPosition, ProjectedStaticLight
+### Community 13 - "GlbDocument"
+Cohesion: 0.07
+Nodes (15): Action, BinaryWriter, IDictionary, Matrix4x4, MemoryStream, Quaternion, uint, Utf8JsonWriter (+7 more)
 
-### Community 14 - "MshOperationProfile"
-Cohesion: 0.12
-Nodes (18): MeshAssetOrigin, CancellationToken, Guid, IEnumerable, int, IReadOnlyDictionary, IReadOnlyList, List (+10 more)
+### Community 14 - "MshV1Decoder"
+Cohesion: 0.10
+Nodes (23): DecodedStaticRecord, MeshAssetLineageId, MeshAssetOrigin, CancellationToken, Guid, IEnumerable, int, IReadOnlyDictionary (+15 more)
 
 ### Community 15 - ".OpenArchive"
 Cohesion: 0.16
-Nodes (9): BinaryReader, DateTime, Guid, IEnumerable, ILogger, MemoryMappedFile, ArchiveFactory, Fact (+1 more)
+Nodes (10): ArchiveTestsBase, BinaryReader, DateTime, Guid, IEnumerable, ILogger, MemoryMappedFile, ArchiveFactory (+2 more)
 
 ### Community 16 - "DynamicEffectSemantics"
 Cohesion: 0.17
@@ -313,12 +314,12 @@ Cohesion: 0.07
 Nodes (62): corpusBinaryStages, corpusInterchangeStages, recognizedDynamicEffectTypes, assertPrivacySafe(), buildEvidence(), canonicalDiagnostics(), canonicalValidatorCodes(), collectPrivateNames() (+54 more)
 
 ### Community 21 - "MainWindowViewModel"
-Cohesion: 0.11
-Nodes (11): INotificationService, ITextFlagService, bool, ILogger, object, ObservableCollection, ReactiveCommand, string (+3 more)
+Cohesion: 0.12
+Nodes (11): IEnumerable, INotificationService, bool, ILogger, object, ObservableCollection, ReactiveCommand, string (+3 more)
 
 ### Community 22 - "TreeNodeViewModelBase"
-Cohesion: 0.06
-Nodes (31): EntityClassType, EntityGroupType, Faction, ResearchType, BinaryReader, IEnumerable, EntityFactory, ObservableCollection (+23 more)
+Cohesion: 0.07
+Nodes (26): Encoding, IBinarySerializable, Faction, ResearchType, ObservableCollection, EntityGroupNodeViewModel, ObservableCollection, EntityGroupsRootNodeViewModel (+18 more)
 
 ### Community 23 - "MainWindowViewModel"
 Cohesion: 0.13
@@ -340,17 +341,17 @@ Nodes (23): Model MSH Framing and Record Extensions Explicitly, Canonical Next R
 Cohesion: 0.13
 Nodes (13): Baseline, Action, Bytes, Fact, Func, Guid, ICollection, InlineData (+5 more)
 
-### Community 28 - ".CreateMockHeader"
-Cohesion: 0.16
-Nodes (9): bool, DateTime, IReadOnlyCollection, MemoryMappedFile, Archive, Fact, ArchiveTests, Guid (+1 more)
+### Community 28 - "ArchiveTests"
+Cohesion: 0.14
+Nodes (9): IEarthInfoFactory, bool, DateTime, IReadOnlyCollection, MemoryMappedFile, Archive, Fact, ArchiveTests (+1 more)
 
 ### Community 29 - "EarthTool.MSH.Assets"
-Cohesion: 0.17
-Nodes (15): EarthTool.MSH.Services, EarthTool.MSH.Authoring, EarthTool.MSH.Internal, EarthTool.MSH.Operations, EarthTool.GLTF, EarthTool.Consumer.Tests, EarthTool.MSH.Tests, EarthTool.GLTF.Internal (+7 more)
-
-### Community 30 - "GlbDocument"
 Cohesion: 0.08
-Nodes (11): GltfOperationProfile, IDictionary, JsonDocument, JsonElement, Matrix4x4, ReadOnlySpan, uint, GlbDocument (+3 more)
+Nodes (33): CliResult, EarthTool.MSH.Services, EarthTool.MSH.Authoring, EarthTool.MSH.Internal, EarthTool.MSH.Operations, EarthTool.GLTF, EarthTool.CLI.Commands.MSH, EarthTool.MSH (+25 more)
+
+### Community 30 - "JsonElement"
+Cohesion: 0.10
+Nodes (6): GltfOperationProfile, Guid, JsonDocument, JsonElement, ReadOnlySpan, GltfImportIntent
 
 ### Community 31 - "EarthTool.CLI"
 Cohesion: 0.22
@@ -364,41 +365,41 @@ Nodes (17): Asset, byte, Bytes, CancellationToken, CancellationTokenSource, Fact
 Cohesion: 0.16
 Nodes (9): int, IReadOnlyCollection, IReadOnlyDictionary, Vector3, OmniRecord, SpotRecord, StaticLightMshFixture, OmniRecord (+1 more)
 
-### Community 34 - "StaticMeshAsset.cs"
-Cohesion: 0.14
-Nodes (13): Matrix4x4, Vector3, StaticAnimationClass, StaticAnimationTracks, StaticRenderObject, StaticRenderObjectFlags, CanonicalStaticObjectRole, StaticAnimationReplacement (+5 more)
+### Community 34 - "MshCanonicalSerializer"
+Cohesion: 0.10
+Nodes (20): byte, StaticAnimationClass, StaticRenderObject, CanonicalStaticVertex, StaticAnimationReplacement, StaticRenderObjectAddition, Encoding, IEnumerable (+12 more)
 
-### Community 35 - "EarthTool.PAR.Factories"
-Cohesion: 0.18
-Nodes (7): EarthTool.PAR.Tests.Factories, EarthTool.PAR.Tests.Models, EarthTool.PAR.Factories, Fact, MissileSerializationTests, Fact, WeaponSerializationTests
+### Community 35 - "WDExtractorTests"
+Cohesion: 0.25
+Nodes (9): DateTime, Guid, Fact, string, Task, WDExtractorTests, ILogger, Task (+1 more)
 
 ### Community 36 - "IReadOnlyList"
 Cohesion: 0.11
-Nodes (15): DynamicImageLayout, DynamicMeshLayout, DynamicObjectScope, DynamicRecordSlice, BinaryWriter, IDictionary, IReadOnlyDictionary, IReadOnlyList (+7 more)
+Nodes (16): DynamicAnimationLayout, DynamicAnimationTrack, DynamicImageLayout, DynamicMeshLayout, DynamicObjectScope, BinaryWriter, ICollection, IReadOnlyDictionary (+8 more)
 
 ### Community 37 - "StaticMeshEditSession"
-Cohesion: 0.10
-Nodes (17): SourceObjectId, StaticRenderObjectId, StaticSourceObject, bool, Dictionary, ICollection, IEnumerable, int (+9 more)
+Cohesion: 0.09
+Nodes (18): IEnumerable, SourceObjectId, StaticRenderObjectId, StaticSourceObject, bool, Dictionary, ICollection, IEnumerable (+10 more)
 
 ### Community 38 - "InteractableEntity"
-Cohesion: 0.09
-Nodes (17): BarrelBetaType, ShadowType, TargetType, WeaponFireType, Encoding, IEnumerable, InteractableEntity, Encoding (+9 more)
+Cohesion: 0.05
+Nodes (36): BarrelBetaType, ConnectorType, LookRoundTypeFlags, RepairerCapabilityFlags, ShadowType, TargetType, WeaponFireType, Encoding (+28 more)
 
-### Community 39 - "GltfInterchange"
-Cohesion: 0.10
-Nodes (12): AnimationReplacement, GltfLightHandle, GltfMaterialHandle, GltfNewModelImportOptions, GltfNodeHandle, ICollection, JsonObject, Path (+4 more)
+### Community 39 - "ParsedGlb"
+Cohesion: 0.06
+Nodes (31): Guid, IReadOnlyDictionary, IReadOnlyList, string, GltfAnimationHandle, GltfDiagnosticCodes, GltfExportOptions, GltfLightHandle (+23 more)
 
 ### Community 40 - "ArchiverService"
-Cohesion: 0.07
-Nodes (26): Encoding, DateTime, Guid, IArchiveFactory, Stream, ICompressor, ReadOnlySpan, Stream (+18 more)
+Cohesion: 0.11
+Nodes (13): Stream, ICompressor, ReadOnlySpan, Stream, IDecompressor, PathValidator, Encoding, Encoding (+5 more)
 
 ### Community 41 - ".GenerateSampleData"
-Cohesion: 0.13
-Nodes (7): ArchiveTestsBase, Fact, ArchiveItemTests, Fact, MemoryMappedFile, string, MappedArchiveDataSourceTests
+Cohesion: 0.24
+Nodes (4): Fact, MemoryMappedFile, string, MappedArchiveDataSourceTests
 
 ### Community 42 - "GltfWalkingSkeletonTests"
-Cohesion: 0.10
-Nodes (8): Action, Guid, IReadOnlyList, JsonObject, List, BlenderOutputEvidence, GltfWalkingSkeletonTests, JsonArray
+Cohesion: 0.08
+Nodes (13): BlenderOutputEvidence, Action, Guid, IEnumerable, InlineData, IReadOnlyList, JsonObject, List (+5 more)
 
 ### Community 43 - "Static Mesh Header"
 Cohesion: 0.11
@@ -408,21 +409,21 @@ Nodes (18): Animation Length Encoding, Animation Type, Reverse-indexed Box Flags
 Cohesion: 0.11
 Nodes (18): Baked TCBScale Vectors, Baked Transform Matrices, Baked Translation Vectors, Barrel Angle, End of File, Matrix Count, Next-record Heap Pointer Marker, Object Flags (+10 more)
 
-### Community 45 - "Equipment"
-Cohesion: 0.09
-Nodes (18): LookRoundTypeFlags, RepairerCapabilityFlags, Encoding, IEnumerable, ContainerTransporter, Encoding, IEnumerable, Equipment (+10 more)
+### Community 45 - "EditableEntity"
+Cohesion: 0.11
+Nodes (14): EntityClassType, bool, Dictionary, EditableEntity, bool, Dictionary, EditableResearch, ObservableCollection (+6 more)
 
 ### Community 46 - "StaticAnimationProjection"
-Cohesion: 0.15
-Nodes (13): BinaryWriter, InterchangeBaseline, IReadOnlyList, Matrix4x4, Quaternion, Vector3, AnimationProjectionFingerprint, AnimationProjectionSet (+5 more)
+Cohesion: 0.11
+Nodes (18): AnimationObjectLayout, AnimationReplacement, BinaryWriter, InterchangeBaseline, IReadOnlyList, Matrix4x4, Quaternion, Vector3 (+10 more)
 
 ### Community 47 - "EntityDetailsViewModel"
-Cohesion: 0.07
-Nodes (23): bool, Dictionary, EditableEntity, bool, Dictionary, EditableResearch, Action, bool (+15 more)
+Cohesion: 0.09
+Nodes (21): Action, IEnumerable, IPropertyEditorFactory, Action, bool, IEnumerable, ILogger, ObservableCollection (+13 more)
 
 ### Community 48 - "ParFile"
-Cohesion: 0.08
-Nodes (21): Reader, Writer, FileType, Task, IParFileService, ILogger, Task, ParFileService (+13 more)
+Cohesion: 0.07
+Nodes (23): Reader, Writer, FileType, Task, IParFileService, ILogger, Task, ParFileService (+15 more)
 
 ### Community 49 - "PublicApiApproval"
 Cohesion: 0.13
@@ -430,35 +431,39 @@ Nodes (11): IEnumerable, Type, PublicApiApproval, Fact, Stream, Task, FailingTra
 
 ### Community 50 - "IEarthInfo"
 Cohesion: 0.09
-Nodes (21): FileFlags, ResourceType, Encoding, Guid, Stream, EarthInfoFactory, Guid, IEarthInfo (+13 more)
+Nodes (20): FileFlags, ResourceType, Encoding, Guid, Stream, EarthInfoFactory, Guid, IEarthInfo (+12 more)
 
 ### Community 51 - "CanonicalMeshAuthoringTests"
 Cohesion: 0.07
 Nodes (21): Fact, Guid, int, Task, CanonicalMeshAuthoringTests, CountingByteEnumerable, Fact, IEnumerable (+13 more)
+
+### Community 52 - "GltfPlanAndReport.cs"
+Cohesion: 0.19
+Nodes (10): Guid, int, IReadOnlyList, string, Utf8JsonWriter, GltfCliReport, GltfCliReportFormat, GltfCliReportOperationKind (+2 more)
 
 ### Community 53 - "OfficialCorpusQualification"
 Cohesion: 0.17
 Nodes (10): ContentFingerprint, BinaryWriter, IEnumerable, IReadOnlyList, Vector3, ContentFingerprint, DiagnosticKey, OfficialCorpusQualification (+2 more)
 
 ### Community 54 - "IReadOnlyList"
-Cohesion: 0.15
-Nodes (15): AnimationObjectLayout, PartitionMatch, IReadOnlyList, AnimationLayout, ByteArrayComparer, GeometryPartition, ParsedGltfPrimitive, PartitionLayout (+7 more)
+Cohesion: 0.16
+Nodes (14): PartitionMatch, IReadOnlyList, ByteArrayComparer, GeometryPartition, ParsedGltfMesh, ParsedGltfPrimitive, PartitionLayout, ProjectedPartition (+6 more)
 
-### Community 55 - "MetadataEnvelope"
-Cohesion: 0.09
-Nodes (28): Discarded, IDictionary, IReadOnlyCollection, IReadOnlyDictionary, IReadOnlyList, ISet, List, Matrix4x4 (+20 more)
+### Community 55 - "GltfInterchange"
+Cohesion: 0.05
+Nodes (36): Discarded, IReadOnlyDictionary, DiagnosticSeverity, OperationDiagnostic, Action, BinaryWriter, IDictionary, IEnumerable (+28 more)
 
 ### Community 56 - "Entity"
-Cohesion: 0.09
-Nodes (19): EarthTool.PAR.Models.Serialization, Encoding, IBinarySerializable, List, ValidationResult, IEnumerable, ILogger, EntityValidationService (+11 more)
+Cohesion: 0.10
+Nodes (20): EntityGroupType, BinaryReader, IEnumerable, EntityFactory, List, ValidationResult, IEnumerable, ILogger (+12 more)
 
 ### Community 57 - "EarthTool.MSH.Tests"
 Cohesion: 0.25
 Nodes (8): EarthTool.MSH.Tests, net8.0, AwesomeAssertions, coverlet.collector, Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio, Microsoft.NET.Sdk
 
-### Community 58 - "GltfCommandSettings.cs"
-Cohesion: 0.22
-Nodes (13): AsyncCommand, CancellationToken, CommandContext, Task, ExportGltfCommand, ImportEditGltfCommand, ImportNewGltfCommand, Guid (+5 more)
+### Community 58 - "EarthTool.PAR.Factories"
+Cohesion: 0.18
+Nodes (7): EarthTool.PAR.Tests.Factories, EarthTool.PAR.Tests.Models, EarthTool.PAR.Factories, Fact, MissileSerializationTests, Fact, WeaponSerializationTests
 
 ### Community 59 - "DialogService"
 Cohesion: 0.19
@@ -468,37 +473,37 @@ Nodes (9): Button, MessageBoxResult, MessageBoxType, IEnumerable, ILogger, Task,
 Cohesion: 0.13
 Nodes (15): EarthTool.PAR, netstandard2.1, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Logging.Abstractions, System.Text.Json, Microsoft.NET.Sdk, EarthTool.PAR.Tests, net8.0 (+7 more)
 
-### Community 61 - "DynamicGltfDocument"
-Cohesion: 0.12
-Nodes (16): float, int, Stream, string, uint, Vector2, Vector3, DynamicEditedPreview (+8 more)
+### Community 61 - ".CreateEffectPreview"
+Cohesion: 0.13
+Nodes (12): DynamicEditedPreview, DynamicEffectPreview, ReadOnlySpan, Vector2, Vector3, DynamicAnimationTrack, DynamicEditedPreview, DynamicEffectPreview (+4 more)
 
 ### Community 62 - "EarthTool.PAR.Enums"
-Cohesion: 0.09
-Nodes (7): EarthTool.PAR.Tests.TestDoubles, EarthTool.PAR.Extensions, EarthTool.PAR.Tests.TestData, EarthTool.PAR.Tests.Services, EarthTool.PAR.Enums, EarthTool.PAR.Models.Abstracts, EarthTool.PAR.Models
+Cohesion: 0.11
+Nodes (4): EarthTool.PAR.Extensions, EarthTool.PAR.Enums, EarthTool.PAR.Models.Abstracts, EarthTool.PAR.Models
 
 ### Community 63 - "DestructibleEntity"
 Cohesion: 0.05
 Nodes (28): DamageFlags, ExplosionFlags, HitType, MissileType, RocketType, StandType, StoreableFlags, WasteSize (+20 more)
 
-### Community 64 - "TreeItemViewModel"
-Cohesion: 0.12
-Nodes (11): DateTime, int, long, string, ArchiveInfoViewModel, HashSet, bool, Guid (+3 more)
+### Community 64 - "ArchiveInfoViewModel"
+Cohesion: 0.18
+Nodes (7): DateTime, int, long, string, ArchiveInfoViewModel, ArchiveItemViewModel, ViewModelBase
 
-### Community 65 - "IArchiver"
-Cohesion: 0.06
-Nodes (38): Command, CommandSettings, CommonSettings, CancellationToken, CommandContext, AddCommand, CancellationToken, CommandContext (+30 more)
+### Community 65 - "WdSettings.cs"
+Cohesion: 0.20
+Nodes (8): CancellationToken, CommandContext, List, ExtractCommand, ExtractSettings, WdMultiSettings, extracted, failed
 
 ### Community 66 - "EarthTool.PAR.GUI"
 Cohesion: 0.14
 Nodes (14): EarthTool.PAR.GUI, net8.0, Avalonia, Avalonia.Controls.DataGrid, Avalonia.Desktop, Avalonia.Fonts.Inter, Avalonia.Themes.Fluent, Microsoft.Extensions.Configuration (+6 more)
 
-### Community 67 - "StaticMeshAsset"
-Cohesion: 0.13
-Nodes (20): MetadataConflictException, bool, GltfOperationProfile, IEnumerable, int, InterchangeBaseline, IReadOnlyDictionary, IReadOnlyList (+12 more)
+### Community 67 - "MetadataEnvelope"
+Cohesion: 0.12
+Nodes (22): Projection, Version, MetadataConflictException, MetadataEnvelope, bool, GltfOperationProfile, IEnumerable, int (+14 more)
 
 ### Community 68 - "IArchiveItem"
-Cohesion: 0.24
-Nodes (5): ReadOnlyMemory, IArchiveItem, HashSet, TextFlagService, IComparable
+Cohesion: 0.07
+Nodes (17): Type, CommandTypeResolver, DateTime, Encoding, IReadOnlyCollection, IArchive, DateTime, Guid (+9 more)
 
 ### Community 69 - "EarthTool.TEX.GUI"
 Cohesion: 0.14
@@ -509,40 +514,40 @@ Cohesion: 0.14
 Nodes (14): EarthTool.WD.GUI, net8.0, Avalonia, Avalonia.Controls.DataGrid, Avalonia.Desktop, Avalonia.Fonts.Inter, Avalonia.Themes.Fluent, Microsoft.Extensions.Configuration (+6 more)
 
 ### Community 71 - "Runner"
-Cohesion: 0.16
-Nodes (8): ChannelReader, ChannelWriter, DynamicCoverage, CliOracleResult, Guid, Task, Runner, ValidatorAggregate
+Cohesion: 0.18
+Nodes (7): ChannelReader, ChannelWriter, DynamicCoverage, Guid, Task, Runner, ValidatorAggregate
 
-### Community 72 - "TexPreviewLoader"
-Cohesion: 0.21
-Nodes (6): byte, Exception, PreviewResolutionKind, TexHeader, TexPreviewLoader, TexFlags
+### Community 72 - "PassiveEntity"
+Cohesion: 0.17
+Nodes (9): ArtifactType, PassiveMask, Encoding, IEnumerable, PassiveEntity, Encoding, IEnumerable, Artifact (+1 more)
 
 ### Community 73 - "Task"
 Cohesion: 0.07
 Nodes (27): CliFixture, Action, CancellationToken, IEnumerable, int, IServiceCollection, Task, TextWriter (+19 more)
 
-### Community 74 - "MeshAssetLineageId"
+### Community 74 - "TreeItemViewModel"
+Cohesion: 0.24
+Nodes (5): HashSet, bool, Guid, ObservableCollection, TreeItemViewModel
+
+### Community 75 - "MshOperationProfile"
 Cohesion: 0.11
-Nodes (11): DecodedStaticRecord, Guid, IEnumerable, WalkingSkeletonConsumer, Guid, MeshArchiveFraming, MeshAssetLineageId, MshBuildResult (+3 more)
+Nodes (12): Guid, WalkingSkeletonConsumer, HashSet, IReadOnlyList, List, Vector2, Vector3, AuthoringValidation (+4 more)
 
-### Community 75 - "AuthoringValidation"
-Cohesion: 0.15
-Nodes (5): HashSet, List, Vector2, Vector3, AuthoringValidation
-
-### Community 76 - "JsonElement"
-Cohesion: 0.12
-Nodes (8): DynamicSceneLayout, CancellationToken, InterchangeBaseline, JsonDocument, JsonElement, ReadOnlyMemory, DynamicGltfImport, DynamicMetadataGraphException
+### Community 76 - "DynamicGltfDocument"
+Cohesion: 0.09
+Nodes (23): DynamicSceneLayout, CancellationToken, float, GltfOperationProfile, int, InterchangeBaseline, ISet, JsonDocument (+15 more)
 
 ### Community 77 - "EarthTool.sln"
 Cohesion: 0.11
 Nodes (21): EarthTool.Common, netstandard2.1, Microsoft.Extensions.DependencyInjection.Abstractions, System.Text.Encoding.CodePages, Microsoft.NET.Sdk, EarthTool.Consumer.Tests, net8.0, Microsoft.NET.Sdk (+13 more)
 
 ### Community 78 - "EarthTool.Common.Interfaces"
-Cohesion: 0.04
-Nodes (34): EarthTool.WD.GUI.ViewModels, EarthTool.CLI.Commands.PAR, EarthTool.WD.Tests, EarthTool.Common.Enums, EarthTool.Common.Interfaces, EarthTool.WD.Tests.Factories, EarthTool.PAR, EarthTool.PAR.Services (+26 more)
+Cohesion: 0.05
+Nodes (24): EarthTool.WD.GUI.ViewModels, EarthTool.WD.Tests, EarthTool.Common.Enums, EarthTool.Common.Interfaces, EarthTool.WD.Tests.Factories, EarthTool.WD.GUI, EarthTool.Common.Models, EarthTool.WD (+16 more)
 
-### Community 79 - "EarthTool.TEX"
-Cohesion: 0.13
-Nodes (10): EarthTool.TEX, EarthTool.TEX.Interfaces, EarthTool.CLI.Commands.TEX, IServiceCollection, HostExtensions, IEnumerable, TexHeader, TexImage (+2 more)
+### Community 79 - "EarthTool.Common"
+Cohesion: 0.06
+Nodes (19): EarthTool.PAR.Tests.TestDoubles, EarthTool.TEX, EarthTool.PAR, EarthTool.PAR.Services, EarthTool.PAR.Tests.TestData, EarthTool.Common, EarthTool.CLI, EarthTool.PAR.Tests.Services (+11 more)
 
 ### Community 80 - "BinaryExtensions"
 Cohesion: 0.24
@@ -552,17 +557,17 @@ Nodes (5): BinaryReader, BinaryWriter, Encoding, int, BinaryExtensions
 Cohesion: 0.10
 Nodes (8): AnimationLengths, JsonDocument, JsonElement, IReadOnlyList, Matrix4x4, Vector3, AnimationLengths, StaticAnimationMshFixture
 
-### Community 82 - ".CreateJson"
-Cohesion: 0.12
-Nodes (13): AnimationLayout, Action, IEnumerable, InterchangeBaseline, IReadOnlyDictionary, NativeProjectionFingerprint, Utf8JsonWriter, GltfPackage (+5 more)
+### Community 82 - "StaticMeshAsset"
+Cohesion: 0.17
+Nodes (12): AnimationLayout, IEnumerable, InterchangeBaseline, IReadOnlyDictionary, NativeProjectionFingerprint, GltfPackage, StaticMeshAsset, PartitionLayout (+4 more)
 
 ### Community 83 - "Blender 4.5 glTF round-trip research"
 Cohesion: 0.06
 Nodes (31): Dynamic effect-preview contract, glTF API, Animations, Blender 4.5 glTF round-trip research, Conclusion, Decision consequences for later tickets, Diagnostic asset, EarthTool metadata requirements (+23 more)
 
-### Community 84 - "MshCanonicalSerializer"
-Cohesion: 0.07
-Nodes (26): CanonicalStaticRecord, AnimationClassBytes, IReadOnlyList, CanonicalHorizontalExtents, CanonicalStaticFootprint, CanonicalStaticRenderObject, CanonicalStaticSourceObject, CanonicalStaticVertex (+18 more)
+### Community 84 - "ItemCommand"
+Cohesion: 0.27
+Nodes (6): EarthTool.CLI.Commands.PAR, CancellationToken, CommandContext, IEnumerable, ItemCommand, ItemSettings
 
 ### Community 85 - "OfficialCorpusQualificationTests"
 Cohesion: 0.34
@@ -578,7 +583,7 @@ Nodes (23): Action, DateTime, UndoAction, Action, IEnumerable, IUndoRedoService,
 
 ### Community 88 - "DynamicEffectExtension"
 Cohesion: 0.17
-Nodes (8): IEnumerable, DynamicObjectScope, IReadOnlyList, ReadOnlySpan, CommonMeshBaseHeader, DynamicEffectExtension, DynamicLightType, DynamicObject
+Nodes (8): IEnumerable, DynamicObjectScope, IReadOnlyList, ReadOnlySpan, Vector3, CommonMeshBaseHeader, DynamicEffectExtension, DynamicObject
 
 ### Community 89 - "ResearchReferenceCollectionEditorViewModel"
 Cohesion: 0.20
@@ -588,9 +593,9 @@ Nodes (8): Action, bool, IEnumerable, ObservableCollection, ReactiveCommand, Uni
 Cohesion: 0.20
 Nodes (11): GUI Dependency Injection, MVVM Architecture, Notification-Based Error Handling, Reactive Command Pattern, EarthTool WD Archive Manager, Archive Management Workflow, Automatic Compression and Decompression, In-Memory Archive Modification (+3 more)
 
-### Community 91 - "PublicCutoverAcceptanceTests"
+### Community 91 - ".WriteReconciledRecord"
 Cohesion: 0.22
-Nodes (7): CliResult, Fact, Task, CliResult, PublicCutoverAcceptanceTests, GeneratedRegex, Regex
+Nodes (3): DynamicRecordSlice, IDictionary, Stream
 
 ### Community 92 - "EarthTool.WD.Tests"
 Cohesion: 0.12
@@ -601,24 +606,24 @@ Cohesion: 0.22
 Nodes (10): EarthTool Code Style, Arrange-Act-Assert, Pull Request Quality Gate, Test Coverage Requirements, ArchiveTestsBase, WD Extraction Integration Tests, WD Model Tests, WD Service Tests (+2 more)
 
 ### Community 94 - "EarthTool.Common.GUI.Enums"
-Cohesion: 0.06
-Nodes (24): EarthTool.Common.GUI.Enums, EarthTool.Common.GUI.Services, EarthTool.TEX.GUI, EarthTool.Common.GUI.Interfaces, EarthTool.Common.GUI.ViewModels, EarthTool.TEX.GUI.ViewModels, EarthTool.Common.GUI, EarthTool.Common.GUI.Views (+16 more)
+Cohesion: 0.09
+Nodes (17): EarthTool.Common.GUI.Enums, EarthTool.Common.GUI.Services, EarthTool.Common.GUI.Interfaces, EarthTool.Common.GUI.ViewModels, EarthTool.TEX.GUI.ViewModels, EarthTool.Common.GUI.Views, IServiceCollection, ServiceCollectionExtensions (+9 more)
 
 ### Community 95 - "QualificationProfiler"
-Cohesion: 0.13
-Nodes (14): Dictionary, IDictionary, int, IReadOnlyDictionary, ISet, long, object, string (+6 more)
+Cohesion: 0.12
+Nodes (15): Dictionary, IDictionary, int, IReadOnlyDictionary, ISet, long, object, string (+7 more)
 
 ### Community 96 - "ViewLocator"
-Cohesion: 0.12
-Nodes (9): EarthTool.WD.GUI, Control, ViewLocator, AppBuilder, STAThread, Program, Control, ViewLocator (+1 more)
+Cohesion: 0.10
+Nodes (11): EarthTool.TEX.GUI, Control, ViewLocator, AppBuilder, STAThread, Program, Control, ViewLocator (+3 more)
 
-### Community 97 - "GltfCliReportOperation"
-Cohesion: 0.24
-Nodes (10): Guid, int, IReadOnlyList, string, GltfCliReport, GltfCliReportFormat, GltfCliReportOperation, GltfCliReportOperationKind (+2 more)
+### Community 97 - ".Resolve"
+Cohesion: 0.29
+Nodes (5): Func, IEnumerable, IReadOnlyList, SafeResourceLookup, SafeResourceMatch
 
 ### Community 98 - "EarthTool Suite"
-Cohesion: 0.20
-Nodes (11): EarthTool.DAE, EarthTool Dual Interface, EarthTool Project Goals, EarthTool Project Overview, EarthTool Suite, MSH Model Conversion, TEX Texture Conversion, WD Archive Management (+3 more)
+Cohesion: 0.22
+Nodes (10): EarthTool Dual Interface, EarthTool Project Goals, EarthTool Project Overview, EarthTool Suite, MSH Model Conversion, TEX Texture Conversion, WD Archive Management, MSH Model Export Workflow (+2 more)
 
 ### Community 99 - "WD Central Directory"
 Cohesion: 0.29
@@ -628,17 +633,17 @@ Nodes (10): wd create, WD Central Directory, WD Descriptor Length, EarthInfo Arc
 Cohesion: 0.12
 Nodes (14): ResourceVehicleType, VerticalVehicleAnimationType, Encoding, IEnumerable, VerticalTransporter, Encoding, IEnumerable, BuildingTransporter (+6 more)
 
-### Community 101 - "IArchive"
-Cohesion: 0.16
-Nodes (8): DateTime, IReadOnlyCollection, IArchive, DateTime, Guid, Fact, string, ArchiverServiceTests
+### Community 101 - "ArchiverServiceTests"
+Cohesion: 0.21
+Nodes (5): DateTime, Guid, Fact, string, ArchiverServiceTests
 
 ### Community 102 - "EarthTool Documentation"
 Cohesion: 0.25
 Nodes (9): Dependency Inversion, EarthTool Architecture, Interface Segregation, Layered Modular Architecture, Central Package Management, EarthTool Project Structure, EarthTool Module Dependency Rules, EarthTool Test Project Structure (+1 more)
 
 ### Community 103 - "EarthTool.Common"
-Cohesion: 0.29
-Nodes (8): EarthTool.CLI, EarthTool.Common, EarthTool.MSH, EarthTool.PAR, EarthTool.TEX, EarthTool.WD, EarthTool.WD.GUI, Memory-Mapped Archive Data Source
+Cohesion: 0.25
+Nodes (9): EarthTool.CLI, EarthTool.Common, EarthTool.DAE, EarthTool.MSH, EarthTool.PAR, EarthTool.TEX, EarthTool.WD, EarthTool.WD.GUI (+1 more)
 
 ### Community 104 - "Entity"
 Cohesion: 0.25
@@ -649,24 +654,24 @@ Cohesion: 0.28
 Nodes (9): Capability Stacking Architecture, DestructibleEntity, EquipableEntity, Equipment, InteractableEntity, PassiveEntity, TypedEntity, Vehicle (+1 more)
 
 ### Community 106 - "WorkerContext"
-Cohesion: 0.18
-Nodes (10): List, KhronosValidatorServer, ValidatorResult, WorkerContext, IAsyncDisposable, Process, QualificationProfiler, ValidatorCode (+2 more)
+Cohesion: 0.17
+Nodes (10): List, KhronosValidatorServer, ValidatorResult, WorkerContext, IAsyncDisposable, KhronosValidatorServer, Process, ValidatorCode (+2 more)
 
 ### Community 107 - "Reader"
 Cohesion: 0.32
 Nodes (9): dump(), dump_dynamic_record(), dump_object(), main(), Path, read_base_header(), Reader, rotate_footprint_slot() (+1 more)
 
-### Community 108 - "GltfOperationProfile"
-Cohesion: 0.30
-Nodes (5): DynamicEditedPreview, DynamicEffectPreview, GltfOperationProfile, ReadOnlySpan, DynamicPreviewException
+### Community 108 - "EarthTool.CLI.Commands.WD"
+Cohesion: 0.24
+Nodes (7): Command, EarthTool.CLI.Commands.WD, CancellationToken, CommandContext, ListCommand, WdCommandBase, ListSettings
 
 ### Community 109 - ".Decode"
-Cohesion: 0.18
-Nodes (7): BinaryReader, IEnumerable, int, long, TexResolutionBudget, HasVariants, Preview
+Cohesion: 0.14
+Nodes (9): BinaryReader, IEnumerable, int, long, TexHeader, TexResolutionBudget, TexFlags, HasVariants (+1 more)
 
 ### Community 110 - "GltfCommandExecutor"
-Cohesion: 0.16
-Nodes (12): CancellationToken, Func, IEnumerable, IReadOnlyList, Task, TextWriter, GltfCommandExecutor, OperationStatus (+4 more)
+Cohesion: 0.09
+Nodes (29): AsyncCommand, CancellationToken, Func, IEnumerable, IReadOnlyList, Task, TextWriter, GltfCommandExecutor (+21 more)
 
 ### Community 111 - "glTF .NET foundation research"
 Cohesion: 0.22
@@ -701,16 +706,16 @@ Cohesion: 0.19
 Nodes (7): NotificationType, Exception, NotificationEventArgs, Exception, ILogger, NotificationService, EventArgs
 
 ### Community 119 - ".ValidateMetadataGraph"
-Cohesion: 0.21
+Cohesion: 0.26
 Nodes (5): CarrierKind, ICollection, Path, Value, Envelope
 
 ### Community 120 - "EarthTool.TEX"
 Cohesion: 0.25
 Nodes (8): EarthTool.TEX, netstandard2.1, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Logging.Abstractions, System.Text.Encoding.CodePages, Microsoft.NET.Sdk, SkiaSharp, SkiaSharp.NativeAssets.Linux
 
-### Community 121 - "PassiveEntity"
-Cohesion: 0.17
-Nodes (9): ArtifactType, PassiveMask, Encoding, IEnumerable, PassiveEntity, Encoding, IEnumerable, Artifact (+1 more)
+### Community 121 - "MeshAsset"
+Cohesion: 0.31
+Nodes (4): Action, Func, MeshAsset, MeshAssetKind
 
 ### Community 123 - "EarthTool.TEX.Tests"
 Cohesion: 0.29
@@ -725,24 +730,24 @@ Cohesion: 0.33
 Nodes (6): Active Static Light, Light Attachment, Light Parameters, Spot Heading, Spot Shape Values, Static Light
 
 ### Community 126 - "OfficialCorpusCliOracle"
-Cohesion: 0.18
-Nodes (10): CliProcessResult, CliReportOperation, IReadOnlyList, JsonElement, string, Task, CliBatchOracleResult, CliProcessResult (+2 more)
-
-### Community 127 - "PropertyEditorViewModel"
 Cohesion: 0.14
-Nodes (16): Action, IEnumerable, IPropertyEditorFactory, Action, HashSet, IEnumerable, ILogger, Type (+8 more)
+Nodes (13): CliProcessResult, CliReportOperation, IReadOnlyList, JsonElement, string, Task, CliBatchOracleResult, CliDiagnostic (+5 more)
 
-### Community 128 - "TexPreview"
-Cohesion: 0.33
-Nodes (5): PreviewResolution, TexPreview, PreviewResolution, PreviewResolutionKind, TexResolutionBudget
+### Community 127 - "PropertyEditorFactory"
+Cohesion: 0.27
+Nodes (7): Action, HashSet, IEnumerable, ILogger, Type, PropertyEditorFactory, PropertyInfo
+
+### Community 128 - ".LoadPreview"
+Cohesion: 0.27
+Nodes (5): Exception, PreviewResolution, PreviewResolution, PreviewResolutionKind, TexResolutionBudget
 
 ### Community 129 - "Base Header"
 Cohesion: 0.40
 Nodes (5): Archive Framing, Base Header, Mesh Kind, MSH Domain Language, Trailing Hierarchy Unwind Count
 
-### Community 130 - "ArchiveItem"
-Cohesion: 0.13
-Nodes (13): ReadOnlyMemory, IArchiveDataSource, bool, ReadOnlyMemory, ArchiveItem, int, MemoryMappedFile, ReadOnlyMemory (+5 more)
+### Community 130 - ".CreateMockHeader"
+Cohesion: 0.16
+Nodes (10): ReadOnlyMemory, IArchiveDataSource, bool, ReadOnlyMemory, ArchiveItem, Fact, ReadOnlyMemory, ArchiveItemTests (+2 more)
 
 ### Community 131 - "UnitTest1.cs"
 Cohesion: 0.40
@@ -752,25 +757,25 @@ Nodes (3): EarthTool.TEX.Tests, Fact, UnitTest1
 Cohesion: 0.60
 Nodes (5): Binary Download Installation, Docker Installation, EarthTool Installation Guide, .NET 8 Requirement, Source Build Installation
 
-### Community 133 - "EarthTool.CLI.Commands.MSH"
-Cohesion: 0.25
-Nodes (5): EarthTool.CLI.Commands.MSH, EarthTool.MSH, EarthTool.CLI.Tests, IServiceCollection, HostExtensions
+### Community 133 - ".ResolveAndLoad"
+Cohesion: 0.44
+Nodes (3): Resolution, Resolution, ResolutionBudget
 
-### Community 134 - "GltfInterchange.cs"
-Cohesion: 0.48
-Nodes (6): Exception, AmbiguousPartitionCorrespondenceException, MetadataIdentityException, ResourceLimitException, StaleNativeProjectionException, StaticLightMetadataException
+### Community 134 - "WdSettings"
+Cohesion: 0.25
+Nodes (7): CommandSettings, CommonSettings, CancellationToken, CommandContext, DebugCommand, WdSettings, FlagValue
 
 ### Community 135 - "ConvertCommand"
-Cohesion: 0.10
-Nodes (19): IDictionary, IEnumerable, JsonSerializerOptions, string, Task, ConvertCommand, CancellationToken, CommandContext (+11 more)
+Cohesion: 0.15
+Nodes (14): CommonCommand, IDictionary, IEnumerable, JsonSerializerOptions, string, Task, ConvertCommand, Guid (+6 more)
 
 ### Community 136 - "Dependabot Dependency Automation"
 Cohesion: 0.50
 Nodes (4): Dependabot Dependency Automation, Weekly GitHub Actions Updates, Weekly NuGet Updates, Security Check Job
 
 ### Community 137 - "ConvertCommand"
-Cohesion: 0.23
-Nodes (9): CommonCommand, CommonSettings, IEnumerable, JsonSerializerOptions, SKBitmap, Task, ConvertCommand, Settings (+1 more)
+Cohesion: 0.10
+Nodes (22): CommonSettings, IEnumerable, JsonSerializerOptions, SKBitmap, Task, ConvertCommand, Settings, IReader (+14 more)
 
 ### Community 138 - "Setup .NET Environment"
 Cohesion: 0.67
@@ -780,33 +785,33 @@ Nodes (3): .NET SDK Setup, NuGet Package Cache, Setup .NET Environment
 Cohesion: 0.67
 Nodes (3): Trailing Hierarchy Unwind Count, Mesh Attachments 1..49, Mesh Extents
 
-### Community 140 - "OperationDiagnostic"
-Cohesion: 0.11
-Nodes (6): IReadOnlyDictionary, DiagnosticSeverity, OperationDiagnostic, IEnumerable, ReadOnlySpan, ParseScopeResolution
+### Community 140 - "IArchiver"
+Cohesion: 0.28
+Nodes (5): CancellationToken, CommandContext, RemoveCommand, RemoveSettings, IArchiver
 
 ### Community 143 - "FlagsPropertyEditorViewModel"
 Cohesion: 0.31
 Nodes (4): object, ObservableCollection, Type, FlagsPropertyEditorViewModel
 
-### Community 148 - "MeshAsset"
-Cohesion: 0.15
-Nodes (14): CancellationToken, Stream, Task, Action, byte, Func, MeshAsset, MeshAssetKind (+6 more)
+### Community 148 - ".RoundTripAsync"
+Cohesion: 0.23
+Nodes (9): CancellationToken, Stream, Task, CancellationToken, Stream, Task, IMshReader, IMshValidator (+1 more)
 
-### Community 149 - "Task"
-Cohesion: 0.12
-Nodes (6): BlenderOutputEvidence, IEnumerable, InlineData, Task, Theory, Trait
+### Community 149 - "ResolutionBudget"
+Cohesion: 0.25
+Nodes (4): IEnumerable, int, long, ResolutionBudget
 
 ### Community 150 - "package.json"
 Cohesion: 0.18
 Nodes (10): gltf-validator, devDependencies, gltf-validator, name, private, scripts, qualify:corpus, qualify:release (+2 more)
 
 ### Community 151 - "CommandTypeRegistrar"
-Cohesion: 0.22
+Cohesion: 0.24
 Nodes (6): Func, IHostBuilder, ITypeResolver, Type, CommandTypeRegistrar, ITypeRegistrar
 
-### Community 152 - "InterchangeBaseline"
-Cohesion: 0.08
-Nodes (32): Guid, IReadOnlyDictionary, IReadOnlyList, string, GltfDiagnosticCodes, GltfDynamicEditImportResult, GltfEditImportOptions, GltfEditImportResult (+24 more)
+### Community 152 - "MappedArchiveDataSource"
+Cohesion: 0.29
+Nodes (6): int, MemoryMappedFile, ReadOnlyMemory, MappedArchiveDataSource, Lazy, MemoryMappedViewAccessor
 
 ### Community 153 - "Q: analyze complexity of @EarthTool.TEX/TexReader.cs"
 Cohesion: 0.40
@@ -816,53 +821,53 @@ Nodes (4): Answer, Outcome, Q: analyze complexity of @EarthTool.TEX/TexReader.cs
 Cohesion: 0.13
 Nodes (8): Application, IServiceCollection, App, IServiceCollection, App, IServiceCollection, App, IServiceProvider
 
-### Community 155 - "MainWindow"
-Cohesion: 0.14
-Nodes (9): EarthTool.TEX.GUI.Views, Task, MainWindow, MainWindow, MainWindow, KeyEventArgs, PointerPressedEventArgs, RoutedEventArgs (+1 more)
+### Community 155 - "EarthTool.TEX.GUI/App.axaml.cs"
+Cohesion: 0.12
+Nodes (11): EarthTool.TEX.GUI.Views, EarthTool.Common.GUI, EarthTool.WD.GUI.Views, Task, MainWindow, MainWindow, MainWindow, KeyEventArgs (+3 more)
 
 ### Community 156 - "CommonCommand"
 Cohesion: 0.36
 Nodes (4): CancellationToken, CommandContext, Task, CommonCommand
 
-### Community 159 - ".Load"
-Cohesion: 0.22
-Nodes (8): CancellationToken, GltfExportOptions, GltfOperationProfile, ICollection, IReadOnlyDictionary, IReadOnlyList, DynamicTexPreviewLoadResult, TexPreviewLoadResult
+### Community 158 - "AnimationClassBytes"
+Cohesion: 0.10
+Nodes (14): CanonicalStaticRecord, Guid, AnimationClassBytes, MeshArchiveFraming, StaticRenderObjectFlags, CanonicalHorizontalExtents, CanonicalStaticFootprint, CanonicalStaticObjectRole (+6 more)
+
+### Community 159 - "TexPreviewLoader"
+Cohesion: 0.17
+Nodes (11): byte, CancellationToken, GltfExportOptions, GltfOperationProfile, ICollection, IReadOnlyDictionary, IReadOnlyList, DynamicTexPreviewLoadResult (+3 more)
 
 ### Community 162 - "validate-glb.mjs"
 Cohesion: 0.64
 Nodes (6): hasIssues(), main(), parseOptions(), runServer(), summarizeValidatorReport(), validateFile()
 
-### Community 164 - "TexFile"
-Cohesion: 0.24
-Nodes (8): BinaryReader, IEnumerable, TexFile, TexHeader, BinaryReader, IEnumerable, SKBitmap, TexImage
+### Community 163 - "InfoCommand"
+Cohesion: 0.38
+Nodes (4): CancellationToken, CommandContext, InfoCommand, InfoSettings
+
+### Community 164 - ".Execute"
+Cohesion: 0.40
+Nodes (4): CancellationToken, CommandContext, AddCommand, AddSettings
 
 ### Community 165 - "Official MSH Qualification Performance"
 Cohesion: 0.22
 Nodes (7): Before/After Protocol, Historical Measured Result, Official MSH Qualification Performance, Stage Profiling, Aggregate release qualification, Blender matrix, Official MSH corpus
 
-### Community 166 - "IDialogService"
-Cohesion: 0.24
-Nodes (3): IEnumerable, Task, IDialogService
-
-### Community 168 - ".ValidateOwnedAccessor"
-Cohesion: 0.28
-Nodes (5): ICollection, ISet, End, NativeObjectGraph, Start
+### Community 168 - ".Execute"
+Cohesion: 0.40
+Nodes (4): CancellationToken, CommandContext, CreateCommand, CreateSettings
 
 ### Community 169 - "EarthTool.CLI.Tests"
 Cohesion: 0.25
 Nodes (8): EarthTool.CLI.Tests, net8.0, AwesomeAssertions, coverlet.collector, Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio, Microsoft.NET.Sdk
 
 ### Community 171 - "GlbDocument.cs"
-Cohesion: 0.11
+Cohesion: 0.10
 Nodes (20): ImportPlanException, DynamicMetadataIdentityException, float, int, string, MalformedMetadataException, MetadataAnimationClass, MetadataAnimationProjection (+12 more)
 
-### Community 173 - "IDisposable"
-Cohesion: 0.29
-Nodes (5): Type, CommandTypeResolver, IDisposable, IHost, ITypeResolver
-
-### Community 174 - "IExtractor"
-Cohesion: 0.33
-Nodes (3): Task, IExtractor, IWDExtractor
+### Community 172 - "Program"
+Cohesion: 0.50
+Nodes (3): AppBuilder, STAThread, Program
 
 ### Community 175 - ".ToByteArray"
 Cohesion: 0.47
@@ -870,30 +875,30 @@ Nodes (3): Encoding, Fact, ResearchSerializationTests
 
 ### Community 182 - "EquipableEntity"
 Cohesion: 0.07
-Nodes (19): BuildingExType, BuildingTabType, BuildingType, ConnectorType, CopulaAnimationFlags, MaxShieldUpgradeType, PositionType, ResourceInputOutputFlags (+11 more)
+Nodes (18): BuildingExType, BuildingTabType, BuildingType, CopulaAnimationFlags, MaxShieldUpgradeType, PositionType, ResourceInputOutputFlags, SpaceStationType (+10 more)
 
-### Community 189 - ".Create"
-Cohesion: 0.16
+### Community 189 - ".ImportEditGlbAsync"
+Cohesion: 0.17
 Nodes (6): AttachmentRecord, int, IReadOnlyDictionary, Vector3, AttachmentAndCannonMshFixture, AttachmentRecord
 
 ## Knowledge Gaps
 - **320 isolated node(s):** `net8.0`, `AwesomeAssertions`, `Microsoft.NET.Test.Sdk`, `xunit`, `xunit.runner.visualstudio` (+315 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **12 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **7 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `EarthTool.Common.Enums` connect `EarthTool.Common.Interfaces` to `EarthTool.CLI.Commands.MSH`, `ConvertCommand`, `IValueConverter`, `EarthTool.TEX`, `ParFile`, `IEarthInfo`?**
-  _High betweenness centrality (0.159) - this node is a cross-community bridge._
-- **Why does `CliFixture` connect `Task` to `GltfImportPlanSerializer`, `DynamicGltfInterchangeTests`, `IDisposable`?**
-  _High betweenness centrality (0.127) - this node is a cross-community bridge._
-- **Why does `MainWindowViewModel` connect `MainWindowViewModel` to `IDialogService`, `IDisposable`, `EntityDetailsViewModel`, `ParFile`, `EarthTool.PAR.GUI.ViewModels`, `MainWindowViewModel`, `TreeNodeViewModelBase`, `IUndoRedoService`, `Entity`?**
-  _High betweenness centrality (0.119) - this node is a cross-community bridge._
+- **Why does `EarthTool.Common.Enums` connect `EarthTool.Common.Interfaces` to `IValueConverter`, `EarthTool.Common`, `ParFile`, `IEarthInfo`, `EarthTool.MSH.Assets`?**
+  _High betweenness centrality (0.158) - this node is a cross-community bridge._
+- **Why does `CliFixture` connect `Task` to `GltfImportPlanSerializer`, `DynamicGltfInterchangeTests`, `IArchiveItem`?**
+  _High betweenness centrality (0.132) - this node is a cross-community bridge._
+- **Why does `MainWindowViewModel` connect `MainWindowViewModel` to `IArchiveItem`, `IDialogService`, `EntityDetailsViewModel`, `ParFile`, `EarthTool.PAR.GUI.ViewModels`, `MainWindowViewModel`, `TreeNodeViewModelBase`, `IUndoRedoService`, `Entity`?**
+  _High betweenness centrality (0.123) - this node is a cross-community bridge._
 - **What connects `net8.0`, `AwesomeAssertions`, `Microsoft.NET.Test.Sdk` to the rest of the system?**
   _320 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `.WriteFileAsync` be split into smaller, more focused modules?**
-  _Cohesion score 0.12312312312312312 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.11948790896159317 - nodes in this community are weakly interconnected._
 - **Should `FramedMshBaseHeaderTests` be split into smaller, more focused modules?**
   _Cohesion score 0.06265984654731457 - nodes in this community are weakly interconnected._
 - **Should `.Compress` be split into smaller, more focused modules?**
