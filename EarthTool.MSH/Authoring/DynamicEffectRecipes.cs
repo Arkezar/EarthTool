@@ -1,6 +1,7 @@
 ﻿#nullable enable
 
 using EarthTool.MSH.Assets;
+using EarthTool.MSH.Internal;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -114,31 +115,34 @@ namespace EarthTool.MSH.Authoring
     internal int SpriteSheetColumnCount { get; set; }
     internal int SpriteSheetRowCount { get; set; }
     internal int FramePeriodTicks { get; set; }
-    internal EffectRectangle StartEffectRectangle { get; set; } = DynamicEffectRecipes.DefaultRectangle;
-    internal EffectRectangle EndEffectRectangle { get; set; } = DynamicEffectRecipes.DefaultRectangle;
-    internal float EffectDepthOffset { get; set; } = 0.25f;
-    internal float RibbonHalfWidth { get; set; } = 0.25f;
+    internal EffectRectangle StartEffectRectangle { get; set; }
+    internal EffectRectangle EndEffectRectangle { get; set; }
+    internal float EffectDepthOffset { get; set; }
+    internal float RibbonHalfWidth { get; set; }
     internal bool Additive { get; set; }
     internal Vector3 TerrainLightColor { get; set; }
-    internal Vector3 VisibleEffectColor { get; set; } = Vector3.One;
-    internal float VisibleTerrainLightGain { get; set; } = 1f;
+    internal Vector3 VisibleEffectColor { get; set; }
+    internal float VisibleTerrainLightGain { get; set; }
     internal DynamicAlphaTiming AlphaTiming { get; set; }
-    internal float StartAlpha { get; set; } = 1f;
-    internal float EndAlpha { get; set; } = 1f;
+    internal float StartAlpha { get; set; }
+    internal float EndAlpha { get; set; }
     internal float StartModelScale { get; set; }
     internal float EndModelScale { get; set; }
     internal Vector3 ChildStartTranslation { get; set; }
     internal Vector3 ChildEndTranslation { get; set; }
-    internal string MeshResourceKey { get; set; } = string.Empty;
-    internal string TextureResourceKey { get; set; } = string.Empty;
+    internal string MeshResourceKey { get; set; }
+    internal string TextureResourceKey { get; set; }
+
+    internal CanonicalDynamicRecipe(string meshResourceKey, string textureResourceKey)
+    {
+      MeshResourceKey = meshResourceKey;
+      TextureResourceKey = textureResourceKey;
+    }
   }
 
   /// <summary>Creates coherent canonical dynamic objects for every recognized effect.</summary>
   public static class DynamicEffectRecipes
   {
-    internal static EffectRectangle DefaultRectangle { get; } =
-      new EffectRectangle(-0.25f, 0.25f, 0.25f, -0.25f);
-
     /// <summary>Creates a child-container effect with no own primary geometry or terrain light.</summary>
     public static CanonicalDynamicObject Group(
       IEnumerable<CanonicalDynamicObject>? children = null)
@@ -312,13 +316,11 @@ namespace EarthTool.MSH.Authoring
       bool additive,
       IEnumerable<CanonicalDynamicObject>? children = null)
     {
-      var recipe = new CanonicalDynamicRecipe
-      {
-        EffectType = DynamicEffectType.Sphere,
-        TextureResourceKey = textureResourceKey ?? throw new ArgumentNullException(nameof(textureResourceKey)),
-        VisibleEffectColor = visibleEffectColor,
-        Additive = additive
-      };
+      var recipe = DynamicEffectBehavior.NewRecipe(DynamicEffectType.Sphere);
+      recipe.TextureResourceKey = textureResourceKey
+        ?? throw new ArgumentNullException(nameof(textureResourceKey));
+      recipe.VisibleEffectColor = visibleEffectColor;
+      recipe.Additive = additive;
       return new CanonicalDynamicObject(recipe, children);
     }
 
@@ -388,7 +390,7 @@ namespace EarthTool.MSH.Authoring
       DynamicEffectType effectType,
       IEnumerable<CanonicalDynamicObject>? children)
     {
-      return new CanonicalDynamicObject(new CanonicalDynamicRecipe { EffectType = effectType }, children);
+      return new CanonicalDynamicObject(DynamicEffectBehavior.NewRecipe(effectType), children);
     }
 
     private static CanonicalDynamicObject SpriteShape(
@@ -466,16 +468,15 @@ namespace EarthTool.MSH.Authoring
       CanonicalDynamicAlpha alpha,
       bool additive)
     {
-      return new CanonicalDynamicRecipe
-      {
-        EffectType = effectType,
-        TextureResourceKey = textureResourceKey ?? throw new ArgumentNullException(nameof(textureResourceKey)),
-        VisibleEffectColor = visibleEffectColor,
-        AlphaTiming = alpha.Timing,
-        StartAlpha = alpha.StartAlpha,
-        EndAlpha = alpha.EndAlpha,
-        Additive = additive
-      };
+      var recipe = DynamicEffectBehavior.NewRecipe(effectType);
+      recipe.TextureResourceKey = textureResourceKey
+        ?? throw new ArgumentNullException(nameof(textureResourceKey));
+      recipe.VisibleEffectColor = visibleEffectColor;
+      recipe.AlphaTiming = alpha.Timing;
+      recipe.StartAlpha = alpha.StartAlpha;
+      recipe.EndAlpha = alpha.EndAlpha;
+      recipe.Additive = additive;
+      return recipe;
     }
 
     private static void ApplyFrames(CanonicalDynamicRecipe recipe, CanonicalDynamicFrameSequence frames)

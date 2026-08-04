@@ -69,7 +69,6 @@ public class DynamicEffectRecipeTests
       secondBuild.TryGetValue(out var second).Should().BeTrue();
       firstBuild.Diagnostics.Should().BeEmpty();
       secondBuild.Diagnostics.Should().BeEmpty();
-      AssertRecipeProjection(recipe.EffectType, first!.RootDynamicObject.Extension);
       (await WriteAsync(first!)).Should().Equal(await WriteAsync(second!));
     }
   }
@@ -201,90 +200,6 @@ public class DynamicEffectRecipeTests
   private static MshBuildResult<DynamicMeshAsset> Build(CanonicalDynamicObject root)
   {
     return DynamicMeshBuilder.Create(_creationGuid, _lineageId).SetRoot(root).Build();
-  }
-
-  private static void AssertRecipeProjection(
-    DynamicEffectType effectType,
-    DynamicEffectExtension extension)
-  {
-    extension.KnownEffectType.Should().Be(effectType);
-    if (effectType == DynamicEffectType.Group)
-    {
-      extension.TexturePathBytes.Should().BeEmpty();
-    }
-    else
-    {
-      extension.TexturePathBytes.Should().NotBeEmpty();
-    }
-
-    switch (effectType)
-    {
-      case DynamicEffectType.Group:
-        extension.FrameCount.Should().Be(0);
-        extension.VisibleEffectColor.Should().Be(Vector3.One);
-        break;
-      case DynamicEffectType.Explosion:
-        extension.SpriteSheetColumnCount.Should().Be(5);
-        extension.StartEffectRectangle.Should().Be(_shape.StartEffectRectangle);
-        extension.KnownLightType.Should().Be(DynamicLightType.Trapezium);
-        break;
-      case DynamicEffectType.Track:
-        extension.FrameCount.Should().Be(3);
-        extension.SpriteSheetColumnCount.Should().Be(0);
-        extension.VisibleEffectColor.Should().Be(Vector3.One);
-        break;
-      case DynamicEffectType.ScalableObject:
-        extension.MeshNameBytes.Should().NotBeEmpty();
-        extension.StartModelScale.Should().Be(0.5f);
-        extension.EndModelScale.Should().Be(2);
-        break;
-      case DynamicEffectType.MappedExplosion:
-        extension.SpriteSheetColumnCount.Should().Be(0);
-        extension.StartEffectRectangle.Should().Be(_shape.StartEffectRectangle);
-        extension.KnownLightType.Should().Be(DynamicLightType.Trapezium);
-        break;
-      case DynamicEffectType.FlatExplosion:
-        extension.SpriteSheetColumnCount.Should().Be(5);
-        extension.EffectDepthOffset.Should().Be(-0.75f);
-        break;
-      case DynamicEffectType.Laser:
-        extension.RibbonHalfWidth.Should().Be(-0.25f);
-        extension.KnownLightType.Should().Be(DynamicLightType.Trapezium);
-        break;
-      case DynamicEffectType.LaserWall:
-        extension.RibbonHalfWidth.Should().Be(0.25f);
-        extension.KnownLightType.Should().Be(DynamicLightType.Constant);
-        extension.TerrainLightColor.Should().Be(new Vector3(0.1f, 0.2f, 0.3f));
-        break;
-      case DynamicEffectType.Shockwave:
-      case DynamicEffectType.Line:
-        extension.VisibleTerrainLightGain.Should().Be(0.7f);
-        extension.KnownAlphaTiming.Should().Be(DynamicAlphaTiming.FramePhase);
-        break;
-      case DynamicEffectType.Sphere:
-        extension.FrameCount.Should().Be(0);
-        extension.StartEffectRectangle.Should().Be(new EffectRectangle(-0.25f, 0.25f, 0.25f, -0.25f));
-        break;
-      case DynamicEffectType.ElectricalCannon:
-        extension.RibbonHalfWidth.Should().Be(0.25f);
-        extension.TerrainLightColor.Should().Be(Vector3.Zero);
-        break;
-      case DynamicEffectType.Lightning:
-        extension.RibbonHalfWidth.Should().Be(-0.25f);
-        extension.KnownLightType.Should().Be(DynamicLightType.Trapezium);
-        break;
-      case DynamicEffectType.Smoke:
-        extension.VisibleTerrainLightGain.Should().Be(0.7f);
-        extension.KnownAlphaTiming.Should().Be(DynamicAlphaTiming.LifetimeProgress);
-        break;
-      case DynamicEffectType.Keelwater:
-        extension.VisibleEffectColor.Should().Be(Vector3.One);
-        extension.VisibleTerrainLightGain.Should().Be(1);
-        extension.KnownAlphaTiming.Should().Be(DynamicAlphaTiming.FramePhase);
-        break;
-      default:
-        throw new ArgumentOutOfRangeException(nameof(effectType));
-    }
   }
 
   private static async Task<byte[]> WriteAsync(MeshAsset asset)

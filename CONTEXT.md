@@ -104,6 +104,10 @@ _Avoid_: Unknown effect, recovered Group enum
 A corrected English API name for a known dynamic effect value, such as `ScalableObject`, `Lightning`, or `Keelwater`, independent of historical AOD spellings `ScaleableObject`, `Lighting`, and `Kilwater`. The serialized numeric value remains authoritative.
 _Avoid_: Wire-format spelling
 
+**Dynamic effect behavior**:
+The recognized applicability, canonical defaults, validation rules, and semantic evaluation associated with a known dynamic effect value. It interprets exact serialized representations without replacing their authority. An unrecognized effect value has no primary effect-specific behavior but may still use explicitly selected context-generic attached-particle evaluation.
+_Avoid_: Dynamic extension layout, unknown-effect fallback
+
 **Animation class**:
 One of four frame-selection domains `A`, `B`, `C`, and `D`, serialized as numeric values `0`, `1`, `2`, and `3`. The classes do not have universal movement, action, lift, two-way, or single-playback meanings.
 _Avoid_: Animation type, movement frames, action frames, building frames

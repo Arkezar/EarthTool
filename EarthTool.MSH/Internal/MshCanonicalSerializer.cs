@@ -678,17 +678,6 @@ namespace EarthTool.MSH.Internal
         new AnimationClassBytes(),
         Array.Empty<CanonicalStaticVertex>());
       commonHeader.CopyTo(record, 0);
-
-      WriteRectangle(record, 0x38C);
-      WriteRectangle(record, 0x39C);
-      WriteSingle(record, 0x3AC, 0.25f);
-      WriteSingle(record, 0x3B0, 0.25f);
-      WriteSingle(record, 0x3C8, 1f);
-      WriteSingle(record, 0x3CC, 1f);
-      WriteSingle(record, 0x3D0, 1f);
-      WriteSingle(record, 0x3D4, 1f);
-      WriteSingle(record, 0x3DC, 1f);
-      WriteSingle(record, 0x3E0, 1f);
       return record;
     }
 
@@ -1105,14 +1094,6 @@ namespace EarthTool.MSH.Internal
         Bytes = bytes;
         SourceObjectId = sourceObjectId;
       }
-    }
-
-    private static void WriteRectangle(byte[] data, int offset)
-    {
-      WriteSingle(data, offset, -0.25f);
-      WriteSingle(data, offset + 4, 0.25f);
-      WriteSingle(data, offset + 8, 0.25f);
-      WriteSingle(data, offset + 12, -0.25f);
     }
 
     private static void WriteRectangle(byte[] data, int offset, EffectRectangle rectangle)

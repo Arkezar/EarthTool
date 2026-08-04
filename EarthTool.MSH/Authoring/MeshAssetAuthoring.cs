@@ -1774,9 +1774,12 @@ namespace EarthTool.MSH.Authoring
           "A reused draft instance will be serialized as an independent dynamic object."));
       }
 
-      if (!Enum.IsDefined(typeof(DynamicEffectType), current.EffectType))
+      var behaviorFailure = DynamicEffectBehavior.ValidateAuthoring(
+        current.Recipe,
+        depth == 1 ? DynamicObjectPlacement.Root : DynamicObjectPlacement.Child);
+      if (behaviorFailure?.Field == DynamicBehaviorField.EffectType)
       {
-        return Invalid(path + ".EffectType", "Canonical authoring requires a recognized dynamic effect.");
+        return behaviorFailure.At(path);
       }
 
       if (depth > profile.MaxDynamicDepth)
@@ -1798,7 +1801,12 @@ namespace EarthTool.MSH.Authoring
           path + ".Children");
       }
 
-      var recipeFailure = ValidateDynamicRecipe(current, path, depth == 1, profile, ref stringBytes);
+      var recipeFailure = ValidateDynamicRecipe(
+        current,
+        path,
+        profile,
+        behaviorFailure,
+        ref stringBytes);
       if (recipeFailure is not null)
       {
         return recipeFailure;
@@ -1829,102 +1837,14 @@ namespace EarthTool.MSH.Authoring
     private static OperationDiagnostic? ValidateDynamicRecipe(
       CanonicalDynamicObject current,
       string path,
-      bool isRoot,
       MshOperationProfile profile,
+      DynamicBehaviorFinding? behaviorFailure,
       ref int stringBytes)
     {
       var recipe = current.Recipe;
-      if (!Enum.IsDefined(typeof(DynamicLightType), recipe.LightType))
+      if (behaviorFailure is not null)
       {
-        return Invalid(path + ".Extension.LightType", "Canonical authoring requires a recognized light type.");
-      }
-
-      if (!Enum.IsDefined(typeof(DynamicAlphaTiming), recipe.AlphaTiming))
-      {
-        return Invalid(path + ".Extension.AlphaTimingMode", "Canonical authoring requires a recognized alpha timing mode.");
-      }
-
-      if (!IsFinite(recipe.StartEffectRectangle) || !IsFinite(recipe.EndEffectRectangle)
-        || !IsFinite(recipe.EffectDepthOffset)
-        || !IsFinite(recipe.RibbonHalfWidth)
-        || !IsFinite(recipe.TerrainLightColor)
-        || !IsFinite(recipe.VisibleEffectColor)
-        || !IsFinite(recipe.VisibleTerrainLightGain)
-        || !IsFinite(recipe.StartAlpha)
-        || !IsFinite(recipe.EndAlpha)
-        || !IsFinite(recipe.StartModelScale)
-        || !IsFinite(recipe.EndModelScale)
-        || !IsFinite(recipe.ChildStartTranslation)
-        || !IsFinite(recipe.ChildEndTranslation))
-      {
-        return Invalid(path + ".Extension", "Canonical dynamic numeric inputs must be finite.");
-      }
-
-      if (isRoot && (recipe.ChildStartTranslation != Vector3.Zero
-        || recipe.ChildEndTranslation != Vector3.Zero))
-      {
-        return Invalid(path + ".Extension.ChildTranslation",
-          "A canonical root dynamic object cannot apply its own child translation.");
-      }
-
-      var usesFrames = recipe.EffectType is not DynamicEffectType.Group and not DynamicEffectType.Sphere;
-      if (usesFrames
-        && (recipe.FirstSourceFrame < 0 || recipe.FrameCount <= 0 || recipe.FramePeriodTicks < 0))
-      {
-        return Invalid(path + ".Extension.Frames", "Canonical frame values are outside the supported domain.");
-      }
-
-      var usesSpriteSheet = recipe.EffectType is DynamicEffectType.Explosion
-        or DynamicEffectType.FlatExplosion
-        or DynamicEffectType.Laser
-        or DynamicEffectType.LaserWall
-        or DynamicEffectType.Shockwave
-        or DynamicEffectType.Line
-        or DynamicEffectType.ElectricalCannon
-        or DynamicEffectType.Lightning
-        or DynamicEffectType.Smoke
-        or DynamicEffectType.Keelwater;
-      if (usesSpriteSheet)
-      {
-        if (recipe.SpriteSheetColumnCount <= 0 || recipe.SpriteSheetRowCount <= 0)
-        {
-          return Invalid(path + ".Extension.SpriteSheet", "Canonical sprite-sheet dimensions must be positive.");
-        }
-
-        try
-        {
-          if (checked(recipe.FirstSourceFrame + recipe.FrameCount)
-            > checked(recipe.SpriteSheetColumnCount * recipe.SpriteSheetRowCount))
-          {
-            return Invalid(path + ".Extension.SpriteSheet", "Canonical frames must fit in the sprite sheet.");
-          }
-        }
-        catch (OverflowException)
-        {
-          return Invalid(path + ".Extension.SpriteSheet", "Canonical sprite-sheet bounds overflow.");
-        }
-      }
-
-      if ((recipe.EffectType is DynamicEffectType.Laser
-          or DynamicEffectType.LaserWall
-          or DynamicEffectType.ElectricalCannon
-          or DynamicEffectType.Lightning)
-        && recipe.RibbonHalfWidth == 0)
-      {
-        return Invalid(path + ".Extension.RibbonHalfWidth",
-          "Canonical ribbon half-width must be nonzero and retains its sign.");
-      }
-
-      if (recipe.EffectType == DynamicEffectType.ScalableObject
-        && string.IsNullOrEmpty(recipe.MeshResourceKey))
-      {
-        return Invalid(path + ".Extension.MeshNameBytes", "ScalableObject requires a mesh resource key.");
-      }
-
-      if (recipe.EffectType != DynamicEffectType.Group
-        && string.IsNullOrEmpty(recipe.TextureResourceKey))
-      {
-        return Invalid(path + ".Extension.TexturePathBytes", "The selected effect requires a texture resource key.");
+        return behaviorFailure.At(path);
       }
 
       if (!string.IsNullOrEmpty(recipe.TextureResourceKey)
@@ -1977,14 +1897,6 @@ namespace EarthTool.MSH.Authoring
           && !segment.EndsWith(".", StringComparison.Ordinal));
     }
 
-    private static bool IsFinite(EffectRectangle value)
-    {
-      return IsFinite(value.X0)
-        && IsFinite(value.Y1)
-        && IsFinite(value.X1)
-        && IsFinite(value.Y0);
-    }
-
     private static OperationDiagnostic ResourceLimit(long actual, int maximum, string path)
     {
       return CreateResourceLimit(
@@ -2011,17 +1923,6 @@ namespace EarthTool.MSH.Authoring
           ["actual"] = actual.ToString(System.Globalization.CultureInfo.InvariantCulture),
           ["maximum"] = maximum.ToString(System.Globalization.CultureInfo.InvariantCulture)
         });
-    }
-
-    private static OperationDiagnostic Unsupported(string domain)
-    {
-      return new OperationDiagnostic(
-        MshDiagnosticCodes.UnsupportedDomain,
-        1005,
-        DiagnosticSeverity.Error,
-        "StaticRenderObject",
-        "The requested geometry is outside the current safe MSH slice.",
-        data: new Dictionary<string, string> { ["domain"] = domain });
     }
 
     private static bool IsFinite(Vector3 value)

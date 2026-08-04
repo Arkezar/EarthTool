@@ -1,5 +1,6 @@
 ﻿#nullable enable
 
+using EarthTool.MSH.Internal;
 using System;
 using System.Numerics;
 
@@ -136,66 +137,12 @@ namespace EarthTool.MSH.Assets
       out DynamicFrameSelection selection,
       out DynamicSemanticFailure failure)
     {
-      if (extension is null)
-      {
-        throw new ArgumentNullException(nameof(extension));
-      }
-
-      selection = default;
-      if (!UsesOrdinaryFrames(extension.KnownEffectType, context))
-      {
-        failure = DynamicSemanticFailure.InapplicableEffect;
-        return false;
-      }
-
-      if (totalLifetimeTicks <= 0)
-      {
-        failure = DynamicSemanticFailure.InvalidLifetime;
-        return false;
-      }
-
-      if (extension.FirstSourceFrame < 0
-        || extension.FrameCount <= 0
-        || extension.FramePeriodTicks < 0)
-      {
-        failure = DynamicSemanticFailure.InvalidFrameDeclaration;
-        return false;
-      }
-
-      try
-      {
-        var elapsed = unchecked(totalLifetimeTicks - remainingLifetimeTicks);
-        if (elapsed == 0)
-        {
-          elapsed = 1;
-        }
-
-        int frameIndex;
-        float phase;
-        if (extension.FramePeriodTicks == 0)
-        {
-          frameIndex = unchecked(extension.FrameCount * elapsed) / totalLifetimeTicks;
-          phase = (float)elapsed / totalLifetimeTicks;
-        }
-        else
-        {
-          frameIndex = (int)((globalTick / (uint)extension.FramePeriodTicks)
-            % (uint)extension.FrameCount);
-          phase = (float)frameIndex / extension.FrameCount;
-        }
-
-        selection = new DynamicFrameSelection(
-          unchecked(extension.FirstSourceFrame + frameIndex),
-          frameIndex,
-          phase);
-        failure = DynamicSemanticFailure.None;
-        return true;
-      }
-      catch (OverflowException)
-      {
-        failure = DynamicSemanticFailure.ArithmeticOverflow;
-        return false;
-      }
+      return DynamicEffectBehavior.Evaluate(extension, context).TrySelectFrame(
+        totalLifetimeTicks,
+        remainingLifetimeTicks,
+        globalTick,
+        out selection,
+        out failure);
     }
 
     /// <summary>Selects one texture region from an explicit texture scale.</summary>
@@ -207,55 +154,11 @@ namespace EarthTool.MSH.Assets
       out DynamicTextureRegion region,
       out DynamicSemanticFailure failure)
     {
-      if (extension is null)
-      {
-        throw new ArgumentNullException(nameof(extension));
-      }
-
-      region = default;
-      if (!UsesOrdinaryFrames(extension.KnownEffectType, context))
-      {
-        failure = DynamicSemanticFailure.InapplicableEffect;
-        return false;
-      }
-
-      if (extension.SpriteSheetColumnCount <= 0)
-      {
-        failure = DynamicSemanticFailure.InvalidSpriteSheet;
-        return false;
-      }
-
-      if (!IsFinite(textureScale)
-        || !IsFinite(extension.ReciprocalColumnCount)
-        || !IsFinite(extension.ReciprocalRowCount))
-      {
-        failure = DynamicSemanticFailure.NonFiniteInput;
-        return false;
-      }
-
-      var row = frame.SourceFrame / extension.SpriteSheetColumnCount;
-      var column = frame.SourceFrame % extension.SpriteSheetColumnCount;
-      var du = textureScale * extension.ReciprocalColumnCount;
-      var dv = textureScale * extension.ReciprocalRowCount;
-      var u0 = column * du;
-      var v0 = row * dv;
-      if (!IsFinite(du) || !IsFinite(dv) || !IsFinite(u0) || !IsFinite(v0))
-      {
-        failure = DynamicSemanticFailure.NonFiniteInput;
-        return false;
-      }
-
-      var u1 = u0 + du;
-      var v1 = v0 + dv;
-      if (!IsFinite(u1) || !IsFinite(v1))
-      {
-        failure = DynamicSemanticFailure.NonFiniteInput;
-        return false;
-      }
-
-      region = new DynamicTextureRegion(row, column, u0, v0, u1, v1);
-      failure = DynamicSemanticFailure.None;
-      return true;
+      return DynamicEffectBehavior.Evaluate(extension, context).TrySelectTextureRegion(
+        frame,
+        textureScale,
+        out region,
+        out failure);
     }
 
     /// <summary>Interpolates all rectangle lanes from an explicit selected phase.</summary>
@@ -266,37 +169,10 @@ namespace EarthTool.MSH.Assets
       out EffectRectangle rectangle,
       out DynamicSemanticFailure failure)
     {
-      if (extension is null)
-      {
-        throw new ArgumentNullException(nameof(extension));
-      }
-
-      rectangle = default;
-      if (!UsesRectangle(extension.KnownEffectType, context))
-      {
-        failure = DynamicSemanticFailure.InapplicableEffect;
-        return false;
-      }
-
-      if (!IsFinite(phase)
-        || !IsFinite(extension.StartEffectRectangle)
-        || !IsFinite(extension.EndEffectRectangle))
-      {
-        failure = DynamicSemanticFailure.NonFiniteInput;
-        return false;
-      }
-
-      var start = extension.StartEffectRectangle;
-      var end = extension.EndEffectRectangle;
-      rectangle = new EffectRectangle(
-        Lerp(start.X0, end.X0, phase),
-        Lerp(start.Y1, end.Y1, phase),
-        Lerp(start.X1, end.X1, phase),
-        Lerp(start.Y0, end.Y0, phase));
-      failure = IsFinite(rectangle)
-        ? DynamicSemanticFailure.None
-        : DynamicSemanticFailure.NonFiniteInput;
-      return failure == DynamicSemanticFailure.None;
+      return DynamicEffectBehavior.Evaluate(extension, context).TryInterpolateEffectRectangle(
+        phase,
+        out rectangle,
+        out failure);
     }
 
     /// <summary>Interpolates alpha from explicit selected-frame and lifetime phases.</summary>
@@ -308,32 +184,11 @@ namespace EarthTool.MSH.Assets
       out float alpha,
       out DynamicSemanticFailure failure)
     {
-      if (extension is null)
-      {
-        throw new ArgumentNullException(nameof(extension));
-      }
-
-      alpha = default;
-      if (!UsesAlpha(extension.KnownEffectType, context))
-      {
-        failure = DynamicSemanticFailure.InapplicableEffect;
-        return false;
-      }
-
-      var phase = context == DynamicEffectEvaluationContext.AttachedParticle
-        ? framePhase
-        : extension.UsesLifetimeProgressAlpha
-          ? lifetimeProgress
-          : framePhase;
-      if (!IsFinite(phase) || !IsFinite(extension.StartAlpha) || !IsFinite(extension.EndAlpha))
-      {
-        failure = DynamicSemanticFailure.NonFiniteInput;
-        return false;
-      }
-
-      alpha = Lerp(extension.StartAlpha, extension.EndAlpha, phase);
-      failure = IsFinite(alpha) ? DynamicSemanticFailure.None : DynamicSemanticFailure.NonFiniteInput;
-      return failure == DynamicSemanticFailure.None;
+      return DynamicEffectBehavior.Evaluate(extension, context).TryInterpolateAlpha(
+        framePhase,
+        lifetimeProgress,
+        out alpha,
+        out failure);
     }
 
     /// <summary>Interpolates model scale from an explicit selected phase.</summary>
@@ -343,29 +198,8 @@ namespace EarthTool.MSH.Assets
       out float modelScale,
       out DynamicSemanticFailure failure)
     {
-      if (extension is null)
-      {
-        throw new ArgumentNullException(nameof(extension));
-      }
-
-      modelScale = default;
-      if (extension.KnownEffectType != DynamicEffectType.ScalableObject)
-      {
-        failure = DynamicSemanticFailure.InapplicableEffect;
-        return false;
-      }
-
-      if (!IsFinite(phase)
-        || !IsFinite(extension.StartModelScale)
-        || !IsFinite(extension.EndModelScale))
-      {
-        failure = DynamicSemanticFailure.NonFiniteInput;
-        return false;
-      }
-
-      modelScale = Lerp(extension.StartModelScale, extension.EndModelScale, phase);
-      failure = IsFinite(modelScale) ? DynamicSemanticFailure.None : DynamicSemanticFailure.NonFiniteInput;
-      return failure == DynamicSemanticFailure.None;
+      return DynamicEffectBehavior.Evaluate(extension, DynamicEffectEvaluationContext.Primary)
+        .TryInterpolateModelScale(phase, out modelScale, out failure);
     }
 
     /// <summary>Interpolates child translation from the explicit parent phase.</summary>
@@ -375,24 +209,8 @@ namespace EarthTool.MSH.Assets
       out Vector3 translation,
       out DynamicSemanticFailure failure)
     {
-      if (extension is null)
-      {
-        throw new ArgumentNullException(nameof(extension));
-      }
-
-      translation = default;
-      if (!IsFinite(parentPhase)
-        || !IsFinite(extension.ChildStartTranslation)
-        || !IsFinite(extension.ChildEndTranslation))
-      {
-        failure = DynamicSemanticFailure.NonFiniteInput;
-        return false;
-      }
-
-      translation = extension.ChildStartTranslation * (1 - parentPhase)
-        + extension.ChildEndTranslation * parentPhase;
-      failure = IsFinite(translation) ? DynamicSemanticFailure.None : DynamicSemanticFailure.NonFiniteInput;
-      return failure == DynamicSemanticFailure.None;
+      return DynamicEffectBehavior.Evaluate(extension, DynamicEffectEvaluationContext.Primary)
+        .TryInterpolateChildTranslation(parentPhase, out translation, out failure);
     }
 
     /// <summary>Evaluates visible effect RGB from explicit sampled light and backend scale.</summary>
@@ -404,38 +222,11 @@ namespace EarthTool.MSH.Assets
       out Vector3 color,
       out DynamicSemanticFailure failure)
     {
-      if (extension is null)
-      {
-        throw new ArgumentNullException(nameof(extension));
-      }
-
-      color = default;
-      if (!UsesVisibleLightModulation(extension.KnownEffectType, context))
-      {
-        failure = DynamicSemanticFailure.InapplicableEffect;
-        return false;
-      }
-
-      if (!IsFinite(sampledTerrainLightColor)
-        || !IsFinite(outputColorScale)
-        || !IsFinite(extension.VisibleEffectColor)
-        || !IsFinite(extension.VisibleTerrainLightGain))
-      {
-        failure = DynamicSemanticFailure.NonFiniteInput;
-        return false;
-      }
-
-      var scaledLight = sampledTerrainLightColor * extension.VisibleTerrainLightGain;
-      if (!IsFinite(scaledLight))
-      {
-        failure = DynamicSemanticFailure.NonFiniteInput;
-        return false;
-      }
-
-      var light = Vector3.Min(Vector3.One, scaledLight);
-      color = extension.VisibleEffectColor * light * outputColorScale;
-      failure = IsFinite(color) ? DynamicSemanticFailure.None : DynamicSemanticFailure.NonFiniteInput;
-      return failure == DynamicSemanticFailure.None;
+      return DynamicEffectBehavior.Evaluate(extension, context).TryEvaluateVisibleEffectColor(
+        sampledTerrainLightColor,
+        outputColorScale,
+        out color,
+        out failure);
     }
 
     /// <summary>Evaluates a known terrain-light mode from explicit timing and randomness inputs.</summary>
@@ -448,8 +239,14 @@ namespace EarthTool.MSH.Assets
       out float intensity,
       out DynamicSemanticFailure failure)
     {
-      return TryEvaluateTerrainLightIntensity((uint)lightType, elapsedTicks, remainingTicks,
-        durationTicks, runtimeRandomSample, out intensity, out failure);
+      return DynamicEffectBehavior.TryEvaluateTerrainLightIntensity(
+        (uint)lightType,
+        elapsedTicks,
+        remainingTicks,
+        durationTicks,
+        runtimeRandomSample,
+        out intensity,
+        out failure);
     }
 
     /// <summary>Evaluates an exact terrain-light value; unknown values use confirmed constant behavior.</summary>
@@ -462,38 +259,14 @@ namespace EarthTool.MSH.Assets
       out float intensity,
       out DynamicSemanticFailure failure)
     {
-      intensity = default;
-      if (durationTicks <= 0 || elapsedTicks < 0 || remainingTicks < 0)
-      {
-        failure = DynamicSemanticFailure.InvalidLifetime;
-        return false;
-      }
-
-      var minimum = Math.Min(elapsedTicks, remainingTicks);
-      switch (lightType)
-      {
-        case (uint)DynamicLightType.Pyramid:
-          intensity = Math.Min(durationTicks, 2L * minimum) / (float)durationTicks;
-          break;
-        case (uint)DynamicLightType.Trapezium:
-          intensity = Math.Min(durationTicks, 3L * minimum) / (float)durationTicks;
-          break;
-        case (uint)DynamicLightType.Random:
-          if (!runtimeRandomSample.HasValue)
-          {
-            failure = DynamicSemanticFailure.RandomSampleRequired;
-            return false;
-          }
-
-          intensity = 0.8f + ((runtimeRandomSample.Value % 4000) * 0.0001f);
-          break;
-        default:
-          intensity = 1f;
-          break;
-      }
-
-      failure = DynamicSemanticFailure.None;
-      return true;
+      return DynamicEffectBehavior.TryEvaluateTerrainLightIntensity(
+        lightType,
+        elapsedTicks,
+        remainingTicks,
+        durationTicks,
+        runtimeRandomSample,
+        out intensity,
+        out failure);
     }
 
     /// <summary>Selects the built-in Sphere frame from explicit lifetime input.</summary>
@@ -503,100 +276,11 @@ namespace EarthTool.MSH.Assets
       out int sourceFrame,
       out DynamicSemanticFailure failure)
     {
-      sourceFrame = default;
-      if (totalLifetimeTicks <= 0)
-      {
-        failure = DynamicSemanticFailure.InvalidLifetime;
-        return false;
-      }
-
-      try
-      {
-        sourceFrame = unchecked((totalLifetimeTicks - remainingLifetimeTicks) << 4)
-          / totalLifetimeTicks;
-        if (sourceFrame > 15)
-        {
-          sourceFrame = 15;
-        }
-
-        failure = DynamicSemanticFailure.None;
-        return true;
-      }
-      catch (OverflowException)
-      {
-        failure = DynamicSemanticFailure.ArithmeticOverflow;
-        return false;
-      }
-    }
-
-    private static float Lerp(float start, float end, float phase)
-    {
-      return start * (1 - phase) + end * phase;
-    }
-
-    private static bool UsesOrdinaryFrames(
-      DynamicEffectType? effectType,
-      DynamicEffectEvaluationContext context)
-    {
-      if (context == DynamicEffectEvaluationContext.AttachedParticle)
-      {
-        return true;
-      }
-
-      return effectType is DynamicEffectType.Explosion
-        or DynamicEffectType.Track
-        or DynamicEffectType.ScalableObject
-        or DynamicEffectType.MappedExplosion
-        or DynamicEffectType.FlatExplosion
-        or DynamicEffectType.Laser
-        or DynamicEffectType.LaserWall
-        or DynamicEffectType.ElectricalCannon
-        or DynamicEffectType.Lightning
-        or DynamicEffectType.Smoke;
-    }
-
-    private static bool UsesRectangle(
-      DynamicEffectType? effectType,
-      DynamicEffectEvaluationContext context)
-    {
-      return context == DynamicEffectEvaluationContext.AttachedParticle
-        || effectType is DynamicEffectType.Explosion
-          or DynamicEffectType.Track
-          or DynamicEffectType.MappedExplosion
-          or DynamicEffectType.FlatExplosion
-          or DynamicEffectType.Smoke;
-    }
-
-    private static bool UsesAlpha(
-      DynamicEffectType? effectType,
-      DynamicEffectEvaluationContext context)
-    {
-      return context == DynamicEffectEvaluationContext.AttachedParticle
-        || UsesOrdinaryFrames(effectType, context);
-    }
-
-    private static bool UsesVisibleLightModulation(
-      DynamicEffectType? effectType,
-      DynamicEffectEvaluationContext context)
-    {
-      return effectType == DynamicEffectType.Smoke
-        || (context == DynamicEffectEvaluationContext.AttachedParticle
-          && effectType != DynamicEffectType.Keelwater);
-    }
-
-    private static bool IsFinite(float value)
-    {
-      return !float.IsNaN(value) && !float.IsInfinity(value);
-    }
-
-    private static bool IsFinite(Vector3 value)
-    {
-      return IsFinite(value.X) && IsFinite(value.Y) && IsFinite(value.Z);
-    }
-
-    private static bool IsFinite(EffectRectangle value)
-    {
-      return IsFinite(value.X0) && IsFinite(value.Y1) && IsFinite(value.X1) && IsFinite(value.Y0);
+      return DynamicEffectBehavior.TrySelectSphereFrame(
+        totalLifetimeTicks,
+        remainingLifetimeTicks,
+        out sourceFrame,
+        out failure);
     }
   }
 }
