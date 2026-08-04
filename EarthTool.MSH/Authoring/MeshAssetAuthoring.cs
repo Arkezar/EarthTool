@@ -677,6 +677,7 @@ namespace EarthTool.MSH.Authoring
     private int? _nextSourceObjectLocalId;
     private AnimationClassBytes? _replacementAnimationLengths;
     private AnimationClassBytes? _replacementAnimationFrameIndices;
+    private CanonicalHorizontalExtents? _replacementHorizontalExtents;
 
     internal StaticMeshEditSession(StaticMeshAsset source)
     {
@@ -847,6 +848,14 @@ namespace EarthTool.MSH.Authoring
     {
       EnsureOpen();
       _replacementAnimationFrameIndices = animationFrameIndices;
+      return this;
+    }
+
+    internal StaticMeshEditSession ReplaceHorizontalExtents(CanonicalHorizontalExtents horizontalExtents)
+    {
+      EnsureOpen();
+      _replacementHorizontalExtents = horizontalExtents
+        ?? throw new ArgumentNullException(nameof(horizontalExtents));
       return this;
     }
 
@@ -1075,6 +1084,7 @@ namespace EarthTool.MSH.Authoring
         && _replacementStaticOmniLights.Count == 0
         && !_replacementAnimationLengths.HasValue
         && !_replacementAnimationFrameIndices.HasValue
+        && _replacementHorizontalExtents is null
         && _removedRenderObjects.Count == 0
         && _additions.Count == 0
         && _editedRootSourceObject is null
@@ -1101,7 +1111,8 @@ namespace EarthTool.MSH.Authoring
           _replacementAttachmentRecords,
           _replacementCannonRenderPositions,
           _replacementStaticSpotLights,
-          _replacementStaticOmniLights);
+          _replacementStaticOmniLights,
+          _replacementHorizontalExtents);
       if (bytes.Length > profile.MaxOutputBytes)
       {
         return new MshEditResult<StaticMeshAsset>(
@@ -1166,6 +1177,11 @@ namespace EarthTool.MSH.Authoring
       {
         changes.Add(Change("CommonBaseHeader.AnimationFrameIndices",
           PreservationDisposition.Regenerated, "AnimationEdit"));
+      }
+      if (_replacementHorizontalExtents is not null)
+      {
+        changes.Add(Change("CommonBaseHeader.HorizontalExtents",
+          PreservationDisposition.Regenerated, "EffectivePositionEdit"));
       }
       foreach (var physicalNumber in _replacementAttachmentRecords.Keys.OrderBy(value => value))
       {

@@ -1826,17 +1826,46 @@ namespace EarthTool.GLTF
         options,
         animations.AnimatedSourceNodes,
         emitterOwnership);
-      var lineage = new MeshAssetLineageId(Guid.NewGuid());
-      var builder = StaticMeshBuilder.Create(Guid.NewGuid(), lineage)
-        .SetRootSourceObject(draft.Source);
+      var effectivePositions = CreateEffectivePositions(
+        draft,
+        source => source.Source.RenderObjects.SelectMany(renderObject =>
+          renderObject.RenderVertices.Select(vertex => vertex.Position)),
+        source => source.Pivot,
+        source => source.Children);
+      CanonicalStaticFootprint footprint;
       if (options.Footprint is not null)
       {
-        builder.SetFootprint(options.Footprint.ToCanonical());
+        footprint = options.Footprint.ToCanonical();
       }
-      if (options.HorizontalExtents is not null)
+      else
       {
-        builder.SetHorizontalExtents(options.HorizontalExtents.ToCanonical());
+        var maximumZ = effectivePositions.Max(position => position.Z);
+        if (!float.IsFinite(maximumZ) || maximumZ < 0 || maximumZ * 256d > ushort.MaxValue)
+        {
+          return Failed<GltfNewModelImportResult>(InvalidGeometry(
+            "CommonBaseHeader.Footprint",
+            $"The derived occupied top elevation {maximumZ:R} is outside the representable range 0..{ushort.MaxValue / 256f:R}."));
+        }
+        var elevations = new float[16];
+        elevations[15] = maximumZ;
+        footprint = new CanonicalStaticFootprint(0x8000, elevations, new byte[16]);
       }
+      var horizontalExtents = options.HorizontalExtents?.ToCanonical();
+      if (horizontalExtents is null
+        && !TryCreateHorizontalExtents(
+          effectivePositions,
+          out horizontalExtents,
+          out var rangeFailure))
+      {
+        return Failed<GltfNewModelImportResult>(InvalidGeometry(
+          "CommonBaseHeader.HorizontalExtents",
+          rangeFailure!));
+      }
+      var lineage = new MeshAssetLineageId(Guid.NewGuid());
+      var builder = StaticMeshBuilder.Create(Guid.NewGuid(), lineage)
+        .SetRootSourceObject(draft.Source)
+        .SetFootprint(footprint)
+        .SetHorizontalExtents(horizontalExtents!);
       var build = builder.Build(new MshOperationProfile(
           maxOutputBytes: profile.MaxOutputBytes,
           maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
@@ -3303,6 +3332,55 @@ namespace EarthTool.GLTF
           .ToArray(),
         edit,
         profile);
+
+      var sourceEffectivePositions = CreateEffectivePositions(
+        asset.RootSourceObject,
+        source => source.StaticRenderObjectIds.SelectMany(renderObjectId =>
+          asset.StaticRenderObjectSequence.Single(record =>
+            record.Id.Equals(renderObjectId)).RenderVertices.Select(vertex => vertex.Position)),
+        source => asset.StaticRenderObjectSequence.Single(record =>
+          record.Id.Equals(source.StaticRenderObjectIds[0])).Pivot,
+        source => source.Children);
+      var partitionsByLocalId = partitionMatches.Select(match => match.Partition)
+        .Concat(hierarchy.AddedPartitions)
+        .ToDictionary(partition => partition.LocalId);
+      var sourceRecordsById = asset.StaticRenderObjectSequence.ToDictionary(record => record.Id);
+      var sourceRecordsByLocalId = asset.StaticRenderObjectSequence.ToDictionary(record => record.LocalId);
+      var currentEffectivePositions = CreateEffectivePositions(
+        hierarchy.Root,
+        source => source.StaticRenderObjectIds.SelectMany(renderObjectId =>
+          partitionsByLocalId.TryGetValue(renderObjectId.Value, out var partition)
+            ? partition.Vertices.Select(vertex => ToCanonicalPosition(vertex.Position))
+            : Enumerable.Empty<System.Numerics.Vector3>()),
+        source => hierarchy.Pivots.TryGetValue(source.StaticRenderObjectIds[0], out var pivot)
+          ? pivot
+          : sourceRecordsById.TryGetValue(source.StaticRenderObjectIds[0], out var record)
+            ? record.Pivot
+            : System.Numerics.Vector3.Zero,
+        source => source.Children);
+      var effectivePositionsChanged = hierarchy.Transforms.Count != 0
+        || hierarchy.Pivots.Keys.Any(renderObjectId =>
+          !renderObjectId.Equals(hierarchy.Root.StaticRenderObjectIds[0]))
+        || !HaveSameEffectivePositions(sourceEffectivePositions, currentEffectivePositions)
+        || partitionMatches.Any(match => !match.Added
+          && !match.Retained
+          && !sourceRecordsByLocalId[match.Partition.LocalId].RenderVertices
+            .Select(vertex => vertex.Position)
+            .SequenceEqual(match.Partition.Vertices.Select(vertex =>
+              ToCanonicalPosition(vertex.Position))));
+      if (effectivePositionsChanged)
+      {
+        if (!TryCreateHorizontalExtents(
+          currentEffectivePositions,
+          out var horizontalExtents,
+          out var rangeFailure))
+        {
+          return Failed<GltfEditImportResult>(InvalidGeometry(
+            "CommonBaseHeader.HorizontalExtents",
+            rangeFailure!));
+        }
+        edit.ReplaceHorizontalExtents(horizontalExtents!);
+      }
 
       if (hierarchy.Changed)
       {
@@ -4850,9 +4928,99 @@ namespace EarthTool.GLTF
     private static CanonicalStaticVertex ToCanonicalVertex(RenderVertex vertex)
     {
       return new CanonicalStaticVertex(
-        new System.Numerics.Vector3(vertex.Position.X, -vertex.Position.Z, vertex.Position.Y),
+        ToCanonicalPosition(vertex.Position),
         new System.Numerics.Vector3(vertex.Normal.X, -vertex.Normal.Z, vertex.Normal.Y),
         vertex.TextureCoordinate);
+    }
+
+    private static System.Numerics.Vector3 ToCanonicalPosition(System.Numerics.Vector3 position)
+    {
+      return new System.Numerics.Vector3(position.X, -position.Z, position.Y);
+    }
+
+    private static IReadOnlyList<System.Numerics.Vector3> CreateEffectivePositions<TSource>(
+      TSource root,
+      Func<TSource, IEnumerable<System.Numerics.Vector3>> getPositions,
+      Func<TSource, System.Numerics.Vector3> getPivot,
+      Func<TSource, IEnumerable<TSource>> getChildren)
+    {
+      var positions = new List<System.Numerics.Vector3>();
+      AddEffectivePositions(
+        root,
+        System.Numerics.Vector3.Zero,
+        true,
+        getPositions,
+        getPivot,
+        getChildren,
+        positions);
+      return positions;
+    }
+
+    private static void AddEffectivePositions<TSource>(
+      TSource source,
+      System.Numerics.Vector3 parentOffset,
+      bool root,
+      Func<TSource, IEnumerable<System.Numerics.Vector3>> getPositions,
+      Func<TSource, System.Numerics.Vector3> getPivot,
+      Func<TSource, IEnumerable<TSource>> getChildren,
+      ICollection<System.Numerics.Vector3> positions)
+    {
+      var offset = root ? System.Numerics.Vector3.Zero : parentOffset + getPivot(source);
+      foreach (var position in getPositions(source))
+      {
+        positions.Add(position + offset);
+      }
+      foreach (var child in getChildren(source))
+      {
+        AddEffectivePositions(child, offset, false, getPositions, getPivot, getChildren, positions);
+      }
+    }
+
+    private static bool TryCreateHorizontalExtents(
+      IReadOnlyCollection<System.Numerics.Vector3> positions,
+      out CanonicalHorizontalExtents? horizontalExtents,
+      out string? rangeFailure)
+    {
+      var positiveY = Math.Max(0, positions.Max(position => position.Y));
+      var negativeY = -Math.Min(0, positions.Min(position => position.Y));
+      var positiveX = Math.Max(0, positions.Max(position => position.X));
+      var negativeX = -Math.Min(0, positions.Min(position => position.X));
+      var values = new[]
+      {
+        (Axis: "+Y", Value: positiveY),
+        (Axis: "-Y", Value: negativeY),
+        (Axis: "+X", Value: positiveX),
+        (Axis: "-X", Value: negativeX)
+      };
+      foreach (var value in values)
+      {
+        if (!float.IsFinite(value.Value) || value.Value * 256d > ushort.MaxValue)
+        {
+          horizontalExtents = null;
+          rangeFailure = $"The derived {value.Axis} horizontal extent {value.Value:R} exceeds the representable maximum {ushort.MaxValue / 256f:R}.";
+          return false;
+        }
+      }
+      horizontalExtents = new CanonicalHorizontalExtents(
+        positiveY,
+        negativeY,
+        positiveX,
+        negativeX);
+      rangeFailure = null;
+      return true;
+    }
+
+    private static bool HaveSameEffectivePositions(
+      IEnumerable<System.Numerics.Vector3> source,
+      IEnumerable<System.Numerics.Vector3> current)
+    {
+      var sourceCounts = source.GroupBy(position => position)
+        .ToDictionary(group => group.Key, group => group.Count());
+      var currentCounts = current.GroupBy(position => position)
+        .ToDictionary(group => group.Key, group => group.Count());
+      return sourceCounts.Count == currentCounts.Count
+        && sourceCounts.All(item => currentCounts.TryGetValue(item.Key, out var count)
+          && count == item.Value);
     }
 
     private sealed class PartitionMatch

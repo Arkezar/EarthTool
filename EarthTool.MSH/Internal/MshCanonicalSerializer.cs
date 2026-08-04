@@ -70,7 +70,8 @@ namespace EarthTool.MSH.Internal
       IReadOnlyDictionary<int, byte[]>? attachmentRecords = null,
       IReadOnlyDictionary<int, byte[]>? cannonRenderPositions = null,
       IReadOnlyDictionary<int, byte[]>? staticSpotLights = null,
-      IReadOnlyDictionary<int, byte[]>? staticOmniLights = null)
+      IReadOnlyDictionary<int, byte[]>? staticOmniLights = null,
+      CanonicalHorizontalExtents? horizontalExtents = null)
     {
       var archiveHeader = CreateArchiveHeader(source.ArchiveFraming);
       var removed = new HashSet<StaticRenderObjectId>(
@@ -193,6 +194,13 @@ namespace EarthTool.MSH.Internal
       foreach (var replacement in staticOmniLights)
       {
         replacement.Value.CopyTo(commonHeader, 0x108 + ((replacement.Key - 1) * 0x1C));
+      }
+      if (horizontalExtents is not null)
+      {
+        WriteUInt16(commonHeader, 0x360, ToUnsignedFixedPoint(horizontalExtents.PositiveY));
+        WriteUInt16(commonHeader, 0x362, ToUnsignedFixedPoint(horizontalExtents.NegativeY));
+        WriteUInt16(commonHeader, 0x364, ToUnsignedFixedPoint(horizontalExtents.PositiveX));
+        WriteUInt16(commonHeader, 0x366, ToUnsignedFixedPoint(horizontalExtents.NegativeX));
       }
       commonHeader.CopyTo(result, archiveHeader.Length);
       var cursor = archiveHeader.Length + BaseHeaderSize;

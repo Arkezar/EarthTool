@@ -4954,6 +4954,8 @@ public class GltfWalkingSkeletonTests
     import.Value.Preservation.Changes.Should().Contain(change =>
       change.FieldPath == "StaticRenderObjectSequence[0].TexturePathBytes"
       && change.Disposition == PreservationDisposition.Regenerated);
+    import.Value.Preservation.Changes.Should().NotContain(change =>
+      change.FieldPath == "CommonBaseHeader.HorizontalExtents");
     for (var index = 1; index < asset.StaticRenderObjectSequence.Count; index++)
     {
       import.Value.Asset.StaticRenderObjectSequence[index].GetSerializedRepresentation().Should()
@@ -6451,6 +6453,80 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
+  public async Task NewModelDefaultsUseCompleteSourceTreeInRootLocalSpace()
+  {
+    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var interchange = new GltfInterchange();
+    await using var exported = new MemoryStream();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      exported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var metadataFree = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      RemoveArtistHelperNodes(root);
+      var nodes = root["nodes"]!.AsArray();
+      nodes.Add(new JsonObject
+      {
+        ["mesh"] = 0,
+        ["translation"] = new JsonArray(5, 3, 2),
+        ["scale"] = new JsonArray(2, 2, 2)
+      });
+      nodes[0]!["children"] = new JsonArray(nodes.Count - 1);
+      root["scenes"]![0]!["nodes"] = new JsonArray(0);
+    });
+    await using var source = new MemoryStream(metadataFree);
+
+    var imported = await interchange.ImportNewModelGlbAsync(source);
+
+    imported.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", imported.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    var header = imported.Value!.Asset.CommonBaseHeader;
+    header.BoxPresenceMask.Should().Be(0x8000);
+    BinaryPrimitives.ReadUInt16LittleEndian(header.BoxTopElevations.Take(2).ToArray()).Should()
+      .Be(ToUnsignedFixedPoint(3));
+    header.HorizontalExtents.Should().Equal(new byte[] { 0, 1, 0, 2, 0, 7, 0, 0 });
+  }
+
+  [Fact]
+  public async Task NewModelOutOfRangeDerivedFootprintFailsTransactionally()
+  {
+    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var interchange = new GltfInterchange();
+    await using var exported = new MemoryStream();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      exported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var metadataFree = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      RemoveArtistHelperNodes(root);
+      var nodes = root["nodes"]!.AsArray();
+      nodes.Add(new JsonObject
+      {
+        ["mesh"] = 0,
+        ["translation"] = new JsonArray(0, 256, 0)
+      });
+      nodes[0]!["children"] = new JsonArray(nodes.Count - 1);
+      root["scenes"]![0]!["nodes"] = new JsonArray(0);
+    });
+    await using var source = new MemoryStream(metadataFree);
+
+    var imported = await interchange.ImportNewModelGlbAsync(source);
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    imported.Value.Should().BeNull();
+    imported.Diagnostics.Should().ContainSingle().Subject.Should().Match<OperationDiagnostic>(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.InvalidGeometry
+      && diagnostic.Path == "CommonBaseHeader.Footprint"
+      && diagnostic.Message.Contains("256", StringComparison.Ordinal)
+      && diagnostic.Message.Contains("255.996", StringComparison.Ordinal));
+  }
+
+  [Fact]
   public async Task NewModelImportCollapsesGroupsAndPreservesCanonicalHierarchyAndPartitionOrder()
   {
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
@@ -6515,7 +6591,7 @@ public class GltfWalkingSkeletonTests
       ToUnsignedFixedPoint(Math.Max(0, rootVertices.Max(vertex => vertex.Position.X))));
     BinaryPrimitives.ReadUInt16LittleEndian(
       asset.CommonBaseHeader.HorizontalExtents.Skip(6).Take(2).ToArray()).Should().Be(
-      ToUnsignedFixedPoint(-Math.Min(0, rootVertices.Min(vertex => vertex.Position.X))));
+      ToUnsignedFixedPoint(15));
     BinaryPrimitives.ReadUInt16LittleEndian(asset.CommonBaseHeader.BoxTopElevations.Take(2).ToArray())
       .Should().Be(ToUnsignedFixedPoint(rootVertices.Max(vertex => vertex.Position.Z)));
   }
@@ -7103,6 +7179,8 @@ public class GltfWalkingSkeletonTests
       string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
     result.Value!.Asset.StaticRenderObjectSequence.Should().ContainSingle()
       .Subject.GetSerializedRepresentation().Should().Equal(original);
+    result.Value.Preservation.Changes.Should().NotContain(change =>
+      change.FieldPath == "CommonBaseHeader.HorizontalExtents");
   }
 
   [Theory]
@@ -7361,7 +7439,8 @@ public class GltfWalkingSkeletonTests
     reconciled.StoredTrailingHierarchyUnwindCount.Should().Be(1);
     reconciled.RootSourceObject.Children.Should().ContainSingle().Subject.Children.Should()
       .ContainSingle();
-    reconciled.CommonBaseHeader.SerializedRepresentation.Should().Equal(commonHeader);
+    reconciled.CommonBaseHeader.SerializedRepresentation.Take(0x360).Should()
+      .Equal(commonHeader.Take(0x360));
     foreach (var record in reconciled.StaticRenderObjectSequence)
     {
       var original = asset.StaticRenderObjectSequence.Single(item => item.LocalId == record.LocalId);
@@ -7376,6 +7455,109 @@ public class GltfWalkingSkeletonTests
     import.Value.Preservation.Changes.Should().Contain(change =>
       change.FieldPath == "StaticRenderObjectSequence" &&
       change.Disposition == PreservationDisposition.Regenerated);
+    import.Value.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "CommonBaseHeader.HorizontalExtents" &&
+      change.Disposition == PreservationDisposition.Regenerated);
+  }
+
+  [Fact]
+  public async Task HierarchyOrderOnlyEditPreservesLoadedHorizontalExtents()
+  {
+    var fixture = StaticMeshSequenceFixture.CreateInterleaved();
+    new byte[] { 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8 }
+      .CopyTo(fixture.Data, 0x14 + 0x360);
+    var asset = await ReadAssetAsync(fixture.Data);
+    var loadedExtents = asset.CommonBaseHeader.HorizontalExtents.ToArray();
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = RewriteJson(glb.ToArray(), root =>
+    {
+      var children = root["nodes"]![0]!["children"]!.AsArray();
+      var reordered = children.Select(child => child!.GetValue<int>()).Reverse().ToArray();
+      children.Clear();
+      foreach (var child in reordered)
+      {
+        children.Add(child);
+      }
+    });
+    await using var edited = new MemoryStream(bytes);
+
+    var import = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    import.Value!.Asset.CommonBaseHeader.HorizontalExtents.Should().Equal(loadedExtents);
+    import.Value.Preservation.Changes.Should().NotContain(change =>
+      change.FieldPath == "CommonBaseHeader.HorizontalExtents");
+  }
+
+  [Fact]
+  public async Task RootTranslationEditPreservesRootLocalHorizontalExtents()
+  {
+    var sourceBytes = OneTriangleMshFixture.Create(
+      0x20D0A1FF,
+      null,
+      OneTriangleMshFixture.CreationGuid,
+      OneTriangleMshFixture.WriteDistinctCommonHeaderRegions);
+    var asset = await ReadAssetAsync(sourceBytes);
+    var loadedExtents = asset.CommonBaseHeader.HorizontalExtents.ToArray();
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = RewriteJson(glb.ToArray(), root =>
+      root["nodes"]![0]!["translation"] = new JsonArray(10, 0, 0));
+    await using var edited = new MemoryStream(bytes);
+
+    var import = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    import.Value!.Asset.StaticRenderObjectSequence[0].Pivot.Should().Be(new Vector3(10, 0, 0));
+    import.Value.Asset.CommonBaseHeader.HorizontalExtents.Should().Equal(loadedExtents);
+    import.Value.Preservation.Changes.Should().NotContain(change =>
+      change.FieldPath == "CommonBaseHeader.HorizontalExtents");
+  }
+
+  [Fact]
+  public async Task ChildPivotSwapRegeneratesHorizontalExtentsDespiteEqualPositionMultiset()
+  {
+    var fixture = StaticMeshSequenceFixture.CreateInterleaved();
+    new byte[] { 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8 }
+      .CopyTo(fixture.Data, 0x14 + 0x360);
+    var asset = await ReadAssetAsync(fixture.Data);
+    var loadedExtents = asset.CommonBaseHeader.HorizontalExtents.ToArray();
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = RewriteJson(glb.ToArray(), root =>
+    {
+      var first = root["nodes"]![1]!["translation"]!.DeepClone();
+      root["nodes"]![1]!["translation"] = root["nodes"]![2]!["translation"]!.DeepClone();
+      root["nodes"]![2]!["translation"] = first;
+    });
+    await using var edited = new MemoryStream(bytes);
+
+    var import = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    import.Value!.Asset.CommonBaseHeader.HorizontalExtents.Should().NotEqual(loadedExtents);
+    import.Value.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "CommonBaseHeader.HorizontalExtents"
+      && change.Disposition == PreservationDisposition.Regenerated);
   }
 
   [Fact]
@@ -7389,7 +7571,7 @@ public class GltfWalkingSkeletonTests
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId));
-    var bytes = RewriteJson(glb.ToArray(), "\"translation\":[1,3,-2]", "\"translation\":[2,3,-2]");
+    var bytes = RewriteJson(glb.ToArray(), "\"translation\":[1,3,-2]", "\"translation\":[-4,3,5]");
     await using var edited = new MemoryStream(bytes);
 
     var import = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
@@ -7398,7 +7580,7 @@ public class GltfWalkingSkeletonTests
       OperationStatus.Succeeded,
       string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
     var record = import.Value!.Asset.StaticRenderObjectSequence[1];
-    record.Pivot.Should().Be(new Vector3(2, 2, 3));
+    record.Pivot.Should().Be(new Vector3(-4, -5, 3));
     record.RenderVertices.Should().Equal(sourceRecord.RenderVertices);
     record.Triangles.Should().Equal(sourceRecord.Triangles);
     record.TexturePathBytes.Should().Equal(sourceRecord.TexturePathBytes);
@@ -7409,6 +7591,11 @@ public class GltfWalkingSkeletonTests
     import.Value.Preservation.Changes.Should().Contain(change =>
       change.FieldPath == "StaticRenderObjectSequence[1].Pivot" &&
       change.Disposition == PreservationDisposition.Regenerated);
+    import.Value.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "CommonBaseHeader.HorizontalExtents" &&
+      change.Disposition == PreservationDisposition.Regenerated);
+    import.Value.Asset.CommonBaseHeader.HorizontalExtents.Should().Equal(
+      new byte[] { 0, 10, 0, 5, 0, 9, 0, 4 });
   }
 
   [Fact]
@@ -7440,8 +7627,11 @@ public class GltfWalkingSkeletonTests
     reconciled.StaticRenderObjectSequence.Select(record => record.NextRecordMarker).Should()
       .Equal(1, 1, 0);
     reconciled.StoredTrailingHierarchyUnwindCount.Should().Be(1);
-    reconciled.CommonBaseHeader.SerializedRepresentation.Should()
-      .Equal(asset.CommonBaseHeader.SerializedRepresentation);
+    reconciled.CommonBaseHeader.SerializedRepresentation.Take(0x360).Should()
+      .Equal(asset.CommonBaseHeader.SerializedRepresentation.Take(0x360));
+    import.Value.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "CommonBaseHeader.HorizontalExtents"
+      && change.Disposition == PreservationDisposition.Regenerated);
   }
 
   [Fact]
@@ -7469,6 +7659,9 @@ public class GltfWalkingSkeletonTests
       triangle.Vertex0 == 0 && triangle.Vertex1 == 2 && triangle.Vertex2 == 1);
     import.Value.Preservation.Changes.Should().Contain(change =>
       change.FieldPath == "StaticRenderObjectSequence[0].RenderVertices" &&
+      change.Disposition == PreservationDisposition.Regenerated);
+    import.Value.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "CommonBaseHeader.HorizontalExtents" &&
       change.Disposition == PreservationDisposition.Regenerated);
   }
 
@@ -8119,7 +8312,13 @@ public class GltfWalkingSkeletonTests
   [Fact]
   public async Task IsolatedPositionEditRegeneratesAffectedPartition()
   {
-    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var sourceBytes = OneTriangleMshFixture.Create(
+      0x20D0A1FF,
+      null,
+      OneTriangleMshFixture.CreationGuid,
+      OneTriangleMshFixture.WriteDistinctCommonHeaderRegions);
+    var asset = await ReadAssetAsync(sourceBytes);
+    var sourceHeader = asset.CommonBaseHeader.SerializedRepresentation.ToArray();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
     var export = await interchange.ExportGlbAsync(
@@ -8142,11 +8341,167 @@ public class GltfWalkingSkeletonTests
       vertex.NormalSharingIndex == ushort.MaxValue
       && vertex.PositionSharingIndex == ushort.MaxValue
       && vertex.ReservedTextureComponent == 0);
+    var resultHeader = result.Value.Asset.CommonBaseHeader.SerializedRepresentation.ToArray();
+    resultHeader[..0x360].Should().Equal(sourceHeader[..0x360]);
+    result.Value.Asset.CommonBaseHeader.HorizontalExtents.Should().Equal(
+      new byte[] { 0, 1, 0, 0, 0, 1, 0, 0 });
     result.Value.RestoredSerializedRepresentationPaths.Should().NotContain(
       "StaticRenderObjectSequence[0]");
     result.Value.Preservation.Changes.Should().Contain(change =>
       change.FieldPath == "StaticRenderObjectSequence[0].RenderVertices"
       && change.Disposition == PreservationDisposition.Regenerated);
+    result.Value.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "CommonBaseHeader.HorizontalExtents"
+      && change.Disposition == PreservationDisposition.Regenerated);
+  }
+
+  [Fact]
+  public async Task DuplicatePositionCountChangeRegeneratesHorizontalExtents()
+  {
+    var sourceBytes = OneTriangleMshFixture.Create(
+      0x20D0A1FF,
+      null,
+      OneTriangleMshFixture.CreationGuid,
+      OneTriangleMshFixture.WriteDistinctCommonHeaderRegions);
+    const int firstRecordOffset = 0x14 + 0x368 + sizeof(uint);
+    BinaryPrimitives.WriteInt32LittleEndian(
+      sourceBytes.AsSpan(firstRecordOffset + 8),
+      BitConverter.SingleToInt32Bits(1));
+    var asset = await ReadAssetAsync(sourceBytes);
+    var loadedExtents = asset.CommonBaseHeader.HorizontalExtents.ToArray();
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = glb.ToArray();
+    var binaryOffset = GetBinaryChunkOffset(bytes);
+    bytes.AsSpan(binaryOffset + 2 * 3 * sizeof(float), 3 * sizeof(float))
+      .CopyTo(bytes.AsSpan(binaryOffset, 3 * sizeof(float)));
+    await using var edited = new MemoryStream(bytes);
+
+    var result = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    result.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    result.Value!.Asset.CommonBaseHeader.HorizontalExtents.Should().NotEqual(loadedExtents);
+    result.Value.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "CommonBaseHeader.HorizontalExtents"
+      && change.Disposition == PreservationDisposition.Regenerated);
+  }
+
+  [Fact]
+  public async Task PositionSwapRegeneratesHorizontalExtentsDespiteEqualPositionMultiset()
+  {
+    var sourceBytes = OneTriangleMshFixture.Create(
+      0x20D0A1FF,
+      null,
+      OneTriangleMshFixture.CreationGuid,
+      OneTriangleMshFixture.WriteDistinctCommonHeaderRegions);
+    var asset = await ReadAssetAsync(sourceBytes);
+    var loadedExtents = asset.CommonBaseHeader.HorizontalExtents.ToArray();
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = glb.ToArray();
+    var binaryOffset = GetBinaryChunkOffset(bytes);
+    var firstPosition = bytes.AsSpan(binaryOffset, 3 * sizeof(float)).ToArray();
+    bytes.AsSpan(binaryOffset + 3 * sizeof(float), 3 * sizeof(float))
+      .CopyTo(bytes.AsSpan(binaryOffset, 3 * sizeof(float)));
+    firstPosition.CopyTo(bytes, binaryOffset + 3 * sizeof(float));
+    await using var edited = new MemoryStream(bytes);
+
+    var result = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    result.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    result.Value!.Asset.CommonBaseHeader.HorizontalExtents.Should().NotEqual(loadedExtents);
+    result.Value.Preservation.Changes.Should().Contain(change =>
+      change.FieldPath == "CommonBaseHeader.HorizontalExtents"
+      && change.Disposition == PreservationDisposition.Regenerated);
+  }
+
+  [Theory]
+  [InlineData("normal", 36)]
+  [InlineData("uv", 72)]
+  public async Task NonPositionGeometryEditPreservesLoadedHorizontalExtents(
+    string channel,
+    int channelOffset)
+  {
+    var fixture = StaticMeshSequenceFixture.CreateInterleaved();
+    BinaryPrimitives.WriteInt32LittleEndian(
+      fixture.Data.AsSpan(fixture.RecordOffsets[2] + 8),
+      BitConverter.SingleToInt32Bits(10f));
+    new byte[] { 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8 }
+      .CopyTo(fixture.Data, 0x14 + 0x360);
+    var asset = await ReadAssetAsync(fixture.Data);
+    var loadedExtents = asset.CommonBaseHeader.HorizontalExtents.ToArray();
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = glb.ToArray();
+    BinaryPrimitives.WriteInt32LittleEndian(
+      bytes.AsSpan(GetBinaryChunkOffset(bytes) + channelOffset),
+      BitConverter.SingleToInt32Bits(channel == "normal" ? 1f : 0.25f));
+    if (channel == "normal")
+    {
+      BinaryPrimitives.WriteInt32LittleEndian(
+        bytes.AsSpan(GetBinaryChunkOffset(bytes) + channelOffset + sizeof(float)),
+        BitConverter.SingleToInt32Bits(0));
+    }
+    await using var edited = new MemoryStream(bytes);
+
+    var result = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    result.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    result.Value!.Asset.CommonBaseHeader.HorizontalExtents.Should().Equal(loadedExtents);
+    result.Value.Preservation.Changes.Should().NotContain(change =>
+      change.FieldPath == "CommonBaseHeader.HorizontalExtents");
+  }
+
+  [Fact]
+  public async Task PositionEditWithOutOfRangeHorizontalExtentFailsTransactionally()
+  {
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var bytes = glb.ToArray();
+    BinaryPrimitives.WriteInt32LittleEndian(
+      bytes.AsSpan(GetBinaryChunkOffset(bytes)),
+      BitConverter.SingleToInt32Bits(256f));
+    bytes = RewriteJson(bytes, root =>
+    {
+      var primitive = root["meshes"]![0]!["primitives"]![0]!;
+      var positionAccessor = primitive["attributes"]!["POSITION"]!.GetValue<int>();
+      root["accessors"]![positionAccessor]!["max"]![0] = 256;
+    });
+    await using var edited = new MemoryStream(bytes);
+
+    var result = await interchange.ImportEditGlbAsync(edited, export.Value!.Baseline);
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Value.Should().BeNull();
+    result.Diagnostics.Should().ContainSingle().Subject.Should().Match<OperationDiagnostic>(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.InvalidGeometry
+      && diagnostic.Path == "CommonBaseHeader.HorizontalExtents"
+      && diagnostic.Message.Contains("+X", StringComparison.Ordinal)
+      && diagnostic.Message.Contains("256", StringComparison.Ordinal)
+      && diagnostic.Message.Contains("255.996", StringComparison.Ordinal));
   }
 
   [Theory]
@@ -8848,13 +9203,15 @@ public class GltfWalkingSkeletonTests
       "hierarchy" => path is "StaticRenderObjectSequence"
           or "RootSourceObject"
           or "StoredTrailingHierarchyUnwindCount"
+          or "CommonBaseHeader.HorizontalExtents"
         || path.StartsWith("StaticRenderObjectSequence[", StringComparison.Ordinal)
         && (path.EndsWith(".ObjectFlags", StringComparison.Ordinal)
           || path.EndsWith(".NextRecordMarker", StringComparison.Ordinal)
           || path.EndsWith(".HierarchyUnwindCount", StringComparison.Ordinal)),
       "geometry" => path is "StaticRenderObjectSequence[0].RenderVertices"
         or "StaticRenderObjectSequence[0].Triangles"
-        or "StaticRenderObjectSequence[0].VertexBlockPadding",
+        or "StaticRenderObjectSequence[0].VertexBlockPadding"
+        or "CommonBaseHeader.HorizontalExtents",
       "material" => false,
       "animation" => path.StartsWith(
         "StaticRenderObjectSequence[0].AnimationTracks.",
