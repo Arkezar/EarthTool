@@ -739,6 +739,7 @@ namespace EarthTool.GLTF.Internal
       InterchangeBaseline baseline,
       IReadOnlyDictionary<string, string> unknownMetadata,
       IReadOnlyDictionary<string, int> metadataNextIds,
+      GltfArtistObjectLocalIds artistObjectLocalIds,
       IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
       string? sourceBaseName,
       out NativeProjectionFingerprint fingerprint)
@@ -748,6 +749,7 @@ namespace EarthTool.GLTF.Internal
         baseline,
         unknownMetadata,
         metadataNextIds,
+        artistObjectLocalIds,
         false,
         previews,
         sourceBaseName,
@@ -760,6 +762,7 @@ namespace EarthTool.GLTF.Internal
       InterchangeBaseline baseline,
       IReadOnlyDictionary<string, string> unknownMetadata,
       IReadOnlyDictionary<string, int> metadataNextIds,
+      GltfArtistObjectLocalIds artistObjectLocalIds,
       IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
       string? sourceBaseName,
       out NativeProjectionFingerprint fingerprint)
@@ -769,6 +772,7 @@ namespace EarthTool.GLTF.Internal
         baseline,
         unknownMetadata,
         metadataNextIds,
+        artistObjectLocalIds,
         true,
         previews,
         sourceBaseName,
@@ -779,7 +783,8 @@ namespace EarthTool.GLTF.Internal
       StaticMeshAsset asset,
       InterchangeBaseline baseline,
       IReadOnlyDictionary<string, string> unknownMetadata,
-      IReadOnlyDictionary<string, int> metadataNextIds)
+      IReadOnlyDictionary<string, int> metadataNextIds,
+      GltfArtistObjectLocalIds artistObjectLocalIds)
     {
       var animations = StaticAnimationProjection.Create(asset, baseline);
       var empty = CreateMetadata(
@@ -790,6 +795,7 @@ namespace EarthTool.GLTF.Internal
         null,
         unknownMetadata,
         metadataNextIds,
+        artistObjectLocalIds,
         asset,
         animations);
       var base64Length = checked(((asset.SerializedLength + 2) / 3) * 4);
@@ -804,16 +810,17 @@ namespace EarthTool.GLTF.Internal
           null,
           unknownMetadata,
           metadataNextIds,
+          artistObjectLocalIds,
           animationProjection: animations.Objects.SingleOrDefault(item =>
             item.SourceObjectLocalId == source.Id.Value));
         maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(metadata));
       }
-      foreach (var attachment in ProjectAttachments(asset))
+      foreach (var attachment in ProjectAttachments(asset, artistObjectLocalIds))
       {
         maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(
           CreateAttachmentMetadata(baseline, attachment, unknownMetadata)));
       }
-      foreach (var cannon in ProjectCannons(asset))
+      foreach (var cannon in ProjectCannons(asset, artistObjectLocalIds))
       {
         maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(
           CreateCannonMetadata(baseline, cannon, unknownMetadata)));
@@ -833,6 +840,7 @@ namespace EarthTool.GLTF.Internal
       InterchangeBaseline baseline,
       IReadOnlyDictionary<string, string> unknownMetadata,
       IReadOnlyDictionary<string, int> metadataNextIds,
+      GltfArtistObjectLocalIds artistObjectLocalIds,
       bool glb)
     {
       long binaryLength = 0;
@@ -859,7 +867,12 @@ namespace EarthTool.GLTF.Internal
       var containerBytes = glb ? 28 : 0;
       return checked((int)(
         binaryLength
-        + GetMaximumMetadataByteCount(asset, baseline, unknownMetadata, metadataNextIds)
+        + GetMaximumMetadataByteCount(
+          asset,
+          baseline,
+          unknownMetadata,
+          metadataNextIds,
+          artistObjectLocalIds)
         + containerBytes));
     }
 
@@ -868,6 +881,7 @@ namespace EarthTool.GLTF.Internal
       InterchangeBaseline baseline,
       IReadOnlyDictionary<string, string> unknownMetadata,
       IReadOnlyDictionary<string, int> metadataNextIds,
+      GltfArtistObjectLocalIds artistObjectLocalIds,
       bool separate,
       IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
       string? sourceBaseName,
@@ -897,6 +911,7 @@ namespace EarthTool.GLTF.Internal
         null,
         unknownMetadata,
         metadataNextIds,
+        artistObjectLocalIds,
         asset,
         animations);
       var json = CreateJson(
@@ -907,6 +922,7 @@ namespace EarthTool.GLTF.Internal
         manifest,
         unknownMetadata,
         metadataNextIds,
+        artistObjectLocalIds,
         previewLayouts,
         animations,
         animationLayouts,
@@ -2754,6 +2770,7 @@ namespace EarthTool.GLTF.Internal
       string manifest,
       IReadOnlyDictionary<string, string> unknownMetadata,
       IReadOnlyDictionary<string, int> metadataNextIds,
+      GltfArtistObjectLocalIds artistObjectLocalIds,
       IReadOnlyDictionary<StaticRenderObjectId, PreviewLayout> previewLayouts,
       AnimationProjectionSet animations,
       IReadOnlyList<AnimationLayout> animationLayouts,
@@ -2762,8 +2779,8 @@ namespace EarthTool.GLTF.Internal
     {
       var rootSourceObject = asset.RootSourceObject;
       var sources = StaticSourceObjectTraversal.Flatten(rootSourceObject).ToArray();
-      var attachments = ProjectAttachments(asset);
-      var cannons = ProjectCannons(asset);
+      var attachments = ProjectAttachments(asset, artistObjectLocalIds);
+      var cannons = ProjectCannons(asset, artistObjectLocalIds);
       var staticLights = ProjectStaticLights(asset);
       var parentedEmitters = Enumerable.Range(1, 4)
         .Select(number => new
@@ -2940,6 +2957,7 @@ namespace EarthTool.GLTF.Internal
             null,
             unknownMetadata,
             metadataNextIds,
+            artistObjectLocalIds,
             animationProjection: animations.Objects.SingleOrDefault(item =>
               item.SourceObjectLocalId == source.Id.Value)));
           writer.WriteEndObject();
@@ -3358,6 +3376,7 @@ namespace EarthTool.GLTF.Internal
       string? fingerprint,
       IReadOnlyDictionary<string, string> unknownMetadata,
       IReadOnlyDictionary<string, int> metadataNextIds,
+      GltfArtistObjectLocalIds artistObjectLocalIds,
       StaticMeshAsset? sourceAsset = null,
       AnimationProjectionSet? animations = null,
       ProjectedAnimationObject? animationProjection = null)
@@ -3493,7 +3512,12 @@ namespace EarthTool.GLTF.Internal
 
           WriteUnknownMetadata(writer, unknownMetadata, scopeKind, localId, "/payload/asset/");
           writer.WriteEndObject();
-          WriteScopeInventory(writer, sourceAsset, metadataNextIds, unknownMetadata);
+          WriteScopeInventory(
+            writer,
+            sourceAsset,
+            metadataNextIds,
+            artistObjectLocalIds,
+            unknownMetadata);
         }
         else if (sourceMsh is not null)
         {
@@ -4133,12 +4157,13 @@ namespace EarthTool.GLTF.Internal
       Utf8JsonWriter writer,
       StaticMeshAsset asset,
       IReadOnlyDictionary<string, int> metadataNextIds,
+      GltfArtistObjectLocalIds artistObjectLocalIds,
       IReadOnlyDictionary<string, string> unknownMetadata)
     {
       var objectIds = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
         .Select(source => source.Id.Value)
-        .Concat(ProjectAttachments(asset).Select(attachment => attachment.LocalId))
-        .Concat(ProjectCannons(asset).Select(cannon => cannon.LocalId))
+        .Concat(ProjectAttachments(asset, artistObjectLocalIds).Select(attachment => attachment.LocalId))
+        .Concat(ProjectCannons(asset, artistObjectLocalIds).Select(cannon => cannon.LocalId))
         .Concat(ProjectStaticLights(asset).Select(light => light.InstanceLocalId))
         .OrderBy(id => id)
         .ToArray();
@@ -4777,7 +4802,9 @@ namespace EarthTool.GLTF.Internal
         && Math.Truncate(translation.Y * 256d) == BinaryPrimitives.ReadInt16LittleEndian(record.AsSpan(4));
     }
 
-    private static IReadOnlyList<ProjectedAttachment> ProjectAttachments(StaticMeshAsset asset)
+    private static IReadOnlyList<ProjectedAttachment> ProjectAttachments(
+      StaticMeshAsset asset,
+      GltfArtistObjectLocalIds artistObjectLocalIds)
     {
       var table = asset.CommonBaseHeader.AttachmentTable.ToArray();
       var firstArtistObjectId = GetFirstArtistObjectLocalId(asset);
@@ -4799,7 +4826,9 @@ namespace EarthTool.GLTF.Internal
         var z = BinaryPrimitives.ReadInt16LittleEndian(record.AsSpan(4));
         var rotation = AttachmentHeadingProjection.CreateRotation(record[6]);
         result.Add(new ProjectedAttachment(
-          GetAttachmentArtistObjectLocalId(firstArtistObjectId, physicalNumber),
+          artistObjectLocalIds.Attachments.TryGetValue(physicalNumber, out var localId)
+            ? localId
+            : GetAttachmentArtistObjectLocalId(firstArtistObjectId, physicalNumber),
           physicalNumber,
           record,
           new Vector3(x / 256f, z / 256f, storedNegativeY / 256f),
@@ -4809,7 +4838,8 @@ namespace EarthTool.GLTF.Internal
     }
 
     private static IReadOnlyList<ProjectedCannon> ProjectCannons(
-      StaticMeshAsset asset)
+      StaticMeshAsset asset,
+      GltfArtistObjectLocalIds artistObjectLocalIds)
     {
       var attachments = asset.CommonBaseHeader.AttachmentTable.ToArray();
       var renderPositions = asset.CommonBaseHeader.CannonRenderPositions.ToArray();
@@ -4828,7 +4858,9 @@ namespace EarthTool.GLTF.Internal
         var z = ReadFinitePreview(renderPositionRecord, 8);
         var rotation = AttachmentHeadingProjection.CreateRotation(attachmentRecord[6]);
         result.Add(new ProjectedCannon(
-          GetCannonArtistObjectLocalId(firstArtistObjectId, physicalNumber),
+          artistObjectLocalIds.Cannons.TryGetValue(physicalNumber, out var localId)
+            ? localId
+            : GetCannonArtistObjectLocalId(firstArtistObjectId, physicalNumber),
           physicalNumber,
           attachmentRecord,
           renderPositionRecord,
@@ -4950,11 +4982,6 @@ namespace EarthTool.GLTF.Internal
       return checked(firstArtistObjectId + physicalNumber - 1);
     }
 
-    internal static int GetAttachmentPhysicalNumber(int firstArtistObjectId, int localId)
-    {
-      return checked(localId - firstArtistObjectId + 1);
-    }
-
     internal static int GetCannonArtistObjectLocalId(int firstArtistObjectId, int physicalNumber)
     {
       return checked(firstArtistObjectId + 49 + physicalNumber - 1);
@@ -5002,27 +5029,45 @@ namespace EarthTool.GLTF.Internal
       {
         throw new ArgumentOutOfRangeException(nameof(physicalNumber));
       }
-      var (artistLabel, localNumber) = physicalNumber switch
+      var familyStart = GetAttachmentHelperFamilyStart(physicalNumber);
+      var artistLabel = familyStart switch
       {
-        <= 8 => ("Emitter", physicalNumber - 4),
-        <= 12 => ("TurretMuzzle", physicalNumber - 8),
-        <= 16 => ("SpotLight", physicalNumber - 12),
-        <= 20 => ("OmniLight", physicalNumber - 16),
-        <= 24 => ("UnloadPoint", physicalNumber - 20),
-        <= 28 => ("HitPoint", physicalNumber - 24),
-        <= 32 => ("SmokePoint", physicalNumber - 28),
-        <= 36 => ("WT", physicalNumber - 32),
-        <= 38 => ("Chimney", physicalNumber - 36),
-        <= 40 => ("SmokeTrace", physicalNumber - 38),
-        <= 42 => ("Exhaust", physicalNumber - 40),
-        <= 44 => ("KeelTrace", physicalNumber - 42),
-        45 => ("InterfacePivot", 1),
-        46 => ("CenterPivot", 1),
-        47 => ("ProductionSpotStart", 1),
-        48 => ("ProductionSpotEnd", 1),
-        _ => ("LandingSpot", 1)
+        5 => "Emitter",
+        9 => "TurretMuzzle",
+        21 => "UnloadPoint",
+        25 => "HitPoint",
+        29 => "SmokePoint",
+        33 => "WT",
+        37 => "Chimney",
+        39 => "SmokeTrace",
+        41 => "Exhaust",
+        43 => "KeelTrace",
+        45 => "InterfacePivot",
+        46 => "CenterPivot",
+        47 => "ProductionSpotStart",
+        48 => "ProductionSpotEnd",
+        _ => "LandingSpot"
       };
+      var localNumber = physicalNumber - familyStart + 1;
       return $"ET_{artistLabel}_{localNumber}";
+    }
+
+    internal static int GetAttachmentHelperFamilyStart(int physicalNumber)
+    {
+      return physicalNumber switch
+      {
+        <= 8 => 5,
+        <= 12 => 9,
+        <= 24 => 21,
+        <= 28 => 25,
+        <= 32 => 29,
+        <= 36 => 33,
+        <= 38 => 37,
+        <= 40 => 39,
+        <= 42 => 41,
+        <= 44 => 43,
+        _ => physicalNumber
+      };
     }
 
     internal static bool TryParseAttachmentHelperName(string? name, out int physicalNumber)

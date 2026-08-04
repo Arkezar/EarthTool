@@ -76,7 +76,8 @@ namespace EarthTool.GLTF
           asset,
           baseline,
           options.PreservedUnknownMetadata,
-          options.MetadataNextIds);
+          options.MetadataNextIds,
+          options.ArtistObjectLocalIds);
         if (metadataLength > profile.MaxMetadataBytes)
         {
           return Failed<GltfExportReceipt>(Limit("scenes[0].extras.earthtool", metadataLength, profile.MaxMetadataBytes));
@@ -87,6 +88,7 @@ namespace EarthTool.GLTF
           baseline,
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
+          options.ArtistObjectLocalIds,
           true);
         if (minimumOutputLength > profile.MaxOutputBytes)
         {
@@ -97,6 +99,7 @@ namespace EarthTool.GLTF
           baseline,
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
+          options.ArtistObjectLocalIds,
           new Dictionary<StaticRenderObjectId, TexPreview>(),
           options.SourceBaseName,
           out var fingerprint);
@@ -123,6 +126,7 @@ namespace EarthTool.GLTF
             baseline,
             options.PreservedUnknownMetadata,
             options.MetadataNextIds,
+            options.ArtistObjectLocalIds,
             previewResult.Previews,
             options.SourceBaseName,
             out fingerprint);
@@ -241,7 +245,8 @@ namespace EarthTool.GLTF
           asset,
           baseline,
           options.PreservedUnknownMetadata,
-          options.MetadataNextIds);
+          options.MetadataNextIds,
+          options.ArtistObjectLocalIds);
         if (metadataLength > profile.MaxMetadataBytes)
         {
           return Failed<GltfExportReceipt>(Limit("scenes[0].extras.earthtool", metadataLength, profile.MaxMetadataBytes));
@@ -252,6 +257,7 @@ namespace EarthTool.GLTF
           baseline,
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
+          options.ArtistObjectLocalIds,
           false);
         if (minimumOutputLength > profile.MaxOutputBytes)
         {
@@ -262,6 +268,7 @@ namespace EarthTool.GLTF
           baseline,
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
+          options.ArtistObjectLocalIds,
           new Dictionary<StaticRenderObjectId, TexPreview>(),
           options.SourceBaseName,
           out var fingerprint);
@@ -289,6 +296,7 @@ namespace EarthTool.GLTF
             baseline,
             options.PreservedUnknownMetadata,
             options.MetadataNextIds,
+            options.ArtistObjectLocalIds,
             previewResult.Previews,
             options.SourceBaseName,
             out fingerprint);
@@ -1766,7 +1774,8 @@ namespace EarthTool.GLTF
     {
       cancellationToken.ThrowIfCancellationRequested();
       var sceneLightDiagnostics = CreateIgnoredSceneLightDiagnostics(parsed, options);
-      var inertDiagnostics = CreateIgnoredInertDataDiagnostics(parsed);
+      var inertDiagnostics = CreateIgnoredInertDataDiagnostics(parsed)
+        .Concat(CreateIgnoredSceneNodeDiagnostics(parsed, options)).ToArray();
       var texBindingDiagnostics = CreateNewModelTexBindingDiagnostics(parsed, options);
       if (parsed.HasReservedMetadata)
       {
@@ -2151,7 +2160,7 @@ namespace EarthTool.GLTF
         {
           if (node.Children.Count != 0)
           {
-            throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+            throw new UnsupportedGltfDomainException("TransformOrHierarchy", $"nodes[{nodeIndex}]");
           }
           return Array.Empty<NewModelSourceDraft>();
         }
@@ -2171,7 +2180,7 @@ namespace EarthTool.GLTF
         if (collapsed.Length == 0
           && !emitterOwnership.ScaffoldingNodeIndices.Contains(nodeIndex))
         {
-          throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+          return Array.Empty<NewModelSourceDraft>();
         }
         return Array.AsReadOnly(collapsed);
       }
@@ -3128,13 +3137,14 @@ namespace EarthTool.GLTF
         asset,
         reconciliationBaseline,
         edit);
-      var emitterOwnership = ReconcileBaseHeaderArtistObjects(
+      var artistObjects = ReconcileBaseHeaderArtistObjects(
         parsed,
         nodes.Select(node => (node.Parsed, node.Metadata)).ToArray(),
         lights.Select(light => (light.Parsed, light.Metadata)).ToArray(),
         asset,
         hierarchy,
         reconciliationBaseline,
+        manifest.ScopeNextIds,
         edit);
       try
       {
@@ -3240,7 +3250,7 @@ namespace EarthTool.GLTF
         asset,
         hierarchy.Root,
         partitionMatches,
-        emitterOwnership,
+        artistObjects,
         edit);
       ApplyMaterialBindings(
         parsed,
@@ -3313,6 +3323,13 @@ namespace EarthTool.GLTF
           .Select(number => $"CommonBaseHeader.StaticOmniLights[{number}]")
           .Where(path => !changedRecordPaths.Any(changed =>
             changed == path || changed.StartsWith(path + ".", StringComparison.Ordinal))));
+      var nextMetadataIds = manifest.ScopeNextIds.ToDictionary(
+        pair => pair.Key,
+        pair => pair.Value,
+        StringComparer.Ordinal);
+      nextMetadataIds["object"] = Math.Max(
+        nextMetadataIds.TryGetValue("object", out var nextObjectLocalId) ? nextObjectLocalId : 1,
+        artistObjects.NextObjectLocalId);
       return new OperationResult<GltfEditImportResult>(
         OperationStatus.Succeeded,
         new GltfEditImportResult(
@@ -3326,13 +3343,15 @@ namespace EarthTool.GLTF
               .Concat(meshes.Where(item => item.Metadata is not null).Select(item => item.Metadata!))
               .Concat(nodes.Where(item => item.Metadata is not null).Select(item => item.Metadata!))
               .Concat(lights.Where(item => item.Metadata is not null).Select(item => item.Metadata!))),
-          manifest.ScopeNextIds,
+          nextMetadataIds,
+          artistObjects.ArtistObjectLocalIds,
           branchAccepted
             ? GltfMetadataLineageDisposition.BranchAccepted
             : GltfMetadataLineageDisposition.Retained,
           conflictResolution.Applied),
         sceneLightDiagnostics
           .Concat(CreateIgnoredInertDataDiagnostics(parsed))
+          .Concat(CreateIgnoredSceneNodeDiagnostics(parsed))
           .Concat(CreateEmitterHierarchyDiagnostics(reconciled))
           .Concat(committed.Diagnostics));
     }
@@ -3549,9 +3568,8 @@ namespace EarthTool.GLTF
       string projection;
       if (envelope.AttachmentRecord is not null)
       {
-        var number = GlbDocument.GetAttachmentPhysicalNumber(
-          GlbDocument.GetFirstArtistObjectLocalId(asset),
-          envelope.LocalId);
+        var number = envelope.AttachmentPhysicalNumber
+          ?? throw new InvalidDataException("The attachment guard has no physical target.");
         digest = GlbDocument.CreateAttachmentPoseFingerprint(
           baseline,
           envelope.LocalId,
@@ -3899,6 +3917,7 @@ namespace EarthTool.GLTF
           value.RestoredSerializedRepresentationPaths,
           value.PreservedUnknownMetadata,
           value.NextExportOptions.MetadataNextIds,
+          value.NextExportOptions.ArtistObjectLocalIds,
           value.LineageDisposition,
           new[] { resolution }.Concat(value.AppliedConflictResolutions)),
         result.Diagnostics);
@@ -3931,6 +3950,37 @@ namespace EarthTool.GLTF
         DiagnosticSeverity.Warning,
         path,
         "Inert native glTF data was excluded from canonical MSH state."))
+        .ToArray();
+    }
+
+    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredSceneNodeDiagnostics(
+      ParsedGlb parsed,
+      GltfNewModelImportOptions? options = null)
+    {
+      var typedHelpers = (options?.HelperBindings.Keys ?? Array.Empty<GltfNodeHandle>())
+        .Select(handle => GetNodeIndex(parsed, handle))
+        .OfType<int>()
+        .ToHashSet();
+      return GetNodeOrder(parsed).Where(nodeIndex =>
+        {
+          var node = parsed.Nodes[nodeIndex];
+          return node.Children.Count == 0
+            && !node.IsPlacementRoot
+            && node.Metadata is null
+            && !node.MeshIndex.HasValue
+            && !node.LightIndex.HasValue
+            && !node.CameraIndex.HasValue
+            && !typedHelpers.Contains(nodeIndex)
+            && !GlbDocument.TryParseAttachmentHelperName(node.Name, out _)
+            && !GlbDocument.TryParseCannonHelperName(node.Name, out _)
+            && !GlbDocument.TryParseStaticLightHelperName(node.Name, out _, out _);
+        })
+        .Select(nodeIndex => new OperationDiagnostic(
+          GltfDiagnosticCodes.InertDataIgnored,
+          1119,
+          DiagnosticSeverity.Warning,
+          $"nodes[{nodeIndex}]",
+          "An unknown metadata-free empty leaf node remains scene-only and was ignored."))
         .ToArray();
     }
 
@@ -4645,29 +4695,35 @@ namespace EarthTool.GLTF
       }
     }
 
-    private static EditEmitterOwnershipPlan ReconcileBaseHeaderArtistObjects(
+    private static EditArtistObjectPlan ReconcileBaseHeaderArtistObjects(
       ParsedGlb parsed,
       IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
       IReadOnlyList<(ParsedGltfLight Parsed, MetadataEnvelope? Metadata)> lights,
       StaticMeshAsset asset,
       StaticHierarchyPlan hierarchy,
       InterchangeBaseline expected,
+      IReadOnlyDictionary<string, int> metadataNextIds,
       StaticMeshEditSession edit)
     {
       var attachmentCandidates = new Dictionary<int, List<int>>();
       var cannonCandidates = new Dictionary<int, List<int>>();
+      var sourcePhysicalNumbers = new Dictionary<int, int>();
       for (var nodeIndex = 0; nodeIndex < nodes.Count; nodeIndex++)
       {
         var node = nodes[nodeIndex];
         int physicalNumber;
         if (node.Metadata?.AttachmentRecord is not null)
         {
-          physicalNumber = ValidateAttachmentMetadata(node.Metadata, asset, expected);
+          var sourcePhysicalNumber = ValidateAttachmentMetadata(node.Metadata, asset, expected);
+          physicalNumber = ReadCanonicalAttachmentTarget(node.Parsed.Name, sourcePhysicalNumber, nodeIndex);
+          sourcePhysicalNumbers.Add(nodeIndex, sourcePhysicalNumber);
           AddArtistCandidate(attachmentCandidates, physicalNumber, nodeIndex);
         }
         else if (node.Metadata?.CannonRenderPositionRecord is not null)
         {
-          physicalNumber = ValidateCannonMetadata(node.Metadata, asset, expected);
+          var sourcePhysicalNumber = ValidateCannonMetadata(node.Metadata, asset, expected);
+          physicalNumber = ReadCanonicalCannonTarget(node.Parsed.Name, sourcePhysicalNumber, nodeIndex);
+          sourcePhysicalNumbers.Add(nodeIndex, sourcePhysicalNumber);
           AddArtistCandidate(cannonCandidates, physicalNumber, nodeIndex);
         }
         else if (node.Metadata is null
@@ -4693,17 +4749,50 @@ namespace EarthTool.GLTF
           $"Physical helper target {duplicate.Key} is occupied by multiple artist objects: {paths}.",
           $"nodes[{duplicate.Value[0]}]");
       }
+      var nextObjectLocalId = metadataNextIds.TryGetValue("object", out var nextObject)
+        ? nextObject
+        : checked(nodes.Select(node => node.Metadata?.LocalId)
+          .OfType<int>()
+          .Concat(StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
+            .Select(source => source.Id.Value))
+          .DefaultIfEmpty(0)
+          .Max() + 1);
+      var attachmentArtistObjectLocalIds = new Dictionary<int, int>();
+      var cannonArtistObjectLocalIds = new Dictionary<int, int>();
+      foreach (var candidate in attachmentCandidates)
+      {
+        var node = nodes[candidate.Value[0]];
+        var localId = node.Metadata?.LocalId ?? nextObjectLocalId;
+        if (node.Metadata is null)
+        {
+          nextObjectLocalId = checked(nextObjectLocalId + 1);
+        }
+        attachmentArtistObjectLocalIds.Add(candidate.Key, localId);
+      }
+      foreach (var candidate in cannonCandidates)
+      {
+        var node = nodes[candidate.Value[0]];
+        var localId = node.Metadata?.LocalId ?? nextObjectLocalId;
+        if (node.Metadata is null)
+        {
+          nextObjectLocalId = checked(nextObjectLocalId + 1);
+        }
+        cannonArtistObjectLocalIds.Add(candidate.Key, localId);
+      }
       var parentIndices = CreateParentIndices(nodes);
       var sourceParentedEmitters = new HashSet<int>();
       var markerOwnershipChanges = new Dictionary<int, SourceObjectId?>();
       var unchangedMarkerRecords = new Dictionary<int, UnchangedEmitterOwnership>();
       foreach (var candidate in attachmentCandidates.Where(item => item.Key is >= 5 and <= 8))
       {
+        var nodeIndex = candidate.Value[0];
+        var sourcePhysicalNumber = nodes[nodeIndex].Metadata is null
+          ? candidate.Key
+          : sourcePhysicalNumbers[nodeIndex];
         var markerSources = GlbDocument.GetMarkerAttachmentSourceObjects(
           asset,
-          candidate.Key - 4);
+          sourcePhysicalNumber - 4);
         var expectedParent = markerSources.Count == 1 ? markerSources[0] : asset.RootSourceObject;
-        var nodeIndex = candidate.Value[0];
         var ownerNodeIndex = parentIndices[nodeIndex];
         while (ownerNodeIndex >= 0 && !hierarchy.SourceByNode.ContainsKey(ownerNodeIndex))
         {
@@ -4717,6 +4806,7 @@ namespace EarthTool.GLTF
         }
         var owner = hierarchy.SourceByNode[ownerNodeIndex];
         var ownershipChanged = nodes[nodeIndex].Metadata is null
+          || sourcePhysicalNumber != candidate.Key
           || !owner.Id.Equals(expectedParent.Id);
         if (ownershipChanged)
         {
@@ -4754,7 +4844,9 @@ namespace EarthTool.GLTF
           || node.Children.Count != 0
           || !transforms.ContainsKey(candidate.Value[0]))
         {
-          throw new UnsupportedGltfDomainException("AttachmentOrCannonArtistObject");
+          throw new UnsupportedGltfDomainException(
+            "AttachmentOrCannonArtistObject",
+            $"nodes[{candidate.Value[0]}]");
         }
       }
 
@@ -4788,16 +4880,14 @@ namespace EarthTool.GLTF
 
         var nodeIndex = candidates[0];
         var metadata = nodes[nodeIndex].Metadata;
-        var originalPhysicalNumber = metadata is null
-          ? physicalNumber
-          : GlbDocument.GetAttachmentPhysicalNumber(
-            GlbDocument.GetFirstArtistObjectLocalId(asset),
-            metadata.LocalId);
+        var originalPhysicalNumber = metadata is null ? physicalNumber : sourcePhysicalNumbers[nodeIndex];
         if (metadata is not null
           && originalPhysicalNumber != physicalNumber
           && sourceActive)
         {
-          throw ArtistObjectConflict("An attachment cannot be rebound to an occupied physical target.");
+          throw ArtistObjectConflict(
+            $"The attachment at nodes[{nodeIndex}] cannot target occupied CommonBaseHeader.AttachmentTable[{physicalNumber}].",
+            $"nodes[{nodeIndex}].name");
         }
         var extra = metadata is null ? (byte)0x80 : metadata.AttachmentRecord![7];
         var replacement = CreateAttachmentRecord(transforms[nodeIndex], extra);
@@ -4817,12 +4907,52 @@ namespace EarthTool.GLTF
           if (sourceActive)
           {
             edit.ReplaceAttachmentRecord(physicalNumber, CreateAbsentAttachmentRecord());
+            edit.ReplaceCannonRenderPosition(physicalNumber, new byte[12]);
           }
           continue;
         }
 
         var nodeIndex = candidates[0];
         var transform = transforms[nodeIndex];
+        var metadata = nodes[nodeIndex].Metadata;
+        var originalPhysicalNumber = metadata is null ? physicalNumber : sourcePhysicalNumbers[nodeIndex];
+        if (metadata is not null && originalPhysicalNumber != physicalNumber && sourceActive)
+        {
+          throw ArtistObjectConflict(
+            $"The cannon at nodes[{nodeIndex}] cannot target occupied CommonBaseHeader.AttachmentTable[{physicalNumber}].",
+            $"nodes[{nodeIndex}].name");
+        }
+        var originalAttachment = attachmentTable.AsSpan(
+          (originalPhysicalNumber - 1) * 8,
+          8).ToArray();
+        if (originalPhysicalNumber != physicalNumber)
+        {
+          var originalRenderPosition = cannonRecords.AsSpan(
+            (originalPhysicalNumber - 1) * 12,
+            12).ToArray();
+          var (retargetTranslation, retargetHeading) = ReadAttachmentTransform(transform);
+          var retargetSourcePreview = new Vector3(
+            GlbDocument.ReadFinitePreview(originalRenderPosition, 0),
+            GlbDocument.ReadFinitePreview(originalRenderPosition, 8),
+            GlbDocument.ReadFinitePreview(originalRenderPosition, 4));
+          var retargetTranslationChanged = retargetTranslation != retargetSourcePreview;
+          var replacementAttachment = originalAttachment.ToArray();
+          if (retargetTranslationChanged)
+          {
+            CreateAttachmentRecord(transform, originalAttachment[7]).AsSpan(0, 6)
+              .CopyTo(replacementAttachment);
+          }
+          replacementAttachment[6] = retargetHeading;
+          edit.ReplaceAttachmentRecord(
+            physicalNumber,
+            replacementAttachment);
+          edit.ReplaceCannonRenderPosition(
+            physicalNumber,
+            retargetTranslationChanged
+              ? CreateCannonRenderPositionRecord(retargetTranslation)
+              : originalRenderPosition);
+          continue;
+        }
         var sourceRecord = cannonRecords.AsSpan((physicalNumber - 1) * 12, 12).ToArray();
         var (translation, heading) = ReadAttachmentTransform(transform);
         var sourcePreview = new Vector3(
@@ -4871,14 +5001,49 @@ namespace EarthTool.GLTF
         expected,
         replacementLightIndices,
         edit);
-      return new EditEmitterOwnershipPlan(markerOwnershipChanges, unchangedMarkerRecords);
+      return new EditArtistObjectPlan(
+        markerOwnershipChanges,
+        unchangedMarkerRecords,
+        new GltfArtistObjectLocalIds(
+          attachmentArtistObjectLocalIds,
+          cannonArtistObjectLocalIds),
+        nextObjectLocalId);
+    }
+
+    private static int ReadCanonicalAttachmentTarget(string? name, int sourcePhysicalNumber, int nodeIndex)
+    {
+      if (!GlbDocument.TryParseAttachmentHelperName(name, out var targetPhysicalNumber))
+      {
+        throw ArtistObjectConflict(
+          $"The metadata-backed attachment at CommonBaseHeader.AttachmentTable[{sourcePhysicalNumber}] must retain a canonical attachment artist identifier at nodes[{nodeIndex}].name.",
+          $"nodes[{nodeIndex}].name");
+      }
+      if (GlbDocument.GetAttachmentHelperFamilyStart(sourcePhysicalNumber)
+        != GlbDocument.GetAttachmentHelperFamilyStart(targetPhysicalNumber))
+      {
+        throw ArtistObjectConflict(
+          $"The attachment at CommonBaseHeader.AttachmentTable[{sourcePhysicalNumber}] cannot change canonical helper family at nodes[{nodeIndex}].name.",
+          $"nodes[{nodeIndex}].name");
+      }
+      return targetPhysicalNumber;
+    }
+
+    private static int ReadCanonicalCannonTarget(string? name, int sourcePhysicalNumber, int nodeIndex)
+    {
+      if (!GlbDocument.TryParseCannonHelperName(name, out var targetPhysicalNumber))
+      {
+        throw ArtistObjectConflict(
+          $"The metadata-backed cannon at CommonBaseHeader.AttachmentTable[{sourcePhysicalNumber}] must retain an ET_Turret_n canonical artist identifier at nodes[{nodeIndex}].name.",
+          $"nodes[{nodeIndex}].name");
+      }
+      return targetPhysicalNumber;
     }
 
     private static void ApplyEmitterMarkerOwnershipChanges(
       StaticMeshAsset asset,
       StaticSourceObject hierarchyRoot,
       IReadOnlyList<PartitionMatch> partitions,
-      EditEmitterOwnershipPlan ownership,
+      EditArtistObjectPlan ownership,
       StaticMeshEditSession edit)
     {
       const StaticRenderObjectFlags markerMask = StaticRenderObjectFlagMasks.MarkerAttachments;
@@ -4943,17 +5108,23 @@ namespace EarthTool.GLTF
       }
     }
 
-    private sealed class EditEmitterOwnershipPlan
+    private sealed class EditArtistObjectPlan
     {
       internal IReadOnlyDictionary<int, SourceObjectId?> Changes { get; }
       internal IReadOnlyDictionary<int, UnchangedEmitterOwnership> UnchangedMarkerRecords { get; }
+      internal GltfArtistObjectLocalIds ArtistObjectLocalIds { get; }
+      internal int NextObjectLocalId { get; }
 
-      internal EditEmitterOwnershipPlan(
+      internal EditArtistObjectPlan(
         IReadOnlyDictionary<int, SourceObjectId?> changes,
-        IReadOnlyDictionary<int, UnchangedEmitterOwnership> unchangedMarkerRecords)
+        IReadOnlyDictionary<int, UnchangedEmitterOwnership> unchangedMarkerRecords,
+        GltfArtistObjectLocalIds artistObjectLocalIds,
+        int nextObjectLocalId)
       {
         Changes = changes;
         UnchangedMarkerRecords = unchangedMarkerRecords;
+        ArtistObjectLocalIds = artistObjectLocalIds;
+        NextObjectLocalId = nextObjectLocalId;
       }
     }
 
@@ -5588,14 +5759,9 @@ namespace EarthTool.GLTF
       InterchangeBaseline expected)
     {
       var physicalNumber = metadata.AttachmentPhysicalNumber;
-      var sourcePhysicalNumber = GlbDocument.GetAttachmentPhysicalNumber(
-        GlbDocument.GetFirstArtistObjectLocalId(asset),
-        metadata.LocalId);
       if (metadata.AssetLineageId != expected.AssetLineageId
         || metadata.DocumentId != expected.DocumentId
         || metadata.ScopeKind != "object"
-        || sourcePhysicalNumber is < 5 or > 49
-        || sourcePhysicalNumber is >= 13 and <= 20
         || physicalNumber is null or < 5 or > 49
         || physicalNumber is >= 13 and <= 20
         || metadata.AttachmentRecord?.Count != 8
@@ -5615,12 +5781,12 @@ namespace EarthTool.GLTF
         throw new MalformedMetadataException("The attachment metadata envelope is malformed.");
       }
       var sourceRecord = asset.CommonBaseHeader.AttachmentTable
-        .Skip((sourcePhysicalNumber - 1) * 8).Take(8);
+        .Skip((physicalNumber.Value - 1) * 8).Take(8);
       if (!sourceRecord.SequenceEqual(metadata.AttachmentRecord)
         || metadata.Fingerprint != GlbDocument.CreateAttachmentPoseFingerprint(
           expected,
           metadata.LocalId,
-          sourcePhysicalNumber,
+          physicalNumber.Value,
           sourceRecord.ToArray())
         || BinaryPrimitives.ReadInt16LittleEndian(metadata.AttachmentRecord.ToArray()) == short.MinValue)
       {
@@ -5635,13 +5801,9 @@ namespace EarthTool.GLTF
       InterchangeBaseline expected)
     {
       var physicalNumber = metadata.CannonPhysicalNumber;
-      var expectedLocalId = GlbDocument.GetCannonArtistObjectLocalId(
-        GlbDocument.GetFirstArtistObjectLocalId(asset),
-        physicalNumber.GetValueOrDefault());
       if (metadata.AssetLineageId != expected.AssetLineageId
         || metadata.DocumentId != expected.DocumentId
         || metadata.ScopeKind != "object"
-        || metadata.LocalId != expectedLocalId
         || physicalNumber is null or < 1 or > 4
         || metadata.CannonAttachmentRecord?.Count != 8
         || metadata.CannonRenderPositionRecord?.Count != 12
@@ -5935,15 +6097,10 @@ namespace EarthTool.GLTF
       var sources = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
         .ToDictionary(source => source.Id.Value);
       if (nodes.Any(node => !node.Parsed.MeshIndex.HasValue
-        && (node.Metadata is not null
-            && node.Metadata.AttachmentRecord is null
-            && node.Metadata.CannonRenderPositionRecord is null
-            && node.Metadata.StaticLightAttachmentRecord is null
-          || node.Metadata is null
-            && node.Parsed.Children.Count == 0
-            && !GlbDocument.TryParseAttachmentHelperName(node.Parsed.Name, out _)
-            && !GlbDocument.TryParseCannonHelperName(node.Parsed.Name, out _)
-            && !node.Parsed.LightIndex.HasValue)))
+        && node.Metadata is not null
+        && node.Metadata.AttachmentRecord is null
+        && node.Metadata.CannonRenderPositionRecord is null
+        && node.Metadata.StaticLightAttachmentRecord is null))
       {
         throw new MalformedMetadataException("The object scope set does not match the source hierarchy.");
       }

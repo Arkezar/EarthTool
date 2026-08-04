@@ -433,9 +433,7 @@ namespace EarthTool.GLTF.Internal
         if (node.Envelope.AttachmentPhysicalNumber.HasValue
           && node.Envelope.AttachmentRecord?.Count == 8)
         {
-          var attachmentNumber = GlbDocument.GetAttachmentPhysicalNumber(
-            GlbDocument.GetFirstArtistObjectLocalId(asset),
-            node.Envelope.LocalId);
+          var attachmentNumber = node.Envelope.AttachmentPhysicalNumber.Value;
           actual = GlbDocument.CreateAttachmentPoseFingerprint(
             expected,
             node.Envelope.LocalId,

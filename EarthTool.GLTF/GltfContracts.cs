@@ -714,6 +714,24 @@ namespace EarthTool.GLTF
     }
   }
 
+  internal sealed class GltfArtistObjectLocalIds
+  {
+    internal IReadOnlyDictionary<int, int> Attachments { get; }
+    internal IReadOnlyDictionary<int, int> Cannons { get; }
+
+    internal GltfArtistObjectLocalIds(
+      IReadOnlyDictionary<int, int>? attachments = null,
+      IReadOnlyDictionary<int, int>? cannons = null)
+    {
+      Attachments = new ReadOnlyDictionary<int, int>(
+        attachments?.ToDictionary(pair => pair.Key, pair => pair.Value)
+        ?? new Dictionary<int, int>());
+      Cannons = new ReadOnlyDictionary<int, int>(
+        cannons?.ToDictionary(pair => pair.Key, pair => pair.Value)
+        ?? new Dictionary<int, int>());
+    }
+  }
+
   /// <summary>Controls identities assigned to a GLB export.</summary>
   public sealed class GltfExportOptions
   {
@@ -736,6 +754,7 @@ namespace EarthTool.GLTF
     public IReadOnlyDictionary<string, string> PreservedUnknownMetadata { get; }
 
     internal IReadOnlyDictionary<string, int> MetadataNextIds { get; }
+    internal GltfArtistObjectLocalIds ArtistObjectLocalIds { get; }
     internal IReadOnlyList<int> DynamicObjectIds { get; private set; }
 
     /// <summary>Initializes GLB export options.</summary>
@@ -823,6 +842,7 @@ namespace EarthTool.GLTF
       }
       PreservedUnknownMetadata = new ReadOnlyDictionary<string, string>(unknownMetadata);
       MetadataNextIds = new ReadOnlyDictionary<string, int>(new Dictionary<string, int>());
+      ArtistObjectLocalIds = new GltfArtistObjectLocalIds();
       DynamicObjectIds = Array.Empty<int>();
     }
 
@@ -830,11 +850,13 @@ namespace EarthTool.GLTF
       Guid assetLineageId,
       Guid documentId,
       IReadOnlyDictionary<string, string> preservedUnknownMetadata,
-      IReadOnlyDictionary<string, int> metadataNextIds)
+      IReadOnlyDictionary<string, int> metadataNextIds,
+      GltfArtistObjectLocalIds? artistObjectLocalIds = null)
       : this(assetLineageId, documentId, preservedUnknownMetadata: preservedUnknownMetadata)
     {
       MetadataNextIds = new ReadOnlyDictionary<string, int>(
         metadataNextIds.ToDictionary(pair => pair.Key, pair => pair.Value));
+      ArtistObjectLocalIds = artistObjectLocalIds ?? new GltfArtistObjectLocalIds();
     }
 
     internal GltfExportOptions(
@@ -1289,6 +1311,7 @@ namespace EarthTool.GLTF
       IEnumerable<string> restoredSerializedRepresentationPaths,
       IReadOnlyDictionary<string, string>? preservedUnknownMetadata = null,
       IReadOnlyDictionary<string, int>? metadataNextIds = null,
+      GltfArtistObjectLocalIds? artistObjectLocalIds = null,
       GltfMetadataLineageDisposition lineageDisposition = GltfMetadataLineageDisposition.Retained,
       IEnumerable<GltfMetadataConflictResolution>? appliedConflictResolutions = null)
     {
@@ -1305,7 +1328,8 @@ namespace EarthTool.GLTF
         nextBaseline.AssetLineageId,
         nextBaseline.DocumentId,
         PreservedUnknownMetadata,
-        metadataNextIds ?? new Dictionary<string, int>());
+        metadataNextIds ?? new Dictionary<string, int>(),
+        artistObjectLocalIds);
       LineageDisposition = lineageDisposition;
       AppliedConflictResolutions = Array.AsReadOnly(
         appliedConflictResolutions?.ToArray() ?? Array.Empty<GltfMetadataConflictResolution>());

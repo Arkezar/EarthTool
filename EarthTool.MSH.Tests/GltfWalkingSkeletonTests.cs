@@ -2110,7 +2110,7 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
-  public async Task DeletingActiveCannonWritesAbsentAttachmentAndRetainsRenderPosition()
+  public async Task DeletingActiveCannonClearsAttachmentAndRenderPosition()
   {
     var sourceBytes = AttachmentAndCannonMshFixture.Create(
       new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
@@ -2143,7 +2143,7 @@ public class GltfWalkingSkeletonTests
     AttachmentAndCannonMshFixture.GetAttachment(resultBytes, 1).Should()
       .Equal(0, 128, 0, 128, 0, 128, 0, 0);
     AttachmentAndCannonMshFixture.GetCannonRenderPosition(resultBytes, 1).Should()
-      .Equal(AttachmentAndCannonMshFixture.GetCannonRenderPosition(sourceBytes, 1));
+      .OnlyContain(value => value == 0);
   }
 
   [Fact]
@@ -2207,9 +2207,6 @@ public class GltfWalkingSkeletonTests
       var rebound = nodes.Single(node =>
         node!["name"]!.GetValue<string>() == GlbDocument.GetAttachmentHelperName(21))!.AsObject();
       rebound["name"] = GlbDocument.GetAttachmentHelperName(22);
-      var metadata = JsonNode.Parse(rebound["extras"]!["earthtool"]!.GetValue<string>())!.AsObject();
-      metadata["payload"]!["attachment"]!["physicalNumber"] = 22;
-      rebound["extras"]!["earthtool"] = metadata.ToJsonString();
       rebound["translation"] = new JsonArray(2, 3, 4);
     });
 
@@ -2250,6 +2247,319 @@ public class GltfWalkingSkeletonTests
     conflict.Status.Should().Be(OperationStatus.Failed);
     conflict.Value.Should().BeNull();
     conflict.Diagnostics.Should().ContainSingle(diagnostic => diagnostic.Code == "ETG2012");
+  }
+
+  [Fact]
+  public async Task CanonicalRenumberingRetainsArtistObjectValuesAndClearsOldTargets()
+  {
+    var sourceBytes = AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [1] = new(320, -640, 960, 64, 0xB7),
+        [5] = new(128, 256, 384, 32, 0xC3),
+        [21] = new(256, 512, -768, 192, 0xA5)
+      },
+      new Dictionary<int, Vector3>
+      {
+        [1] = new(float.NaN, float.PositiveInfinity, float.NegativeInfinity)
+      },
+      (uint)StaticRenderObjectFlags.MarkerAttachment1);
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var attachmentLocalId = 0;
+    var cannonLocalId = 0;
+    var emitterLocalId = 0;
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      var attachment = nodes.Single(node =>
+        node!["name"]!.GetValue<string>() == GlbDocument.GetAttachmentHelperName(21))!;
+      attachmentLocalId = GetEarthToolLocalId(attachment);
+      attachment["name"] = GlbDocument.GetAttachmentHelperName(22);
+      var cannon = nodes.Single(node =>
+        node!["name"]!.GetValue<string>() == GlbDocument.GetCannonHelperName(1))!;
+      cannonLocalId = GetEarthToolLocalId(cannon);
+      cannon["name"] = GlbDocument.GetCannonHelperName(2);
+      var emitter = nodes.Single(node =>
+        node!["name"]!.GetValue<string>() == GlbDocument.GetAttachmentHelperName(5))!;
+      emitterLocalId = GetEarthToolLocalId(emitter);
+      emitter["name"] = GlbDocument.GetAttachmentHelperName(6);
+    });
+
+    await using var input = new MemoryStream(edited);
+    var import = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    var result = import.Value!.Asset.GetSerializedRepresentation().ToArray();
+    AttachmentAndCannonMshFixture.GetAttachment(result, 21).Should()
+      .Equal(0, 128, 0, 128, 0, 128, 0, 0);
+    AttachmentAndCannonMshFixture.GetAttachment(result, 22).Should()
+      .Equal(AttachmentAndCannonMshFixture.GetAttachment(sourceBytes, 21));
+    AttachmentAndCannonMshFixture.GetAttachment(result, 1).Should()
+      .Equal(0, 128, 0, 128, 0, 128, 0, 0);
+    AttachmentAndCannonMshFixture.GetCannonRenderPosition(result, 1).Should().OnlyContain(value => value == 0);
+    AttachmentAndCannonMshFixture.GetAttachment(result, 2).Should()
+      .Equal(AttachmentAndCannonMshFixture.GetAttachment(sourceBytes, 1));
+    AttachmentAndCannonMshFixture.GetCannonRenderPosition(result, 2).Should()
+      .Equal(AttachmentAndCannonMshFixture.GetCannonRenderPosition(sourceBytes, 1));
+    AttachmentAndCannonMshFixture.GetAttachment(result, 5).Should()
+      .Equal(0, 128, 0, 128, 0, 128, 0, 0);
+    AttachmentAndCannonMshFixture.GetAttachment(result, 6).Should()
+      .Equal(AttachmentAndCannonMshFixture.GetAttachment(sourceBytes, 5));
+    import.Value.Asset.StaticRenderObjectSequence[0].KnownFlags.Should()
+      .HaveFlag(StaticRenderObjectFlags.MarkerAttachment2)
+      .And.NotHaveFlag(StaticRenderObjectFlags.MarkerAttachment1);
+
+    await using var reexported = new MemoryStream();
+    var reexport = await interchange.ExportGlbAsync(
+      import.Value.Asset,
+      reexported,
+      import.Value.NextExportOptions);
+    reexport.Status.Should().Be(OperationStatus.Succeeded);
+    using var nextDocument = ReadGlbJson(reexported.ToArray());
+    var nextJson = JsonNode.Parse(nextDocument.RootElement.GetRawText())!.AsObject();
+    var nextNodes = nextJson["nodes"]!.AsArray();
+    GetEarthToolLocalId(nextNodes.Single(node =>
+      node!["name"]!.GetValue<string>() == GlbDocument.GetAttachmentHelperName(22))!).Should()
+      .Be(attachmentLocalId);
+    GetEarthToolLocalId(nextNodes.Single(node =>
+      node!["name"]!.GetValue<string>() == GlbDocument.GetCannonHelperName(2))!).Should()
+      .Be(cannonLocalId);
+    GetEarthToolLocalId(nextNodes.Single(node =>
+      node!["name"]!.GetValue<string>() == GlbDocument.GetAttachmentHelperName(6))!).Should()
+      .Be(emitterLocalId);
+
+    reexported.Position = 0;
+    var nextImport = await interchange.ImportEditGlbAsync(reexported, reexport.Value!.Baseline);
+    nextImport.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", nextImport.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    nextImport.Value!.Asset.GetSerializedRepresentation().Should()
+      .Equal(import.Value.Asset.GetSerializedRepresentation());
+  }
+
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task OccupiedCanonicalRenumberingReportsArtistAndPhysicalTarget(bool cannon)
+  {
+    var sourceBytes = cannon
+      ? AttachmentAndCannonMshFixture.Create(
+        new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+        {
+          [1] = new(256, 512, 768, 64, 0xA1),
+          [2] = new(1024, 1280, 1536, 192, 0xA2)
+        },
+        new Dictionary<int, Vector3>
+        {
+          [1] = new(1, 2, 3),
+          [2] = new(4, 5, 6)
+        })
+      : AttachmentAndCannonMshFixture.Create(
+        new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+        {
+          [21] = new(256, 512, 768, 64, 0xA1),
+          [22] = new(1024, 1280, 1536, 192, 0xA2)
+        });
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var sourcePath = string.Empty;
+    var targetPath = string.Empty;
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      var sourceName = cannon
+        ? GlbDocument.GetCannonHelperName(1)
+        : GlbDocument.GetAttachmentHelperName(21);
+      var targetName = cannon
+        ? GlbDocument.GetCannonHelperName(2)
+        : GlbDocument.GetAttachmentHelperName(22);
+      var sourceIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["name"]!.GetValue<string>() == sourceName).index;
+      var targetIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["name"]!.GetValue<string>() == targetName).index;
+      sourcePath = $"nodes[{sourceIndex}]";
+      targetPath = $"nodes[{targetIndex}]";
+      nodes[sourceIndex]!["name"] = targetName;
+    });
+
+    await using var input = new MemoryStream(edited);
+    var import = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Failed);
+    import.Value.Should().BeNull();
+    import.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.AmbiguousPartitionCorrespondence
+      && diagnostic.Path != null
+      && diagnostic.Path.StartsWith("nodes[", StringComparison.Ordinal)
+      && diagnostic.Message.Contains(sourcePath, StringComparison.Ordinal)
+      && diagnostic.Message.Contains(targetPath, StringComparison.Ordinal));
+  }
+
+  [Theory]
+  [InlineData("Artist Unload Point")]
+  [InlineData("et_unloadpoint_1")]
+  [InlineData("ET_HitPoint_1")]
+  [InlineData("ET_Turret_1")]
+  public async Task MetadataBackedAttachmentRequiresItsCanonicalHelperFamily(string renamed)
+  {
+    var sourceBytes = AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [21] = new(256, 512, 768, 64, 0xA1)
+      });
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      root["nodes"]!.AsArray().Single(node =>
+        node!["name"]!.GetValue<string>() == GlbDocument.GetAttachmentHelperName(21))!["name"] = renamed;
+    });
+
+    await using var input = new MemoryStream(edited);
+    var import = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Failed);
+    import.Value.Should().BeNull();
+    import.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.AmbiguousPartitionCorrespondence
+      && diagnostic.Path != null
+      && diagnostic.Path.StartsWith("nodes[", StringComparison.Ordinal)
+      && diagnostic.Message.Contains("CommonBaseHeader.AttachmentTable[21]", StringComparison.Ordinal));
+  }
+
+  [Theory]
+  [InlineData("Artist Turret")]
+  [InlineData("et_turret_1")]
+  [InlineData("ET_UnloadPoint_1")]
+  public async Task MetadataBackedCannonRequiresItsCanonicalIdentifier(string renamed)
+  {
+    var sourceBytes = AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [1] = new(256, 512, 768, 64, 0xA1)
+      },
+      new Dictionary<int, Vector3> { [1] = new(1, 2, 3) });
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      root["nodes"]!.AsArray().Single(node =>
+        node!["name"]!.GetValue<string>() == GlbDocument.GetCannonHelperName(1))!["name"] = renamed;
+    });
+
+    await using var input = new MemoryStream(edited);
+    var import = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Failed);
+    import.Value.Should().BeNull();
+    import.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.AmbiguousPartitionCorrespondence
+      && diagnostic.Path != null
+      && diagnostic.Path.StartsWith("nodes[", StringComparison.Ordinal)
+      && diagnostic.Message.Contains("CommonBaseHeader.AttachmentTable[1]", StringComparison.Ordinal));
+  }
+
+  [Theory]
+  [InlineData(false, false)]
+  [InlineData(false, true)]
+  [InlineData(true, false)]
+  [InlineData(true, true)]
+  public async Task CanonicalAttachmentAndCannonHelpersMustBeLeaves(bool cannon, bool editIntent)
+  {
+    var sourceBytes = cannon
+      ? AttachmentAndCannonMshFixture.Create(
+        new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+        {
+          [1] = new(256, 512, 768, 64, 0xA1),
+          [2] = new(1024, 1280, 1536, 192, 0xA2)
+        },
+        new Dictionary<int, Vector3>
+        {
+          [1] = new(1, 2, 3),
+          [2] = new(4, 5, 6)
+        })
+      : AttachmentAndCannonMshFixture.Create(
+        new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+        {
+          [21] = new(256, 512, 768, 64, 0xA1),
+          [22] = new(1024, 1280, 1536, 192, 0xA2)
+        });
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var helperPath = string.Empty;
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      if (!editIntent)
+      {
+        RemoveEarthToolMetadata(root);
+      }
+      var nodes = root["nodes"]!.AsArray();
+      var helperName = cannon
+        ? GlbDocument.GetCannonHelperName(1)
+        : GlbDocument.GetAttachmentHelperName(21);
+      var childName = cannon
+        ? GlbDocument.GetCannonHelperName(2)
+        : GlbDocument.GetAttachmentHelperName(22);
+      var helperIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["name"]!.GetValue<string>() == helperName).index;
+      helperPath = $"nodes[{helperIndex}]";
+      var childIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["name"]!.GetValue<string>() == childName).index;
+      foreach (var node in nodes.OfType<JsonObject>())
+      {
+        if (node["children"] is not JsonArray children)
+        {
+          continue;
+        }
+        for (var index = children.Count - 1; index >= 0; index--)
+        {
+          if (children[index]!.GetValue<int>() == childIndex)
+          {
+            children.RemoveAt(index);
+          }
+        }
+      }
+      nodes[helperIndex]!["children"] = new JsonArray(childIndex);
+    });
+
+    await using var input = new MemoryStream(edited);
+    var import = editIntent
+      ? (OperationResult)await interchange.ImportEditGlbAsync(input, export.Value!.Baseline)
+      : await interchange.ImportNewModelGlbAsync(input);
+
+    import.Status.Should().Be(OperationStatus.Failed);
+    import.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.UnsupportedDomain
+      && diagnostic.Path == helperPath
+      && diagnostic.Data.ContainsKey("domain"));
   }
 
   [Fact]
@@ -2413,6 +2723,106 @@ public class GltfWalkingSkeletonTests
     BinaryPrimitives.ReadInt16LittleEndian(cannonAttachment.AsSpan(4)).Should().Be(960);
     cannonAttachment[6].Should().Be(64);
     cannonAttachment[7].Should().Be(0x80);
+  }
+
+  [Fact]
+  public async Task NewModelHelperGroupsApplyTransformWhileUnknownLeavesAreWarnedAndIgnored()
+  {
+    var sourceBytes = AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [21] = new(256, 512, -768, 192, 0xA5)
+      });
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var exported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    await interchange.ExportGlbAsync(
+      asset,
+      exported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var unknownPaths = new List<string>();
+    var metadataFree = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      var nodes = root["nodes"]!.AsArray();
+      var rootIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["mesh"] is not null).index;
+      var helperIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["name"]!.GetValue<string>() == GlbDocument.GetAttachmentHelperName(21)).index;
+      var rootChildren = nodes[rootIndex]!["children"]!.AsArray();
+      var helperChildIndex = rootChildren.Select((child, index) => (child, index)).Single(item =>
+        item.child!.GetValue<int>() == helperIndex).index;
+      rootChildren.RemoveAt(helperChildIndex);
+      var groupIndex = nodes.Count;
+      nodes.Add(new JsonObject
+      {
+        ["name"] = "Artist helper group",
+        ["translation"] = new JsonArray(1, 0, 0),
+        ["children"] = new JsonArray(helperIndex)
+      });
+      rootChildren.Add(groupIndex);
+      foreach (var name in new[] { "Artist note", "ET_UnloadPoint_99", "et_unloadpoint_1" })
+      {
+        var unknownIndex = nodes.Count;
+        nodes.Add(new JsonObject { ["name"] = name });
+        rootChildren.Add(unknownIndex);
+        unknownPaths.Add($"nodes[{unknownIndex}]");
+      }
+    });
+
+    await using var input = new MemoryStream(metadataFree);
+    var import = await interchange.ImportNewModelGlbAsync(input);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    var result = import.Value!.Asset.GetSerializedRepresentation().ToArray();
+    var attachment = AttachmentAndCannonMshFixture.GetAttachment(result, 21);
+    BinaryPrimitives.ReadInt16LittleEndian(attachment).Should().Be(512);
+    BinaryPrimitives.ReadInt16LittleEndian(attachment.AsSpan(2)).Should().Be(512);
+    BinaryPrimitives.ReadInt16LittleEndian(attachment.AsSpan(4)).Should().Be(-768);
+    attachment[6].Should().Be(192);
+    attachment[7].Should().Be(0x80);
+    import.Diagnostics.Where(diagnostic => diagnostic.Code == GltfDiagnosticCodes.InertDataIgnored)
+      .Select(diagnostic => diagnostic.Path).Should().BeEquivalentTo(unknownPaths);
+  }
+
+  [Fact]
+  public async Task EditImportWarnsAndIgnoresMetadataFreeUnknownLeaves()
+  {
+    var sourceBytes = OneTriangleMshFixture.Create();
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var exported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      exported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var unknownPaths = new List<string>();
+    var edited = RewriteJson(exported.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      var rootNode = nodes.Single(node => node!["mesh"] is not null)!;
+      var rootChildren = rootNode["children"] as JsonArray ?? new JsonArray();
+      rootNode["children"] = rootChildren;
+      foreach (var name in new[] { "Artist note", "ET_UnloadPoint_99", "et_unloadpoint_1" })
+      {
+        var unknownIndex = nodes.Count;
+        nodes.Add(new JsonObject { ["name"] = name });
+        rootChildren.Add(unknownIndex);
+        unknownPaths.Add($"nodes[{unknownIndex}]");
+      }
+    });
+
+    await using var input = new MemoryStream(edited);
+    var import = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    import.Value!.Asset.GetSerializedRepresentation().Should().Equal(sourceBytes);
+    import.Diagnostics.Where(diagnostic => diagnostic.Code == GltfDiagnosticCodes.InertDataIgnored)
+      .Select(diagnostic => diagnostic.Path).Should().BeEquivalentTo(unknownPaths);
   }
 
   [Fact]
@@ -8165,6 +8575,12 @@ public class GltfWalkingSkeletonTests
     BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(binaryHeader + 4), 0x004E4942);
     binary.CopyTo(result, binaryHeader + 8);
     return result;
+  }
+
+  private static int GetEarthToolLocalId(JsonNode node)
+  {
+    var metadata = JsonNode.Parse(node["extras"]!["earthtool"]!.GetValue<string>())!;
+    return metadata["id"]!.GetValue<int>();
   }
 
   private static void RemoveEarthToolMetadata(JsonNode? node)
