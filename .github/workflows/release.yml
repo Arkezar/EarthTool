@@ -365,7 +365,7 @@ jobs:
 
   create-release:
     name: Create Release
-    needs: [build-and-test, code-quality]
+    needs: [build-and-test, code-quality, security-scan]
     runs-on: ubuntu-latest
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true')
 
@@ -416,10 +416,30 @@ jobs:
           fi
 
           echo "" >> CHANGELOG.md
-          git log "$RANGE" --no-merges \
-            --pretty=format:"- %s - %an ([\`%h\`](https://github.com/${{ github.repository }}/commit/%H))" \
-            >> CHANGELOG.md
-          echo "" >> CHANGELOG.md
+
+          append_commits() {
+            local type="$1"
+            local heading="$2"
+            local pattern="^${type}(\\([^)]*\\))?!?:[[:space:]]"
+            local commits
+
+            commits=$(git log "$RANGE" --no-merges --format='%s%x09%an%x09%h%x09%H' |
+              while IFS=$'\t' read -r subject author short_sha sha; do
+                if [[ "$subject" =~ $pattern ]]; then
+                  printf -- '- %s - %s ([`%s`](https://github.com/${{ github.repository }}/commit/%s))\n' \
+                    "$subject" "$author" "$short_sha" "$sha"
+                fi
+              done)
+
+            if [ -n "$commits" ]; then
+              echo "### $heading" >> CHANGELOG.md
+              echo "" >> CHANGELOG.md
+              printf '%s\n\n' "$commits" >> CHANGELOG.md
+            fi
+          }
+
+          append_commits "feat" "Features"
+          append_commits "fix" "Fixes"
 
           echo "Generated release notes:"
           cat CHANGELOG.md

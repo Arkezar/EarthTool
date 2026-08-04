@@ -263,6 +263,19 @@ test("release workflow publishes Windows and Linux without a macOS lane", async 
   assert.match(workflow, /CliProcessExposesOnlyTheGltfMshCommandTreeAndStableExitStatuses/);
 });
 
+test("release creation waits for security and groups only features and fixes", async () => {
+  const workflow = await readFile(
+    new URL("../.github/workflows/release.yml", import.meta.url),
+    "utf8");
+  const releaseNotesStep = workflow.match(
+    /- name: Generate release notes([\s\S]*?)- name: Create Release/)?.[1] ?? "";
+
+  assert.match(workflow, /needs: \[build-and-test, code-quality, security-scan\]/);
+  assert.match(releaseNotesStep, /local pattern=/);
+  assert.match(releaseNotesStep, /append_commits "feat" "Features"/);
+  assert.match(releaseNotesStep, /append_commits "fix" "Fixes"/);
+});
+
 test("official corpus qualification remains a local pre-publish gate", async () => {
   const workflow = await readFile(
     new URL("../.github/workflows/release.yml", import.meta.url),

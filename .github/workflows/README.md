@@ -230,7 +230,7 @@ Project-specific paths are configured in the matrix strategy.
 
 ## Release Notes
 
-The `release.yml` workflow lists every non-merge commit since the previous version. Each entry includes the commit message, author, and a link to the commit.
+The `release.yml` workflow lists Conventional Commit `feat` and `fix` commits since the previous version, grouped into Features and Fixes. Other commit types and merge commits are omitted. Each entry includes the commit message, author, and a link to the commit.
 
 ### Example
 
@@ -239,7 +239,12 @@ The `release.yml` workflow lists every non-merge commit since the previous versi
 
 Commits since [`v1.1.0`](...):
 
+### Features
+
 - feat(cli): add batch processing - Jane Doe ([`a1b2c3`](...))
+
+### Fixes
+
 - fix(wd): handle empty archives - John Smith ([`d4e5f6`](...))
 ```
 
