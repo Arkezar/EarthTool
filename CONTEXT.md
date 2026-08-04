@@ -24,6 +24,10 @@ _Avoid_: Unknown1, hidden bytes, guessed meaning
 A coherent set of serialized representations produced from explicit authoring inputs for a new or deliberately converted model. It is distinct from preserving a loaded file's accepted values.
 _Avoid_: Repaired file, normalized loaded model
 
+**Canonical authoring default**:
+A deterministic value emitted when glTF provides no reliable semantic evidence and no typed authoring input is supplied. It does not claim to recover source intent.
+_Avoid_: Inferred semantic, retained value
+
 **Structural hazard**:
 A serialized declaration or reference that prevents safe, bounded, and unambiguous materialization of a mesh asset. Structural hazards are rejected without producing a partial mesh.
 _Avoid_: Malformed warning, recoverable corruption
@@ -103,6 +107,10 @@ _Avoid_: Wire-format spelling
 **Animation class**:
 One of four frame-selection domains `A`, `B`, `C`, and `D`, serialized as numeric values `0`, `1`, `2`, and `3`. The classes do not have universal movement, action, lift, two-way, or single-playback meanings.
 _Avoid_: Animation type, movement frames, action frames, building frames
+
+**Animation class assignment**:
+The animation class selected by one static render object. Every static render object has an assignment; canonical authoring uses class A when no canonical animation clip assigns another class.
+_Avoid_: Optional animation class, playback behavior
 
 **Animation lengths**:
 The four reverse-packed declared frame-count bytes for animation classes A through D in the base header.
@@ -195,6 +203,14 @@ _Avoid_: Turret, Barrel Muzzle, Production End, guessed source-code expansion
 **Attachment artist identifier**:
 The case-sensitive `ET_...` glTF object name used for authoring an attachment. These identifiers use concise historical editing labels such as Turret, Emitter, Turret Muzzle, Unload Point, Hit Point, Smoke Point, and Production Spot End. They identify physical records but do not replace the confirmed runtime range names or constitute evidence about game behavior.
 _Avoid_: Runtime semantic name, physical-number-only helper name
+
+**Canonical authoring identifier**:
+A reserved case-sensitive glTF name whose spelling declares an MSH authoring semantic, including `ET_...` artist identifiers and `EarthTool A` through `EarthTool D` animation names. It is semantic input rather than a presentation name or stable scope identity.
+_Avoid_: Display name, metadata identity
+
+**Canonical helper family**:
+A set of numbered canonical artist identifiers with one semantic prefix, node shape, and retained-value contract. Renumbering retargets the same scoped artist object within its family; changing family requires a fresh scope identity.
+_Avoid_: Storage-compatible helper, interchangeable attachment range
 
 **Static light**:
 A base-header spot or omni light record numbered 1 through 4 and composed of a position, RGB color, terrain-light amplitude, and shape-specific values. A static light is not itself a coordinate vector, and gaps in light numbers are meaningful.
@@ -292,6 +308,18 @@ _Avoid_: Lineage alias, source hash identity
 A named, versioned digest of a canonical semantic projection of artist-editable glTF state. It ignores representation-only regeneration such as buffer packing and non-owned array order while retaining every semantic dependency required to decide metadata applicability.
 _Avoid_: Raw glTF checksum, whole-file hash
 
+**Reconstructable authoring semantic**:
+An MSH meaning fully and unambiguously evidenced by artist-visible glTF state. Retained metadata is not an alternate authority for it.
+_Avoid_: Metadata-backed value, preserved semantic
+
+**Projection-bound authoring semantic**:
+An MSH meaning intentionally exposed through a native glTF property by EarthTool despite no general format-level equivalence. That property is authoring evidence only within a matching EarthTool edit projection, not in metadata-free glTF.
+_Avoid_: Core glTF semantic, generic inference
+
+**Typed authoring input**:
+An explicit new-model value for a semantic that artist-visible glTF does not evidence safely. It cannot replace a canonical authoring identifier or contradict a reconstructable authoring semantic.
+_Avoid_: Metadata override, inference override
+
 **Metadata conflict**:
 A condition in a claimed EarthTool interchange lineage where expected preservation state cannot be applied safely, such as a stale non-derivable dependency, missing expected envelope, duplicate scope identity, foreign lineage, malformed envelope, or unsupported schema version. It blocks MSH creation until explicitly resolved; a glTF asset with no EarthTool manifest is instead a new-model input.
 _Avoid_: Metadata warning, silent canonical fallback
@@ -305,13 +333,17 @@ Import of glTF that is intentionally outside an existing EarthTool interchange l
 _Avoid_: Metadata fallback, failed edit import
 
 **Attachment artist object**:
-The artist-facing interchange representation of one runtime-available attachment record. Its physical attachment number remains authoritative, while its presence and pose expose activity, position, and heading for editing. Active light attachments use the corresponding static-light artist object instead.
-_Avoid_: Name-identified attachment
+The artist-facing interchange representation of one runtime-available attachment record. Its interchange scope identity remains stable across edits, while its required canonical artist identifier authors the current physical attachment number and its presence and pose expose activity, position, and heading. Active cannon and light attachments use their corresponding compound artist objects instead.
+_Avoid_: Metadata-owned target, physical-number identity
 
-**Cannon render-position artist object**:
-The position-only artist-facing representation of one full-precision cannon render position. It remains independent from the corresponding Cannon attachment artist object.
-_Avoid_: Cannon attachment, synchronized mount helper
+**Cannon artist object**:
+The compound artist-facing representation of one active cannon slot, combining its quantized attachment and full-precision render position under one canonical identifier and scope identity.
+_Avoid_: Separate cannon attachment, separate render-position helper
 
 **Static-light artist object**:
 The artist-facing interchange representation that combines one active spot or omni light with its independently serialized light attachment. An unchanged object preserves both source positions; editing its pose deliberately regenerates both representations.
 _Avoid_: Light vector, separate light-attachment helper
+
+**Emitter marker ownership**:
+The authored relationship in which `ET_Emitter_n` belongs to its nearest source-object ancestor across intervening transform-only groups. Each distinct owned emitter contributes its corresponding `MarkerAttachmentN` role, and one source object may own several such roles.
+_Avoid_: Direct glTF parent ownership, root fallback ownership
