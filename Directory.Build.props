@@ -6,5 +6,6 @@
     <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">0.0.1.0</AssemblyVersion>
     <FileVersion Condition="'$(FileVersion)' == ''">0.0.1.0</FileVersion>
     <InformationalVersion Condition="'$(InformationalVersion)' == ''">0.0.1-dev+local</InformationalVersion>
+    <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
   </PropertyGroup>
 </Project>
