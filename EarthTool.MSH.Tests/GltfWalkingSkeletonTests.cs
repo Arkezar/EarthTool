@@ -206,7 +206,7 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
-  public async Task StaticLightDeletionAndTypeConversionPreserveSparsePhysicalIdentity()
+  public async Task StaticLightDeletionClearsTheAttachmentAndFullRecord()
   {
     var sourceBytes = StaticLightMshFixture.Create(
       new Dictionary<int, StaticLightMshFixture.SpotRecord>
@@ -247,10 +247,7 @@ public class GltfWalkingSkeletonTests
         item.node!["name"]!.GetValue<string>() == "ET_SpotLight_3").index;
       RemoveNodeAndReferences(root, deletedIndex);
 
-      var definitions = root["extensions"]!["KHR_lights_punctual"]!["lights"]!.AsArray();
-      definitions.RemoveAt(1);
-      definitions.Single(light =>
-        light!["name"]!.GetValue<string>() == "ET_SpotLight_1")!["type"] = "point";
+      root["extensions"]!["KHR_lights_punctual"]!["lights"]!.AsArray().RemoveAt(1);
     });
 
     await using var input = new MemoryStream(edited);
@@ -261,18 +258,320 @@ public class GltfWalkingSkeletonTests
       string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
     var resultBytes = import.Value!.Asset.GetSerializedRepresentation().ToArray();
     StaticLightMshFixture.GetSpot(resultBytes, 1).Should().Equal(StaticLightMshFixture.GetSpot(sourceBytes, 1));
-    StaticLightMshFixture.GetAttachment(resultBytes, 13).Should().Equal(0, 128, 0, 128, 0, 128, 0, 0);
-    var point = StaticLightMshFixture.GetOmni(resultBytes, 1);
-    new[] { ReadSingle(point, 0), ReadSingle(point, 4), ReadSingle(point, 8) }
-      .Should().Equal(1, 2, 3);
-    new[] { ReadSingle(point, 0x0C), ReadSingle(point, 0x10), ReadSingle(point, 0x14) }
-      .Should().Equal(0.2f, 0.4f, 0.6f);
-    ReadSingle(point, 0x18).Should().Be(3);
-    BinaryPrimitives.ReadInt16LittleEndian(StaticLightMshFixture.GetAttachment(resultBytes, 17))
-      .Should().NotBe(short.MinValue);
-
-    StaticLightMshFixture.GetSpot(resultBytes, 3).Should().Equal(StaticLightMshFixture.GetSpot(sourceBytes, 3));
+    StaticLightMshFixture.GetAttachment(resultBytes, 13).Should().Equal(
+      StaticLightMshFixture.GetAttachment(sourceBytes, 13));
+    StaticLightMshFixture.GetSpot(resultBytes, 3).Should().OnlyContain(value => value == 0);
     StaticLightMshFixture.GetAttachment(resultBytes, 15).Should().Equal(0, 128, 0, 128, 0, 128, 0, 0);
+  }
+
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task StaticLightSpotToOmniConversionFailsWithoutAnAsset(bool renameFamily)
+  {
+    var sourceBytes = StaticLightMshFixture.Create(
+      new Dictionary<int, StaticLightMshFixture.SpotRecord>
+      {
+        [1] = new(
+          new Vector3(1, 2, 3),
+          new Vector3(0.2f, 0.4f, 0.6f),
+          8,
+          64,
+          [7, 8, 9],
+          0.25f,
+          4,
+          0.5f,
+          3)
+      },
+      activeSpots: [1]);
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      if (renameFamily)
+      {
+        root["nodes"]!.AsArray().Single(node =>
+          node!["name"]!.GetValue<string>() == "ET_SpotLight_1")!["name"] = "ET_OmniLight_1";
+        root["extensions"]!["KHR_lights_punctual"]!["lights"]!.AsArray().Single(light =>
+          light!["name"]!.GetValue<string>() == "ET_SpotLight_1")!["name"] = "ET_OmniLight_1";
+      }
+      else
+      {
+        root["extensions"]!["KHR_lights_punctual"]!["lights"]!.AsArray().Single(light =>
+          light!["name"]!.GetValue<string>() == "ET_SpotLight_1")!["type"] = "point";
+      }
+    });
+
+    await using var input = new MemoryStream(edited);
+    var import = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Failed);
+    import.Value.Should().BeNull();
+    import.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.UnsupportedDomain
+      && diagnostic.Path == (renameFamily
+        ? "nodes[1].name"
+        : "extensions.KHR_lights_punctual.lights[0].type"));
+  }
+
+  [Fact]
+  public async Task StaticLightSameFamilyRenumberingMovesStateAndKeepsIdentity()
+  {
+    var sourceBytes = StaticLightMshFixture.Create(
+      new Dictionary<int, StaticLightMshFixture.SpotRecord>
+      {
+        [1] = new(
+          new Vector3(1, 2, 3),
+          new Vector3(0.2f, 0.4f, 0.6f),
+          8,
+          64,
+          [7, 8, 9],
+          0.25f,
+          4,
+          0.5f,
+          3)
+      },
+      activeSpots: [1]);
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var artistObjectLocalId = 0;
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      var node = root["nodes"]!.AsArray().Single(node =>
+        node!["name"]!.GetValue<string>() == "ET_SpotLight_1")!;
+      artistObjectLocalId = GetEarthToolLocalId(node);
+      node["name"] = "ET_SpotLight_3";
+      root["extensions"]!["KHR_lights_punctual"]!["lights"]!.AsArray().Single(light =>
+        light!["name"]!.GetValue<string>() == "ET_SpotLight_1")!["name"] = "ET_SpotLight_3";
+    });
+
+    await using var input = new MemoryStream(edited);
+    var import = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    var result = import.Value!.Asset.GetSerializedRepresentation().ToArray();
+    StaticLightMshFixture.GetSpot(result, 1).Should().OnlyContain(value => value == 0);
+    StaticLightMshFixture.GetAttachment(result, 13).Should().Equal(0, 128, 0, 128, 0, 128, 0, 0);
+    StaticLightMshFixture.GetSpot(result, 3).Should().Equal(StaticLightMshFixture.GetSpot(sourceBytes, 1));
+    StaticLightMshFixture.GetAttachment(result, 15).Should().Equal(
+      StaticLightMshFixture.GetAttachment(sourceBytes, 13));
+
+    await using var reexported = new MemoryStream();
+    var reexport = await interchange.ExportGlbAsync(
+      import.Value.Asset,
+      reexported,
+      import.Value.NextExportOptions);
+    reexport.Status.Should().Be(OperationStatus.Succeeded);
+    using (var document = ReadGlbJson(reexported.ToArray()))
+    {
+      var root = JsonNode.Parse(document.RootElement.GetRawText())!.AsObject();
+      GetEarthToolLocalId(root["nodes"]!.AsArray().Single(node =>
+        node!["name"]!.GetValue<string>() == "ET_SpotLight_3")!).Should().Be(artistObjectLocalId);
+    }
+    reexported.Position = 0;
+    var reimport = await interchange.ImportEditGlbAsync(reexported, reexport.Value!.Baseline);
+    reimport.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", reimport.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    reimport.Value!.Asset.GetSerializedRepresentation().Should().Equal(
+      import.Value.Asset.GetSerializedRepresentation());
+  }
+
+  [Fact]
+  public async Task RepeatedStaticLightRetargetAndAdditionKeepUniqueArtistObjectIdentities()
+  {
+    var sourceBytes = StaticLightMshFixture.Create(
+      new Dictionary<int, StaticLightMshFixture.SpotRecord>
+      {
+        [1] = new(Vector3.Zero, Vector3.One, 0, 0, [0, 0, 0], 0.2f, 5, 0.25f, 4)
+      },
+      activeSpots: [1]);
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var firstExported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var firstExport = await interchange.ExportGlbAsync(
+      asset,
+      firstExported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var artistObjectLocalId = 0;
+    var firstEdit = RewriteJson(firstExported.ToArray(), root =>
+    {
+      var node = root["nodes"]!.AsArray().Single(node =>
+        node!["name"]!.GetValue<string>() == "ET_SpotLight_1")!;
+      artistObjectLocalId = GetEarthToolLocalId(node);
+      node["name"] = "ET_SpotLight_3";
+      root["extensions"]!["KHR_lights_punctual"]!["lights"]!.AsArray().Single(light =>
+        light!["name"]!.GetValue<string>() == "ET_SpotLight_1")!["name"] = "ET_SpotLight_3";
+    });
+    await using var firstInput = new MemoryStream(firstEdit);
+    var firstImport = await interchange.ImportEditGlbAsync(firstInput, firstExport.Value!.Baseline);
+    await using var reexported = new MemoryStream();
+    var reexport = await interchange.ExportGlbAsync(
+      firstImport.Value!.Asset,
+      reexported,
+      firstImport.Value.NextExportOptions);
+    var secondEdit = RewriteJson(reexported.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      nodes.Single(node => node!["name"]!.GetValue<string>() == "ET_SpotLight_3")!["name"] =
+        "ET_SpotLight_4";
+      var definitions = root["extensions"]!["KHR_lights_punctual"]!["lights"]!.AsArray();
+      definitions.Single(light =>
+        light!["name"]!.GetValue<string>() == "ET_SpotLight_3")!["name"] = "ET_SpotLight_4";
+      definitions.Add(new JsonObject
+      {
+        ["name"] = "ET_SpotLight_1",
+        ["type"] = "spot",
+        ["color"] = new JsonArray(1, 1, 1),
+        ["intensity"] = 1,
+        ["range"] = 5,
+        ["spot"] = new JsonObject
+        {
+          ["innerConeAngle"] = 0.1f,
+          ["outerConeAngle"] = 0.2f
+        }
+      });
+      var rootChildren = nodes[0]!["children"]!.AsArray();
+      rootChildren.Add(nodes.Count);
+      nodes.Add(new JsonObject
+      {
+        ["name"] = "ET_SpotLight_1",
+        ["extensions"] = new JsonObject
+        {
+          ["KHR_lights_punctual"] = new JsonObject { ["light"] = definitions.Count - 1 }
+        }
+      });
+    });
+    await using var secondInput = new MemoryStream(secondEdit);
+    var secondImport = await interchange.ImportEditGlbAsync(secondInput, reexport.Value!.Baseline);
+    secondImport.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", secondImport.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    await using var secondExported = new MemoryStream();
+    var secondExport = await interchange.ExportGlbAsync(
+      secondImport.Value!.Asset,
+      secondExported,
+      secondImport.Value.NextExportOptions);
+    secondExport.Status.Should().Be(OperationStatus.Succeeded);
+    using var secondDocument = ReadGlbJson(secondExported.ToArray());
+    var secondRoot = JsonNode.Parse(secondDocument.RootElement.GetRawText())!.AsObject();
+    var lightObjectLocalIds = secondRoot["nodes"]!.AsArray()
+      .Where(node => node?["name"]?.GetValue<string>().StartsWith("ET_SpotLight_", StringComparison.Ordinal)
+        == true)
+      .Select(node => GetEarthToolLocalId(node!))
+      .ToArray();
+    lightObjectLocalIds.Should().OnlyHaveUniqueItems().And.Contain(artistObjectLocalId);
+  }
+
+  [Fact]
+  public async Task NewModelStaticLightRequiresCanonicalDefinitionName()
+  {
+    var asset = await ReadAssetAsync(StaticLightMshFixture.Create(
+      new Dictionary<int, StaticLightMshFixture.SpotRecord>
+      {
+        [1] = new(Vector3.Zero, Vector3.One, 0, 0, [0, 0, 0], 0.2f, 5, 0.25f, 4)
+      },
+      activeSpots: [1]));
+    await using var exported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    var noncanonicalDefinition = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      root["extensions"]!["KHR_lights_punctual"]!["lights"]![0]!["name"] = "Artist light";
+      root["extensions"]!["KHR_lights_punctual"]!["lights"]![0]!["range"] = 5;
+    });
+    await using var noncanonicalInput = new MemoryStream(noncanonicalDefinition);
+
+    var noncanonical = await interchange.ImportNewModelGlbAsync(noncanonicalInput);
+
+    noncanonical.Status.Should().Be(OperationStatus.Failed);
+    noncanonical.Value.Should().BeNull();
+    noncanonical.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Path == "extensions.KHR_lights_punctual.lights[0].name");
+  }
+
+  [Fact]
+  public async Task NewModelStaticLightMustBeALeafNode()
+  {
+    var asset = await ReadAssetAsync(StaticLightMshFixture.Create(
+      new Dictionary<int, StaticLightMshFixture.SpotRecord>
+      {
+        [1] = new(Vector3.Zero, Vector3.One, 0, 0, [0, 0, 0], 0.2f, 5, 0.25f, 4)
+      },
+      activeSpots: [1]));
+    await using var exported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    var childBearing = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      root["extensions"]!["KHR_lights_punctual"]!["lights"]![0]!["range"] = 5;
+      var nodes = root["nodes"]!.AsArray();
+      var light = nodes.Single(node =>
+        node!["name"]!.GetValue<string>() == "ET_SpotLight_1")!.AsObject();
+      var childIndex = nodes.Count;
+      nodes.Add(new JsonObject { ["name"] = "Artist note" });
+      light["children"] = new JsonArray(childIndex);
+    });
+    await using var childInput = new MemoryStream(childBearing);
+
+    var childResult = await interchange.ImportNewModelGlbAsync(childInput);
+
+    childResult.Status.Should().Be(OperationStatus.Failed);
+    childResult.Value.Should().BeNull();
+    childResult.Diagnostics.Should().ContainSingle(diagnostic => diagnostic.Path.StartsWith(
+      "nodes[",
+      StringComparison.Ordinal));
+  }
+
+  [Fact]
+  public async Task NewModelStaticLightDefinitionCannotBeSharedWithSceneLighting()
+  {
+    var asset = await ReadAssetAsync(StaticLightMshFixture.Create(
+      new Dictionary<int, StaticLightMshFixture.SpotRecord>
+      {
+        [1] = new(Vector3.Zero, Vector3.One, 0, 0, [0, 0, 0], 0.2f, 5, 0.25f, 4)
+      },
+      activeSpots: [1]));
+    await using var exported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    var sharedDefinition = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      root["extensions"]!["KHR_lights_punctual"]!["lights"]![0]!["range"] = 5;
+      var nodes = root["nodes"]!.AsArray();
+      nodes[0]!["children"]!.AsArray().Add(nodes.Count);
+      nodes.Add(new JsonObject
+      {
+        ["name"] = "Artist fill light",
+        ["extensions"] = new JsonObject
+        {
+          ["KHR_lights_punctual"] = new JsonObject { ["light"] = 0 }
+        }
+      });
+    });
+    await using var sharedInput = new MemoryStream(sharedDefinition);
+
+    var sharedResult = await interchange.ImportNewModelGlbAsync(sharedInput);
+
+    sharedResult.Status.Should().Be(OperationStatus.Failed);
+    sharedResult.Value.Should().BeNull();
+    sharedResult.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Path == "extensions.KHR_lights_punctual.lights[0]");
   }
 
   [Fact]
@@ -369,7 +668,7 @@ public class GltfWalkingSkeletonTests
       new GltfNewModelImportOptions(
         staticLightOptions: new Dictionary<GltfLightHandle, GltfNewModelStaticLightOptions>
         {
-          [new GltfLightHandle(1)] = new(targetDistance: 10)
+          [new GltfLightHandle(1)] = new(targetDistance: 10, terrainLightAmplitude: 2.5f)
         }));
 
     import.Status.Should().Be(
@@ -381,27 +680,68 @@ public class GltfWalkingSkeletonTests
       .Should().Equal(1.25f, -2.5f, 3.75f);
     new[] { ReadSingle(spot, 0x0C), ReadSingle(spot, 0x10), ReadSingle(spot, 0x14) }
       .Should().Equal(0.2f, 0.4f, 0.6f);
-    ReadSingle(spot, 0x2C).Should().Be(4);
+    ReadSingle(spot, 0x2C).Should().Be(2.5f);
     BinaryPrimitives.ReadInt16LittleEndian(StaticLightMshFixture.GetAttachment(result, 14))
       .Should().NotBe(short.MinValue);
     var omni = StaticLightMshFixture.GetOmni(result, 4);
     new[] { ReadSingle(omni, 0), ReadSingle(omni, 4), ReadSingle(omni, 8) }
       .Should().Equal(-4.5f, 5.25f, -6.75f);
-    ReadSingle(omni, 0x18).Should().Be(8);
+    ReadSingle(omni, 0x18).Should().Be(1);
     BinaryPrimitives.ReadInt16LittleEndian(StaticLightMshFixture.GetAttachment(result, 20))
       .Should().NotBe(short.MinValue);
+    import.Diagnostics.Where(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.NewModelPhotometricIntensityIgnored)
+      .Select(diagnostic => diagnostic.Path).Should().BeEquivalentTo(
+        "extensions.KHR_lights_punctual.lights[0].intensity",
+        "extensions.KHR_lights_punctual.lights[1].intensity");
 
-    await using var contradictorySource = new MemoryStream(metadataFree);
+    var contradictoryBytes = RewriteJson(metadataFree, root =>
+    {
+      root["extensions"]!["KHR_lights_punctual"]!["lights"]![0]!["range"] = 6;
+    });
+    await using var contradictorySource = new MemoryStream(contradictoryBytes);
     var contradictory = await interchange.ImportNewModelGlbAsync(
       contradictorySource,
       new GltfNewModelImportOptions(
         staticLightOptions: new Dictionary<GltfLightHandle, GltfNewModelStaticLightOptions>
         {
-          [new GltfLightHandle(1)] = new(targetDistance: 10),
-          [new GltfLightHandle(2)] = new(targetDistance: 2)
+          [new GltfLightHandle(1)] = new(targetDistance: 10)
         }));
     contradictory.Status.Should().Be(OperationStatus.Failed);
     contradictory.Value.Should().BeNull();
+    contradictory.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Path == "extensions.KHR_lights_punctual.lights[0].range");
+  }
+
+  [Fact]
+  public async Task PositiveNewModelSpotRangeAuthorsTargetDistance()
+  {
+    var asset = await ReadAssetAsync(StaticLightMshFixture.Create(
+      new Dictionary<int, StaticLightMshFixture.SpotRecord>
+      {
+        [1] = new(Vector3.Zero, Vector3.One, 0, 0, [0, 0, 0], 0.2f, 5, 0.25f, 4)
+      },
+      activeSpots: [1]));
+    await using var exported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    var metadataFree = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      root["extensions"]!["KHR_lights_punctual"]!["lights"]![0]!["range"] = 12.5f;
+    });
+    await using var source = new MemoryStream(metadataFree);
+
+    var imported = await interchange.ImportNewModelGlbAsync(source);
+
+    imported.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", imported.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    var spot = StaticLightMshFixture.GetSpot(
+      imported.Value!.Asset.GetSerializedRepresentation().ToArray(),
+      1);
+    ReadSingle(spot, 0x18).Should().Be(12.5f);
+    ReadSingle(spot, 0x2C).Should().Be(1);
   }
 
   [Fact]
@@ -671,7 +1011,7 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
-  public async Task StaticLightSharingDuplicateIdentityAndOccupiedTypeTargetBlockWithoutAsset()
+  public async Task StaticLightSharingDuplicateIdentityAndOccupiedRetargetBlockWithoutAsset()
   {
     var sourceBytes = StaticLightMshFixture.Create(
       new Dictionary<int, StaticLightMshFixture.SpotRecord>
@@ -685,13 +1025,23 @@ public class GltfWalkingSkeletonTests
           0.2f,
           4,
           0.1f,
-          2)
+          2),
+        [3] = new(
+          new Vector3(7, 8, 9),
+          new Vector3(0.1f, 0.2f, 0.3f),
+          10,
+          48,
+          [4, 5, 6],
+          0.3f,
+          5,
+          0.2f,
+          4)
       },
       new Dictionary<int, StaticLightMshFixture.OmniRecord>
       {
         [1] = new(new Vector3(4, 5, 6), new Vector3(0.5f, 0.6f, 0.7f), 3)
       },
-      activeSpots: [1],
+      activeSpots: [1, 3],
       activeOmnis: [1]);
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
@@ -703,14 +1053,18 @@ public class GltfWalkingSkeletonTests
 
     var occupied = RewriteJson(glb.ToArray(), root =>
     {
+      root["nodes"]!.AsArray().Single(node =>
+        node!["name"]!.GetValue<string>() == "ET_SpotLight_1")!["name"] = "ET_SpotLight_3";
       root["extensions"]!["KHR_lights_punctual"]!["lights"]!.AsArray().Single(light =>
-        light!["name"]!.GetValue<string>() == "ET_SpotLight_1")!["type"] = "point";
+        light!["name"]!.GetValue<string>() == "ET_SpotLight_1")!["name"] = "ET_SpotLight_3";
     });
     await using var occupiedInput = new MemoryStream(occupied);
     var occupiedResult = await interchange.ImportEditGlbAsync(occupiedInput, export.Value!.Baseline);
     occupiedResult.Status.Should().Be(OperationStatus.Failed);
     occupiedResult.Value.Should().BeNull();
-    occupiedResult.Diagnostics.Should().ContainSingle(diagnostic => diagnostic.Code == "ETG2012");
+    occupiedResult.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.AmbiguousPartitionCorrespondence
+      && diagnostic.Path.StartsWith("nodes[", StringComparison.Ordinal));
 
     var duplicate = RewriteJson(glb.ToArray(), root =>
     {
@@ -2853,18 +3207,17 @@ public class GltfWalkingSkeletonTests
       light.Remove("range");
     });
     await using var source = new MemoryStream(generic);
+    var options = new GltfNewModelImportOptions(
+      helperBindings: new Dictionary<GltfNodeHandle, GltfNewModelHelperBinding>
+      {
+        [lightNode] = new(GltfNewModelHelperKind.SpotLight, 2)
+      },
+      staticLightOptions: new Dictionary<GltfLightHandle, GltfNewModelStaticLightOptions>
+      {
+        [new GltfLightHandle(1)] = new(targetDistance: 7)
+      });
 
-    var imported = await interchange.ImportNewModelGlbAsync(
-      source,
-      new GltfNewModelImportOptions(
-        helperBindings: new Dictionary<GltfNodeHandle, GltfNewModelHelperBinding>
-        {
-          [lightNode] = new(GltfNewModelHelperKind.SpotLight, 2)
-        },
-        staticLightOptions: new Dictionary<GltfLightHandle, GltfNewModelStaticLightOptions>
-        {
-          [new GltfLightHandle(1)] = new(targetDistance: 7)
-        }));
+    var imported = await interchange.ImportNewModelGlbAsync(source, options);
 
     imported.Status.Should().Be(
       OperationStatus.Succeeded,
@@ -2873,6 +3226,90 @@ public class GltfWalkingSkeletonTests
       diagnostic.Code == GltfDiagnosticCodes.SceneLightIgnored);
     ReadSingle(StaticLightMshFixture.GetSpot(
       imported.Value!.Asset.GetSerializedRepresentation().ToArray(), 2), 0x18).Should().Be(7);
+  }
+
+  [Fact]
+  public async Task TypedStaticLightRejectsContradictoryCanonicalDefinitionName()
+  {
+    var asset = await ReadAssetAsync(StaticLightMshFixture.Create(
+      new Dictionary<int, StaticLightMshFixture.SpotRecord>
+      {
+        [2] = new(Vector3.Zero, Vector3.One, 0, 0, [0, 0, 0], 0.2f, 5, 0.25f, 4)
+      },
+      activeSpots: [2]));
+    await using var exported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    GltfNodeHandle lightNode = default;
+    var contradictoryDefinition = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      var nodes = root["nodes"]!.AsArray();
+      var nodeIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["name"]!.GetValue<string>() == "ET_SpotLight_2").index;
+      lightNode = new GltfNodeHandle(nodeIndex + 1);
+      nodes[nodeIndex]!["name"] = "Artist Key Light";
+      root["extensions"]!["KHR_lights_punctual"]!["lights"]![0]!["name"] = "ET_OmniLight_2";
+      root["extensions"]!["KHR_lights_punctual"]!["lights"]![0]!.AsObject().Remove("range");
+    });
+    await using var contradictorySource = new MemoryStream(contradictoryDefinition);
+    var options = new GltfNewModelImportOptions(
+      helperBindings: new Dictionary<GltfNodeHandle, GltfNewModelHelperBinding>
+      {
+        [lightNode] = new(GltfNewModelHelperKind.SpotLight, 2)
+      },
+      staticLightOptions: new Dictionary<GltfLightHandle, GltfNewModelStaticLightOptions>
+      {
+        [new GltfLightHandle(1)] = new(targetDistance: 7)
+      });
+
+    var contradictory = await interchange.ImportNewModelGlbAsync(contradictorySource, options);
+
+    contradictory.Status.Should().Be(OperationStatus.Failed);
+    contradictory.Value.Should().BeNull();
+    contradictory.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Path == "extensions.KHR_lights_punctual.lights[0].name");
+  }
+
+  [Fact]
+  public async Task TypedStaticLightNameContradictionReportsTheNodePath()
+  {
+    var asset = await ReadAssetAsync(StaticLightMshFixture.Create(
+      new Dictionary<int, StaticLightMshFixture.SpotRecord>
+      {
+        [2] = new(Vector3.Zero, Vector3.One, 0, 0, [0, 0, 0], 0.2f, 5, 0.25f, 4)
+      },
+      activeSpots: [2]));
+    await using var exported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    GltfNodeHandle lightNode = default;
+    var nodePath = string.Empty;
+    var metadataFree = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      var nodes = root["nodes"]!.AsArray();
+      var nodeIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["name"]!.GetValue<string>() == "ET_SpotLight_2").index;
+      lightNode = new GltfNodeHandle(nodeIndex + 1);
+      nodePath = $"nodes[{nodeIndex}].name";
+      root["extensions"]!["KHR_lights_punctual"]!["lights"]![0]!["range"] = 5;
+    });
+    await using var source = new MemoryStream(metadataFree);
+
+    var result = await interchange.ImportNewModelGlbAsync(
+      source,
+      new GltfNewModelImportOptions(
+        helperBindings: new Dictionary<GltfNodeHandle, GltfNewModelHelperBinding>
+        {
+          [lightNode] = new(GltfNewModelHelperKind.OmniLight, 2)
+        }));
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Value.Should().BeNull();
+    result.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.AmbiguousPartitionCorrespondence
+      && diagnostic.Path == nodePath);
   }
 
   [Fact]

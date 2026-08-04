@@ -1774,6 +1774,7 @@ namespace EarthTool.GLTF
     {
       cancellationToken.ThrowIfCancellationRequested();
       var sceneLightDiagnostics = CreateIgnoredSceneLightDiagnostics(parsed, options);
+      var lightIntensityDiagnostics = CreateIgnoredNewModelLightIntensityDiagnostics(parsed, options);
       var inertDiagnostics = CreateIgnoredInertDataDiagnostics(parsed)
         .Concat(CreateIgnoredSceneNodeDiagnostics(parsed, options)).ToArray();
       var texBindingDiagnostics = CreateNewModelTexBindingDiagnostics(parsed, options);
@@ -1865,7 +1866,7 @@ namespace EarthTool.GLTF
       return new OperationResult<GltfNewModelImportResult>(
         OperationStatus.Succeeded,
         new GltfNewModelImportResult(authored, baseline, CreateNewModelPreservationReport(authored)),
-        sceneLightDiagnostics.Concat(inertDiagnostics).Concat(texBindingDiagnostics)
+        sceneLightDiagnostics.Concat(lightIntensityDiagnostics).Concat(inertDiagnostics).Concat(texBindingDiagnostics)
           .Concat(committed.Diagnostics));
     }
 
@@ -1922,7 +1923,10 @@ namespace EarthTool.GLTF
             parsed.Nodes[nodeIndex].Name,
             out _,
             out _)
-          && !parsed.Nodes[nodeIndex].LightIndex.HasValue)
+          && (!parsed.Nodes[nodeIndex].LightIndex.HasValue
+            || parsed.Nodes[nodeIndex].MeshIndex.HasValue
+            || parsed.Nodes[nodeIndex].CameraIndex.HasValue
+            || parsed.Nodes[nodeIndex].Children.Count != 0))
         {
           throw new UnsupportedGltfDomainException("StaticLights", $"nodes[{nodeIndex}]");
         }
@@ -1938,18 +1942,24 @@ namespace EarthTool.GLTF
       foreach (var helper in options.HelperBindings)
       {
         var nodeIndex = GetNodeIndex(parsed, helper.Key);
-        if (!nodeIndex.HasValue
-          || parsed.Nodes[nodeIndex.Value].MeshIndex.HasValue
+        if (!nodeIndex.HasValue)
+        {
+          throw new UnsupportedGltfDomainException(
+            "ArtistObjects",
+            $"semanticOverrides.helperBindings[{helper.Key.Value}]");
+        }
+        if (parsed.Nodes[nodeIndex.Value].MeshIndex.HasValue
           || parsed.Nodes[nodeIndex.Value].CameraIndex.HasValue
           || options.ObjectRoles.ContainsKey(helper.Key))
         {
-          throw new UnsupportedGltfDomainException("ArtistObjects");
+          throw new UnsupportedGltfDomainException("ArtistObjects", $"nodes[{nodeIndex.Value}]");
         }
         var expectsLight = helper.Value.Kind is GltfNewModelHelperKind.SpotLight
           or GltfNewModelHelperKind.OmniLight;
-        if (expectsLight != parsed.Nodes[nodeIndex.Value].LightIndex.HasValue)
+        if (expectsLight != parsed.Nodes[nodeIndex.Value].LightIndex.HasValue
+          || expectsLight && parsed.Nodes[nodeIndex.Value].Children.Count != 0)
         {
-          throw new UnsupportedGltfDomainException("ArtistObjects");
+          throw new UnsupportedGltfDomainException("ArtistObjects", $"nodes[{nodeIndex.Value}]");
         }
       }
       foreach (var light in options.StaticLightOptions)
@@ -2291,7 +2301,9 @@ namespace EarthTool.GLTF
         {
           if (HasContradictoryHelperName(node.Name, binding))
           {
-            throw ArtistObjectConflict("A typed helper binding contradicts its canonical helper name.");
+            throw ArtistObjectConflict(
+              "A typed helper binding contradicts its canonical helper name.",
+              $"nodes[{index}].name");
           }
           if (binding.Kind == GltfNewModelHelperKind.Attachment)
           {
@@ -2312,7 +2324,9 @@ namespace EarthTool.GLTF
             var type = binding.Kind == GltfNewModelHelperKind.SpotLight ? "spot" : "point";
             if (!lights.TryAdd((type, binding.PhysicalNumber), index))
             {
-              throw ArtistObjectConflict("A static-light target is occupied more than once.");
+              throw ArtistObjectConflict(
+                $"A static-light target is occupied by both nodes[{lights[(type, binding.PhysicalNumber)]}] and nodes[{index}].",
+                $"nodes[{index}]");
             }
           }
         }
@@ -2356,6 +2370,14 @@ namespace EarthTool.GLTF
           cannon.Key,
           CreateCannonRenderPositionRecord(transforms[cannon.Value].Translation));
       }
+      var definitionReferenceCounts = new int[parsed.Lights.Count];
+      foreach (var lightIndex in parsed.Nodes.Select(node => node.LightIndex).OfType<int>())
+      {
+        if (lightIndex >= 0 && lightIndex < definitionReferenceCounts.Length)
+        {
+          definitionReferenceCounts[lightIndex]++;
+        }
+      }
       var usedLightDefinitions = new HashSet<int>();
       foreach (var item in lights)
       {
@@ -2369,6 +2391,12 @@ namespace EarthTool.GLTF
             "StaticLights",
             $"nodes[{item.Value}].extensions.KHR_lights_punctual");
         }
+        if (definitionReferenceCounts[node.LightIndex.Value] != 1)
+        {
+          throw ArtistObjectConflict(
+            "A static-light artist object must own an unshared punctual-light definition.",
+            $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}]");
+        }
         var lightOptions = options.StaticLightOptions.TryGetValue(
           GetLightHandle(parsed, node.LightIndex.Value),
           out var explicitLightOptions)
@@ -2376,6 +2404,16 @@ namespace EarthTool.GLTF
           : null;
         var targetDistance = lightOptions?.TargetDistance
           ?? parsed.Lights[node.LightIndex.Value].Range;
+        var range = parsed.Lights[node.LightIndex.Value].Range;
+        if (item.Key.Type == "spot"
+          && range.HasValue
+          && lightOptions?.TargetDistance is float typedTargetDistance
+          && range.Value != typedTargetDistance)
+        {
+          throw new UnsupportedGltfDomainException(
+            "StaticLights",
+            $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}].range");
+        }
         if (item.Key.Type == "spot"
           && (targetDistance is not > 0 || !float.IsFinite(targetDistance.Value)))
         {
@@ -2389,11 +2427,17 @@ namespace EarthTool.GLTF
             "A new-model static-light definition cannot be shared.",
             $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}]");
         }
-        if (GlbDocument.TryParseStaticLightHelperName(
-            parsed.Lights[node.LightIndex.Value].Name,
-            out var definitionType,
-            out var definitionNumber)
-          && (definitionType != item.Key.Type || definitionNumber != item.Key.Number))
+        var hasCanonicalNodeName = GlbDocument.TryParseStaticLightHelperName(
+          node.Name,
+          out _,
+          out _);
+        var hasCanonicalDefinitionName = GlbDocument.TryParseStaticLightHelperName(
+          parsed.Lights[node.LightIndex.Value].Name,
+          out var definitionType,
+          out var definitionNumber);
+        if (hasCanonicalNodeName && !hasCanonicalDefinitionName
+          || hasCanonicalDefinitionName
+            && (definitionType != item.Key.Type || definitionNumber != item.Key.Number))
         {
           throw new StaticLightMetadataException(
             $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}].name",
@@ -2412,7 +2456,8 @@ namespace EarthTool.GLTF
             parsed.Lights[node.LightIndex.Value],
             transforms[item.Value],
             $"nodes[{item.Value}]",
-            lightOptions),
+            lightOptions,
+            StaticLightAuthoringIntent.NewModel),
           new[] { "NewStaticLight" });
       }
     }
@@ -3941,6 +3986,32 @@ namespace EarthTool.GLTF
         .ToArray();
     }
 
+    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredNewModelLightIntensityDiagnostics(
+      ParsedGlb parsed,
+      GltfNewModelImportOptions options)
+    {
+      return parsed.Nodes.Select(node => node.LightIndex)
+        .OfType<int>()
+        .Where(index => index >= 0 && index < parsed.Lights.Count)
+        .Where(index => parsed.Nodes.Select((node, nodeIndex) => (node, nodeIndex)).Any(item =>
+          item.node.LightIndex == index
+          && (GlbDocument.TryParseStaticLightHelperName(item.node.Name, out _, out _)
+            || options.HelperBindings.TryGetValue(
+                GetNodeHandle(parsed, item.nodeIndex),
+                out var binding)
+              && binding.Kind is GltfNewModelHelperKind.SpotLight
+                or GltfNewModelHelperKind.OmniLight)))
+        .Distinct()
+        .Where(index => parsed.Lights[index].Intensity != 1)
+        .Select(index => new OperationDiagnostic(
+          GltfDiagnosticCodes.NewModelPhotometricIntensityIgnored,
+          1120,
+          DiagnosticSeverity.Warning,
+          $"extensions.KHR_lights_punctual.lights[{index}].intensity",
+          "New-model photometric intensity was not used as terrain-light amplitude."))
+        .ToArray();
+    }
+
     private static IReadOnlyList<OperationDiagnostic> CreateIgnoredInertDataDiagnostics(
       ParsedGlb parsed)
     {
@@ -4993,20 +5064,22 @@ namespace EarthTool.GLTF
           out var index) ? index : -1)
         .Where(index => index >= 0)
         .ToHashSet();
-      ReconcileStaticLights(
+      var staticLightArtistObjectLocalIds = ReconcileStaticLights(
         nodes,
         lights,
         transforms,
         asset,
         expected,
         replacementLightIndices,
+        ref nextObjectLocalId,
         edit);
       return new EditArtistObjectPlan(
         markerOwnershipChanges,
         unchangedMarkerRecords,
         new GltfArtistObjectLocalIds(
           attachmentArtistObjectLocalIds,
-          cannonArtistObjectLocalIds),
+          cannonArtistObjectLocalIds,
+          staticLightArtistObjectLocalIds),
         nextObjectLocalId);
     }
 
@@ -5142,15 +5215,17 @@ namespace EarthTool.GLTF
       }
     }
 
-    private static void ReconcileStaticLights(
+    private static IReadOnlyDictionary<int, int> ReconcileStaticLights(
       IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
       IReadOnlyList<(ParsedGltfLight Parsed, MetadataEnvelope? Metadata)> lights,
       IReadOnlyDictionary<int, Matrix4x4> transforms,
       StaticMeshAsset asset,
       InterchangeBaseline expected,
       ISet<int> replacementLightIndices,
+      ref int nextObjectLocalId,
       StaticMeshEditSession edit)
     {
+      var artistObjectLocalIds = new Dictionary<int, int>();
       var definitionReferenceCounts = new int[lights.Count];
       var taggedDefinitionReferenceCounts = new int[lights.Count];
       for (var nodeIndex = 0; nodeIndex < nodes.Count; nodeIndex++)
@@ -5204,6 +5279,10 @@ namespace EarthTool.GLTF
                 "A static-light physical target is occupied more than once.",
                 $"nodes[{nodeIndex}]");
             }
+            artistObjectLocalIds.Add(
+              namedType == "spot" ? namedNumber : namedNumber + 4,
+              nextObjectLocalId);
+            nextObjectLocalId = checked(nextObjectLocalId + 1);
           }
           continue;
         }
@@ -5216,9 +5295,6 @@ namespace EarthTool.GLTF
           || lightIndex.Value >= lights.Count
           || node.Metadata.ScopeKind != "object"
           || node.Metadata.StaticLightDefinitionLocalId is null
-          || node.Metadata.LocalId != GlbDocument.GetStaticLightArtistObjectLocalId(
-            GlbDocument.GetFirstArtistObjectLocalId(asset),
-            node.Metadata.StaticLightDefinitionLocalId.GetValueOrDefault())
           || node.Metadata.AssetLineageId != expected.AssetLineageId
           || node.Metadata.DocumentId != expected.DocumentId
           || node.Parsed.MeshIndex.HasValue
@@ -5235,19 +5311,48 @@ namespace EarthTool.GLTF
             $"nodes[{nodeIndex}].extras.earthtool",
             "The static-light instance metadata envelope is malformed.");
         }
-        var key = (type, number.Value);
+        if (!GlbDocument.TryParseStaticLightHelperName(
+              node.Parsed.Name,
+              out var targetType,
+              out var targetNumber))
+        {
+          throw ArtistObjectConflict(
+            $"The metadata-backed static light at CommonBaseHeader.{(type == "spot" ? "StaticSpotLights" : "StaticOmniLights")}[{number.Value}] must retain a canonical static-light artist identifier.",
+            $"nodes[{nodeIndex}].name");
+        }
+        if (targetType != type)
+        {
+          throw new UnsupportedGltfDomainException(
+            "StaticLightTypeConversion",
+            $"nodes[{nodeIndex}].name");
+        }
+        var key = (targetType, targetNumber);
         if (!candidates.TryAdd(key, nodeIndex))
         {
           throw ArtistObjectConflict(
             "A static-light physical target is occupied more than once.",
             $"nodes[{nodeIndex}]");
         }
+        artistObjectLocalIds.Add(
+          targetType == "spot" ? targetNumber : targetNumber + 4,
+          node.Metadata.LocalId);
 
         var definition = lights[lightIndex.Value];
         var metadata = definition.Metadata
           ?? throw new StaticLightMetadataException(
             $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}]",
             "A tagged static-light definition lost its metadata.");
+        if (!GlbDocument.TryParseStaticLightHelperName(
+              definition.Parsed.Name,
+              out var definitionType,
+              out var definitionNumber)
+          || definitionType != targetType
+          || definitionNumber != targetNumber)
+        {
+          throw new StaticLightMetadataException(
+            $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].name",
+            "The canonical static-light instance and definition names contradict each other.");
+        }
         var localId = type == "spot" ? number.Value : number.Value + 4;
         var record = type == "spot"
           ? asset.CommonBaseHeader.StaticSpotLights.Skip((number.Value - 1) * 0x30).Take(0x30).ToArray()
@@ -5296,51 +5401,20 @@ namespace EarthTool.GLTF
           $"nodes[{nodeIndex}]");
         var changed = expectedGuards.Keys.Where(key =>
           !string.Equals(metadata.Guards[key], actualGuards[key], StringComparison.Ordinal)).ToHashSet();
-        if (changed.Count == 0)
+        var retargeted = targetNumber != number.Value;
+        if (changed.Count == 0 && !retargeted)
         {
           continue;
         }
 
         if (changed.Contains("staticLight.type"))
         {
-          var targetType = definition.Parsed.Type;
-          if (targetType is not ("spot" or "point") || targetType == type)
-          {
-            throw new UnsupportedGltfDomainException(
-              "StaticLightTypeConversion",
-              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].type");
-          }
-          var targetAttachmentNumber = targetType == "spot" ? number.Value + 12 : number.Value + 16;
-          var targetAttachment = asset.CommonBaseHeader.AttachmentTable
-            .Skip((targetAttachmentNumber - 1) * 8).Take(8).ToArray();
-          if (BinaryPrimitives.ReadInt16LittleEndian(targetAttachment) != short.MinValue)
-          {
-            throw ArtistObjectConflict(
-              "A static-light type conversion target is already active.",
-              $"CommonBaseHeader.AttachmentTable[{targetAttachmentNumber}]");
-          }
-          if (!reservedTargets.Add((targetType, number.Value)))
-          {
-            throw ArtistObjectConflict(
-              "More than one static-light edit targets the same physical record.",
-              $"CommonBaseHeader.{(targetType == "spot" ? "StaticSpotLights" : "StaticOmniLights")}[{number.Value}]");
-          }
-          var translation = transforms[nodeIndex].Translation;
-          edit.ReplaceAttachmentRecord(attachmentNumber, CreateAbsentAttachmentRecord());
-          edit.ReplaceAttachmentRecord(
-            targetAttachmentNumber,
-            CreateStaticLightAttachmentRecord(translation, $"nodes[{nodeIndex}].translation"));
-          edit.ReplaceStaticLightRecord(
-            ToStaticLightRecordKind(targetType),
-            number.Value,
-            CreateConvertedStaticLightRecord(
-              definition.Parsed,
-              transforms[nodeIndex],
-              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}]"),
-            new[] { "TypeConversion" });
-          continue;
+          throw new UnsupportedGltfDomainException(
+            "StaticLightTypeConversion",
+            $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].type");
         }
         var replacement = record.ToArray();
+        var attachmentReplacement = attachment.ToArray();
         var changedFields = new List<string>();
         if (changed.Contains("staticLight.pose"))
         {
@@ -5354,7 +5428,6 @@ namespace EarthTool.GLTF
           WriteSingle(replacement, 0, translation.X);
           WriteSingle(replacement, 4, translation.Z);
           WriteSingle(replacement, 8, translation.Y);
-          var attachmentReplacement = attachment.ToArray();
           BinaryPrimitives.WriteInt16LittleEndian(
             attachmentReplacement,
             QuantizeAttachmentCoordinate(
@@ -5376,7 +5449,6 @@ namespace EarthTool.GLTF
               false,
               "StaticLightPose",
               $"nodes[{nodeIndex}].translation"));
-          edit.ReplaceAttachmentRecord(attachmentNumber, attachmentReplacement);
           changedFields.Add("Position");
         }
         if (changed.Contains("staticLight.color"))
@@ -5444,11 +5516,49 @@ namespace EarthTool.GLTF
           WriteSingle(replacement, 0x24, definition.Parsed.OuterConeAngle * targetDistance);
           changedFields.Add("Cones");
         }
-        edit.ReplaceStaticLightRecord(
-          ToStaticLightRecordKind(type),
-          number.Value,
-          replacement,
-          changedFields);
+        if (retargeted)
+        {
+          var targetAttachmentNumber = type == "spot" ? targetNumber + 12 : targetNumber + 16;
+          var targetAttachment = asset.CommonBaseHeader.AttachmentTable
+            .Skip((targetAttachmentNumber - 1) * 8).Take(8).ToArray();
+          if (BinaryPrimitives.ReadInt16LittleEndian(targetAttachment) != short.MinValue)
+          {
+            throw ArtistObjectConflict(
+              $"The static light at nodes[{nodeIndex}] cannot target occupied CommonBaseHeader.AttachmentTable[{targetAttachmentNumber}].",
+              $"nodes[{nodeIndex}].name");
+          }
+          if (!reservedTargets.Add((type, targetNumber)))
+          {
+            throw ArtistObjectConflict(
+              "More than one static-light edit targets the same physical record.",
+              $"nodes[{nodeIndex}].name");
+          }
+          edit.ReplaceAttachmentRecord(attachmentNumber, CreateAbsentAttachmentRecord());
+          edit.ReplaceStaticLightRecord(
+            ToStaticLightRecordKind(type),
+            number.Value,
+            new byte[type == "spot" ? 0x30 : 0x1C],
+            new[] { "RetargetSourceCleared" });
+          edit.ReplaceAttachmentRecord(targetAttachmentNumber, attachmentReplacement);
+          changedFields.Add("Retarget");
+          edit.ReplaceStaticLightRecord(
+            ToStaticLightRecordKind(type),
+            targetNumber,
+            replacement,
+            changedFields);
+        }
+        else
+        {
+          if (changed.Contains("staticLight.pose"))
+          {
+            edit.ReplaceAttachmentRecord(attachmentNumber, attachmentReplacement);
+          }
+          edit.ReplaceStaticLightRecord(
+            ToStaticLightRecordKind(type),
+            number.Value,
+            replacement,
+            changedFields);
+        }
       }
 
 
@@ -5456,20 +5566,30 @@ namespace EarthTool.GLTF
       {
         var node = nodes[candidate.Value].Parsed;
         var lightIndex = node.LightIndex!.Value;
+        if (lightIndex >= 0
+          && lightIndex < definitionReferenceCounts.Length
+          && definitionReferenceCounts[lightIndex] != 1)
+        {
+          throw ArtistObjectConflict(
+            "A static-light artist object must own an unshared punctual-light definition.",
+            $"extensions.KHR_lights_punctual.lights[{lightIndex}]");
+        }
         if (lightIndex < 0 || lightIndex >= lights.Count
           || lights[lightIndex].Metadata is not null
           || lights[lightIndex].Parsed.Type != candidate.Key.Type
+          || node.Children.Count != 0
           || !transforms.TryGetValue(candidate.Value, out var transform))
         {
           throw new StaticLightMetadataException(
             $"nodes[{candidate.Value}]",
             "The canonically named static-light addition is malformed.");
         }
-        if (GlbDocument.TryParseStaticLightHelperName(
-            lights[lightIndex].Parsed.Name,
-            out var definitionType,
-            out var definitionNumber)
-          && (definitionType != candidate.Key.Type || definitionNumber != candidate.Key.Number))
+        if (!GlbDocument.TryParseStaticLightHelperName(
+              lights[lightIndex].Parsed.Name,
+              out var definitionType,
+              out var definitionNumber)
+          || definitionType != candidate.Key.Type
+          || definitionNumber != candidate.Key.Number)
         {
           throw new StaticLightMetadataException(
             $"extensions.KHR_lights_punctual.lights[{lightIndex}].name",
@@ -5546,9 +5666,15 @@ namespace EarthTool.GLTF
           if (active && !candidates.ContainsKey((type, number)))
           {
             edit.ReplaceAttachmentRecord(attachmentNumber, CreateAbsentAttachmentRecord());
+            edit.ReplaceStaticLightRecord(
+              ToStaticLightRecordKind(type),
+              number,
+              new byte[type == "spot" ? 0x30 : 0x1C],
+              new[] { "Deletion" });
           }
         }
       }
+      return artistObjectLocalIds;
     }
 
     private static IReadOnlyDictionary<string, string> CreateCurrentStaticLightGuards(
@@ -5713,7 +5839,8 @@ namespace EarthTool.GLTF
       ParsedGltfLight light,
       Matrix4x4 transform,
       string path,
-      GltfNewModelStaticLightOptions? options = null)
+      GltfNewModelStaticLightOptions? options = null,
+      StaticLightAuthoringIntent intent = StaticLightAuthoringIntent.EditProjection)
     {
       if (!IsFinite(light.Color)
         || light.Color.X < 0
@@ -5734,7 +5861,9 @@ namespace EarthTool.GLTF
       WriteSingle(result, 0x14, light.Color.Z);
       if (light.Type == "point")
       {
-        WriteSingle(result, 0x18, options?.TerrainLightAmplitude ?? light.Intensity);
+        WriteSingle(result, 0x18, intent == StaticLightAuthoringIntent.NewModel
+          ? options?.TerrainLightAmplitude ?? 1
+          : light.Intensity);
         return result;
       }
       if (light.InnerConeAngle < 0
@@ -5743,14 +5872,23 @@ namespace EarthTool.GLTF
       {
         throw new UnsupportedGltfDomainException("StaticLightTypeConversion", path);
       }
-      var distance = options?.TargetDistance
-        ?? (light.Range is > 0 && float.IsFinite(light.Range.Value) ? light.Range.Value : 1);
+      var distance = light.Range is > 0 && float.IsFinite(light.Range.Value)
+        ? light.Range.Value
+        : options?.TargetDistance ?? 1;
       WriteSingle(result, 0x18, distance);
       WriteStaticLightDirection(result, transform, path + ".rotation");
       WriteSingle(result, 0x20, MathF.Tan(light.InnerConeAngle));
       WriteSingle(result, 0x24, light.OuterConeAngle * distance);
-      WriteSingle(result, 0x2C, options?.TerrainLightAmplitude ?? light.Intensity);
+      WriteSingle(result, 0x2C, intent == StaticLightAuthoringIntent.NewModel
+        ? options?.TerrainLightAmplitude ?? 1
+        : light.Intensity);
       return result;
+    }
+
+    private enum StaticLightAuthoringIntent
+    {
+      EditProjection,
+      NewModel
     }
 
     private static int ValidateAttachmentMetadata(

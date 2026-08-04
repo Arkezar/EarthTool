@@ -81,6 +81,7 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String MissingExpectedScope = "ETG2010"
   field System.String MissingManifest = "ETG2000"
   field System.String MissingRequiredGuard = "ETG2014"
+  field System.String NewModelPhotometricIntensityIgnored = "ETG1028"
   field System.String OrphanEnvelope = "ETG2011"
   field System.String ProvenanceMismatch = "ETG2017"
   field System.String ResourceLimitExceeded = "ETG1001"

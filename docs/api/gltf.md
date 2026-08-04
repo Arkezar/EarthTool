@@ -257,6 +257,31 @@ Unrecognized serialized animation-class values remain exact and report
 `ETG1015`, while their native projection uses the game's modulo-four class
 selection.
 
+## Static-light authoring contract
+
+`ET_SpotLight_1` through `ET_SpotLight_4` and `ET_OmniLight_1` through
+`ET_OmniLight_4` identify compound static-light artist objects. Each must be a
+leaf node and own one unshared `KHR_lights_punctual` definition. Canonical node
+and definition names must agree with each other and with the definition's
+`spot` or `point` type. Node pose, linear RGB, and valid spot cone values author
+the corresponding static-light representations.
+
+For new-model spot lights, a positive `range` authors approximate target
+distance. `GltfNewModelStaticLightOptions.TargetDistance` supplies the value
+only when range is absent; a differing range and typed value is rejected.
+`TerrainLightAmplitude` is also a typed MSH-only value. It defaults to `1.0` and
+does not use glTF photometric intensity. A non-default ignored intensity reports
+`ETG1028`. In a matching edit projection, intensity remains the projected
+terrain-light amplitude, and a missing range preserves the loaded target
+distance because its absence is not deletion evidence.
+
+Renaming within the same canonical light family retargets the artist object to a
+free physical number while preserving its scope identity and compatible owned
+state. Spot/omni conversion is rejected. Deleting the artist object clears both
+its activity attachment and complete static-light record. Duplicate targets,
+shared definitions, type contradictions, and occupied retargets fail without a
+partial asset.
+
 Animation guards bind the class, declaration, participating object, and dense
 binary32 TRS values rather than clip names, array order, accessor layout, or
 quaternion sign. Unchanged edit import restores exact independent scale,

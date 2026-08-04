@@ -78,6 +78,8 @@ namespace EarthTool.GLTF
     public const string MeshResourceCycle = "ETG1026";
     /// <summary>An emitter helper cannot be nested under its marker-attachment source object.</summary>
     public const string EmitterHierarchyFallback = "ETG1027";
+    /// <summary>New-model photometric intensity was not used as terrain-light amplitude.</summary>
+    public const string NewModelPhotometricIntensityIgnored = "ETG1028";
     /// <summary>Required EarthTool manifest metadata is absent.</summary>
     public const string MissingManifest = "ETG2000";
     /// <summary>The edit-import scene contract is invalid.</summary>
@@ -718,16 +720,21 @@ namespace EarthTool.GLTF
   {
     internal IReadOnlyDictionary<int, int> Attachments { get; }
     internal IReadOnlyDictionary<int, int> Cannons { get; }
+    internal IReadOnlyDictionary<int, int> StaticLightInstancesByDefinitionLocalId { get; }
 
     internal GltfArtistObjectLocalIds(
       IReadOnlyDictionary<int, int>? attachments = null,
-      IReadOnlyDictionary<int, int>? cannons = null)
+      IReadOnlyDictionary<int, int>? cannons = null,
+      IReadOnlyDictionary<int, int>? staticLights = null)
     {
       Attachments = new ReadOnlyDictionary<int, int>(
         attachments?.ToDictionary(pair => pair.Key, pair => pair.Value)
         ?? new Dictionary<int, int>());
       Cannons = new ReadOnlyDictionary<int, int>(
         cannons?.ToDictionary(pair => pair.Key, pair => pair.Value)
+        ?? new Dictionary<int, int>());
+      StaticLightInstancesByDefinitionLocalId = new ReadOnlyDictionary<int, int>(
+        staticLights?.ToDictionary(pair => pair.Key, pair => pair.Value)
         ?? new Dictionary<int, int>());
     }
   }

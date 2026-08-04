@@ -825,7 +825,7 @@ namespace EarthTool.GLTF.Internal
         maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(
           CreateCannonMetadata(baseline, cannon, unknownMetadata)));
       }
-      foreach (var light in ProjectStaticLights(asset))
+      foreach (var light in ProjectStaticLights(asset, artistObjectLocalIds))
       {
         maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(
           CreateStaticLightInstanceMetadata(baseline, light, unknownMetadata)));
@@ -2781,7 +2781,7 @@ namespace EarthTool.GLTF.Internal
       var sources = StaticSourceObjectTraversal.Flatten(rootSourceObject).ToArray();
       var attachments = ProjectAttachments(asset, artistObjectLocalIds);
       var cannons = ProjectCannons(asset, artistObjectLocalIds);
-      var staticLights = ProjectStaticLights(asset);
+      var staticLights = ProjectStaticLights(asset, artistObjectLocalIds);
       var parentedEmitters = Enumerable.Range(1, 4)
         .Select(number => new
         {
@@ -4164,7 +4164,7 @@ namespace EarthTool.GLTF.Internal
         .Select(source => source.Id.Value)
         .Concat(ProjectAttachments(asset, artistObjectLocalIds).Select(attachment => attachment.LocalId))
         .Concat(ProjectCannons(asset, artistObjectLocalIds).Select(cannon => cannon.LocalId))
-        .Concat(ProjectStaticLights(asset).Select(light => light.InstanceLocalId))
+        .Concat(ProjectStaticLights(asset, artistObjectLocalIds).Select(light => light.InstanceLocalId))
         .OrderBy(id => id)
         .ToArray();
       var inventories = new Dictionary<string, int[]>(StringComparer.Ordinal)
@@ -4870,7 +4870,9 @@ namespace EarthTool.GLTF.Internal
       return result.AsReadOnly();
     }
 
-    private static IReadOnlyList<ProjectedStaticLight> ProjectStaticLights(StaticMeshAsset asset)
+    private static IReadOnlyList<ProjectedStaticLight> ProjectStaticLights(
+      StaticMeshAsset asset,
+      GltfArtistObjectLocalIds? artistObjectLocalIds = null)
     {
       var attachments = asset.CommonBaseHeader.AttachmentTable.ToArray();
       var spots = asset.CommonBaseHeader.StaticSpotLights.ToArray();
@@ -4886,7 +4888,11 @@ namespace EarthTool.GLTF.Internal
             "spot",
             physicalNumber,
             physicalNumber,
-            GetStaticLightArtistObjectLocalId(firstArtistObjectId, physicalNumber),
+            artistObjectLocalIds?.StaticLightInstancesByDefinitionLocalId.TryGetValue(
+              physicalNumber,
+              out var spotLocalId) == true
+              ? spotLocalId
+              : GetStaticLightArtistObjectLocalId(firstArtistObjectId, physicalNumber),
             spots.AsSpan((physicalNumber - 1) * 0x30, 0x30).ToArray(),
             spotAttachment));
         }
@@ -4898,7 +4904,11 @@ namespace EarthTool.GLTF.Internal
             "point",
             physicalNumber,
             physicalNumber + 4,
-            GetStaticLightArtistObjectLocalId(firstArtistObjectId, physicalNumber + 4),
+            artistObjectLocalIds?.StaticLightInstancesByDefinitionLocalId.TryGetValue(
+              physicalNumber + 4,
+              out var omniLocalId) == true
+              ? omniLocalId
+              : GetStaticLightArtistObjectLocalId(firstArtistObjectId, physicalNumber + 4),
             omnis.AsSpan((physicalNumber - 1) * 0x1C, 0x1C).ToArray(),
             omniAttachment));
         }
