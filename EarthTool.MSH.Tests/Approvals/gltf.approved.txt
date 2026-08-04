@@ -1,9 +1,3 @@
-public struct EarthTool.GLTF.GltfAnimationHandle : System.IEquatable<EarthTool.GLTF.GltfAnimationHandle>
-  constructor GltfAnimationHandle(System.Int32 value)
-  property System.Int32 Value { get; }
-  method System.Boolean Equals(EarthTool.GLTF.GltfAnimationHandle other)
-  method System.Boolean Equals(System.Object? obj)
-  method System.Int32 GetHashCode()
 public sealed class EarthTool.GLTF.GltfCliReport
   constructor GltfCliReport(System.Collections.Generic.IEnumerable<EarthTool.GLTF.GltfCliReportOperation> operations)
   property System.String Format { get; }
@@ -84,6 +78,7 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String NewModelPhotometricIntensityIgnored = "ETG1028"
   field System.String OrphanEnvelope = "ETG2011"
   field System.String ProvenanceMismatch = "ETG2017"
+  field System.String RemovedImportPlanMember = "ETG3005"
   field System.String ResourceLimitExceeded = "ETG1001"
   field System.String SceneLightIgnored = "ETG1018"
   field System.String StaleImportPlan = "ETG3003"
@@ -150,7 +145,7 @@ public sealed class EarthTool.GLTF.GltfImportPlan
   method EarthTool.GLTF.GltfImportPlan CreateNewModel(EarthTool.GLTF.GltfPackageKind packageKind, System.String sourceSha256, EarthTool.GLTF.GltfNewModelImportOptions? options = null)
 public static class EarthTool.GLTF.GltfImportPlanFormat
   field System.String Identifier = "earthtool.msh.import-plan"
-  field System.Int32 Version = 1
+  field System.Int32 Version = 2
   property System.Collections.Generic.IReadOnlyList<System.Int32> SupportedVersions { get; }
 public enum EarthTool.GLTF.GltfImportPlanKind : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
   field EarthTool.GLTF.GltfImportPlanKind Edit = 1
@@ -240,25 +235,11 @@ public enum EarthTool.GLTF.GltfMetadataLineageDisposition : System.IComparable, 
   field EarthTool.GLTF.GltfMetadataLineageDisposition BranchAccepted = 1
   field EarthTool.GLTF.GltfMetadataLineageDisposition Discarded = 3
   field EarthTool.GLTF.GltfMetadataLineageDisposition Retained = 0
-public enum EarthTool.GLTF.GltfNewModelAnimationClass : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
-  field EarthTool.GLTF.GltfNewModelAnimationClass A = 0
-  field EarthTool.GLTF.GltfNewModelAnimationClass B = 1
-  field EarthTool.GLTF.GltfNewModelAnimationClass C = 2
-  field EarthTool.GLTF.GltfNewModelAnimationClass D = 3
 public sealed class EarthTool.GLTF.GltfNewModelFootprint
   constructor GltfNewModelFootprint(System.UInt16 presenceMask, System.Collections.Generic.IEnumerable<System.Single> topElevations, System.Collections.Generic.IEnumerable<System.Byte> cornerPassageFlags)
   property System.Collections.Generic.IReadOnlyList<System.Byte> CornerPassageFlags { get; }
   property System.UInt16 PresenceMask { get; }
   property System.Collections.Generic.IReadOnlyList<System.Single> TopElevations { get; }
-public sealed class EarthTool.GLTF.GltfNewModelHelperBinding
-  constructor GltfNewModelHelperBinding(EarthTool.GLTF.GltfNewModelHelperKind kind, System.Int32 physicalNumber)
-  property EarthTool.GLTF.GltfNewModelHelperKind Kind { get; }
-  property System.Int32 PhysicalNumber { get; }
-public enum EarthTool.GLTF.GltfNewModelHelperKind : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
-  field EarthTool.GLTF.GltfNewModelHelperKind Attachment = 0
-  field EarthTool.GLTF.GltfNewModelHelperKind Cannon = 1
-  field EarthTool.GLTF.GltfNewModelHelperKind OmniLight = 3
-  field EarthTool.GLTF.GltfNewModelHelperKind SpotLight = 2
 public sealed class EarthTool.GLTF.GltfNewModelHorizontalExtents
   constructor GltfNewModelHorizontalExtents(System.Single positiveY, System.Single negativeY, System.Single positiveX, System.Single negativeX)
   property System.Single NegativeX { get; }
@@ -266,10 +247,8 @@ public sealed class EarthTool.GLTF.GltfNewModelHorizontalExtents
   property System.Single PositiveX { get; }
   property System.Single PositiveY { get; }
 public sealed class EarthTool.GLTF.GltfNewModelImportOptions
-  constructor GltfNewModelImportOptions(System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfMaterialHandle, System.String?>? textureResourceBindings = null, EarthTool.GLTF.GltfNewModelFootprint? footprint = null, EarthTool.GLTF.GltfNewModelHorizontalExtents? horizontalExtents = null, System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfNodeHandle, EarthTool.GLTF.GltfNewModelObjectRole>? objectRoles = null, System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfNodeHandle, EarthTool.GLTF.GltfNewModelHelperBinding>? helperBindings = null, System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfLightHandle, EarthTool.GLTF.GltfNewModelStaticLightOptions>? staticLightOptions = null, System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfAnimationHandle, EarthTool.GLTF.GltfNewModelAnimationClass>? animationClasses = null)
-  property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfAnimationHandle, EarthTool.GLTF.GltfNewModelAnimationClass> AnimationClasses { get; }
+  constructor GltfNewModelImportOptions(System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfMaterialHandle, System.String?>? textureResourceBindings = null, EarthTool.GLTF.GltfNewModelFootprint? footprint = null, EarthTool.GLTF.GltfNewModelHorizontalExtents? horizontalExtents = null, System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfNodeHandle, EarthTool.GLTF.GltfNewModelObjectRole>? objectRoles = null, System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfLightHandle, EarthTool.GLTF.GltfNewModelStaticLightOptions>? staticLightOptions = null)
   property EarthTool.GLTF.GltfNewModelFootprint? Footprint { get; }
-  property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfNodeHandle, EarthTool.GLTF.GltfNewModelHelperBinding> HelperBindings { get; }
   property EarthTool.GLTF.GltfNewModelHorizontalExtents? HorizontalExtents { get; }
   property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfNodeHandle, EarthTool.GLTF.GltfNewModelObjectRole> ObjectRoles { get; }
   property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfLightHandle, EarthTool.GLTF.GltfNewModelStaticLightOptions> StaticLightOptions { get; }

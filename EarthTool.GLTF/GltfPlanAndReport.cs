@@ -24,7 +24,7 @@ namespace EarthTool.GLTF
     /// <summary>Gets the import-plan protocol identifier.</summary>
     public const string Identifier = "earthtool.msh.import-plan";
     /// <summary>Gets the current import-plan protocol version.</summary>
-    public const int Version = 1;
+    public const int Version = 2;
     /// <summary>Gets every import-plan version accepted by this build.</summary>
     public static IReadOnlyList<int> SupportedVersions { get; } = Array.AsReadOnly(new[] { Version });
   }
@@ -49,7 +49,7 @@ namespace EarthTool.GLTF
     Gltf = 1
   }
 
-  /// <summary>Names the closed import intents represented by a version-1 plan.</summary>
+  /// <summary>Names the closed import intents represented by a version-2 plan.</summary>
   public enum GltfImportPlanKind
   {
     /// <summary>Canonical admission of metadata-free native content.</summary>
@@ -163,9 +163,7 @@ namespace EarthTool.GLTF
       return checked(
         (options.TextureResourceBindings.Count * 2L)
         + (options.ObjectRoles.Count * 3L)
-        + (options.HelperBindings.Count * 3L)
         + (options.StaticLightOptions.Count * 3L)
-        + (options.AnimationClasses.Count * 2L)
         + (options.Footprint is null ? 0 : 33)
         + (options.HorizontalExtents is null ? 0 : 4));
     }
@@ -199,7 +197,7 @@ namespace EarthTool.GLTF
     }
   }
 
-  /// <summary>Reads and writes the strict version-1 import-plan protocol.</summary>
+  /// <summary>Reads and writes the strict version-2 import-plan protocol.</summary>
   public sealed class GltfImportPlanSerializer
   {
     /// <summary>Reads one bounded strict import plan without exposing mutable wire DTOs.</summary>
@@ -393,7 +391,7 @@ namespace EarthTool.GLTF
       using var sha256 = SHA256.Create();
       using (var sink = new CryptoStream(Stream.Null, sha256, CryptoStreamMode.Write))
       {
-        var prefix = Encoding.UTF8.GetBytes("earthtool.msh.import-plan:gltf:1\n");
+        var prefix = Encoding.UTF8.GetBytes("earthtool.msh.import-plan:gltf:2\n");
         sink.Write(prefix, 0, prefix.Length);
         WriteDigestEntry(sink, "$manifest", package.Json);
         WriteDigestEntry(sink, package.BufferUri, package.Binary);
@@ -439,7 +437,7 @@ namespace EarthTool.GLTF
           GltfDiagnosticCodes.UnsupportedImportPlanVersion,
           3001,
           "version",
-          "The import-plan version is unsupported.",
+          "The import-plan version is unsupported. Regenerate the plan with this build using protocol version 2.",
           new Dictionary<string, string>
           {
             ["actual"] = version.ToString(CultureInfo.InvariantCulture),
@@ -478,9 +476,10 @@ namespace EarthTool.GLTF
     private static GltfNewModelImportOptions ParseOverrides(JsonElement value)
     {
       RequireKind(value, JsonValueKind.Object, "semanticOverrides", "Semantic overrides must be an object.");
+      RejectRemovedOverrideMembers(value);
       EnsureProperties(value, "semanticOverrides",
         "textureResourceBindings", "footprint", "horizontalExtents", "objectRoles",
-        "helperBindings", "staticLightOptions", "animationClasses");
+        "staticLightOptions");
       var textures = new Dictionary<GltfMaterialHandle, string?>();
       foreach (var item in RequiredArray(value, "textureResourceBindings", "semanticOverrides.textureResourceBindings"))
       {
@@ -501,7 +500,16 @@ namespace EarthTool.GLTF
         foreach (var role in RequiredArray(item, "roles", "semanticOverrides.objectRoles[].roles"))
         {
           RequireKind(role, JsonValueKind.String, "semanticOverrides.objectRoles[].roles[]", "A role must be a string.");
-          roleValue |= role.GetString() switch
+          var roleName = role.GetString()!;
+          if (roleName is "markerAttachment1" or "markerAttachment2"
+            or "markerAttachment3" or "markerAttachment4")
+          {
+            throw RemovedMember(
+              "semanticOverrides.objectRoles[].roles",
+              $"The marker object role '{roleName}' was removed in protocol version 2. "
+                + "Author marker ownership with ET_Emitter_1 through ET_Emitter_4 child nodes and regenerate the plan.");
+          }
+          roleValue |= roleName switch
           {
             "viewerFaced" => GltfStaticObjectRoles.ViewerFaced,
             "barrel" => GltfStaticObjectRoles.Barrel,
@@ -516,28 +524,6 @@ namespace EarthTool.GLTF
         }
       }
 
-      var helpers = new Dictionary<GltfNodeHandle, GltfNewModelHelperBinding>();
-      foreach (var item in RequiredArray(value, "helperBindings", "semanticOverrides.helperBindings"))
-      {
-        EnsureProperties(item, "semanticOverrides.helperBindings[]", "node", "kind", "physicalNumber");
-        var handle = new GltfNodeHandle(RequiredInt32(item, "node", "semanticOverrides.helperBindings[].node"));
-        var kind = RequiredString(item, "kind", "semanticOverrides.helperBindings[].kind") switch
-        {
-          "attachment" => GltfNewModelHelperKind.Attachment,
-          "cannon" => GltfNewModelHelperKind.Cannon,
-          "spotLight" => GltfNewModelHelperKind.SpotLight,
-          "omniLight" => GltfNewModelHelperKind.OmniLight,
-          _ => throw Malformed("semanticOverrides.helperBindings[].kind", "A helper kind is invalid.")
-        };
-        var binding = new GltfNewModelHelperBinding(
-          kind,
-          RequiredInt32(item, "physicalNumber", "semanticOverrides.helperBindings[].physicalNumber"));
-        if (!helpers.TryAdd(handle, binding))
-        {
-          throw Malformed("semanticOverrides.helperBindings", "A helper node handle is duplicated.");
-        }
-      }
-
       var lights = new Dictionary<GltfLightHandle, GltfNewModelStaticLightOptions>();
       foreach (var item in RequiredArray(value, "staticLightOptions", "semanticOverrides.staticLightOptions"))
       {
@@ -549,25 +535,6 @@ namespace EarthTool.GLTF
         if (!lights.TryAdd(handle, light))
         {
           throw Malformed("semanticOverrides.staticLightOptions", "A light handle is duplicated.");
-        }
-      }
-
-      var animations = new Dictionary<GltfAnimationHandle, GltfNewModelAnimationClass>();
-      foreach (var item in RequiredArray(value, "animationClasses", "semanticOverrides.animationClasses"))
-      {
-        EnsureProperties(item, "semanticOverrides.animationClasses[]", "animation", "class");
-        var handle = new GltfAnimationHandle(RequiredInt32(item, "animation", "semanticOverrides.animationClasses[].animation"));
-        var animationClass = RequiredString(item, "class", "semanticOverrides.animationClasses[].class") switch
-        {
-          "a" => GltfNewModelAnimationClass.A,
-          "b" => GltfNewModelAnimationClass.B,
-          "c" => GltfNewModelAnimationClass.C,
-          "d" => GltfNewModelAnimationClass.D,
-          _ => throw Malformed("semanticOverrides.animationClasses[].class", "An animation class is invalid.")
-        };
-        if (!animations.TryAdd(handle, animationClass))
-        {
-          throw Malformed("semanticOverrides.animationClasses", "An animation handle is duplicated.");
         }
       }
 
@@ -596,7 +563,27 @@ namespace EarthTool.GLTF
           RequiredSingle(extentsValue, "negativeX", "semanticOverrides.horizontalExtents.negativeX"));
       }
 
-      return new GltfNewModelImportOptions(textures, footprint, extents, roles, helpers, lights, animations);
+      return new GltfNewModelImportOptions(textures, footprint, extents, roles, lights);
+    }
+
+    private static void RejectRemovedOverrideMembers(JsonElement value)
+    {
+      if (value.TryGetProperty("helperBindings", out _))
+      {
+        throw RemovedMember(
+          "semanticOverrides.helperBindings",
+          "The import-plan member 'helperBindings' was removed in protocol version 2. "
+            + "Use canonical authoring identifiers on helper nodes and matching punctual-light definitions, "
+            + "then regenerate the plan.");
+      }
+      if (value.TryGetProperty("animationClasses", out _))
+      {
+        throw RemovedMember(
+          "semanticOverrides.animationClasses",
+          "The import-plan member 'animationClasses' was removed in protocol version 2. "
+            + "Use the canonical authoring identifiers EarthTool A through EarthTool D for animation clips, "
+            + "then regenerate the plan.");
+      }
     }
 
     private static GltfEditImportOptions ParseConflictActions(JsonElement value, GltfOperationProfile profile)
@@ -742,17 +729,6 @@ namespace EarthTool.GLTF
         writer.WriteEndObject();
       }
       writer.WriteEndArray();
-      writer.WritePropertyName("helperBindings");
-      writer.WriteStartArray();
-      foreach (var helper in options.HelperBindings.OrderBy(item => item.Key.Value))
-      {
-        writer.WriteStartObject();
-        writer.WriteNumber("node", helper.Key.Value);
-        writer.WriteString("kind", HelperName(helper.Value.Kind));
-        writer.WriteNumber("physicalNumber", helper.Value.PhysicalNumber);
-        writer.WriteEndObject();
-      }
-      writer.WriteEndArray();
       writer.WritePropertyName("staticLightOptions");
       writer.WriteStartArray();
       foreach (var light in options.StaticLightOptions.OrderBy(item => item.Key.Value))
@@ -775,16 +751,6 @@ namespace EarthTool.GLTF
         {
           writer.WriteNull("terrainLightAmplitude");
         }
-        writer.WriteEndObject();
-      }
-      writer.WriteEndArray();
-      writer.WritePropertyName("animationClasses");
-      writer.WriteStartArray();
-      foreach (var animation in options.AnimationClasses.OrderBy(item => item.Key.Value))
-      {
-        writer.WriteStartObject();
-        writer.WriteNumber("animation", animation.Key.Value);
-        writer.WriteString("class", animation.Value.ToString().ToLowerInvariant());
         writer.WriteEndObject();
       }
       writer.WriteEndArray();
@@ -1007,6 +973,9 @@ namespace EarthTool.GLTF
     private static ImportPlanException Malformed(string path, string message) =>
       new(GltfDiagnosticCodes.MalformedImportPlan, 3000, path, message);
 
+    private static ImportPlanException RemovedMember(string path, string message) =>
+      new(GltfDiagnosticCodes.RemovedImportPlanMember, 3005, path, message);
+
     private static ImportPlanException LimitException(string path, long actual, int maximum) =>
       new(
         GltfDiagnosticCodes.ImportPlanResourceLimitExceeded,
@@ -1068,15 +1037,6 @@ namespace EarthTool.GLTF
 
     private static string PackageName(GltfPackageKind packageKind) =>
       packageKind == GltfPackageKind.Glb ? "glb" : "gltf";
-
-    private static string HelperName(GltfNewModelHelperKind kind) => kind switch
-    {
-      GltfNewModelHelperKind.Attachment => "attachment",
-      GltfNewModelHelperKind.Cannon => "cannon",
-      GltfNewModelHelperKind.SpotLight => "spotLight",
-      GltfNewModelHelperKind.OmniLight => "omniLight",
-      _ => throw new ArgumentOutOfRangeException(nameof(kind))
-    };
 
     private static void WriteBaseline(Utf8JsonWriter writer, InterchangeBaseline baseline)
     {

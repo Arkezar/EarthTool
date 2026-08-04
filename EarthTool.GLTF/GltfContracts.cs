@@ -134,6 +134,8 @@ namespace EarthTool.GLTF
     public const string StaleImportPlan = "ETG3003";
     /// <summary>The plan does not match the selected import or source package.</summary>
     public const string ImportPlanMismatch = "ETG3004";
+    /// <summary>The import plan contains an input removed from the current protocol.</summary>
+    public const string RemovedImportPlanMember = "ETG3005";
   }
 
   /// <summary>Defines the closed version-1 metadata conflict action identifiers.</summary>
@@ -991,82 +993,6 @@ namespace EarthTool.GLTF
     public override int GetHashCode() => Value;
   }
 
-  /// <summary>Identifies one animation by one-based document-local order.</summary>
-  public readonly struct GltfAnimationHandle : IEquatable<GltfAnimationHandle>
-  {
-    /// <summary>Gets the one-based document-local value.</summary>
-    public int Value { get; }
-
-    /// <summary>Initializes a document-local animation handle.</summary>
-    public GltfAnimationHandle(int value)
-    {
-      if (value <= 0)
-      {
-        throw new ArgumentOutOfRangeException(nameof(value));
-      }
-      Value = value;
-    }
-
-    /// <inheritdoc />
-    public bool Equals(GltfAnimationHandle other) => Value == other.Value;
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is GltfAnimationHandle other && Equals(other);
-    /// <inheritdoc />
-    public override int GetHashCode() => Value;
-  }
-
-  /// <summary>Names the four supported MSH animation classes.</summary>
-  public enum GltfNewModelAnimationClass
-  {
-    /// <summary>Animation class A.</summary>
-    A = 0,
-    /// <summary>Animation class B.</summary>
-    B = 1,
-    /// <summary>Animation class C.</summary>
-    C = 2,
-    /// <summary>Animation class D.</summary>
-    D = 3
-  }
-
-  /// <summary>Names supported helper semantics for one generic source node.</summary>
-  public enum GltfNewModelHelperKind
-  {
-    /// <summary>Authors one ordinary attachment record.</summary>
-    Attachment = 0,
-    /// <summary>Authors one cannon attachment and full-precision render position.</summary>
-    Cannon = 1,
-    /// <summary>Authors one spot light and its activity attachment.</summary>
-    SpotLight = 2,
-    /// <summary>Authors one omni light and its activity attachment.</summary>
-    OmniLight = 3
-  }
-
-  /// <summary>Binds one source node to a supported physical helper target.</summary>
-  public sealed class GltfNewModelHelperBinding
-  {
-    /// <summary>Gets the helper semantic kind.</summary>
-    public GltfNewModelHelperKind Kind { get; }
-    /// <summary>Gets the physical target number.</summary>
-    public int PhysicalNumber { get; }
-
-    /// <summary>Initializes one typed helper binding.</summary>
-    public GltfNewModelHelperBinding(GltfNewModelHelperKind kind, int physicalNumber)
-    {
-      if (!Enum.IsDefined(typeof(GltfNewModelHelperKind), kind))
-      {
-        throw new ArgumentOutOfRangeException(nameof(kind));
-      }
-      if (kind == GltfNewModelHelperKind.Attachment
-          && (physicalNumber is < 5 or > 49 or >= 13 and <= 20)
-        || kind != GltfNewModelHelperKind.Attachment && physicalNumber is < 1 or > 4)
-      {
-        throw new ArgumentOutOfRangeException(nameof(physicalNumber));
-      }
-      Kind = kind;
-      PhysicalNumber = physicalNumber;
-    }
-  }
-
   /// <summary>Supplies MSH-only semantic values for one generic punctual light.</summary>
   public sealed class GltfNewModelStaticLightOptions
   {
@@ -1210,12 +1136,8 @@ namespace EarthTool.GLTF
     public GltfNewModelHorizontalExtents? HorizontalExtents { get; }
     /// <summary>Gets supported role overrides keyed by node handle.</summary>
     public IReadOnlyDictionary<GltfNodeHandle, GltfNewModelObjectRole> ObjectRoles { get; }
-    /// <summary>Gets explicit helper semantics keyed by node handle.</summary>
-    public IReadOnlyDictionary<GltfNodeHandle, GltfNewModelHelperBinding> HelperBindings { get; }
     /// <summary>Gets MSH-only semantic light values keyed by light handle.</summary>
     public IReadOnlyDictionary<GltfLightHandle, GltfNewModelStaticLightOptions> StaticLightOptions { get; }
-    /// <summary>Gets explicit class bindings keyed by animation handle.</summary>
-    public IReadOnlyDictionary<GltfAnimationHandle, GltfNewModelAnimationClass> AnimationClasses { get; }
 
     /// <summary>Initializes closed semantic new-model overrides.</summary>
     public GltfNewModelImportOptions(
@@ -1223,46 +1145,31 @@ namespace EarthTool.GLTF
       GltfNewModelFootprint? footprint = null,
       GltfNewModelHorizontalExtents? horizontalExtents = null,
       IReadOnlyDictionary<GltfNodeHandle, GltfNewModelObjectRole>? objectRoles = null,
-      IReadOnlyDictionary<GltfNodeHandle, GltfNewModelHelperBinding>? helperBindings = null,
-      IReadOnlyDictionary<GltfLightHandle, GltfNewModelStaticLightOptions>? staticLightOptions = null,
-      IReadOnlyDictionary<GltfAnimationHandle, GltfNewModelAnimationClass>? animationClasses = null)
+      IReadOnlyDictionary<GltfLightHandle, GltfNewModelStaticLightOptions>? staticLightOptions = null)
     {
       var bindings = textureResourceBindings?.ToDictionary(pair => pair.Key, pair => pair.Value)
         ?? new Dictionary<GltfMaterialHandle, string?>();
       var roles = objectRoles?.ToDictionary(pair => pair.Key, pair => pair.Value)
         ?? new Dictionary<GltfNodeHandle, GltfNewModelObjectRole>();
-      var helpers = helperBindings?.ToDictionary(pair => pair.Key, pair => pair.Value)
-        ?? new Dictionary<GltfNodeHandle, GltfNewModelHelperBinding>();
       var lights = staticLightOptions?.ToDictionary(pair => pair.Key, pair => pair.Value)
         ?? new Dictionary<GltfLightHandle, GltfNewModelStaticLightOptions>();
-      var animations = animationClasses?.ToDictionary(pair => pair.Key, pair => pair.Value)
-        ?? new Dictionary<GltfAnimationHandle, GltfNewModelAnimationClass>();
       if (bindings.Keys.Any(handle => handle.Value <= 0)
         || roles.Keys.Any(handle => handle.Value <= 0)
-        || helpers.Keys.Any(handle => handle.Value <= 0)
-        || lights.Keys.Any(handle => handle.Value <= 0)
-        || animations.Keys.Any(handle => handle.Value <= 0))
+        || lights.Keys.Any(handle => handle.Value <= 0))
       {
         throw new ArgumentOutOfRangeException(nameof(textureResourceBindings),
           "A document-local handle must be positive.");
       }
       if (roles.Values.Any(role => role is null)
-        || helpers.Values.Any(binding => binding is null)
         || lights.Values.Any(light => light is null))
       {
         throw new ArgumentException("New-model semantic overrides cannot contain null values.");
-      }
-      if (animations.Values.Any(value => !Enum.IsDefined(typeof(GltfNewModelAnimationClass), value)))
-      {
-        throw new ArgumentOutOfRangeException(nameof(animationClasses));
       }
       TextureResourceBindings = new ReadOnlyDictionary<GltfMaterialHandle, string?>(bindings);
       Footprint = footprint;
       HorizontalExtents = horizontalExtents;
       ObjectRoles = new ReadOnlyDictionary<GltfNodeHandle, GltfNewModelObjectRole>(roles);
-      HelperBindings = new ReadOnlyDictionary<GltfNodeHandle, GltfNewModelHelperBinding>(helpers);
       StaticLightOptions = new ReadOnlyDictionary<GltfLightHandle, GltfNewModelStaticLightOptions>(lights);
-      AnimationClasses = new ReadOnlyDictionary<GltfAnimationHandle, GltfNewModelAnimationClass>(animations);
     }
   }
 

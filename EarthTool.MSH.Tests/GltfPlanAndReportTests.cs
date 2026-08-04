@@ -18,7 +18,7 @@ public class GltfPlanAndReportTests
   private static readonly Guid _documentId = new("11111111-2222-4333-8444-555555555555");
 
   [Fact]
-  public async Task VersionOneNewModelPlanRoundTripsEveryTypedSemanticOverride()
+  public async Task VersionTwoNewModelPlanRoundTripsEveryTypedAuthoringInput()
   {
     var plan = GltfImportPlan.CreateNewModel(
       GltfPackageKind.Glb,
@@ -40,18 +40,9 @@ public class GltfPlanAndReportTests
             GltfStaticObjectRoles.ViewerFaced | GltfStaticObjectRoles.Barrel,
             32)
         },
-        helperBindings: new Dictionary<GltfNodeHandle, GltfNewModelHelperBinding>
-        {
-          [new GltfNodeHandle(3)] = new(GltfNewModelHelperKind.Attachment, 21),
-          [new GltfNodeHandle(4)] = new(GltfNewModelHelperKind.Cannon, 2)
-        },
         staticLightOptions: new Dictionary<GltfLightHandle, GltfNewModelStaticLightOptions>
         {
           [new GltfLightHandle(1)] = new(12.5f, 0.4f)
-        },
-        animationClasses: new Dictionary<GltfAnimationHandle, GltfNewModelAnimationClass>
-        {
-          [new GltfAnimationHandle(1)] = GltfNewModelAnimationClass.A
         }));
     var serializer = new GltfImportPlanSerializer();
     await using var first = new MemoryStream();
@@ -65,30 +56,31 @@ public class GltfPlanAndReportTests
     firstWrite.Status.Should().Be(OperationStatus.Succeeded);
     secondWrite.Status.Should().Be(OperationStatus.Succeeded);
     first.ToArray().Should().Equal(second.ToArray());
-    AssertJsonApproval("gltf-import-plan-v1", first.ToArray());
+    AssertJsonApproval("gltf-import-plan-v2", first.ToArray());
     read.Status.Should().Be(
       OperationStatus.Succeeded,
       string.Join("; ", read.Diagnostics.Select(diagnostic => $"{diagnostic.Code}:{diagnostic.Path}:{diagnostic.Message}")));
     read.Value!.Format.Should().Be(GltfImportPlanFormat.Identifier);
-    read.Value.Version.Should().Be(1);
+    read.Value.Version.Should().Be(2);
     read.Value.Kind.Should().Be(GltfImportPlanKind.NewModel);
     read.Value.PackageKind.Should().Be(GltfPackageKind.Glb);
     read.Value.SourceSha256.Should().Be(new string('a', 64));
     read.Value.NewModelOptions!.TextureResourceBindings.Should().ContainKey(new GltfMaterialHandle(1));
     read.Value.NewModelOptions.ObjectRoles[new GltfNodeHandle(2)].BarrelMaximumAngle.Should().Be(32);
-    read.Value.NewModelOptions.HelperBindings[new GltfNodeHandle(3)].PhysicalNumber.Should().Be(21);
-    read.Value.NewModelOptions.HelperBindings[new GltfNodeHandle(4)].Kind.Should()
-      .Be(GltfNewModelHelperKind.Cannon);
     read.Value.NewModelOptions.StaticLightOptions[new GltfLightHandle(1)].TargetDistance.Should().Be(12.5f);
-    read.Value.NewModelOptions.AnimationClasses[new GltfAnimationHandle(1)].Should()
-      .Be(GltfNewModelAnimationClass.A);
     read.Value.EditOptions.Should().BeNull();
-    GltfImportPlanFormat.SupportedVersions.Should().Equal(1);
+    GltfImportPlanFormat.SupportedVersions.Should().Equal(2);
     GltfCliReportFormat.SupportedVersions.Should().Equal(1);
   }
 
-  [Fact]
-  public async Task NewModelPlanRejectsRemovedMarkerObjectRoleValues()
+  [Theory]
+  [InlineData("helperBindings", "semanticOverrides.helperBindings", "canonical authoring identifiers")]
+  [InlineData("animationClasses", "semanticOverrides.animationClasses", "EarthTool A")]
+  [InlineData("markerAttachment1", "semanticOverrides.objectRoles[].roles", "ET_Emitter_1")]
+  public async Task VersionTwoPlanRejectsRemovedInputsWithMigrationDiagnostics(
+    string removedInput,
+    string expectedPath,
+    string expectedMigration)
   {
     var plan = GltfImportPlan.CreateNewModel(
       GltfPackageKind.Glb,
@@ -102,8 +94,16 @@ public class GltfPlanAndReportTests
     (await new GltfImportPlanSerializer().SerializeAsync(plan, serialized)).Status.Should()
       .Be(OperationStatus.Succeeded);
     var root = JsonNode.Parse(serialized.ToArray())!.AsObject();
-    root["semanticOverrides"]!["objectRoles"]![0]!["roles"] =
-      new JsonArray("markerAttachment1");
+    root["version"] = 2;
+    var overrides = root["semanticOverrides"]!.AsObject();
+    if (removedInput is "helperBindings" or "animationClasses")
+    {
+      overrides[removedInput] = new JsonArray();
+    }
+    else
+    {
+      overrides["objectRoles"]![0]!["roles"] = new JsonArray(removedInput);
+    }
     await using var source = new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
 
     var result = await new GltfImportPlanSerializer().DeserializeAsync(source);
@@ -111,12 +111,38 @@ public class GltfPlanAndReportTests
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
     result.Diagnostics.Should().ContainSingle(diagnostic =>
-      diagnostic.Code == GltfDiagnosticCodes.MalformedImportPlan
-      && diagnostic.Path == "semanticOverrides.objectRoles[].roles");
+      diagnostic.Code == GltfDiagnosticCodes.RemovedImportPlanMember
+      && diagnostic.EventId == 3005
+      && diagnostic.Path == expectedPath
+      && diagnostic.Message.Contains(expectedMigration, StringComparison.Ordinal));
   }
 
   [Fact]
-  public async Task VersionOneEditPlanRoundTripsOnlyTypedConflictActions()
+  public async Task VersionOnePlanIsRejectedWithAnActionableUpgradeDiagnostic()
+  {
+    var plan = GltfImportPlan.CreateNewModel(GltfPackageKind.Glb, new string('a', 64));
+    await using var serialized = new MemoryStream();
+    (await new GltfImportPlanSerializer().SerializeAsync(plan, serialized)).Status.Should()
+      .Be(OperationStatus.Succeeded);
+    var root = JsonNode.Parse(serialized.ToArray())!.AsObject();
+    root["version"] = 1;
+    await using var source = new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
+
+    var result = await new GltfImportPlanSerializer().DeserializeAsync(source);
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Value.Should().BeNull();
+    result.Diagnostics.Should().ContainSingle().Subject.Should().Match<OperationDiagnostic>(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.UnsupportedImportPlanVersion
+      && diagnostic.EventId == 3001
+      && diagnostic.Path == "version"
+      && diagnostic.Message.Contains("protocol version 2", StringComparison.Ordinal)
+      && diagnostic.Data["actual"] == "1"
+      && diagnostic.Data["supported"] == "2");
+  }
+
+  [Fact]
+  public async Task VersionTwoEditPlanRoundTripsOnlyTypedConflictActions()
   {
     var options = new GltfEditImportOptions(
     [
@@ -152,9 +178,9 @@ public class GltfPlanAndReportTests
 
   [Theory]
   [InlineData("{", GltfDiagnosticCodes.MalformedImportPlan, 3000)]
-  [InlineData("{\"format\":\"earthtool.msh.import-plan\",\"version\":2}", GltfDiagnosticCodes.UnsupportedImportPlanVersion, 3001)]
-  [InlineData("{\"format\":\"earthtool.msh.import-plan\",\"version\":1,\"mode\":\"newModel\",\"package\":\"glb\",\"sourceSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"rawMsh\":\"AA==\",\"semanticOverrides\":{}}", GltfDiagnosticCodes.MalformedImportPlan, 3000)]
-  [InlineData("{\"format\":\"earthtool.msh.import-plan\",\"format\":\"earthtool.msh.import-plan\",\"version\":1}", GltfDiagnosticCodes.MalformedImportPlan, 3000)]
+  [InlineData("{\"format\":\"earthtool.msh.import-plan\",\"version\":3}", GltfDiagnosticCodes.UnsupportedImportPlanVersion, 3001)]
+  [InlineData("{\"format\":\"earthtool.msh.import-plan\",\"version\":2,\"mode\":\"newModel\",\"package\":\"glb\",\"sourceSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"rawMsh\":\"AA==\",\"semanticOverrides\":{}}", GltfDiagnosticCodes.MalformedImportPlan, 3000)]
+  [InlineData("{\"format\":\"earthtool.msh.import-plan\",\"format\":\"earthtool.msh.import-plan\",\"version\":2}", GltfDiagnosticCodes.MalformedImportPlan, 3000)]
   public async Task InvalidPlansFailWithStableDiagnostics(string json, string code, int eventId)
   {
     await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
@@ -224,21 +250,62 @@ public class GltfPlanAndReportTests
   }
 
   [Fact]
-  public async Task NewModelPlanReplaysTypedSemanticOverrides()
+  public async Task DeserializedNewModelPlanReplaysEverySupportedTypedAuthoringInput()
   {
-    var source = await CreateMetadataFreeGlbAsync();
+    var sourceAsset = await ReadAssetAsync(StaticLightMshFixture.Create(
+      new Dictionary<int, StaticLightMshFixture.SpotRecord>
+      {
+        [2] = new(
+          System.Numerics.Vector3.Zero,
+          System.Numerics.Vector3.One,
+          0,
+          0,
+          [0, 0, 0],
+          0.2f,
+          5,
+          0.25f,
+          4)
+      },
+      activeSpots: [2]));
+    await using var exported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    (await interchange.ExportGlbAsync(
+      sourceAsset,
+      exported,
+      new GltfExportOptions(_lineageId, _documentId))).Status.Should().Be(OperationStatus.Succeeded);
+    var source = RemoveMetadata(exported.ToArray());
     var plan = GltfImportPlan.CreateNewModel(
       GltfPackageKind.Glb,
       Sha256(source),
       new GltfNewModelImportOptions(
+        textureResourceBindings: new Dictionary<GltfMaterialHandle, string?>
+        {
+          [new GltfMaterialHandle(1)] = "Textures\\authored\\hull.tex"
+        },
         footprint: new GltfNewModelFootprint(
           5,
           Enumerable.Repeat(2f, 16),
           new byte[16]),
-        horizontalExtents: new GltfNewModelHorizontalExtents(1, 2, 3, 4)));
+        horizontalExtents: new GltfNewModelHorizontalExtents(1, 2, 3, 4),
+        objectRoles: new Dictionary<GltfNodeHandle, GltfNewModelObjectRole>
+        {
+          [new GltfNodeHandle(2)] = new(
+            GltfStaticObjectRoles.ViewerFaced | GltfStaticObjectRoles.Barrel,
+            32)
+        },
+        staticLightOptions: new Dictionary<GltfLightHandle, GltfNewModelStaticLightOptions>
+        {
+          [new GltfLightHandle(1)] = new(targetDistance: 5, terrainLightAmplitude: 2.5f)
+        }));
+    await using var serialized = new MemoryStream();
+    var serializer = new GltfImportPlanSerializer();
+    (await serializer.SerializeAsync(plan, serialized)).Status.Should().Be(OperationStatus.Succeeded);
+    serialized.Position = 0;
+    var deserialized = await serializer.DeserializeAsync(serialized);
+    deserialized.Status.Should().Be(OperationStatus.Succeeded);
     await using var stream = new MemoryStream(source);
 
-    var result = await new GltfInterchange().ImportNewModelGlbWithPlanAsync(stream, plan);
+    var result = await interchange.ImportNewModelGlbWithPlanAsync(stream, deserialized.Value!);
 
     result.Status.Should().Be(
       OperationStatus.Succeeded,
@@ -246,6 +313,16 @@ public class GltfPlanAndReportTests
     result.Value!.Asset.CommonBaseHeader.BoxPresenceMask.Should().Be(5);
     result.Value.Asset.CommonBaseHeader.HorizontalExtents.Should().Equal(
       new byte[] { 0, 1, 0, 2, 0, 3, 0, 4 });
+    var renderObject = result.Value.Asset.StaticRenderObjectSequence.Should().ContainSingle().Subject;
+    renderObject.TexturePathBytes.Should().Equal("Textures\\authored\\hull.tex"u8.ToArray());
+    renderObject.KnownFlags.Should().Be(
+      StaticRenderObjectFlags.ViewerFaced | StaticRenderObjectFlags.Barrel);
+    renderObject.BarrelMaximumAngle.Should().Be(32);
+    var spot = StaticLightMshFixture.GetSpot(
+      result.Value.Asset.GetSerializedRepresentation().ToArray(),
+      2);
+    BinaryPrimitives.ReadSingleLittleEndian(spot.AsSpan(0x18)).Should().Be(5);
+    BinaryPrimitives.ReadSingleLittleEndian(spot.AsSpan(0x2C)).Should().Be(2.5f);
   }
 
   [Fact]

@@ -55,6 +55,8 @@ new domain boundaries:
 | Exact low-level property mutation | `MshExpert` with a complete serialized representation |
 | COLLADA reader/writer | Sealed `GltfInterchange` facade |
 | Global or thrown conversion warnings | Operation results with stable diagnostics |
+| `GltfNewModelImportOptions.HelperBindings`, `GltfNewModelHelperBinding`, and `GltfNewModelHelperKind` | Canonical `ET_...` authoring identifiers on helper nodes and matching punctual-light definitions |
+| `GltfNewModelImportOptions.AnimationClasses`, `GltfNewModelAnimationClass`, and `GltfAnimationHandle` | `EarthTool A` through `EarthTool D` canonical authoring identifiers on animation clips |
 
 Register the supported services explicitly:
 
@@ -67,6 +69,12 @@ services
 SharpGLTF types are not public EarthTool contracts. Callers exchange EarthTool
 assets, options, plans, reports, operation results, streams, and paths with
 `GltfInterchange`.
+
+Import-plan protocol version 2 accepts only TEX bindings, footprint, horizontal
+extents, non-marker object roles and barrel angle, static-light-only values, and
+edit conflict actions. Version 1 plans must be regenerated. Version 2 rejects
+the removed `helperBindings`, `animationClasses`, and marker-role inputs with
+`ETG3005`; unsupported protocol versions continue to report `ETG3001`.
 
 ## Workflow migration
 

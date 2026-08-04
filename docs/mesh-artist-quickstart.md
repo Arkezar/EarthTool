@@ -156,7 +156,7 @@ mkdir -p ./built
 EarthTool.CLI msh import new model.glb --output ./built --report ./new-report.json
 ```
 
-New-model import creates a static MSH. A material with a base-color image also needs a typed `--plan` that maps its document-local material handle to the game TEX resource key. The CLI does not guess a TEX resource from an image filename. A plan is also the explicit route for object roles, non-default light values, footprints, horizontal extents, helper bindings that do not use canonical names, and animation-class overrides. See the [glTF API](api/gltf.md) for the complete new-model contract.
+New-model import creates a static MSH. A material with a base-color image also needs a typed `--plan` that maps its document-local material handle to the game TEX resource key. The CLI does not guess a TEX resource from an image filename. A plan is also the explicit route for object roles, non-default light values, footprints, and horizontal extents. Helpers require their canonical `ET_...` authoring identifiers on nodes and matching light definitions; animation clips require `EarthTool A` through `EarthTool D`. See the [glTF API](api/gltf.md) for the complete new-model contract.
 
 ## Attachment Identifier Cheat Sheet
 

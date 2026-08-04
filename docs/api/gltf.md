@@ -206,25 +206,30 @@ caller knows the package kind. `ImportEditMeshGlbAsync` and
 allowing CLI and batch callers to accept either static or dynamic packages.
 
 Import plans and machine reports are separate protocols from embedded metadata.
-Version 1 plans use format `earthtool.msh.import-plan`; version 1 reports use
+Version 2 plans use format `earthtool.msh.import-plan`; version 1 reports use
 format `earthtool.msh.cli-report`. `GltfImportPlanFormat` and
 `GltfCliReportFormat` expose their supported versions independently, so changing
 one protocol does not reinterpret either of the others.
 
 `GltfImportPlanSerializer` accepts only the closed typed values represented by
 `GltfNewModelImportOptions` or `GltfEditImportOptions`. New-model plans may carry
-TEX bindings, footprint and extent values, object roles, helper bindings,
-MSH-only light values, and animation classes. Edit plans may carry exact
-baseline-bound conflict actions. Unknown members and raw metadata, MSH bytes,
-adapter objects, guards, and expert state are rejected. A plan also binds its
+TEX bindings, footprint and extent values, non-marker object roles, barrel angle,
+and MSH-only static-light values. Canonical `ET_...` authoring identifiers on
+nodes and punctual-light definitions author helpers, and `EarthTool A` through
+`EarthTool D` authoring identifiers on clips author animation classes.
+Edit plans may carry exact baseline-bound conflict actions. Unknown members and
+raw metadata, MSH bytes, adapter objects, guards, and expert state are rejected.
+Version 1 plans must be regenerated; version 2 rejects removed `helperBindings`,
+`animationClasses`, and marker-role inputs with `ETG3005` migration diagnostics.
+A plan also binds its
 intent, package kind, and a lowercase SHA-256 source digest. GLB uses the exact
 file bytes. Separate glTF uses a domain-separated digest over the exact manifest,
 buffer, and referenced images, with sidecars ordered by ordinal URI. Use
 `ComputeGlbSourceSha256Async` or `ComputeGltfSourceSha256Async` to produce the
 binding. The `WithPlanAsync` import methods capture and verify those same bytes
 before opening an import transaction. Malformed, unsupported, excessive, stale,
-and mismatched plans report `ETG3000` through `ETG3004` without returning a
-partial asset.
+mismatched, and removed-input plans report `ETG3000` through `ETG3005` without
+returning a partial asset.
 
 `GltfCliReport` collects complete export, edit-import, new-model-import, and
 validation outcomes. `GltfCliReportSerializer` writes fixed-order UTF-8 JSON with

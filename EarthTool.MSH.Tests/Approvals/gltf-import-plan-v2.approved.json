@@ -1,6 +1,6 @@
 {
   "format": "earthtool.msh.import-plan",
-  "version": 1,
+  "version": 2,
   "mode": "newModel",
   "package": "glb",
   "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -70,29 +70,11 @@
         "barrelMaximumAngle": 32
       }
     ],
-    "helperBindings": [
-      {
-        "node": 3,
-        "kind": "attachment",
-        "physicalNumber": 21
-      },
-      {
-        "node": 4,
-        "kind": "cannon",
-        "physicalNumber": 2
-      }
-    ],
     "staticLightOptions": [
       {
         "light": 1,
         "targetDistance": 12.5,
         "terrainLightAmplitude": 0.4
-      }
-    ],
-    "animationClasses": [
-      {
-        "animation": 1,
-        "class": "a"
       }
     ]
   }

@@ -41,7 +41,7 @@ internal sealed class ExportGltfSettings : GltfCommandSettings
 internal abstract class ImportGltfSettings : GltfCommandSettings
 {
   [CommandOption("--plan <FILE>")]
-  [Description("Optional version-1 typed import plan.")]
+  [Description("Optional version-2 typed import plan.")]
   public string? PlanPath { get; init; }
 }
 

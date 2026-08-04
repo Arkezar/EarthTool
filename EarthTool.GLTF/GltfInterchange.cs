@@ -1773,11 +1773,11 @@ namespace EarthTool.GLTF
       GltfNewModelImportOptions options)
     {
       cancellationToken.ThrowIfCancellationRequested();
-      var sceneLightDiagnostics = CreateIgnoredSceneLightDiagnostics(parsed, options);
+      var sceneLightDiagnostics = CreateIgnoredSceneLightDiagnostics(parsed);
       var lightIntensityDiagnostics = CreateIgnoredNewModelLightIntensityDiagnostics(parsed, options);
-      var animationDiagnostics = CreateIgnoredNewModelAnimationDiagnostics(parsed, options);
+      var animationDiagnostics = CreateIgnoredNewModelAnimationDiagnostics(parsed);
       var inertDiagnostics = CreateIgnoredInertDataDiagnostics(parsed)
-        .Concat(CreateIgnoredSceneNodeDiagnostics(parsed, options)).ToArray();
+        .Concat(CreateIgnoredSceneNodeDiagnostics(parsed)).ToArray();
       var texBindingDiagnostics = CreateNewModelTexBindingDiagnostics(parsed, options);
       if (parsed.HasReservedMetadata)
       {
@@ -1818,7 +1818,7 @@ namespace EarthTool.GLTF
         throw new ResourceLimitException(serializedLength, profile.MaxOutputBytes);
       }
 
-      var animations = CreateNewModelAnimations(parsed, serializedLength, profile.MaxOutputBytes, options);
+      var animations = CreateNewModelAnimations(parsed, serializedLength, profile.MaxOutputBytes);
       ValidateNewModelObjectRoles(parsed, options);
       var emitterOwnership = ResolveNewModelEmitterOwnership(parsed);
       var draft = CreateNewModelSourceTree(
@@ -1971,41 +1971,13 @@ namespace EarthTool.GLTF
           throw new UnsupportedGltfDomainException("ObjectRoles");
         }
       }
-      foreach (var helper in options.HelperBindings)
-      {
-        var nodeIndex = GetNodeIndex(parsed, helper.Key);
-        if (!nodeIndex.HasValue)
-        {
-          throw new UnsupportedGltfDomainException(
-            "ArtistObjects",
-            $"semanticOverrides.helperBindings[{helper.Key.Value}]");
-        }
-        if (parsed.Nodes[nodeIndex.Value].MeshIndex.HasValue
-          || parsed.Nodes[nodeIndex.Value].CameraIndex.HasValue
-          || options.ObjectRoles.ContainsKey(helper.Key))
-        {
-          throw new UnsupportedGltfDomainException("ArtistObjects", $"nodes[{nodeIndex.Value}]");
-        }
-        var expectsLight = helper.Value.Kind is GltfNewModelHelperKind.SpotLight
-          or GltfNewModelHelperKind.OmniLight;
-        if (expectsLight != parsed.Nodes[nodeIndex.Value].LightIndex.HasValue
-          || expectsLight && parsed.Nodes[nodeIndex.Value].Children.Count != 0)
-        {
-          throw new UnsupportedGltfDomainException("ArtistObjects", $"nodes[{nodeIndex.Value}]");
-        }
-      }
       foreach (var light in options.StaticLightOptions)
       {
         var lightIndex = GetLightIndex(parsed, light.Key);
         if (!lightIndex.HasValue
           || !parsed.Nodes.Select((node, index) => (node, index)).Any(item =>
             item.node.LightIndex == lightIndex.Value
-              && (options.HelperBindings.TryGetValue(
-                  GetNodeHandle(parsed, item.index),
-                  out var binding)
-                && binding.Kind is GltfNewModelHelperKind.SpotLight
-                  or GltfNewModelHelperKind.OmniLight
-                || GlbDocument.TryParseStaticLightHelperName(item.node.Name, out _, out _))))
+              && GlbDocument.TryParseStaticLightHelperName(item.node.Name, out _, out _)))
         {
           throw new UnsupportedGltfDomainException("StaticLights");
         }
@@ -2194,8 +2166,7 @@ namespace EarthTool.GLTF
       var effectiveTransform = node.LocalTransform * inheritedLinearTransform;
       if (!node.MeshIndex.HasValue)
       {
-        var claimedArtistObject = options.HelperBindings.ContainsKey(GetNodeHandle(parsed, nodeIndex))
-          || GlbDocument.TryParseAttachmentHelperName(node.Name, out _)
+        var claimedArtistObject = GlbDocument.TryParseAttachmentHelperName(node.Name, out _)
           || GlbDocument.TryParseCannonHelperName(node.Name, out _)
           || GlbDocument.TryParseStaticLightHelperName(node.Name, out _, out _);
         if (claimedArtistObject)
@@ -2303,10 +2274,7 @@ namespace EarthTool.GLTF
       EmitterOwnershipPlan emitterOwnership)
     {
       var nodes = parsed.Nodes.Select(node => (node, (MetadataEnvelope?)null)).ToArray();
-      var transforms = CreateArtistObjectTransforms(
-        parsed.RootNodeIndex,
-        nodes,
-        options.HelperBindings.Keys.Select(handle => GetNodeIndex(parsed, handle)!.Value).ToHashSet())
+      var transforms = CreateArtistObjectTransforms(parsed.RootNodeIndex, nodes)
         .ToDictionary(item => item.Key, item => item.Value);
       var parentIndices = CreateParentIndices(nodes);
       foreach (var nodeIndex in emitterOwnership.EmitterNodeIndices)
@@ -2327,42 +2295,7 @@ namespace EarthTool.GLTF
         {
           continue;
         }
-        if (options.HelperBindings.TryGetValue(
-          GetNodeHandle(parsed, index),
-          out var binding))
-        {
-          if (HasContradictoryHelperName(node.Name, binding))
-          {
-            throw ArtistObjectConflict(
-              "A typed helper binding contradicts its canonical helper name.",
-              $"nodes[{index}].name");
-          }
-          if (binding.Kind == GltfNewModelHelperKind.Attachment)
-          {
-            if (!attachments.TryAdd(binding.PhysicalNumber, index))
-            {
-              throw ArtistObjectConflict("A physical attachment target is occupied more than once.");
-            }
-          }
-          else if (binding.Kind == GltfNewModelHelperKind.Cannon)
-          {
-            if (!cannons.TryAdd(binding.PhysicalNumber, index))
-            {
-              throw ArtistObjectConflict("A cannon render-position target is occupied more than once.");
-            }
-          }
-          else
-          {
-            var type = binding.Kind == GltfNewModelHelperKind.SpotLight ? "spot" : "point";
-            if (!lights.TryAdd((type, binding.PhysicalNumber), index))
-            {
-              throw ArtistObjectConflict(
-                $"A static-light target is occupied by both nodes[{lights[(type, binding.PhysicalNumber)]}] and nodes[{index}].",
-                $"nodes[{index}]");
-            }
-          }
-        }
-        else if (GlbDocument.TryParseAttachmentHelperName(node.Name, out var physicalNumber))
+        if (GlbDocument.TryParseAttachmentHelperName(node.Name, out var physicalNumber))
         {
           if (!attachments.TryAdd(physicalNumber, index))
           {
@@ -2494,30 +2427,6 @@ namespace EarthTool.GLTF
       }
     }
 
-    private static bool HasContradictoryHelperName(
-      string? name,
-      GltfNewModelHelperBinding binding)
-    {
-      if (GlbDocument.TryParseAttachmentHelperName(name, out var attachment))
-      {
-        return binding.Kind != GltfNewModelHelperKind.Attachment
-          || binding.PhysicalNumber != attachment;
-      }
-      if (GlbDocument.TryParseCannonHelperName(name, out var cannon))
-      {
-        return binding.Kind != GltfNewModelHelperKind.Cannon
-          || binding.PhysicalNumber != cannon;
-      }
-      if (GlbDocument.TryParseStaticLightHelperName(name, out var type, out var light))
-      {
-        var kind = type == "spot"
-          ? GltfNewModelHelperKind.SpotLight
-          : GltfNewModelHelperKind.OmniLight;
-        return binding.Kind != kind || binding.PhysicalNumber != light;
-      }
-      return false;
-    }
-
     private static CanonicalStaticVertex TransformNewModelVertex(
       RenderVertex vertex,
       System.Numerics.Matrix4x4 linearTransform,
@@ -2563,16 +2472,10 @@ namespace EarthTool.GLTF
     private static NewModelAnimationSet CreateNewModelAnimations(
       ParsedGlb parsed,
       long serializedLength,
-      int maximumOutputLength,
-      GltfNewModelImportOptions options)
+      int maximumOutputLength)
     {
-      if (options.AnimationClasses.Keys.Any(handle => handle.Value > parsed.Animations.Count))
-      {
-        throw new UnsupportedGltfDomainException("animations");
-      }
       var authoredAnimations = parsed.Animations.Select((animation, index) => (animation, index))
-        .Where(item => options.AnimationClasses.ContainsKey(new GltfAnimationHandle(item.index + 1))
-          || TryGetCanonicalAnimationClass(item.animation.Name, out _)).ToArray();
+        .Where(item => TryGetCanonicalAnimationClass(item.animation.Name, out _)).ToArray();
       if (authoredAnimations.Length == 0)
       {
         return new NewModelAnimationSet(default, Array.Empty<NewModelAnimationTrack>());
@@ -2584,13 +2487,9 @@ namespace EarthTool.GLTF
       foreach (var authored in authoredAnimations)
       {
         var animation = authored.animation;
-        var classIndex = options.AnimationClasses.TryGetValue(
-          new GltfAnimationHandle(authored.index + 1),
-          out var explicitClass)
-          ? (int)explicitClass
-          : TryGetCanonicalAnimationClass(animation.Name, out var canonicalClass)
-            ? canonicalClass
-            : throw new UnsupportedGltfDomainException("animations");
+        var classIndex = TryGetCanonicalAnimationClass(animation.Name, out var canonicalClass)
+          ? canonicalClass
+          : throw new UnsupportedGltfDomainException("animations");
         if (lengths[classIndex] != 0)
         {
           throw new UnsupportedGltfDomainException("animations");
@@ -4045,14 +3944,11 @@ namespace EarthTool.GLTF
         result.Diagnostics);
     }
 
-    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredSceneLightDiagnostics(
-      ParsedGlb parsed,
-      GltfNewModelImportOptions? options = null)
+    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredSceneLightDiagnostics(ParsedGlb parsed)
     {
       return parsed.Nodes.Select((node, index) => (node, index))
-        .Where(item => item.node.LightIndex.HasValue
+          .Where(item => item.node.LightIndex.HasValue
           && item.node.Metadata is null
-          && !(options?.HelperBindings.ContainsKey(GetNodeHandle(parsed, item.index)) ?? false)
           && !GlbDocument.TryParseStaticLightHelperName(item.node.Name, out _, out _))
         .Select(item => new OperationDiagnostic(
           GltfDiagnosticCodes.SceneLightIgnored,
@@ -4072,12 +3968,7 @@ namespace EarthTool.GLTF
         .Where(index => index >= 0 && index < parsed.Lights.Count)
         .Where(index => parsed.Nodes.Select((node, nodeIndex) => (node, nodeIndex)).Any(item =>
           item.node.LightIndex == index
-          && (GlbDocument.TryParseStaticLightHelperName(item.node.Name, out _, out _)
-            || options.HelperBindings.TryGetValue(
-                GetNodeHandle(parsed, item.nodeIndex),
-                out var binding)
-              && binding.Kind is GltfNewModelHelperKind.SpotLight
-                or GltfNewModelHelperKind.OmniLight)))
+          && GlbDocument.TryParseStaticLightHelperName(item.node.Name, out _, out _)))
         .Distinct()
         .Where(index => parsed.Lights[index].Intensity != 1)
         .Select(index => new OperationDiagnostic(
@@ -4089,13 +3980,10 @@ namespace EarthTool.GLTF
         .ToArray();
     }
 
-    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredNewModelAnimationDiagnostics(
-      ParsedGlb parsed,
-      GltfNewModelImportOptions options)
+    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredNewModelAnimationDiagnostics(ParsedGlb parsed)
     {
       return parsed.Animations.Select((animation, index) => (animation, index))
-        .Where(item => !options.AnimationClasses.ContainsKey(new GltfAnimationHandle(item.index + 1))
-          && !TryGetCanonicalAnimationClass(item.animation.Name, out _))
+        .Where(item => !TryGetCanonicalAnimationClass(item.animation.Name, out _))
         .Select(item => new OperationDiagnostic(
           GltfDiagnosticCodes.InertDataIgnored,
           1119,
@@ -4117,14 +4005,8 @@ namespace EarthTool.GLTF
         .ToArray();
     }
 
-    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredSceneNodeDiagnostics(
-      ParsedGlb parsed,
-      GltfNewModelImportOptions? options = null)
+    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredSceneNodeDiagnostics(ParsedGlb parsed)
     {
-      var typedHelpers = (options?.HelperBindings.Keys ?? Array.Empty<GltfNodeHandle>())
-        .Select(handle => GetNodeIndex(parsed, handle))
-        .OfType<int>()
-        .ToHashSet();
       return GetNodeOrder(parsed).Where(nodeIndex =>
         {
           var node = parsed.Nodes[nodeIndex];
@@ -4134,7 +4016,6 @@ namespace EarthTool.GLTF
             && !node.MeshIndex.HasValue
             && !node.LightIndex.HasValue
             && !node.CameraIndex.HasValue
-            && !typedHelpers.Contains(nodeIndex)
             && !GlbDocument.TryParseAttachmentHelperName(node.Name, out _)
             && !GlbDocument.TryParseCannonHelperName(node.Name, out _)
             && !GlbDocument.TryParseStaticLightHelperName(node.Name, out _, out _);
