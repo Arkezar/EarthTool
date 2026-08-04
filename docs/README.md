@@ -7,6 +7,7 @@
 - [Quick start](quickstart.md)
 - [Mesh artist quick start and cheat sheet](mesh-artist-quickstart.md)
 - [COLLADA to glTF migration](migration-collada-to-gltf.md)
+- [Project glossary](../CONTEXT.md)
 
 ## MSH And glTF
 

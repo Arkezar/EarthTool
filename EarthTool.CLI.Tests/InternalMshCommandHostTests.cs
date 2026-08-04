@@ -413,6 +413,8 @@ public sealed class InternalMshCommandHostTests
 
     exitCode.Should().Be(CliExitCode.Success);
     var mshPath = Path.Combine(outputDirectory, "model.msh");
+    (await File.ReadAllBytesAsync(mshPath)).Should().Equal(
+      await File.ReadAllBytesAsync(fixture.MshPath));
     var read = await new MshReader().ReadFileAsync(mshPath);
     read.Status.Should().Be(OperationStatus.Succeeded);
     using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
@@ -422,6 +424,141 @@ public sealed class InternalMshCommandHostTests
       .GetProperty("documentId").GetString().Should().Be(expected.DocumentId.ToString("D"));
     operation.GetProperty("identities").GetProperty("nextBaseline")
       .GetProperty("documentId").GetString().Should().NotBe(expected.DocumentId.ToString("D"));
+  }
+
+  [Fact]
+  public async Task EditImportPreservesEmitterCompatibilityAnomalyAndReportsIt()
+  {
+    using var fixture = await CliFixture.CreateEmitterCompatibilityAnomalyAsync();
+    var expected = await fixture.CreateEditGlbAsync();
+    var outputDirectory = Path.Combine(fixture.Directory, "compatibility-edited");
+    System.IO.Directory.CreateDirectory(outputDirectory);
+    var reportPath = Path.Combine(fixture.Directory, "compatibility-edit-report.json");
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "import", "edit", fixture.GlbPath,
+      "--expected-lineage", expected.AssetLineageId.ToString("D"),
+      "--expected-document", expected.DocumentId.ToString("D"),
+      "--output", outputDirectory,
+      "--report", reportPath
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(CliExitCode.Success);
+    (await File.ReadAllBytesAsync(Path.Combine(outputDirectory, "model.msh"))).Should()
+      .Equal(await File.ReadAllBytesAsync(fixture.MshPath));
+    using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+    var operation = report.RootElement.GetProperty("operations")[0];
+    operation.GetProperty("diagnostics").EnumerateArray()
+      .Select(diagnostic => diagnostic.GetProperty("code").GetString()).Should()
+      .Contain(GltfDiagnosticCodes.EmitterHierarchyFallback);
+    operation.GetProperty("preservation").GetProperty("changes").EnumerateArray()
+      .Select(change => change.GetProperty("disposition").GetString()).Should()
+      .OnlyContain(disposition => disposition == "retained");
+  }
+
+  [Fact]
+  public async Task EditAndNewModelImportsInferEmitterOwnershipWithoutAPlan()
+  {
+    using var fixture = await CliFixture.CreateAsync();
+    var expected = await fixture.CreateEditGlbAsync();
+    await fixture.AddEmitterHelpersAsync(1);
+    var editOutputDirectory = Path.Combine(fixture.Directory, "inferred-edit");
+    var newOutputDirectory = Path.Combine(fixture.Directory, "inferred-new");
+    System.IO.Directory.CreateDirectory(editOutputDirectory);
+    System.IO.Directory.CreateDirectory(newOutputDirectory);
+    var editReportPath = Path.Combine(fixture.Directory, "inferred-edit-report.json");
+    var newReportPath = Path.Combine(fixture.Directory, "inferred-new-report.json");
+
+    var editExitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "import", "edit", fixture.GlbPath,
+      "--expected-lineage", expected.AssetLineageId.ToString("D"),
+      "--expected-document", expected.DocumentId.ToString("D"),
+      "--output", editOutputDirectory,
+      "--report", editReportPath
+    ], TextWriter.Null);
+    await fixture.RemoveMetadataFromGlbAsync();
+    var newExitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "import", "new", fixture.GlbPath,
+      "--output", newOutputDirectory,
+      "--report", newReportPath
+    ], TextWriter.Null);
+
+    editExitCode.Should().Be(
+      CliExitCode.Success,
+      await File.ReadAllTextAsync(editReportPath));
+    newExitCode.Should().Be(CliExitCode.Success);
+    foreach (var path in new[]
+    {
+      Path.Combine(editOutputDirectory, "model.msh"),
+      Path.Combine(newOutputDirectory, "model.msh")
+    })
+    {
+      var read = await new MshReader().ReadFileAsync(path);
+      read.Value.Should().BeOfType<StaticMeshAsset>().Subject
+        .StaticRenderObjectSequence.Should().ContainSingle().Subject
+        .KnownFlags.Should().HaveFlag(StaticRenderObjectFlags.MarkerAttachment1);
+    }
+    using var editReport = JsonDocument.Parse(await File.ReadAllBytesAsync(editReportPath));
+    editReport.RootElement.GetProperty("operations")[0].GetProperty("preservation")
+      .GetProperty("changes").EnumerateArray().Should().Contain(change =>
+        change.GetProperty("fieldPath").GetString() == "StaticRenderObjectSequence[0].ObjectFlags"
+        && change.GetProperty("disposition").GetString() == "regenerated"
+        && change.GetProperty("reason").GetString() == "EmitterMarkerOwnership");
+    using var newReport = JsonDocument.Parse(await File.ReadAllBytesAsync(newReportPath));
+    newReport.RootElement.GetProperty("operations")[0].GetProperty("status").GetString()
+      .Should().Be("succeeded");
+  }
+
+  [Fact]
+  public async Task EditAndNewModelImportsRejectDuplicateEmitterOwnershipWithoutAPlan()
+  {
+    using var fixture = await CliFixture.CreateAsync();
+    var expected = await fixture.CreateEditGlbAsync();
+    await fixture.AddEmitterHelpersAsync(2);
+    var editOutputDirectory = Path.Combine(fixture.Directory, "ambiguous-edit");
+    var newOutputDirectory = Path.Combine(fixture.Directory, "ambiguous-new");
+    System.IO.Directory.CreateDirectory(editOutputDirectory);
+    System.IO.Directory.CreateDirectory(newOutputDirectory);
+    var editReportPath = Path.Combine(fixture.Directory, "ambiguous-edit-report.json");
+    var newReportPath = Path.Combine(fixture.Directory, "ambiguous-new-report.json");
+
+    var editExitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "import", "edit", fixture.GlbPath,
+      "--expected-lineage", expected.AssetLineageId.ToString("D"),
+      "--expected-document", expected.DocumentId.ToString("D"),
+      "--output", editOutputDirectory,
+      "--report", editReportPath
+    ], TextWriter.Null);
+    await fixture.RemoveMetadataFromGlbAsync();
+    var newExitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "import", "new", fixture.GlbPath,
+      "--output", newOutputDirectory,
+      "--report", newReportPath
+    ], TextWriter.Null);
+
+    editExitCode.Should().Be(CliExitCode.Failure);
+    newExitCode.Should().Be(CliExitCode.Failure);
+    File.Exists(Path.Combine(editOutputDirectory, "model.msh")).Should().BeFalse();
+    File.Exists(Path.Combine(newOutputDirectory, "model.msh")).Should().BeFalse();
+    foreach (var (reportPath, expectedCode) in new[]
+    {
+      (editReportPath, GltfDiagnosticCodes.AmbiguousPartitionCorrespondence),
+      (newReportPath, GltfDiagnosticCodes.AmbiguousPartitionCorrespondence)
+    })
+    {
+      using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+      var diagnostic = report.RootElement.GetProperty("operations")[0]
+        .GetProperty("diagnostics").EnumerateArray().Should().ContainSingle().Subject;
+      diagnostic.GetProperty("code").GetString().Should().Be(expectedCode);
+      diagnostic.GetProperty("path").GetString().Should().Be("nodes[2]");
+      diagnostic.GetProperty("message").GetString().Should()
+        .Contain("nodes[2]").And.Contain("nodes[3]");
+    }
   }
 
   [Fact]
@@ -480,8 +617,19 @@ public sealed class InternalMshCommandHostTests
     operation.GetProperty("kind").GetString().Should().Be("importNewModel");
     operation.GetProperty("identities").GetProperty("baseline").ValueKind.Should()
       .Be(JsonValueKind.Object);
-    operation.GetProperty("preservation").GetProperty("changes").GetArrayLength().Should()
-      .BeGreaterThan(0);
+    operation.GetProperty("preservation").GetProperty("changes").EnumerateArray()
+      .Select(change => change.GetProperty("fieldPath").GetString()).Should().Contain(
+      [
+        "RootSourceObject",
+        "CommonBaseHeader.AttachmentTable",
+        "StaticRenderObjectSequence[0].ObjectFlags",
+        "CommonBaseHeader.StaticLights",
+        "CommonBaseHeader.AnimationLengths",
+        "CommonBaseHeader.HorizontalExtents",
+        "CommonBaseHeader.Footprint",
+        "StaticRenderObjectSequence",
+        "StaticRenderObjectSequence[0].TexturePathBytes"
+      ]);
   }
 
   [Fact]
@@ -838,6 +986,8 @@ public sealed class InternalMshCommandHostTests
 
   private sealed class CliFixture : IDisposable
   {
+    private const int AttachmentTableOffset = 0x1D8;
+
     public string Directory { get; }
     public string MshPath => Path.Combine(Directory, "model.msh");
     public string GlbPath => Path.Combine(Directory, "model.glb");
@@ -870,6 +1020,42 @@ public sealed class InternalMshCommandHostTests
       build.TryGetValue(out var asset).Should().BeTrue();
       var write = await new MshWriter().WriteFileAsync(asset!, fixture.MshPath);
       write.Succeeded.Should().BeTrue();
+      return fixture;
+    }
+
+    public static async Task<CliFixture> CreateEmitterCompatibilityAnomalyAsync()
+    {
+      var fixture = new CliFixture(Path.Combine(Path.GetTempPath(), $"earthtool-cli-{Guid.NewGuid():N}"));
+      System.IO.Directory.CreateDirectory(fixture.Directory);
+      var vertices = new[]
+      {
+        new CanonicalStaticVertex(Vector3.Zero, Vector3.UnitZ, Vector2.Zero),
+        new CanonicalStaticVertex(Vector3.UnitX, Vector3.UnitZ, Vector2.UnitX),
+        new CanonicalStaticVertex(Vector3.UnitY, Vector3.UnitZ, Vector2.UnitY)
+      };
+      var renderObject = new CanonicalStaticRenderObject(
+        vertices,
+        [new CanonicalTriangle(0, 1, 2)]);
+      var markerRole = new CanonicalStaticObjectRole(StaticRenderObjectFlags.MarkerAttachment1);
+      var build = StaticMeshBuilder.Create(
+          Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"),
+          new MeshAssetLineageId(Guid.Parse("11111111-2222-4333-8444-555555555555")))
+        .SetRootSourceObject(new CanonicalStaticSourceObject(
+          [renderObject],
+          [new CanonicalStaticSourceObject([renderObject], role: markerRole)],
+          markerRole))
+        .Build();
+      build.TryGetValue(out var asset).Should().BeTrue();
+      var write = await new MshWriter().WriteFileAsync(asset!, fixture.MshPath);
+      write.Succeeded.Should().BeTrue();
+      var bytes = await File.ReadAllBytesAsync(fixture.MshPath);
+      // Activate emitter slot 1 so the two marker owners form a preserved legacy anomaly.
+      var attachmentOffset = 0x14 + AttachmentTableOffset + (4 * 8);
+      BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(attachmentOffset), 256);
+      BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(attachmentOffset + 2), -512);
+      BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(attachmentOffset + 4), 768);
+      bytes[attachmentOffset + 7] = 0x80;
+      await File.WriteAllBytesAsync(fixture.MshPath, bytes);
       return fixture;
     }
 
@@ -1056,8 +1242,36 @@ public sealed class InternalMshCommandHostTests
     public async Task CreateMetadataFreeGlbAsync()
     {
       await CreateEditGlbAsync();
-      var glb = await File.ReadAllBytesAsync(GlbPath);
-      await File.WriteAllBytesAsync(GlbPath, RemoveMetadata(glb));
+      await RemoveMetadataFromGlbAsync();
+    }
+
+    public async Task AddEmitterHelpersAsync(int count)
+    {
+      await RewriteGlbAsync(root =>
+      {
+        var nodes = root["nodes"]!.AsArray();
+        var sourceIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+          item.node!.AsObject().ContainsKey("mesh")).index;
+        var source = nodes[sourceIndex]!.AsObject();
+        var children = source["children"] as JsonArray ?? new JsonArray();
+        source["children"] = children;
+        for (var index = 0; index < count; index++)
+        {
+          var emitterIndex = nodes.Count;
+          nodes.Add(new JsonObject
+          {
+            ["name"] = "ET_Emitter_1",
+            ["translation"] = new JsonArray(index + 1, 2, 3),
+            ["rotation"] = new JsonArray(0, 0, -0.70710677f, 0.70710677f)
+          });
+          children.Add(emitterIndex);
+        }
+      });
+    }
+
+    public Task RemoveMetadataFromGlbAsync()
+    {
+      return RewriteGlbAsync(RemoveMetadata);
     }
 
     public async Task<string> CreateNewModelPlanAsync(GltfNewModelImportOptions options)
@@ -1074,11 +1288,12 @@ public sealed class InternalMshCommandHostTests
       return planPath;
     }
 
-    private static byte[] RemoveMetadata(byte[] glb)
+    private async Task RewriteGlbAsync(Action<JsonObject> rewrite)
     {
+      var glb = await File.ReadAllBytesAsync(GlbPath);
       var jsonLength = BinaryPrimitives.ReadInt32LittleEndian(glb.AsSpan(12));
-      var root = JsonNode.Parse(Encoding.UTF8.GetString(glb, 20, jsonLength))!;
-      RemoveMetadata(root);
+      var root = JsonNode.Parse(Encoding.UTF8.GetString(glb, 20, jsonLength))!.AsObject();
+      rewrite(root);
       var json = Encoding.UTF8.GetBytes(root.ToJsonString());
       var paddedLength = (json.Length + 3) & ~3;
       var oldBinaryOffset = 20 + jsonLength;
@@ -1091,7 +1306,7 @@ public sealed class InternalMshCommandHostTests
       json.CopyTo(result.AsSpan(20));
       result.AsSpan(20 + json.Length, paddedLength - json.Length).Fill(0x20);
       glb.AsSpan(oldBinaryOffset, binaryLength).CopyTo(result.AsSpan(20 + paddedLength));
-      return result;
+      await File.WriteAllBytesAsync(GlbPath, result);
     }
 
     public static byte[] CreateRgbaTex(byte[] pixels)

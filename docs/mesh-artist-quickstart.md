@@ -61,7 +61,9 @@ Keep the generated `earthtool` custom properties. They identify the source objec
 - Keep triangles as the final topology. Apply triangulation before export if the result must be predictable.
 - Keep vertex merging off. Equal-position vertices can carry different MSH meaning.
 - Material images, colors, and names are previews; changing them does not select another game TEX resource. Existing texture bindings remain in EarthTool metadata.
-- Do not rename `ET_...` attachment, cannon, or light helpers.
+- Keep `ET_...` helpers canonical and case-sensitive. Renumbering within the same
+  helper family is supported when the destination is free; changing families
+  requires deleting the old helper and creating a new one.
 - Attachment empties support translation and heading/yaw. Pitch, roll, shear, or a non-decomposable transform is not a supported MSH attachment pose; finite scale is ignored.
 - Do not delete custom properties from existing EarthTool objects.
 - To add an object, duplicate or create it, make its mesh data single-user, and remove the `earthtool` custom property from only the new Object and its new Mesh datablock. EarthTool will allocate fresh identities during edit import.
@@ -147,7 +149,11 @@ The archive entry name must match the resource name expected by the game. Rename
 ## Create A Standalone MSH
 
 1. Start with a clean Blender file that contains no `earthtool` custom properties.
-2. Build one rooted object tree with triangle meshes, finite positions and normals, UVs for textured materials, and optional helpers from the table below.
+2. Build one rooted **source object tree**. Mesh-bearing nodes become source
+   objects, their primitives become static render-object material partitions,
+   and transform-only groups collapse into their descendants' effective poses.
+   Use triangle meshes, finite positions and normals, UVs for textured materials,
+   and optional canonical helpers from the table below.
 3. Export GLB using the settings above.
 4. Import it with:
 
@@ -156,7 +162,44 @@ mkdir -p ./built
 EarthTool.CLI msh import new model.glb --output ./built --report ./new-report.json
 ```
 
-New-model import creates a static MSH. A material with a base-color image also needs a typed `--plan` that maps its document-local material handle to the game TEX resource key. The CLI does not guess a TEX resource from an image filename. A plan is also the explicit route for object roles, non-default light values, footprints, and horizontal extents. Helpers require their canonical `ET_...` authoring identifiers on nodes and matching light definitions; animation clips require `EarthTool A` through `EarthTool D`. See the [glTF API](api/gltf.md) for the complete new-model contract.
+New-model import creates a static MSH. Hierarchy inference is always active; the
+CLI and library use the same contract without an additional flag. A plan is only
+needed for values that glTF cannot evidence safely or when replacing a documented
+canonical authoring default:
+
+| Input | Without a plan | Plan behavior |
+|---|---|---|
+| Source object tree and material partitions | Inferred from mesh-bearing nodes, hierarchy, and primitive assignment | No replacement member exists |
+| Attachments, cannons, emitters, and static lights | Inferred from case-sensitive canonical authoring identifiers; emitter marker ownership comes from the nearest source-object ancestor | Helper and marker binding members are rejected |
+| Animation classes | Inferred from unique `EarthTool A` through `EarthTool D` clips | Animation-class binding members are rejected |
+| TEX resource binding | No key is guessed from material/image names, URI, or pixels; a referenced base-color image without a key fails with `ETG1029` | Required for each textured material used by a mesh primitive, by document-local material handle; unused bindings are rejected |
+| Footprint | One `0x8000` cell whose top is the maximum effective mesh height | Optional complete replacement |
+| Horizontal extents | Derived from effective root-local positions | Optional complete replacement |
+| Static-light target distance | Positive spot range is used; absence requires a typed value | Supplies distance only when range is absent; simultaneous authorities fail |
+| Terrain-light amplitude | Defaults to `1.0`; photometric intensity is ignored with `ETG1028` when non-default | Optional replacement |
+| Non-marker object roles and barrel maximum angle | Never guessed from display names | `ViewerFaced`, `Barrel`, `Rotor`, and angle remain typed inputs |
+
+Version 2 plans are bound to intent, package kind, and the exact source digest.
+Use the same import command with `--plan ./import-plan.json` when one of the typed
+values above is needed. Old helper bindings, animation-class bindings, and marker
+roles fail with the `ETG3005` migration diagnostic instead of becoming no-ops.
+See the [complete authority and inference matrix](api/gltf.md#static-authoring-authority-and-inference-matrix)
+for edit/new-model differences, lifecycle behavior, and conflict rules.
+
+### Read the import report
+
+The CLI summary is enough for an interactive success check. Keep `--report` for
+automation and review: each operation records diagnostics with native paths and
+full conflict messages, while `preservation.changes` records the affected MSH
+field path, disposition, and reason. `retained` means exact preservation,
+`regenerated` means visible evidence recomputed state, `invalidated` means an edit
+removed state, and `canonicalized` means EarthTool replaced a representation
+with deterministic canonical authored form.
+
+Unchanged ordinary edits remain byte-exact. Unchanged accepted compatibility
+anomalies also remain byte-exact and receive a warning, such as `ETG1027` for a
+legacy emitter marker anomaly. Consequential edits use the current strict rules
+only for affected paths. The behavior is the same for GLB and separate glTF.
 
 ## Attachment Identifier Cheat Sheet
 

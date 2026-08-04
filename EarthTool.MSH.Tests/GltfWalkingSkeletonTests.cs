@@ -694,23 +694,6 @@ public class GltfWalkingSkeletonTests
       .Select(diagnostic => diagnostic.Path).Should().BeEquivalentTo(
         "extensions.KHR_lights_punctual.lights[0].intensity",
         "extensions.KHR_lights_punctual.lights[1].intensity");
-
-    var contradictoryBytes = RewriteJson(metadataFree, root =>
-    {
-      root["extensions"]!["KHR_lights_punctual"]!["lights"]![0]!["range"] = 6;
-    });
-    await using var contradictorySource = new MemoryStream(contradictoryBytes);
-    var contradictory = await interchange.ImportNewModelGlbAsync(
-      contradictorySource,
-      new GltfNewModelImportOptions(
-        staticLightOptions: new Dictionary<GltfLightHandle, GltfNewModelStaticLightOptions>
-        {
-          [new GltfLightHandle(1)] = new(targetDistance: 10)
-        }));
-    contradictory.Status.Should().Be(OperationStatus.Failed);
-    contradictory.Value.Should().BeNull();
-    contradictory.Diagnostics.Should().ContainSingle(diagnostic =>
-      diagnostic.Path == "extensions.KHR_lights_punctual.lights[0].range");
   }
 
   [Fact]
@@ -742,6 +725,41 @@ public class GltfWalkingSkeletonTests
       1);
     ReadSingle(spot, 0x18).Should().Be(12.5f);
     ReadSingle(spot, 0x2C).Should().Be(1);
+  }
+
+  [Theory]
+  [InlineData(10f)]
+  [InlineData(6f)]
+  public async Task NewModelSpotRangeRejectsTypedTargetDistance(float range)
+  {
+    var asset = await ReadAssetAsync(StaticLightMshFixture.Create(
+      new Dictionary<int, StaticLightMshFixture.SpotRecord>
+      {
+        [1] = new(Vector3.Zero, Vector3.One, 0, 0, [0, 0, 0], 0.2f, 5, 0.25f, 4)
+      },
+      activeSpots: [1]));
+    await using var exported = new MemoryStream();
+    var interchange = new GltfInterchange();
+    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    var metadataFree = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      root["extensions"]!["KHR_lights_punctual"]!["lights"]![0]!["range"] = range;
+    });
+    await using var source = new MemoryStream(metadataFree);
+
+    var imported = await interchange.ImportNewModelGlbAsync(
+      source,
+      new GltfNewModelImportOptions(
+        staticLightOptions: new Dictionary<GltfLightHandle, GltfNewModelStaticLightOptions>
+        {
+          [new GltfLightHandle(1)] = new(targetDistance: 10)
+        }));
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    imported.Value.Should().BeNull();
+    imported.Diagnostics.Should().ContainSingle().Subject.Path.Should()
+      .Be("extensions.KHR_lights_punctual.lights[0].range");
   }
 
   [Fact]

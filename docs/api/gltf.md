@@ -240,6 +240,62 @@ order are retained; diagnostic data keys are sorted ordinally. Reports contain
 no timestamps or host-generated paths, and repeated serialization of the same
 outcomes is byte-identical.
 
+## Static authoring authority and inference matrix
+
+EarthTool applies the same hierarchy-first contract to GLB and separate glTF
+packages. The CLI calls this contract directly; `msh import edit` and `msh import
+new` do not require an inference flag. The four authority categories are:
+
+- A **reconstructable authoring semantic** is safely recoverable from current
+  artist-visible glTF state. It overrides stale metadata.
+- A **projection-bound authoring semantic** is trusted only when the package is a
+  matching EarthTool edit projection. Punctual-light intensity is the current
+  static example.
+- A **typed authoring input** supplies a value that glTF cannot evidence safely or
+  deliberately replaces a documented fallback. Version 2 import plans contain
+  only these values and edit conflict actions.
+- A **canonical authoring default** is deterministic output used only after no
+  applicable evidence or typed value exists. It is not inferred source intent.
+
+Applicable edit metadata remains authoritative for **interchange scope identity**,
+independent non-reconstructable values, and exact unchanged serialized
+representations. It never overrides a reconstructable artist edit. The complete
+static matrix is:
+
+| Semantic | Artist-visible evidence | Edit-import authority | New-model-import authority | Metadata authority | Typed input | Canonical authoring default | Rename or reparent | Deletion | Ambiguity or contradiction | Diagnostics and preservation report |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Hierarchy and source objects | Mesh-bearing nodes, native parent/child relationships, effective transforms, and mesh primitives. Ordinary source-object names are presentation-only. | The current **source object tree** is a reconstructable authoring semantic after applicability checks. Reparenting and position-affecting transforms author the effective tree and pose. | Each mesh-bearing node becomes a source object; each primitive becomes an ordered **static render object** material partition. Transform-only groups collapse, and the result must be one source object tree. | Retains **interchange scope identity**, identity high-water marks, and exact unaffected records after lineage, document, carrier, guard, and scope validation. | `ViewerFaced`, `Barrel`, `Rotor`, and `BarrelMaximumAngle` remain typed because ordinary names do not evidence game roles. | None for hierarchy or partitions; artist evidence defines them. Unassigned source objects use animation class A, and no role is guessed from a display name. | Reparenting authors hierarchy. Presentation renames retain interchange scope identity. | Removes the source-object subtree while retaining identity high-water marks. | Multiple effective roots, ambiguous copied identities, invalid transforms, and non-unique partition correspondence fail transactionally. Unsupported metadata-free empty leaves warn and remain scene-only. | `ETG1006`, `ETG2001`, and `ETG2012` identify native nodes or scopes. Reports mark affected hierarchy, sequence, pose, and flags `regenerated` or `canonicalized`; unaffected records remain `retained`. |
+| Attachment and cannon helpers | Case-sensitive `ET_...` **canonical authoring identifiers**, leaf-node pose, and helper family/number. | Identifier, **canonical helper family**, physical target, pose, and presence are reconstructable. | Canonical identifiers and pose create helper records. Unknown or malformed reserved-looking empty leaves warn and are ignored rather than corrected. | Retains interchange scope identity and compatible object-owned values, including cannon yaw range, across a same-family retarget. | No helper binding exists. MSH-only non-marker object-role and barrel-angle values remain typed at their source object. | Absence of a canonical identifier authors no helper. | Same-family renumbering to a free slot retargets and clears the old slot. Cross-family rename requires delete-and-create. Non-emitter helper ancestry affects only effective transform. | An attachment deletion clears its record. Cannon deletion clears both its attachment and full-precision position. | Children, duplicate or occupied targets, cross-family edit renames, unsupported pose, and a noncanonical rename of an expected edit helper fail with all relevant paths. | Scoped `ETG1006` or edit conflict diagnostics identify failures. Reports identify cleared, retained, regenerated, and canonicalized attachment/cannon paths; scene-only nodes warn. |
+| Emitter marker ownership | Each `ET_Emitter_n` and its nearest source-object ancestor across transform-only groups. | Changed hierarchy is authoritative for **emitter marker ownership** and transfers the marker bit to the visible owner. | The nearest source-object ancestor is the sole owner. EarthTool clears the matching marker bit globally, then sets `MarkerAttachmentN` on the owner's first canonical material partition. | Unchanged metadata-backed zero- or multi-marker compatibility anomalies retain their exact representation rather than being normalized. | None. Marker object roles are removed plan members rejected with `ETG3005`. | No emitter means no marker role. | Reparenting transfers ownership. One source object may own several distinct emitter numbers. | Clears both the emitter attachment and its marker ownership. | Duplicate helpers for one number, no source-object ancestor, or ambiguous changed ownership fail transactionally with every conflicting native path. | Preserved anomalies warn with `ETG1027` and stay `retained`. Attachment addition/deletion is `canonicalized` with its attachment reason; `ObjectFlags` is `regenerated` with reason `EmitterMarkerOwnership`. Ambiguity uses `ETG2012`. |
+| Static lights | Matching case-sensitive node and punctual-light definition identifiers, point/spot type, leaf pose, linear RGB, spot cones, positive range, and edit-projected intensity. | Pose, color, cones, and positive range are reconstructable. Intensity is a **projection-bound authoring semantic** for terrain-light amplitude only in a matching edit projection. Missing edit range preserves loaded target distance. | Matching declarations author pose, color, cones, and type. Positive spot range authors target distance. Photometric intensity is not amplitude evidence. | Retains interchange scope identity, missing-range target distance, and compatible owned state across same-family retargets. | `TargetDistance` supplies the value only when range is absent. `TerrainLightAmplitude` replaces its default. | Terrain-light amplitude is `1.0`. A spot light still requires positive range or typed target distance. | Same spot-to-spot or omni-to-omni renumbering retargets to a free slot. Spot/omni conversion requires delete-and-create. | Clears the activity attachment and complete static-light record. | Shared definitions, mismatched names or types, duplicate or occupied targets, children, and any simultaneous range/typed-distance authority fail transactionally. | Ignored non-default new-model intensity warns with `ETG1028`. Reports expose retained distance, regenerated light fields, complete deletion, and scoped conflict paths. |
+| Animations | Unique case-sensitive `EarthTool A` through `EarthTool D` clips, participating source objects, and finite supported TRS channels sampled on integer 24 FPS frames `0..254`. | Canonical clip identity, class participation, and supported samples are reconstructable. | Canonical clips assign classes and generate dense canonical tracks. Noncanonical or malformed reserved-looking clips warn and are ignored. | Restores unchanged representation details and retains a loaded class assignment that had no baseline projected clip. | None. Animation-class binding plan members are rejected with `ETG3005`. | Source objects not assigned by a surviving clip use class A. | Canonical-to-canonical rename retargets to a free class. | Clears the class's tracks, declaration, and current frame. Former participants reset to A unless another surviving clip assigns them. | Duplicate classes or participation, occupied retargets, unsupported targets/samples, non-integer or excessive frames, and a noncanonical expected-clip rename fail transactionally. | Edit projection conflicts use scoped `ETG2016`; metadata-only affine compatibility warns with `ETG1014`. Reports distinguish restored exact tracks from regenerated or invalidated class paths. |
+| Horizontal extents | Complete effective vertex positions in root-local space. UVs, normals, material assignment, and hierarchy order without effective position changes are not evidence. | Effective vertex-position or position-affecting transform edits recompute all four extents over the complete source object tree. | Effective positions author geometry-derived extents when no typed replacement exists. | Loaded extents remain exact while effective positions are unchanged, even when they differ from geometry bounds. | `GltfNewModelHorizontalExtents` deliberately replaces geometry-derived values. | Root-local minimum and maximum horizontal coordinates supply all four extents. | Position-affecting reparenting regenerates extents; presentation renames and order-only changes retain them. | Source deletion regenerates extents only when it changes effective positions; it does not imply footprint deletion. | Non-finite geometry and values outside the serialized range fail with no partial asset. | `CommonBaseHeader.HorizontalExtents` is `retained` or `regenerated`; invalid derivation uses actionable `ETG1006` geometry paths. |
+| Footprint | glTF has no reliable evidence for game occupancy, corner passage, rotated representation, or per-cell heights. Mesh height is used only by the fallback. | Geometry and hierarchy edits do not author footprint state. | Uses typed input or the canonical fallback; native geometry never infers game occupancy. | Loaded footprint presence, elevations, corner flags, and rotated representations remain exact through geometry edits. | `GltfNewModelFootprint` supplies the complete representation. | One occupied `0x8000` cell whose top is the maximum effective root-local mesh height. | Rename and reparent do not change a loaded footprint. | Geometry/source deletion does not delete a loaded footprint. A new-model plan replaces the whole fallback rather than partially merging it. | Invalid dimensions, cell values, or out-of-range derived top elevation fail transactionally. | Edit footprint paths stay `retained`; typed or fallback new-model paths are `canonicalized`. Invalid values use scoped geometry/plan diagnostics. |
+| Materials and partitions | Primitive-to-material assignment and sharing. Material display names are presentation-only. | Native assignment is reconstructable for partition ownership. | Primitive assignment and sharing deterministically create ordered material partitions. | Retains material interchange scope identity, exact unaffected partition representation, and TEX binding through display rename and valid reassignment. | None for partition ownership; TEX keys are separate typed inputs. | None; primitive assignment is artist evidence, and no game identity is guessed from a material name. | Display rename preserves identity. Reassignment moves visible primitive ownership. | Removes only uniquely corresponding primitive/material authored state. | Duplicate material scopes, ambiguous correspondence, and indistinguishable conflicting partition edits fail transactionally. | `ETG2012` reports ambiguous native partitions/scopes. Reports expose identity, material reaffirmation, regeneration, deletion, and retained unrelated bytes. |
+| TEX resource bindings | Applicable edit metadata can identify a game TEX key. A base-color image proves only that a referenced material is textured; names, URIs, and bytes never evidence a key. | Existing binding follows material interchange scope identity through presentation rename and valid reassignment. Preview availability never replaces it. | A textured material referenced by a mesh primitive requires a typed canonical key. EarthTool never creates, converts, renames, or packages TEX from the preview. | The exact existing **TEX resource binding** remains authoritative for its applicable material scope. | `TextureResourceBindings` maps a referenced document-local material handle to an exact canonical game key. | Untextured referenced materials need no binding. There is deliberately no guessed default for a textured referenced material. | Material rename retains the key; reassignment carries the bound material scope. | Removes that material use without creating or deleting the external TEX resource. | Missing typed keys for textured referenced materials and bindings to unused, invalid, duplicate, or ambiguous handles fail without partial output. | Required binding failures use `ETG1029`. An unresolved explicit key remains a writable reference-only binding and reports `ETG1007`/`ETG1009`. Reports retain existing paths or canonicalize explicit new ones. |
+
+### Reports and compatibility
+
+Use `--report <path>` on CLI export and import commands when the result will be
+reviewed or automated. `operations[n].diagnostics` contains stable codes,
+severity, primary native path, sorted diagnostic data, and the full actionable
+message, including secondary conflicting paths. `operations[n].preservation.changes`
+contains `fieldPath`, `disposition`, and `reason` for every consequential result:
+
+- `retained` means the accepted serialized representation stayed exact.
+- `regenerated` means artist-visible evidence recomputed an existing semantic.
+- `invalidated` means deletion or another edit removed formerly applicable state.
+- `canonicalized` means EarthTool replaced a representation with deterministic
+  canonical authored form, including additions, deletions, typed inputs, and
+  canonical authoring defaults.
+
+An unchanged ordinary edit round trip remains byte-exact. An unchanged accepted
+compatibility anomaly also remains byte-exact and receives its compatibility
+diagnostic instead of silent normalization. Once an artist consequentially
+changes that semantic, the current strict inference and canonicalization rules
+apply only to affected paths. GLB and separate glTF packages, and CLI and library
+entry points, share these inference, rejection, transaction, and reporting rules.
+
 Effective animation classes A through D export as `EarthTool A` through
 `EarthTool D` clips. Each participating source object has explicit dense
 translation, canonical-quaternion rotation, and scale channels sampled at
@@ -273,7 +329,7 @@ the corresponding static-light representations.
 
 For new-model spot lights, a positive `range` authors approximate target
 distance. `GltfNewModelStaticLightOptions.TargetDistance` supplies the value
-only when range is absent; a differing range and typed value is rejected.
+only when range is absent. Supplying both authorities is rejected.
 `TerrainLightAmplitude` is also a typed MSH-only value. It defaults to `1.0` and
 does not use glTF photometric intensity. A non-default ignored intensity reports
 `ETG1028`. In a matching edit projection, intensity remains the projected
@@ -296,10 +352,11 @@ integer-frame grid and regenerate dense canonical scale, translation, and pure
 rotation-matrix tracks only for the affected object/class. Sparse and subframe
 keys are sampled rather than inferred or preserved as MSH key intent; cubic
 tangents and source interpolation are not retained. Deleting a native clip
-clears only its participating tracks while keeping the independent class and
-header declarations. Ambiguous class ownership, duplicate clips, targets that
+clears its generated tracks, class declaration, and current frame index. Former
+participants reset to class A unless another surviving canonical clip assigns
+them. Ambiguous class ownership, duplicate clips, targets that
 do not match an editable metadata scope, and samples beyond a guarded class
-declaration fail with `ETG2008`. A finite affine frame that cannot be decomposed
+declaration fail with `ETG2016`. A finite affine frame that cannot be decomposed
 and recomposed within the binary32 tolerance remains metadata-only for that one
 object/class and reports `ETG1014`; other objects and classes still export.
 

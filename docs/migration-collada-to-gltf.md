@@ -93,7 +93,8 @@ files using the earlier `ET_Attachment_...`, `ET_Cannon_..._Attachment_...`, or
 light names ending in `_Attachment_...` must be renamed before name-driven
 new-model import. EarthTool deliberately does not treat the former names as
 aliases. Export a fresh baseline for edit-import workflows whenever possible;
-its metadata identities remain authoritative independently of display names.
+its metadata remains authoritative for interchange scope identity and retained
+non-reconstructable values, but it cannot make a former helper name canonical.
 
 The current identifiers are listed in the
 [attachment identifier cheat sheet](mesh-artist-quickstart.md#attachment-identifier-cheat-sheet).

@@ -20,7 +20,7 @@ export const requiredGates = Object.freeze([
   "official-corpus"
 ]);
 
-export const expectedTestCounts = Object.freeze({ msh: 442, cli: 31 });
+export const expectedTestCounts = Object.freeze({ msh: 532, cli: 34 });
 
 const requiredDynamicQualificationTests = Object.freeze({
   msh: [

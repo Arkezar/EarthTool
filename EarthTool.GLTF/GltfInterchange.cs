@@ -2367,18 +2367,16 @@ namespace EarthTool.GLTF
           out var explicitLightOptions)
           ? explicitLightOptions
           : null;
-        var targetDistance = lightOptions?.TargetDistance
-          ?? parsed.Lights[node.LightIndex.Value].Range;
         var range = parsed.Lights[node.LightIndex.Value].Range;
         if (item.Key.Type == "spot"
           && range.HasValue
-          && lightOptions?.TargetDistance is float typedTargetDistance
-          && range.Value != typedTargetDistance)
+          && lightOptions?.TargetDistance.HasValue == true)
         {
           throw new UnsupportedGltfDomainException(
             "StaticLights",
             $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}].range");
         }
+        var targetDistance = range ?? lightOptions?.TargetDistance;
         if (item.Key.Type == "spot"
           && (targetDistance is not > 0 || !float.IsFinite(targetDistance.Value)))
         {
