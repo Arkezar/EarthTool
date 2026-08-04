@@ -1075,15 +1075,7 @@ namespace EarthTool.GLTF
     /// <summary>Uses the barrel transform role.</summary>
     Barrel = 2,
     /// <summary>Uses the rotor transform role.</summary>
-    Rotor = 4,
-    /// <summary>Uses marker attachment 1.</summary>
-    MarkerAttachment1 = 8,
-    /// <summary>Uses marker attachment 2.</summary>
-    MarkerAttachment2 = 16,
-    /// <summary>Uses marker attachment 3.</summary>
-    MarkerAttachment3 = 32,
-    /// <summary>Uses marker attachment 4.</summary>
-    MarkerAttachment4 = 64
+    Rotor = 4
   }
 
   /// <summary>Supplies supported semantic role values for one source object.</summary>
@@ -1101,11 +1093,7 @@ namespace EarthTool.GLTF
     {
       var allowed = GltfStaticObjectRoles.ViewerFaced
         | GltfStaticObjectRoles.Barrel
-        | GltfStaticObjectRoles.Rotor
-        | GltfStaticObjectRoles.MarkerAttachment1
-        | GltfStaticObjectRoles.MarkerAttachment2
-        | GltfStaticObjectRoles.MarkerAttachment3
-        | GltfStaticObjectRoles.MarkerAttachment4;
+        | GltfStaticObjectRoles.Rotor;
       if ((roles & ~allowed) != 0)
       {
         throw new ArgumentOutOfRangeException(nameof(roles));
@@ -1113,14 +1101,6 @@ namespace EarthTool.GLTF
       if ((roles & GltfStaticObjectRoles.Barrel) == 0 && barrelMaximumAngle != 0)
       {
         throw new ArgumentOutOfRangeException(nameof(barrelMaximumAngle));
-      }
-      var markerRoles = roles & (GltfStaticObjectRoles.MarkerAttachment1
-        | GltfStaticObjectRoles.MarkerAttachment2
-        | GltfStaticObjectRoles.MarkerAttachment3
-        | GltfStaticObjectRoles.MarkerAttachment4);
-      if (markerRoles != 0 && ((int)markerRoles & ((int)markerRoles - 1)) != 0)
-      {
-        throw new ArgumentOutOfRangeException(nameof(roles));
       }
       Roles = roles;
       BarrelMaximumAngle = barrelMaximumAngle;
@@ -1132,10 +1112,6 @@ namespace EarthTool.GLTF
       if ((Roles & GltfStaticObjectRoles.ViewerFaced) != 0) flags |= StaticRenderObjectFlags.ViewerFaced;
       if ((Roles & GltfStaticObjectRoles.Barrel) != 0) flags |= StaticRenderObjectFlags.Barrel;
       if ((Roles & GltfStaticObjectRoles.Rotor) != 0) flags |= StaticRenderObjectFlags.Rotor;
-      if ((Roles & GltfStaticObjectRoles.MarkerAttachment1) != 0) flags |= StaticRenderObjectFlags.MarkerAttachment1;
-      if ((Roles & GltfStaticObjectRoles.MarkerAttachment2) != 0) flags |= StaticRenderObjectFlags.MarkerAttachment2;
-      if ((Roles & GltfStaticObjectRoles.MarkerAttachment3) != 0) flags |= StaticRenderObjectFlags.MarkerAttachment3;
-      if ((Roles & GltfStaticObjectRoles.MarkerAttachment4) != 0) flags |= StaticRenderObjectFlags.MarkerAttachment4;
       return new CanonicalStaticObjectRole(flags, BarrelMaximumAngle);
     }
   }

@@ -88,6 +88,34 @@ public class GltfPlanAndReportTests
   }
 
   [Fact]
+  public async Task NewModelPlanRejectsRemovedMarkerObjectRoleValues()
+  {
+    var plan = GltfImportPlan.CreateNewModel(
+      GltfPackageKind.Glb,
+      new string('a', 64),
+      new GltfNewModelImportOptions(objectRoles:
+        new Dictionary<GltfNodeHandle, GltfNewModelObjectRole>
+        {
+          [new GltfNodeHandle(1)] = new(GltfStaticObjectRoles.ViewerFaced)
+        }));
+    await using var serialized = new MemoryStream();
+    (await new GltfImportPlanSerializer().SerializeAsync(plan, serialized)).Status.Should()
+      .Be(OperationStatus.Succeeded);
+    var root = JsonNode.Parse(serialized.ToArray())!.AsObject();
+    root["semanticOverrides"]!["objectRoles"]![0]!["roles"] =
+      new JsonArray("markerAttachment1");
+    await using var source = new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
+
+    var result = await new GltfImportPlanSerializer().DeserializeAsync(source);
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Value.Should().BeNull();
+    result.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.MalformedImportPlan
+      && diagnostic.Path == "semanticOverrides.objectRoles[].roles");
+  }
+
+  [Fact]
   public async Task VersionOneEditPlanRoundTripsOnlyTypedConflictActions()
   {
     var options = new GltfEditImportOptions(

@@ -1030,6 +1030,15 @@ public class GltfWalkingSkeletonTests
       .Where(item => item.node.TryGetProperty("mesh", out _))
       .Single(item => !nodes[FindParentIndex(nodes, item.index)].TryGetProperty("mesh", out _)).index;
     emitterParent.Should().Be(rootSource);
+
+    glb.Position = 0;
+    var import = await new GltfInterchange().ImportEditGlbAsync(glb, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Succeeded);
+    import.Value!.Asset.GetSerializedRepresentation().Should().Equal(sourceBytes);
+    import.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.EmitterHierarchyFallback
+      && diagnostic.Data["markerObjectCount"] == "2");
   }
 
   [Fact]
@@ -1151,6 +1160,426 @@ public class GltfWalkingSkeletonTests
     import.Value!.Asset.GetSerializedRepresentation().Should().Equal(sourceBytes);
   }
 
+  [Theory]
+  [InlineData(1, StaticRenderObjectFlags.MarkerAttachment1)]
+  [InlineData(2, StaticRenderObjectFlags.MarkerAttachment2)]
+  [InlineData(3, StaticRenderObjectFlags.MarkerAttachment3)]
+  [InlineData(4, StaticRenderObjectFlags.MarkerAttachment4)]
+  public async Task NewModelImportInfersEmitterMarkerOwnership(
+    int number,
+    StaticRenderObjectFlags markerFlag)
+  {
+    var sourceAsset = await ReadAssetAsync(AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [number + 4] = new(256, -512, 768, 64, 0x80)
+      }));
+    var interchange = new GltfInterchange();
+    await using var exported = new MemoryStream();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      exported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var metadataFree = RewriteJson(exported.ToArray(), RemoveEarthToolMetadata);
+    await using var source = new MemoryStream(metadataFree);
+
+    var imported = await interchange.ImportNewModelGlbAsync(source);
+
+    imported.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", imported.Diagnostics.Select(diagnostic =>
+        $"{diagnostic.Code}:{diagnostic.Path}:{diagnostic.Message}:{string.Join(',', diagnostic.Data)}")));
+    imported.Value!.Asset.StaticRenderObjectSequence.Should().ContainSingle().Subject
+      .KnownFlags.Should().HaveFlag(markerFlag);
+  }
+
+  [Fact]
+  public async Task NewModelEmitterOwnershipCrossesTransformOnlyGroupsAndCombinesMarkerRoles()
+  {
+    var vertices = new[]
+    {
+      new CanonicalStaticVertex(Vector3.Zero, Vector3.UnitZ, Vector2.Zero),
+      new CanonicalStaticVertex(Vector3.UnitX, Vector3.UnitZ, Vector2.UnitX),
+      new CanonicalStaticVertex(Vector3.UnitY, Vector3.UnitZ, Vector2.UnitY)
+    };
+    var renderObject = new CanonicalStaticRenderObject(
+      vertices,
+      [new CanonicalTriangle(0, 1, 2)]);
+    var build = StaticMeshBuilder.Create(
+        OneTriangleMshFixture.CreationGuid,
+        new MeshAssetLineageId(LineageId))
+      .SetRootSourceObject(new CanonicalStaticSourceObject([renderObject, renderObject]))
+      .Build();
+    build.TryGetValue(out var builtAsset).Should().BeTrue();
+    await using var msh = new MemoryStream();
+    (await new MshWriter().WriteAsync(builtAsset!, msh)).Status.Should().Be(OperationStatus.Succeeded);
+    var sourceBytes = msh.ToArray();
+    foreach (var number in new[] { 5, 6 })
+    {
+      var offset = 0x14 + AttachmentAndCannonMshFixture.AttachmentTableOffset + ((number - 1) * 8);
+      BinaryPrimitives.WriteInt16LittleEndian(sourceBytes.AsSpan(offset), checked((short)(number * 256)));
+      sourceBytes[offset + 7] = 0x80;
+    }
+    var sourceAsset = await ReadAssetAsync(sourceBytes);
+    var interchange = new GltfInterchange();
+    await using var exported = new MemoryStream();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      exported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var metadataFree = RewriteJson(exported.ToArray(), RemoveEarthToolMetadata);
+    metadataFree = RewriteJson(metadataFree, root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      var sourceIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!.AsObject().ContainsKey("mesh")).index;
+      var emitterIndices = nodes.Select((node, index) => (node, index)).Where(item =>
+          item.node!["name"]?.GetValue<string>() is "ET_Emitter_1" or "ET_Emitter_2")
+        .Select(item => item.index)
+        .ToArray();
+      var sourceChildren = nodes[sourceIndex]!["children"]!.AsArray();
+      for (var index = sourceChildren.Count - 1; index >= 0; index--)
+      {
+        if (emitterIndices.Contains(sourceChildren[index]!.GetValue<int>()))
+        {
+          sourceChildren.RemoveAt(index);
+        }
+      }
+      var groupIndex = nodes.Count;
+      nodes.Add(new JsonObject
+      {
+        ["translation"] = new JsonArray(2, 0, 0),
+        ["children"] = new JsonArray(emitterIndices.Select(index => (JsonNode)index).ToArray())
+      });
+      sourceChildren.Add(groupIndex);
+    });
+    await using var source = new MemoryStream(metadataFree);
+
+    var imported = await interchange.ImportNewModelGlbAsync(source);
+
+    imported.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", imported.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    imported.Value!.Asset.StaticRenderObjectSequence.Should().HaveCount(2);
+    var flags = imported.Value.Asset.StaticRenderObjectSequence[0].KnownFlags;
+    flags.Should().HaveFlag(StaticRenderObjectFlags.MarkerAttachment1);
+    flags.Should().HaveFlag(StaticRenderObjectFlags.MarkerAttachment2);
+    imported.Value.Asset.StaticRenderObjectSequence[1].KnownFlags.Should()
+      .NotHaveFlag(StaticRenderObjectFlags.MarkerAttachment1)
+      .And.NotHaveFlag(StaticRenderObjectFlags.MarkerAttachment2);
+    BinaryPrimitives.ReadInt16LittleEndian(AttachmentAndCannonMshFixture.GetAttachment(
+      imported.Value.Asset.GetSerializedRepresentation().ToArray(),
+      5)).Should().Be(1792);
+  }
+
+  [Fact]
+  public async Task NewModelImportRejectsEmitterWithoutSourceAncestorWithoutPartialAsset()
+  {
+    var sourceAsset = await ReadAssetAsync(AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [5] = new(256, -512, 768, 64, 0x80)
+      }));
+    var interchange = new GltfInterchange();
+    await using var exported = new MemoryStream();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      exported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var emitterPath = "";
+    var metadataFree = RewriteJson(exported.ToArray(), RemoveEarthToolMetadata);
+    metadataFree = RewriteJson(metadataFree, root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      var emitterIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["name"]?.GetValue<string>() == "ET_Emitter_1").index;
+      emitterPath = $"nodes[{emitterIndex}]";
+      foreach (var node in nodes.OfType<JsonObject>())
+      {
+        if (node["children"] is not JsonArray children)
+        {
+          continue;
+        }
+        for (var index = children.Count - 1; index >= 0; index--)
+        {
+          if (children[index]!.GetValue<int>() == emitterIndex)
+          {
+            children.RemoveAt(index);
+          }
+        }
+        if (children.Count == 0)
+        {
+          node.Remove("children");
+        }
+      }
+      var sourceRootIndex = root["scenes"]![0]!["nodes"]![0]!.GetValue<int>();
+      var placementRootIndex = nodes.Count;
+      nodes.Add(new JsonObject { ["children"] = new JsonArray(sourceRootIndex, emitterIndex) });
+      root["scenes"]![0]!["nodes"] = new JsonArray(placementRootIndex);
+    });
+    await using var source = new MemoryStream(metadataFree);
+
+    var imported = await interchange.ImportNewModelGlbAsync(source);
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    imported.Value.Should().BeNull();
+    var diagnostic = imported.Diagnostics.Should().ContainSingle().Subject;
+    diagnostic.Path.Should().Be(emitterPath);
+    diagnostic.Data.Should().Contain(new KeyValuePair<string, string>(
+      "domain",
+      "EmitterMarkerHierarchy"));
+  }
+
+  [Fact]
+  public async Task EditImportTransfersEmitterMarkerOwnershipToVisibleSourceAncestor()
+  {
+    var asset = await CreateNestedEmitterAssetAsync();
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var edited = RewriteJson(glb.ToArray(), ReparentEmitterToRootSource);
+    await using var input = new MemoryStream(edited);
+
+    var imported = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    imported.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", imported.Diagnostics.Select(diagnostic =>
+        $"{diagnostic.Code}:{diagnostic.Path}:{diagnostic.Message}:{string.Join(',', diagnostic.Data)}")));
+    imported.Value!.Asset.StaticRenderObjectSequence[0].KnownFlags.Should()
+      .HaveFlag(StaticRenderObjectFlags.MarkerAttachment1);
+    imported.Value.Asset.StaticRenderObjectSequence[1].KnownFlags.Should()
+      .NotHaveFlag(StaticRenderObjectFlags.MarkerAttachment1);
+  }
+
+  [Fact]
+  public async Task EditImportRejectsDuplicateEmitterHelpersWithBothNativePaths()
+  {
+    var asset = await CreateNestedEmitterAssetAsync();
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var originalPath = "";
+    var duplicatePath = "";
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      var originalIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["name"]?.GetValue<string>() == "ET_Emitter_1").index;
+      var sourceIndices = nodes.Select((node, index) => (node, index))
+        .Where(item => item.node!.AsObject().ContainsKey("mesh"))
+        .Select(item => item.index)
+        .ToArray();
+      var rootSourceIndex = sourceIndices.Single(index =>
+        nodes[index]!["children"]!.AsArray().Any(child =>
+          sourceIndices.Contains(child!.GetValue<int>())));
+      var duplicateIndex = nodes.Count;
+      nodes.Add(new JsonObject { ["name"] = "ET_Emitter_1" });
+      nodes[rootSourceIndex]!["children"]!.AsArray().Add(duplicateIndex);
+      originalPath = $"nodes[{originalIndex}]";
+      duplicatePath = $"nodes[{duplicateIndex}]";
+    });
+    await using var input = new MemoryStream(edited);
+
+    var imported = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    imported.Value.Should().BeNull();
+    var diagnostic = imported.Diagnostics.Should().ContainSingle().Subject;
+    diagnostic.Path.Should().Be(originalPath);
+    diagnostic.Message.Should().Contain(originalPath).And.Contain(duplicatePath);
+  }
+
+  [Fact]
+  public async Task EditImportNewRootEmitterAuthorsMarkerOwnership()
+  {
+    var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      var sourceIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!.AsObject().ContainsKey("mesh")).index;
+      var emitterIndex = nodes.Count;
+      nodes.Add(new JsonObject
+      {
+        ["name"] = "ET_Emitter_1",
+        ["translation"] = new JsonArray(1, 2, 3),
+        ["rotation"] = new JsonArray(0, 0, -0.70710677f, 0.70710677f)
+      });
+      nodes[sourceIndex]!["children"] = new JsonArray(emitterIndex);
+    });
+    await using var input = new MemoryStream(edited);
+
+    var imported = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    imported.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", imported.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    imported.Value!.Asset.StaticRenderObjectSequence[0].KnownFlags.Should()
+      .HaveFlag(StaticRenderObjectFlags.MarkerAttachment1);
+    BinaryPrimitives.ReadInt16LittleEndian(AttachmentAndCannonMshFixture.GetAttachment(
+      imported.Value.Asset.GetSerializedRepresentation().ToArray(),
+      5)).Should().NotBe(short.MinValue);
+  }
+
+  [Fact]
+  public async Task EditImportMovesOwnershipWhenFlaggedPartitionIsDeleted()
+  {
+    var firstVertices = new[]
+    {
+      new CanonicalStaticVertex(Vector3.Zero, Vector3.UnitZ, Vector2.Zero),
+      new CanonicalStaticVertex(Vector3.UnitX, Vector3.UnitZ, Vector2.UnitX),
+      new CanonicalStaticVertex(Vector3.UnitY, Vector3.UnitZ, Vector2.UnitY)
+    };
+    var secondVertices = firstVertices.Select(vertex => new CanonicalStaticVertex(
+      vertex.Position + Vector3.One,
+      vertex.Normal,
+      vertex.TextureCoordinate)).ToArray();
+    var triangles = new[] { new CanonicalTriangle(0, 1, 2) };
+    var build = StaticMeshBuilder.Create(
+        OneTriangleMshFixture.CreationGuid,
+        new MeshAssetLineageId(LineageId))
+      .SetRootSourceObject(new CanonicalStaticSourceObject(
+        [
+          new CanonicalStaticRenderObject(firstVertices, triangles),
+          new CanonicalStaticRenderObject(secondVertices, triangles)
+        ],
+        role: new CanonicalStaticObjectRole(StaticRenderObjectFlags.MarkerAttachment1)))
+      .Build();
+    build.TryGetValue(out var builtAsset).Should().BeTrue();
+    await using var msh = new MemoryStream();
+    (await new MshWriter().WriteAsync(builtAsset!, msh)).Status.Should().Be(OperationStatus.Succeeded);
+    var sourceBytes = msh.ToArray();
+    var attachmentOffset = 0x14 + AttachmentAndCannonMshFixture.AttachmentTableOffset + (4 * 8);
+    BinaryPrimitives.WriteInt16LittleEndian(sourceBytes.AsSpan(attachmentOffset), 256);
+    sourceBytes[attachmentOffset + 7] = 0x80;
+    var asset = await ReadAssetAsync(sourceBytes);
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var edited = RewriteJson(glb.ToArray(), root =>
+      root["meshes"]![0]!["primitives"]!.AsArray().RemoveAt(0));
+    await using var input = new MemoryStream(edited);
+
+    var imported = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    imported.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", imported.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    imported.Value!.Asset.StaticRenderObjectSequence.Should().ContainSingle().Subject
+      .KnownFlags.Should().HaveFlag(StaticRenderObjectFlags.MarkerAttachment1);
+  }
+
+  [Fact]
+  public async Task EditImportDeletingEmitterClearsAttachmentAndMarkerOwnership()
+  {
+    var sourceBytes = AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [5] = new(256, -512, 768, 64, 0x80)
+      },
+      objectFlags: (uint)StaticRenderObjectFlags.MarkerAttachment1);
+    var asset = await ReadAssetAsync(sourceBytes);
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      var emitterIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["name"]?.GetValue<string>() == "ET_Emitter_1").index;
+      RemoveNodeAndReferences(root, emitterIndex);
+      foreach (var node in nodes.OfType<JsonObject>().Where(node =>
+        node["children"] is JsonArray children && children.Count == 0))
+      {
+        node.Remove("children");
+      }
+    });
+    await using var input = new MemoryStream(edited);
+
+    var imported = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    imported.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", imported.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    imported.Value!.Asset.StaticRenderObjectSequence[0].KnownFlags.Should()
+      .NotHaveFlag(StaticRenderObjectFlags.MarkerAttachment1);
+    BinaryPrimitives.ReadInt16LittleEndian(AttachmentAndCannonMshFixture.GetAttachment(
+      imported.Value.Asset.GetSerializedRepresentation().ToArray(),
+      5)).Should().Be(short.MinValue);
+  }
+
+  [Fact]
+  public async Task EditEmitterOwnershipCrossesTransformOnlyGroupWithoutChangingMarkerRole()
+  {
+    var sourceBytes = AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [5] = new(256, -512, 768, 64, 0x80)
+      },
+      objectFlags: (uint)StaticRenderObjectFlags.MarkerAttachment1);
+    var asset = await ReadAssetAsync(sourceBytes);
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      var sourceIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!.AsObject().ContainsKey("mesh")).index;
+      var emitterIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["name"]?.GetValue<string>() == "ET_Emitter_1").index;
+      var sourceChildren = nodes[sourceIndex]!["children"]!.AsArray();
+      for (var index = sourceChildren.Count - 1; index >= 0; index--)
+      {
+        if (sourceChildren[index]!.GetValue<int>() == emitterIndex)
+        {
+          sourceChildren.RemoveAt(index);
+        }
+      }
+      var groupIndex = nodes.Count;
+      nodes.Add(new JsonObject
+      {
+        ["translation"] = new JsonArray(2, 0, 0),
+        ["children"] = new JsonArray(emitterIndex)
+      });
+      sourceChildren.Add(groupIndex);
+    });
+    await using var input = new MemoryStream(edited);
+
+    var imported = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    imported.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", imported.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    imported.Value!.Asset.StaticRenderObjectSequence[0].KnownFlags.Should()
+      .HaveFlag(StaticRenderObjectFlags.MarkerAttachment1);
+    BinaryPrimitives.ReadInt16LittleEndian(AttachmentAndCannonMshFixture.GetAttachment(
+      imported.Value.Asset.GetSerializedRepresentation().ToArray(),
+      5)).Should().Be(768);
+  }
+
   [Fact]
   public async Task AttachmentEditAcrossFixedPointBoundaryIsApplied()
   {
@@ -1184,11 +1613,12 @@ public class GltfWalkingSkeletonTests
   [Fact]
   public async Task EmitterWithoutMarkerObjectStaysAtRootAndWarns()
   {
-    var asset = await ReadAssetAsync(AttachmentAndCannonMshFixture.Create(
+    var sourceBytes = AttachmentAndCannonMshFixture.Create(
       new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
       {
         [5] = new(256, -512, 768, 64, 0x80)
-      }));
+      });
+    var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
 
     var export = await new GltfInterchange().ExportGlbAsync(
@@ -1207,6 +1637,15 @@ public class GltfWalkingSkeletonTests
       node => node.GetProperty("name").GetString() == "ET_Emitter_1");
     var parentIndex = FindParentIndex(nodes, emitterIndex);
     nodes[parentIndex].TryGetProperty("mesh", out _).Should().BeTrue();
+
+    glb.Position = 0;
+    var import = await new GltfInterchange().ImportEditGlbAsync(glb, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Succeeded);
+    import.Value!.Asset.GetSerializedRepresentation().Should().Equal(sourceBytes);
+    import.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.EmitterHierarchyFallback
+      && diagnostic.Data["markerObjectCount"] == "0");
   }
 
   [Fact]
@@ -1303,7 +1742,7 @@ public class GltfWalkingSkeletonTests
       diagnostic.Code == GltfDiagnosticCodes.UnsupportedDomain
       && diagnostic.Data.Contains(new KeyValuePair<string, string>(
         "domain",
-        "EmitterMarkerHierarchy")));
+        "AttachmentOrCannonArtistObject")));
   }
 
   [Fact]
@@ -1355,7 +1794,7 @@ public class GltfWalkingSkeletonTests
       diagnostic.Code == GltfDiagnosticCodes.UnsupportedDomain
       && diagnostic.Data.Contains(new KeyValuePair<string, string>(
         "domain",
-        "EmitterMarkerHierarchy")));
+        "AttachmentOrCannonArtistObject")));
   }
 
   [Fact]
@@ -4725,9 +5164,87 @@ public class GltfWalkingSkeletonTests
     Action defaultHandle = () => new GltfNewModelImportOptions(
       textureResourceBindings: new Dictionary<GltfMaterialHandle, string?> { [default] = null });
     defaultHandle.Should().Throw<ArgumentOutOfRangeException>();
-    Action conflictingMarkers = () => new GltfNewModelObjectRole(
-      GltfStaticObjectRoles.MarkerAttachment1 | GltfStaticObjectRoles.MarkerAttachment2);
-    conflictingMarkers.Should().Throw<ArgumentOutOfRangeException>();
+    Action markerRole = () => new GltfNewModelObjectRole((GltfStaticObjectRoles)8);
+    markerRole.Should().Throw<ArgumentOutOfRangeException>();
+  }
+
+  [Fact]
+  public async Task SeparateGltfEditAndNewModelImportsUseEmitterOwnershipRules()
+  {
+    var sourceBytes = AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [5] = new(256, -512, 768, 64, 0x80)
+      });
+    var sourceAsset = await ReadAssetAsync(sourceBytes);
+    var interchange = new GltfInterchange();
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var path = Path.Combine(directory, "emitter.gltf");
+    Directory.CreateDirectory(directory);
+    try
+    {
+      var export = await interchange.ExportGltfFileAsync(
+        sourceAsset,
+        path,
+        new GltfExportOptions(LineageId, DocumentId));
+
+      var edit = await interchange.ImportEditGltfFileAsync(path, export.Value!.Baseline);
+
+      edit.Status.Should().Be(OperationStatus.Succeeded);
+      edit.Value!.Asset.GetSerializedRepresentation().Should().Equal(sourceBytes);
+      edit.Diagnostics.Should().ContainSingle(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.EmitterHierarchyFallback);
+
+      var root = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+      RemoveEarthToolMetadata(root);
+      await File.WriteAllTextAsync(path, root.ToJsonString());
+
+      var newModel = await interchange.ImportNewModelGltfFileAsync(path);
+
+      newModel.Status.Should().Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", newModel.Diagnostics.Select(diagnostic => diagnostic.Message)));
+      newModel.Value!.Asset.StaticRenderObjectSequence.Should().ContainSingle().Subject
+        .KnownFlags.Should().HaveFlag(StaticRenderObjectFlags.MarkerAttachment1);
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task SeparateGltfEditTransfersEmitterMarkerOwnership()
+  {
+    var sourceAsset = await CreateNestedEmitterAssetAsync();
+    var interchange = new GltfInterchange();
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var path = Path.Combine(directory, "emitter-transfer.gltf");
+    Directory.CreateDirectory(directory);
+    try
+    {
+      var export = await interchange.ExportGltfFileAsync(
+        sourceAsset,
+        path,
+        new GltfExportOptions(LineageId, DocumentId));
+      var root = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+      ReparentEmitterToRootSource(root);
+      await File.WriteAllTextAsync(path, root.ToJsonString());
+
+      var import = await interchange.ImportEditGltfFileAsync(path, export.Value!.Baseline);
+
+      import.Status.Should().Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+      import.Value!.Asset.StaticRenderObjectSequence[0].KnownFlags.Should()
+        .HaveFlag(StaticRenderObjectFlags.MarkerAttachment1);
+      import.Value.Asset.StaticRenderObjectSequence[1].KnownFlags.Should()
+        .NotHaveFlag(StaticRenderObjectFlags.MarkerAttachment1);
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
   }
 
   [Fact]
@@ -6933,6 +7450,71 @@ public class GltfWalkingSkeletonTests
     PublicApiApproval.Verify(
       "gltf",
       typeof(GltfInterchange).Assembly.ExportedTypes.Where(type => type.Namespace == "EarthTool.GLTF"));
+  }
+
+  private static async Task<StaticMeshAsset> CreateNestedEmitterAssetAsync()
+  {
+    var vertices = new[]
+    {
+      new CanonicalStaticVertex(Vector3.Zero, Vector3.UnitZ, Vector2.Zero),
+      new CanonicalStaticVertex(Vector3.UnitX, Vector3.UnitZ, Vector2.UnitX),
+      new CanonicalStaticVertex(Vector3.UnitY, Vector3.UnitZ, Vector2.UnitY)
+    };
+    var renderObject = new CanonicalStaticRenderObject(
+      vertices,
+      [new CanonicalTriangle(0, 1, 2)]);
+    var build = StaticMeshBuilder.Create(
+        OneTriangleMshFixture.CreationGuid,
+        new MeshAssetLineageId(LineageId))
+      .SetRootSourceObject(new CanonicalStaticSourceObject(
+        [renderObject],
+        [new CanonicalStaticSourceObject(
+          [renderObject],
+          role: new CanonicalStaticObjectRole(StaticRenderObjectFlags.MarkerAttachment1))]))
+      .Build();
+    build.TryGetValue(out var builtAsset).Should().BeTrue();
+    await using var msh = new MemoryStream();
+    (await new MshWriter().WriteAsync(builtAsset!, msh)).Status.Should().Be(OperationStatus.Succeeded);
+    var sourceBytes = msh.ToArray();
+    var attachmentOffset = 0x14 + AttachmentAndCannonMshFixture.AttachmentTableOffset + (4 * 8);
+    BinaryPrimitives.WriteInt16LittleEndian(sourceBytes.AsSpan(attachmentOffset), 256);
+    BinaryPrimitives.WriteInt16LittleEndian(sourceBytes.AsSpan(attachmentOffset + 2), -512);
+    BinaryPrimitives.WriteInt16LittleEndian(sourceBytes.AsSpan(attachmentOffset + 4), 768);
+    sourceBytes[attachmentOffset + 7] = 0x80;
+    return await ReadAssetAsync(sourceBytes);
+  }
+
+  private static void ReparentEmitterToRootSource(JsonObject root)
+  {
+    var nodes = root["nodes"]!.AsArray();
+    var emitterIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+      item.node!["name"]?.GetValue<string>() == "ET_Emitter_1").index;
+    var sourceIndices = nodes.Select((node, index) => (node, index))
+      .Where(item => item.node!.AsObject().ContainsKey("mesh"))
+      .Select(item => item.index)
+      .ToArray();
+    var rootSourceIndex = sourceIndices.Single(index =>
+      nodes[index]!["children"]!.AsArray().Any(child =>
+        sourceIndices.Contains(child!.GetValue<int>())));
+    foreach (var node in nodes.OfType<JsonObject>())
+    {
+      if (node["children"] is not JsonArray children)
+      {
+        continue;
+      }
+      for (var index = children.Count - 1; index >= 0; index--)
+      {
+        if (children[index]!.GetValue<int>() == emitterIndex)
+        {
+          children.RemoveAt(index);
+        }
+      }
+      if (children.Count == 0)
+      {
+        node.Remove("children");
+      }
+    }
+    nodes[rootSourceIndex]!["children"]!.AsArray().Add(emitterIndex);
   }
 
   private static async Task<StaticMeshAsset> ReadAssetAsync(byte[] source)

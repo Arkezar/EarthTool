@@ -1809,7 +1809,12 @@ namespace EarthTool.GLTF
 
       var animations = CreateNewModelAnimations(parsed, serializedLength, profile.MaxOutputBytes, options);
       ValidateNewModelObjectRoles(parsed, options);
-      var draft = CreateNewModelSourceTree(parsed, options, animations.AnimatedSourceNodes);
+      var emitterOwnership = ResolveNewModelEmitterOwnership(parsed);
+      var draft = CreateNewModelSourceTree(
+        parsed,
+        options,
+        animations.AnimatedSourceNodes,
+        emitterOwnership);
       var lineage = new MeshAssetLineageId(Guid.NewGuid());
       var builder = StaticMeshBuilder.Create(Guid.NewGuid(), lineage)
         .SetRootSourceObject(draft.Source);
@@ -1835,7 +1840,7 @@ namespace EarthTool.GLTF
       var edit = asset.Edit();
       ApplyNewModelPivots(draft, asset.RootSourceObject, edit);
       ApplyNewModelAnimations(animations, draft, asset.RootSourceObject, edit);
-      ApplyNewModelBaseHeaderArtistObjects(parsed, edit, options);
+      ApplyNewModelBaseHeaderArtistObjects(parsed, edit, options, emitterOwnership);
       var committed = edit.Commit(new MshOperationProfile(
         maxOutputBytes: profile.MaxOutputBytes,
         maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
@@ -2047,17 +2052,77 @@ namespace EarthTool.GLTF
       return new GltfLightHandle(Array.IndexOf(order, lightIndex) + 1);
     }
 
+    private static EmitterOwnershipPlan ResolveNewModelEmitterOwnership(ParsedGlb parsed)
+    {
+      var candidates = new Dictionary<int, List<int>>();
+      for (var nodeIndex = 0; nodeIndex < parsed.Nodes.Count; nodeIndex++)
+      {
+        if (GlbDocument.TryParseAttachmentHelperName(
+            parsed.Nodes[nodeIndex].Name,
+            out var physicalNumber)
+          && physicalNumber is >= 5 and <= 8)
+        {
+          AddArtistCandidate(candidates, physicalNumber, nodeIndex);
+        }
+      }
+      var duplicate = candidates.FirstOrDefault(item => item.Value.Count != 1);
+      if (duplicate.Value is not null)
+      {
+        var paths = string.Join(", ", duplicate.Value.Select(index => $"nodes[{index}]"));
+        throw ArtistObjectConflict(
+          $"Emitter {duplicate.Key - 4} is declared by multiple artist objects: {paths}.",
+          $"nodes[{duplicate.Value[0]}]");
+      }
+
+      var nodes = parsed.Nodes.Select(node => (node, (MetadataEnvelope?)null)).ToArray();
+      var parentIndices = CreateParentIndices(nodes);
+      var markersBySource = new Dictionary<int, StaticRenderObjectFlags>();
+      var emitterNodes = new HashSet<int>();
+      var scaffoldingNodes = new HashSet<int>();
+      foreach (var candidate in candidates)
+      {
+        var emitterNode = candidate.Value[0];
+        if (parsed.Nodes[emitterNode].MeshIndex.HasValue)
+        {
+          throw new UnsupportedGltfDomainException(
+            "EmitterMarkerHierarchy",
+            $"nodes[{emitterNode}]");
+        }
+        emitterNodes.Add(emitterNode);
+        var current = parentIndices[emitterNode];
+        while (current >= 0 && !parsed.Nodes[current].MeshIndex.HasValue)
+        {
+          scaffoldingNodes.Add(current);
+          current = parentIndices[current];
+        }
+        if (current < 0)
+        {
+          throw new UnsupportedGltfDomainException(
+            "EmitterMarkerHierarchy",
+            $"nodes[{emitterNode}]");
+        }
+
+        var flag = GlbDocument.GetMarkerAttachmentFlag(candidate.Key - 4);
+        markersBySource[current] = markersBySource.TryGetValue(current, out var existing)
+          ? existing | flag
+          : flag;
+      }
+      return new EmitterOwnershipPlan(markersBySource, emitterNodes, scaffoldingNodes);
+    }
+
     private static NewModelSourceDraft CreateNewModelSourceTree(
       ParsedGlb parsed,
       GltfNewModelImportOptions options,
-      ISet<int> animatedSourceNodes)
+      ISet<int> animatedSourceNodes,
+      EmitterOwnershipPlan emitterOwnership)
     {
       var roots = CreateNewModelSources(
         parsed.RootNodeIndex,
         System.Numerics.Matrix4x4.Identity,
         parsed,
         options,
-        animatedSourceNodes);
+        animatedSourceNodes,
+        emitterOwnership);
       if (roots.Count != 1)
       {
         throw new UnsupportedGltfDomainException("SceneMembership");
@@ -2071,7 +2136,8 @@ namespace EarthTool.GLTF
       System.Numerics.Matrix4x4 inheritedLinearTransform,
       ParsedGlb parsed,
       GltfNewModelImportOptions options,
-      ISet<int> animatedSourceNodes)
+      ISet<int> animatedSourceNodes,
+      EmitterOwnershipPlan emitterOwnership)
     {
       var node = parsed.Nodes[nodeIndex];
       var effectiveTransform = node.LocalTransform * inheritedLinearTransform;
@@ -2099,9 +2165,11 @@ namespace EarthTool.GLTF
             effectiveTransform,
             parsed,
             options,
-            animatedSourceNodes))
+            animatedSourceNodes,
+            emitterOwnership))
           .ToArray();
-        if (collapsed.Length == 0)
+        if (collapsed.Length == 0
+          && !emitterOwnership.ScaffoldingNodeIndices.Contains(nodeIndex))
         {
           throw new UnsupportedGltfDomainException("TransformOrHierarchy");
         }
@@ -2145,9 +2213,25 @@ namespace EarthTool.GLTF
             : linearTransform,
           parsed,
           options,
-          animatedSourceNodes))
+          animatedSourceNodes,
+          emitterOwnership))
         .ToArray();
       var pivot = new System.Numerics.Vector3(translation.X, -translation.Z, translation.Y);
+      var typedRole = options.ObjectRoles.TryGetValue(
+        GetNodeHandle(parsed, nodeIndex),
+        out var role)
+          ? role.ToCanonical()
+          : null;
+      var inferredMarkerFlags = emitterOwnership.MarkerFlagsBySourceNode.TryGetValue(
+        nodeIndex,
+        out var markers)
+          ? markers
+          : StaticRenderObjectFlags.None;
+      var canonicalRole = typedRole is null && inferredMarkerFlags == StaticRenderObjectFlags.None
+        ? null
+        : new CanonicalStaticObjectRole(
+          (typedRole?.Flags ?? StaticRenderObjectFlags.None) | inferredMarkerFlags,
+          typedRole?.BarrelMaximumAngle ?? 0);
       return new[]
       {
         new NewModelSourceDraft(
@@ -2155,9 +2239,7 @@ namespace EarthTool.GLTF
           new CanonicalStaticSourceObject(
             renderObjects,
             children.Select(child => child.Source),
-            options.ObjectRoles.TryGetValue(GetNodeHandle(parsed, nodeIndex), out var role)
-              ? role.ToCanonical()
-              : null),
+            canonicalRole),
           pivot,
           children)
       };
@@ -2166,13 +2248,24 @@ namespace EarthTool.GLTF
     private static void ApplyNewModelBaseHeaderArtistObjects(
       ParsedGlb parsed,
       StaticMeshEditSession edit,
-      GltfNewModelImportOptions options)
+      GltfNewModelImportOptions options,
+      EmitterOwnershipPlan emitterOwnership)
     {
       var nodes = parsed.Nodes.Select(node => (node, (MetadataEnvelope?)null)).ToArray();
       var transforms = CreateArtistObjectTransforms(
         parsed.RootNodeIndex,
         nodes,
-        options.HelperBindings.Keys.Select(handle => GetNodeIndex(parsed, handle)!.Value).ToHashSet());
+        options.HelperBindings.Keys.Select(handle => GetNodeIndex(parsed, handle)!.Value).ToHashSet())
+        .ToDictionary(item => item.Key, item => item.Value);
+      var parentIndices = CreateParentIndices(nodes);
+      foreach (var nodeIndex in emitterOwnership.EmitterNodeIndices)
+      {
+        transforms[nodeIndex] = CreateEffectiveNodeTransform(
+          nodeIndex,
+          parsed.RootNodeIndex,
+          parentIndices,
+          nodes);
+      }
       var attachments = new Dictionary<int, int>();
       var cannons = new Dictionary<int, int>();
       var lights = new Dictionary<(string Type, int Number), int>();
@@ -2716,6 +2809,23 @@ namespace EarthTool.GLTF
       }
     }
 
+    private sealed class EmitterOwnershipPlan
+    {
+      internal IReadOnlyDictionary<int, StaticRenderObjectFlags> MarkerFlagsBySourceNode { get; }
+      internal ISet<int> EmitterNodeIndices { get; }
+      internal ISet<int> ScaffoldingNodeIndices { get; }
+
+      internal EmitterOwnershipPlan(
+        IReadOnlyDictionary<int, StaticRenderObjectFlags> markerFlagsBySourceNode,
+        ISet<int> emitterNodeIndices,
+        ISet<int> scaffoldingNodeIndices)
+      {
+        MarkerFlagsBySourceNode = markerFlagsBySourceNode;
+        EmitterNodeIndices = emitterNodeIndices;
+        ScaffoldingNodeIndices = scaffoldingNodeIndices;
+      }
+    }
+
     private static async Task<OperationResult<GltfEditImportResult>> ImportParsedAsync(
       ParsedGlb parsed,
       InterchangeBaseline expectedBaseline,
@@ -3018,12 +3128,12 @@ namespace EarthTool.GLTF
         asset,
         reconciliationBaseline,
         edit);
-      ReconcileBaseHeaderArtistObjects(
+      var emitterOwnership = ReconcileBaseHeaderArtistObjects(
         parsed,
         nodes.Select(node => (node.Parsed, node.Metadata)).ToArray(),
         lights.Select(light => (light.Parsed, light.Metadata)).ToArray(),
         asset,
-        hierarchy.Root,
+        hierarchy,
         reconciliationBaseline,
         edit);
       try
@@ -3126,6 +3236,12 @@ namespace EarthTool.GLTF
           edit.ReplaceGeometry(renderObject.Id, vertices, triangles);
         }
       }
+      ApplyEmitterMarkerOwnershipChanges(
+        asset,
+        hierarchy.Root,
+        partitionMatches,
+        emitterOwnership,
+        edit);
       ApplyMaterialBindings(
         parsed,
         asset,
@@ -3217,6 +3333,7 @@ namespace EarthTool.GLTF
           conflictResolution.Applied),
         sceneLightDiagnostics
           .Concat(CreateIgnoredInertDataDiagnostics(parsed))
+          .Concat(CreateEmitterHierarchyDiagnostics(reconciled))
           .Concat(committed.Diagnostics));
     }
 
@@ -4528,12 +4645,12 @@ namespace EarthTool.GLTF
       }
     }
 
-    private static void ReconcileBaseHeaderArtistObjects(
+    private static EditEmitterOwnershipPlan ReconcileBaseHeaderArtistObjects(
       ParsedGlb parsed,
       IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
       IReadOnlyList<(ParsedGltfLight Parsed, MetadataEnvelope? Metadata)> lights,
       StaticMeshAsset asset,
-      StaticSourceObject hierarchyRoot,
+      StaticHierarchyPlan hierarchy,
       InterchangeBaseline expected,
       StaticMeshEditSession edit)
     {
@@ -4567,29 +4684,55 @@ namespace EarthTool.GLTF
         }
       }
 
-      if (attachmentCandidates.Values.Any(candidates => candidates.Count != 1)
-        || cannonCandidates.Values.Any(candidates => candidates.Count != 1))
+      var duplicate = attachmentCandidates.Concat(cannonCandidates)
+        .FirstOrDefault(item => item.Value.Count != 1);
+      if (duplicate.Value is not null)
       {
-        throw ArtistObjectConflict("A physical helper target is occupied by more than one artist object.");
+        var paths = string.Join(", ", duplicate.Value.Select(index => $"nodes[{index}]"));
+        throw ArtistObjectConflict(
+          $"Physical helper target {duplicate.Key} is occupied by multiple artist objects: {paths}.",
+          $"nodes[{duplicate.Value[0]}]");
       }
       var parentIndices = CreateParentIndices(nodes);
       var sourceParentedEmitters = new HashSet<int>();
+      var markerOwnershipChanges = new Dictionary<int, SourceObjectId?>();
+      var unchangedMarkerRecords = new Dictionary<int, UnchangedEmitterOwnership>();
       foreach (var candidate in attachmentCandidates.Where(item => item.Key is >= 5 and <= 8))
       {
         var markerSources = GlbDocument.GetMarkerAttachmentSourceObjects(
           asset,
-          candidate.Key - 4,
-          hierarchyRoot);
-        var expectedParent = markerSources.Count == 1 ? markerSources[0] : hierarchyRoot;
+          candidate.Key - 4);
+        var expectedParent = markerSources.Count == 1 ? markerSources[0] : asset.RootSourceObject;
         var nodeIndex = candidate.Value[0];
-        var parentIndex = parentIndices[nodeIndex];
-        if (parentIndex < 0
-          || !nodes[parentIndex].Parsed.MeshIndex.HasValue
-          || nodes[parentIndex].Metadata?.LocalId != expectedParent.Id.Value)
+        var ownerNodeIndex = parentIndices[nodeIndex];
+        while (ownerNodeIndex >= 0 && !hierarchy.SourceByNode.ContainsKey(ownerNodeIndex))
         {
-          throw new UnsupportedGltfDomainException("EmitterMarkerHierarchy");
+          ownerNodeIndex = parentIndices[ownerNodeIndex];
         }
-        if (markerSources.Count == 1)
+        if (ownerNodeIndex < 0)
+        {
+          throw new UnsupportedGltfDomainException(
+            "EmitterMarkerHierarchy",
+            $"nodes[{nodeIndex}]");
+        }
+        var owner = hierarchy.SourceByNode[ownerNodeIndex];
+        var ownershipChanged = nodes[nodeIndex].Metadata is null
+          || !owner.Id.Equals(expectedParent.Id);
+        if (ownershipChanged)
+        {
+          markerOwnershipChanges.Add(candidate.Key - 4, owner.Id);
+        }
+        else
+        {
+          var flag = GlbDocument.GetMarkerAttachmentFlag(candidate.Key - 4);
+          unchangedMarkerRecords.Add(
+            candidate.Key - 4,
+            new UnchangedEmitterOwnership(
+              owner.Id,
+              asset.StaticRenderObjectSequence.Where(record =>
+                (record.KnownFlags & flag) != 0).Select(record => record.Id).ToArray()));
+        }
+        if (markerSources.Count == 1 || ownershipChanged)
         {
           sourceParentedEmitters.Add(nodeIndex);
         }
@@ -4616,6 +4759,16 @@ namespace EarthTool.GLTF
       }
 
       var attachmentTable = asset.CommonBaseHeader.AttachmentTable.ToArray();
+      for (var number = 1; number <= 4; number++)
+      {
+        var physicalNumber = number + 4;
+        var sourceActive = BinaryPrimitives.ReadInt16LittleEndian(
+          attachmentTable.AsSpan((physicalNumber - 1) * 8, 8)) != short.MinValue;
+        if (sourceActive && !attachmentCandidates.ContainsKey(physicalNumber))
+        {
+          markerOwnershipChanges[number] = null;
+        }
+      }
       for (var physicalNumber = 5; physicalNumber <= 49; physicalNumber++)
       {
         if (physicalNumber is >= 13 and <= 20)
@@ -4718,6 +4871,104 @@ namespace EarthTool.GLTF
         expected,
         replacementLightIndices,
         edit);
+      return new EditEmitterOwnershipPlan(markerOwnershipChanges, unchangedMarkerRecords);
+    }
+
+    private static void ApplyEmitterMarkerOwnershipChanges(
+      StaticMeshAsset asset,
+      StaticSourceObject hierarchyRoot,
+      IReadOnlyList<PartitionMatch> partitions,
+      EditEmitterOwnershipPlan ownership,
+      StaticMeshEditSession edit)
+    {
+      const StaticRenderObjectFlags markerMask = StaticRenderObjectFlagMasks.MarkerAttachments;
+      var sourceRecords = asset.StaticRenderObjectSequence.ToDictionary(record => record.Id);
+      var sources = StaticSourceObjectTraversal.Flatten(hierarchyRoot).ToArray();
+      var partitionIds = partitions.Select(partition => new StaticRenderObjectId(
+        asset.LineageId,
+        partition.Partition.LocalId)).ToArray();
+      var finalRecordIds = sources.SelectMany(source => source.StaticRenderObjectIds)
+        .Where(id => !sourceRecords.ContainsKey(id) || partitionIds.Contains(id))
+        .Concat(partitionIds)
+        .Distinct()
+        .ToArray();
+      var changes = ownership.Changes.ToDictionary(item => item.Key, item => item.Value);
+      foreach (var unchanged in ownership.UnchangedMarkerRecords)
+      {
+        if (unchanged.Value.MarkerRecordIds.Count != 0
+          && !unchanged.Value.MarkerRecordIds.Any(finalRecordIds.Contains))
+        {
+          changes[unchanged.Key] = unchanged.Value.Owner;
+        }
+      }
+      if (changes.Count == 0)
+      {
+        return;
+      }
+      var finalFlags = finalRecordIds
+        .ToDictionary(
+          id => id,
+          id => sourceRecords.TryGetValue(id, out var record)
+            ? record.KnownFlags & markerMask
+            : StaticRenderObjectFlags.None);
+      foreach (var change in changes)
+      {
+        var flag = GlbDocument.GetMarkerAttachmentFlag(change.Key);
+        foreach (var id in finalFlags.Keys.ToArray())
+        {
+          finalFlags[id] &= ~flag;
+        }
+        if (change.Value is not null)
+        {
+          var source = sources.Single(item => item.Id.Equals(change.Value.Value));
+          var first = source.StaticRenderObjectIds.FirstOrDefault(finalRecordIds.Contains);
+          if (first.Equals(default(StaticRenderObjectId)))
+          {
+            var localId = partitions.First(partition => partition.SourceObjectId.Equals(source.Id))
+              .Partition.LocalId;
+            first = new StaticRenderObjectId(asset.LineageId, localId);
+          }
+          finalFlags[first] |= flag;
+        }
+      }
+      foreach (var replacement in finalFlags)
+      {
+        var sourceFlags = sourceRecords.TryGetValue(replacement.Key, out var source)
+          ? source.KnownFlags & markerMask
+          : StaticRenderObjectFlags.None;
+        if (replacement.Value != sourceFlags)
+        {
+          edit.ReplaceMarkerAttachmentFlags(replacement.Key, replacement.Value);
+        }
+      }
+    }
+
+    private sealed class EditEmitterOwnershipPlan
+    {
+      internal IReadOnlyDictionary<int, SourceObjectId?> Changes { get; }
+      internal IReadOnlyDictionary<int, UnchangedEmitterOwnership> UnchangedMarkerRecords { get; }
+
+      internal EditEmitterOwnershipPlan(
+        IReadOnlyDictionary<int, SourceObjectId?> changes,
+        IReadOnlyDictionary<int, UnchangedEmitterOwnership> unchangedMarkerRecords)
+      {
+        Changes = changes;
+        UnchangedMarkerRecords = unchangedMarkerRecords;
+      }
+    }
+
+    private sealed class UnchangedEmitterOwnership
+    {
+      internal SourceObjectId Owner { get; }
+      internal IReadOnlyList<StaticRenderObjectId> MarkerRecordIds { get; }
+
+      internal UnchangedEmitterOwnership(
+        SourceObjectId owner,
+        IReadOnlyList<StaticRenderObjectId> markerRecordIds)
+      {
+        Owner = owner;
+        MarkerRecordIds = markerRecordIds;
+      }
     }
 
     private static void ReconcileStaticLights(
@@ -5861,6 +6112,7 @@ namespace EarthTool.GLTF
         : asset.StaticRenderObjectSequence.Select(record => record.Id).ToArray();
       return new StaticHierarchyPlan(
         editedRoot,
+        sourceByNode,
         sequence,
         pivots,
         transforms,
@@ -6000,6 +6252,7 @@ namespace EarthTool.GLTF
     private sealed class StaticHierarchyPlan
     {
       internal StaticSourceObject Root { get; }
+      internal IReadOnlyDictionary<int, StaticSourceObject> SourceByNode { get; }
       internal IReadOnlyList<StaticRenderObjectId> Sequence { get; }
       internal IReadOnlyDictionary<StaticRenderObjectId, System.Numerics.Vector3> Pivots { get; }
       internal IReadOnlyDictionary<SourceObjectId, System.Numerics.Matrix4x4> Transforms { get; }
@@ -6009,6 +6262,7 @@ namespace EarthTool.GLTF
 
       internal StaticHierarchyPlan(
         StaticSourceObject root,
+        IReadOnlyDictionary<int, StaticSourceObject> sourceByNode,
         IReadOnlyList<StaticRenderObjectId> sequence,
         IReadOnlyDictionary<StaticRenderObjectId, System.Numerics.Vector3> pivots,
         IReadOnlyDictionary<SourceObjectId, System.Numerics.Matrix4x4> transforms,
@@ -6017,6 +6271,7 @@ namespace EarthTool.GLTF
         bool changed)
       {
         Root = root;
+        SourceByNode = sourceByNode;
         Sequence = sequence;
         Pivots = pivots;
         Transforms = transforms;
@@ -6728,9 +6983,9 @@ namespace EarthTool.GLTF
       for (var number = 1; number <= 4; number++)
       {
         var emitterPhysicalNumber = number + 4;
-        var (emitterActive, markerObjectCount) =
+        var (emitterActive, markerRecordCount) =
           GlbDocument.GetEmitterHierarchyState(asset, number);
-        if (!emitterActive && markerObjectCount == 0)
+        if (!emitterActive && markerRecordCount == 0)
         {
           continue;
         }
@@ -6742,11 +6997,11 @@ namespace EarthTool.GLTF
         }
         else
         {
-          if (markerObjectCount == 0)
+          if (markerRecordCount == 0)
           {
             missing.Add("markerObject");
           }
-          else if (markerObjectCount > 1)
+          else if (markerRecordCount > 1)
           {
             missing.Add("uniqueMarkerObject");
           }
@@ -6767,7 +7022,7 @@ namespace EarthTool.GLTF
           data: new Dictionary<string, string>
           {
             ["number"] = number.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["markerObjectCount"] = markerObjectCount.ToString(
+            ["markerObjectCount"] = markerRecordCount.ToString(
               System.Globalization.CultureInfo.InvariantCulture),
             ["missing"] = string.Join(",", missing)
           }));

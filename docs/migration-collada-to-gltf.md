@@ -89,9 +89,10 @@ its metadata identities remain authoritative independently of display names.
 
 The current identifiers are listed in the
 [attachment identifier cheat sheet](mesh-artist-quickstart.md#attachment-identifier-cheat-sheet).
-An `ET_Emitter_n` object is exported under, and must remain under, the source
-object containing a render object carrying the matching `MarkerAttachmentN`
-flag. Use a fresh export to obtain the correct relative transform and hierarchy.
+An `ET_Emitter_n` object belongs to its nearest source-object ancestor across
+transform-only groups. Reparenting it transfers the matching `MarkerAttachmentN`
+role to the new owner. Use a fresh export to obtain the correct relative transform
+and hierarchy.
 
 See the [quick start](quickstart.md), [MSH API](api/msh.md), and
 [glTF API](api/gltf.md) for the current contracts.

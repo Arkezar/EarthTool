@@ -183,7 +183,7 @@ Attachments are Blender Empty nodes unless the table says **Light**. Keep them i
 | `48` | `ET_ProductionSpotEnd_1` | `MV1` | Movement and placement position and heading, paired with production. |
 | `49` | `ET_LandingSpot_1` | `LN1` | Landing and placement position plus heading. |
 
-When a source object contains a render object carrying flag `MarkerAttachment1` (`MI1`, `0x00001000`), `MarkerAttachment2` (`MI2`, `0x00002000`), `MarkerAttachment3` (`MI3`, `0x00004000`), or `MarkerAttachment4` (`MI4`, `0x00008000`), export places `ET_Emitter_n` under that source object. The emitter transform is relative to the flagged object's source object, so moving the source object in Blender carries its emitter. If no unique source object contains a render object carrying the matching flag, export preserves an active emitter under the model root and reports `ETG1027` rather than guessing. A marker flag without an active emitter also reports `ETG1027`.
+`ET_Emitter_n` belongs to its nearest source-object ancestor, including across transform-only groups. Import writes the matching `MarkerAttachment1` (`MI1`, `0x00001000`) through `MarkerAttachment4` (`MI4`, `0x00008000`) role on that owner's first material partition; moving an emitter to another source object transfers the role. One source object may own several distinct emitters. Unchanged edit imports preserve legacy zero- or multi-record marker anomalies exactly and report `ETG1027`; new or changed ownership must resolve to one visible source ancestor.
 
 ### Directional Empty Presentation In Blender
 
@@ -216,7 +216,7 @@ This changes only the Blender viewport presentation; it does not add glTF or MSH
 - The file is GLB or separate glTF 2.0 and has one intended scene.
 - Existing edits still contain their `earthtool` custom properties.
 - New objects have no copied EarthTool object or mesh identity.
-- Attachment helper names match the table exactly and helpers have no mesh. An `ET_Emitter_n` may be a child of the source object containing a render object carrying `MarkerAttachmentN`.
+- Attachment helper names match the table exactly and helpers have no mesh. Place each `ET_Emitter_n` beneath the source object that should own `MarkerAttachmentN`; transform-only groups may appear between them.
 - The scene is 24 FPS; animation names and frame limits follow the animation section above.
 - Geometry is triangular, finite, and has normals; textured primitives have UVs.
 - Blender export includes Extras, Attributes, Lights, and Animations.

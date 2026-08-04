@@ -4681,7 +4681,7 @@ namespace EarthTool.GLTF.Internal
         .ToArray();
     }
 
-    internal static (bool EmitterActive, int MarkerObjectCount)
+    internal static (bool EmitterActive, int MarkerRecordCount)
       GetEmitterHierarchyState(StaticMeshAsset asset, int number)
     {
       if (number is < 1 or > 4)
@@ -4691,7 +4691,10 @@ namespace EarthTool.GLTF.Internal
       var attachments = asset.CommonBaseHeader.AttachmentTable.ToArray();
       var emitterActive = BinaryPrimitives.ReadInt16LittleEndian(
         attachments.AsSpan((number + 3) * 8, 8)) != short.MinValue;
-      return (emitterActive, GetMarkerAttachmentSourceObjects(asset, number).Count);
+      var flag = GetMarkerAttachmentFlag(number);
+      var markerRecordCount = asset.StaticRenderObjectSequence.Count(renderObject =>
+        (renderObject.KnownFlags & flag) != 0);
+      return (emitterActive, markerRecordCount);
     }
 
     private static (Vector3 Translation, Quaternion Rotation) CreateRelativeTransform(

@@ -118,15 +118,6 @@ namespace EarthTool.MSH.Authoring
       {
         throw new ArgumentOutOfRangeException(nameof(barrelMaximumAngle));
       }
-      var markerFlags = flags & (StaticRenderObjectFlags.MarkerAttachment1
-        | StaticRenderObjectFlags.MarkerAttachment2
-        | StaticRenderObjectFlags.MarkerAttachment3
-        | StaticRenderObjectFlags.MarkerAttachment4);
-      if (markerFlags != 0 && ((uint)markerFlags & ((uint)markerFlags - 1)) != 0)
-      {
-        throw new ArgumentOutOfRangeException(nameof(flags));
-      }
-
       Flags = flags;
       BarrelMaximumAngle = barrelMaximumAngle;
     }
@@ -662,6 +653,8 @@ namespace EarthTool.MSH.Authoring
     private readonly Dictionary<StaticRenderObjectId, byte[]> _replacementTexturePathBytes = new();
     private readonly Dictionary<StaticRenderObjectId, StaticAnimationReplacement>
       _replacementAnimations = new();
+    private readonly Dictionary<StaticRenderObjectId, StaticRenderObjectFlags>
+      _replacementMarkerFlags = new();
     private readonly Dictionary<int, byte[]> _replacementAttachmentRecords = new();
     private readonly Dictionary<int, byte[]> _replacementCannonRenderPositions = new();
     private readonly Dictionary<int, byte[]> _replacementStaticSpotLights = new();
@@ -846,6 +839,22 @@ namespace EarthTool.MSH.Authoring
     {
       EnsureOpen();
       _replacementAnimationLengths = animationLengths;
+      return this;
+    }
+
+    internal StaticMeshEditSession ReplaceMarkerAttachmentFlags(
+      StaticRenderObjectId renderObject,
+      StaticRenderObjectFlags markerFlags)
+    {
+      EnsureOpen();
+      if ((markerFlags & ~StaticRenderObjectFlagMasks.MarkerAttachments) != 0
+        || !_source.StaticRenderObjectSequence.Any(item => item.Id.Equals(renderObject))
+          && !_additions.Any(item => item.Id.Equals(renderObject)))
+      {
+        throw new ArgumentOutOfRangeException(nameof(markerFlags));
+      }
+
+      _replacementMarkerFlags[renderObject] = markerFlags;
       return this;
     }
 
@@ -1051,6 +1060,7 @@ namespace EarthTool.MSH.Authoring
         && _replacementPivots.Count == 0
         && _replacementTexturePathBytes.Count == 0
         && _replacementAnimations.Count == 0
+        && _replacementMarkerFlags.Count == 0
         && _replacementAttachmentRecords.Count == 0
         && _replacementCannonRenderPositions.Count == 0
         && _replacementStaticSpotLights.Count == 0
@@ -1075,6 +1085,7 @@ namespace EarthTool.MSH.Authoring
           _replacementPivots,
           _replacementTexturePathBytes,
           _editedRootSourceObject is not null,
+          _replacementMarkerFlags,
           _replacementAnimations,
           _replacementAnimationLengths,
           _replacementAttachmentRecords,
@@ -1184,6 +1195,17 @@ namespace EarthTool.MSH.Authoring
           "HierarchyEdit"));
         changes.Add(Change("RootSourceObject", PreservationDisposition.Regenerated,
           "HierarchyEdit"));
+      }
+      foreach (var replacement in _replacementMarkerFlags)
+      {
+        var index = GetResultRenderObjectIds().ToList().IndexOf(replacement.Key);
+        if (index >= 0)
+        {
+          changes.Add(Change(
+            $"StaticRenderObjectSequence[{index}].ObjectFlags",
+            PreservationDisposition.Regenerated,
+            "EmitterMarkerOwnership"));
+        }
       }
       if (_replacementAdded)
       {

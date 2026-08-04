@@ -506,10 +506,6 @@ namespace EarthTool.GLTF
             "viewerFaced" => GltfStaticObjectRoles.ViewerFaced,
             "barrel" => GltfStaticObjectRoles.Barrel,
             "rotor" => GltfStaticObjectRoles.Rotor,
-            "markerAttachment1" => GltfStaticObjectRoles.MarkerAttachment1,
-            "markerAttachment2" => GltfStaticObjectRoles.MarkerAttachment2,
-            "markerAttachment3" => GltfStaticObjectRoles.MarkerAttachment3,
-            "markerAttachment4" => GltfStaticObjectRoles.MarkerAttachment4,
             _ => throw Malformed("semanticOverrides.objectRoles[].roles", "An object role is invalid.")
           };
         }
@@ -741,10 +737,6 @@ namespace EarthTool.GLTF
         WriteRole(writer, role.Value.Roles, GltfStaticObjectRoles.ViewerFaced, "viewerFaced");
         WriteRole(writer, role.Value.Roles, GltfStaticObjectRoles.Barrel, "barrel");
         WriteRole(writer, role.Value.Roles, GltfStaticObjectRoles.Rotor, "rotor");
-        WriteRole(writer, role.Value.Roles, GltfStaticObjectRoles.MarkerAttachment1, "markerAttachment1");
-        WriteRole(writer, role.Value.Roles, GltfStaticObjectRoles.MarkerAttachment2, "markerAttachment2");
-        WriteRole(writer, role.Value.Roles, GltfStaticObjectRoles.MarkerAttachment3, "markerAttachment3");
-        WriteRole(writer, role.Value.Roles, GltfStaticObjectRoles.MarkerAttachment4, "markerAttachment4");
         writer.WriteEndArray();
         writer.WriteNumber("barrelMaximumAngle", role.Value.BarrelMaximumAngle);
         writer.WriteEndObject();

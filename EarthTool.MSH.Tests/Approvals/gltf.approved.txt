@@ -326,10 +326,6 @@ public enum EarthTool.GLTF.GltfPackageKind : System.IComparable, System.IConvert
   field EarthTool.GLTF.GltfPackageKind Gltf = 1
 public enum EarthTool.GLTF.GltfStaticObjectRoles : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
   field EarthTool.GLTF.GltfStaticObjectRoles Barrel = 2
-  field EarthTool.GLTF.GltfStaticObjectRoles MarkerAttachment1 = 8
-  field EarthTool.GLTF.GltfStaticObjectRoles MarkerAttachment2 = 16
-  field EarthTool.GLTF.GltfStaticObjectRoles MarkerAttachment3 = 32
-  field EarthTool.GLTF.GltfStaticObjectRoles MarkerAttachment4 = 64
   field EarthTool.GLTF.GltfStaticObjectRoles None = 0
   field EarthTool.GLTF.GltfStaticObjectRoles Rotor = 4
   field EarthTool.GLTF.GltfStaticObjectRoles ViewerFaced = 1

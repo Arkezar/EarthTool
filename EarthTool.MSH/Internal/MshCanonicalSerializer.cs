@@ -63,6 +63,7 @@ namespace EarthTool.MSH.Internal
       IReadOnlyDictionary<StaticRenderObjectId, Vector3>? pivots = null,
       IReadOnlyDictionary<StaticRenderObjectId, byte[]>? texturePathBytes = null,
       bool canonicalizeNextRecordMarkers = false,
+      IReadOnlyDictionary<StaticRenderObjectId, StaticRenderObjectFlags>? markerFlags = null,
       IReadOnlyDictionary<StaticRenderObjectId, StaticAnimationReplacement>? animations = null,
       AnimationClassBytes? animationLengths = null,
       IReadOnlyDictionary<int, byte[]>? attachmentRecords = null,
@@ -77,6 +78,7 @@ namespace EarthTool.MSH.Internal
       rootSourceObject ??= source.RootSourceObject;
       pivots ??= new Dictionary<StaticRenderObjectId, Vector3>();
       texturePathBytes ??= new Dictionary<StaticRenderObjectId, byte[]>();
+      markerFlags ??= new Dictionary<StaticRenderObjectId, StaticRenderObjectFlags>();
       animations ??= new Dictionary<StaticRenderObjectId, StaticAnimationReplacement>();
       attachmentRecords ??= new Dictionary<int, byte[]>();
       cannonRenderPositions ??= new Dictionary<int, byte[]>();
@@ -137,6 +139,17 @@ namespace EarthTool.MSH.Internal
 
       var records = recordList.ToArray();
       RewriteSharingLinks(source, records, plan, vertices, removed, additions);
+      for (var index = 0; index < plan.Count; index++)
+      {
+        if (!markerFlags.TryGetValue(plan[index], out var replacement))
+        {
+          continue;
+        }
+        var offset = GetObjectFlagsOffset(records[index].Bytes);
+        var flags = ReadUInt32(records[index].Bytes, offset)
+          & ~(uint)StaticRenderObjectFlagMasks.MarkerAttachments;
+        WriteUInt32(records[index].Bytes, offset, flags | (uint)replacement);
+      }
       var trailingHierarchyUnwindCount = RewriteHierarchyFlags(rootSourceObject, records);
       for (var index = 0; index < records.Length; index++)
       {

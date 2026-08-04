@@ -442,6 +442,15 @@ namespace EarthTool.MSH.Assets
     MarkerAttachment4 = 0x00008000
   }
 
+  internal static class StaticRenderObjectFlagMasks
+  {
+    internal const StaticRenderObjectFlags MarkerAttachments =
+      StaticRenderObjectFlags.MarkerAttachment1
+      | StaticRenderObjectFlags.MarkerAttachment2
+      | StaticRenderObjectFlags.MarkerAttachment3
+      | StaticRenderObjectFlags.MarkerAttachment4;
+  }
+
   /// <summary>Groups render-object identities belonging to one reconstructed source object.</summary>
   public sealed class StaticSourceObject
   {
