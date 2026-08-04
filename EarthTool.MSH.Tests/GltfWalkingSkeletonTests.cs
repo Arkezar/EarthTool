@@ -3795,6 +3795,28 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
+  public async Task LoadedAnimationClassWithoutProjectedClipRemainsExact()
+  {
+    var sourceBytes = StaticAnimationMshFixture.Create(
+      1,
+      new StaticAnimationMshFixture.AnimationLengths(0, 8, 0, 0),
+      frameIndices: new StaticAnimationMshFixture.AnimationLengths(7, 6, 5, 4));
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    glb.Position = 0;
+
+    var import = await interchange.ImportEditGlbAsync(glb, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Succeeded);
+    import.Value!.Asset.GetSerializedRepresentation().Should().Equal(sourceBytes);
+  }
+
+  [Fact]
   public async Task UnrecognizedClassWithoutTracksRemainsWarningBearingMetadata()
   {
     var asset = await ReadAssetAsync(StaticAnimationMshFixture.Create(
@@ -4047,6 +4069,37 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
+  public async Task CanonicalAnimationRenameRetargetsItsClassAndClearsTheSourceClass()
+  {
+    var asset = await ReadAssetAsync(StaticAnimationMshFixture.Create(
+      0,
+      new StaticAnimationMshFixture.AnimationLengths(2, 0, 0, 0),
+      translations: [Vector3.Zero, Vector3.One],
+      frameIndices: new StaticAnimationMshFixture.AnimationLengths(7, 8, 9, 10)));
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var renamed = RewriteJson(glb.ToArray(), root =>
+      root["animations"]![0]!["name"] = "EarthTool D");
+    await using var source = new MemoryStream(renamed);
+
+    var import = await interchange.ImportEditGlbAsync(source, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    var result = import.Value!.Asset;
+    result.CommonBaseHeader.AnimationLengths.Should().Be(new AnimationClassBytes(0, 0, 0, 2));
+    result.CommonBaseHeader.AnimationFrameIndices.Should().Be(new AnimationClassBytes(0, 8, 9, 0));
+    result.StaticRenderObjectSequence[0].AnimationClassValue.Should().Be(3);
+    result.StaticRenderObjectSequence[0].AnimationTracks.TranslationFrames.Should()
+      .Equal(Vector3.Zero, Vector3.One);
+  }
+
+  [Fact]
   public async Task EditAnimationRegenerationHonorsOutputLimitWithoutPartialAsset()
   {
     var asset = await ReadAssetAsync(StaticAnimationMshFixture.Create(
@@ -4142,7 +4195,8 @@ public class GltfWalkingSkeletonTests
       new StaticAnimationMshFixture.AnimationLengths(0, 2, 0, 0),
       scales: [Vector3.One, Vector3.One],
       translations: [Vector3.Zero, Vector3.One],
-      matrices: [Matrix4x4.Identity, Matrix4x4.Identity]));
+      matrices: [Matrix4x4.Identity, Matrix4x4.Identity],
+      frameIndices: new StaticAnimationMshFixture.AnimationLengths(7, 8, 9, 10)));
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
     var export = await interchange.ExportGlbAsync(
@@ -4158,13 +4212,49 @@ public class GltfWalkingSkeletonTests
       OperationStatus.Succeeded,
       string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
     var result = import.Value!.Asset;
-    result.CommonBaseHeader.AnimationLengths.Should().Be(asset.CommonBaseHeader.AnimationLengths);
-    result.StaticRenderObjectSequence[0].AnimationClassValue.Should().Be(1);
+    result.CommonBaseHeader.AnimationLengths.Should().Be(default(AnimationClassBytes));
+    result.CommonBaseHeader.AnimationFrameIndices.Should().Be(new AnimationClassBytes(7, 0, 9, 10));
+    result.StaticRenderObjectSequence[0].AnimationClassValue.Should().Be(0);
     result.StaticRenderObjectSequence[0].AnimationTracks.ScaleFrames.Should().BeEmpty();
     result.StaticRenderObjectSequence[0].AnimationTracks.TranslationFrames.Should().BeEmpty();
     result.StaticRenderObjectSequence[0].AnimationTracks.Matrices.Should().BeEmpty();
     result.StaticRenderObjectSequence[0].RenderVertices.Should()
       .BeEquivalentTo(asset.StaticRenderObjectSequence[0].RenderVertices);
+  }
+
+  [Fact]
+  public async Task FormerParticipantUsesItsSurvivingCanonicalClassAssignment()
+  {
+    var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateTwoAnimationClasses().Data);
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var reassigned = RewriteJson(glb.ToArray(), root =>
+    {
+      var animations = root["animations"]!.AsArray();
+      var surviving = animations.Single(animation =>
+        animation!["name"]!.GetValue<string>() == "EarthTool B")!;
+      animations.Clear();
+      animations.Add(surviving);
+      foreach (var channel in surviving["channels"]!.AsArray())
+      {
+        channel!["target"]!["node"] = 0;
+      }
+    });
+    await using var source = new MemoryStream(reassigned);
+
+    var import = await interchange.ImportEditGlbAsync(source, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    import.Value!.Asset.StaticRenderObjectSequence.Select(record => record.AnimationClassValue)
+      .Should().Equal(1, 0);
+    import.Value.Asset.CommonBaseHeader.AnimationLengths.Should()
+      .Be(new AnimationClassBytes(0, 1, 0, 0));
   }
 
   [Fact]
@@ -4313,10 +4403,141 @@ public class GltfWalkingSkeletonTests
     {
       var animations = root["animations"]!.AsArray();
       var duplicate = animations[0]!.DeepClone();
-      duplicate!["name"] = "Ambiguous duplicate";
       animations.Add(duplicate);
     });
     await using var source = new MemoryStream(ambiguous);
+
+    var import = await interchange.ImportEditGlbAsync(source, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Failed);
+    import.Value.Should().BeNull();
+    import.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+      .Be(GltfDiagnosticCodes.StaleNativeProjection);
+  }
+
+  [Fact]
+  public async Task SourceObjectParticipatingInTwoCanonicalClassesFailsTransactionally()
+  {
+    var asset = await ReadAssetAsync(StaticAnimationMshFixture.Create(
+      0,
+      new StaticAnimationMshFixture.AnimationLengths(1, 0, 0, 0),
+      translations: [Vector3.Zero]));
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var ambiguous = RewriteJson(glb.ToArray(), root =>
+    {
+      var animations = root["animations"]!.AsArray();
+      var secondClass = animations[0]!.DeepClone();
+      secondClass!["name"] = "EarthTool B";
+      animations.Add(secondClass);
+    });
+    await using var source = new MemoryStream(ambiguous);
+
+    var import = await interchange.ImportEditGlbAsync(source, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Failed);
+    import.Value.Should().BeNull();
+    import.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+      .Be(GltfDiagnosticCodes.StaleNativeProjection);
+  }
+
+  [Fact]
+  public async Task CanonicalAnimationTargetingOnlyPlacementRootFailsTransactionally()
+  {
+    var asset = await ReadAssetAsync(StaticAnimationMshFixture.Create(
+      0,
+      new StaticAnimationMshFixture.AnimationLengths(1, 0, 0, 0),
+      translations: [Vector3.Zero]));
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var unsupported = RewriteJson(glb.ToArray(), root =>
+    {
+      var placementRoot = root["nodes"]!.AsArray().Count - 1;
+      foreach (var channel in root["animations"]![0]!["channels"]!.AsArray())
+      {
+        channel!["target"]!["node"] = placementRoot;
+      }
+    });
+    await using var source = new MemoryStream(unsupported);
+
+    var import = await interchange.ImportEditGlbAsync(source, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Failed);
+    import.Value.Should().BeNull();
+    import.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+      .Be(GltfDiagnosticCodes.StaleNativeProjection);
+  }
+
+  [Fact]
+  public async Task NoncanonicalExpectedAnimationRetargetedToPlacementRootFailsTransactionally()
+  {
+    var asset = await ReadAssetAsync(StaticAnimationMshFixture.Create(
+      0,
+      new StaticAnimationMshFixture.AnimationLengths(1, 0, 0, 0),
+      translations: [Vector3.Zero]));
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var renamed = RewriteJson(glb.ToArray(), root =>
+    {
+      var animation = root["animations"]![0]!;
+      animation["name"] = "Artist action";
+      var placementRoot = root["nodes"]!.AsArray().Count - 1;
+      foreach (var channel in animation["channels"]!.AsArray())
+      {
+        channel!["target"]!["node"] = placementRoot;
+      }
+    });
+    await using var source = new MemoryStream(renamed);
+
+    var import = await interchange.ImportEditGlbAsync(source, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Failed);
+    import.Value.Should().BeNull();
+    import.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+      .Be(GltfDiagnosticCodes.StaleNativeProjection);
+  }
+
+  [Fact]
+  public async Task CanonicalAnimationTargetingUnsupportedNodeFailsTransactionally()
+  {
+    var asset = await ReadAssetAsync(StaticAnimationMshFixture.Create(
+      0,
+      new StaticAnimationMshFixture.AnimationLengths(1, 0, 0, 0),
+      translations: [Vector3.Zero]));
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var unsupported = RewriteJson(glb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      var unsupportedNode = nodes.Count;
+      nodes.Add(new JsonObject
+      {
+        ["name"] = "Scene control",
+        ["children"] = new JsonArray(0)
+      });
+      nodes[unsupportedNode - 1]!["children"] = new JsonArray(unsupportedNode);
+      foreach (var channel in root["animations"]![0]!["channels"]!.AsArray())
+      {
+        channel!["target"]!["node"] = unsupportedNode;
+      }
+    });
+    await using var source = new MemoryStream(unsupported);
 
     var import = await interchange.ImportEditGlbAsync(source, export.Value!.Baseline);
 
@@ -4357,7 +4578,7 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
-  public async Task AnimationClipDisplayNameIsNotProjectionIdentity()
+  public async Task MetadataBackedAnimationRenamedNoncanonicallyFailsTransactionally()
   {
     var asset = await ReadAssetAsync(StaticAnimationMshFixture.Create(
       0,
@@ -4375,13 +4596,14 @@ public class GltfWalkingSkeletonTests
 
     var import = await interchange.ImportEditGlbAsync(renamedStream, export.Value!.Baseline);
 
-    import.Status.Should().Be(OperationStatus.Succeeded);
-    import.Value!.Asset.StaticRenderObjectSequence[0].AnimationTracks.Matrices
-      .Should().Equal(asset.StaticRenderObjectSequence[0].AnimationTracks.Matrices);
+    import.Status.Should().Be(OperationStatus.Failed);
+    import.Value.Should().BeNull();
+    import.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+      .Be(GltfDiagnosticCodes.StaleNativeProjection);
   }
 
   [Fact]
-  public async Task AnimationClipOrderAndNamesAreNotProjectionIdentity()
+  public async Task AnimationClipOrderDoesNotAffectCanonicalClassIdentity()
   {
     var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateTwoAnimationClasses().Data);
     await using var glb = new MemoryStream();
@@ -4402,8 +4624,6 @@ public class GltfWalkingSkeletonTests
       var first = animations[0]!.DeepClone();
       animations[0] = animations[1]!.DeepClone();
       animations[1] = first;
-      animations[0]!["name"] = "Second artist action";
-      animations[1]!["name"] = "First artist action";
     });
     await using var reorderedStream = new MemoryStream(reordered);
 
@@ -4412,6 +4632,28 @@ public class GltfWalkingSkeletonTests
     import.Status.Should().Be(OperationStatus.Succeeded);
     import.Value!.Asset.StaticRenderObjectSequence.Select(record => record.AnimationClassValue)
       .Should().Equal(0, 1);
+  }
+
+  [Fact]
+  public async Task CanonicalAnimationRetargetToOccupiedClassFailsTransactionally()
+  {
+    var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateTwoAnimationClasses().Data);
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var occupied = RewriteJson(glb.ToArray(), root =>
+      root["animations"]![0]!["name"] = "EarthTool B");
+    await using var source = new MemoryStream(occupied);
+
+    var import = await interchange.ImportEditGlbAsync(source, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Failed);
+    import.Value.Should().BeNull();
+    import.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+      .Be(GltfDiagnosticCodes.StaleNativeProjection);
   }
 
   [Fact]
@@ -5705,6 +5947,39 @@ public class GltfWalkingSkeletonTests
     imported.Status.Should().Be(OperationStatus.Succeeded);
     imported.Value!.Asset.CommonBaseHeader.AnimationLengths.Should()
       .Be(new AnimationClassBytes(0, 0, 2, 0));
+  }
+
+  [Theory]
+  [InlineData("Artist Walk Cycle")]
+  [InlineData("EarthTool E")]
+  [InlineData("earthtool A")]
+  public async Task NewModelImportIgnoresNoncanonicalAnimationsWithWarning(string name)
+  {
+    var sourceAsset = await ReadAssetAsync(StaticAnimationMshFixture.Create(
+      2,
+      new StaticAnimationMshFixture.AnimationLengths(0, 0, 2, 0),
+      translations: [Vector3.Zero, Vector3.One]));
+    var interchange = new GltfInterchange();
+    await using var exported = new MemoryStream();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      exported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var metadataFree = RewriteJson(exported.ToArray(), root =>
+    {
+      RemoveEarthToolMetadata(root);
+      root["animations"]![0]!["name"] = name;
+    });
+    await using var source = new MemoryStream(metadataFree);
+
+    var imported = await interchange.ImportNewModelGlbAsync(source);
+
+    imported.Status.Should().Be(OperationStatus.Succeeded);
+    imported.Value!.Asset.CommonBaseHeader.AnimationLengths.Should().Be(default(AnimationClassBytes));
+    imported.Value.Asset.StaticRenderObjectSequence[0].AnimationTracks.ScaleFrames.Should().BeEmpty();
+    imported.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.InertDataIgnored
+      && diagnostic.Path == "animations[0]");
   }
 
   [Fact]

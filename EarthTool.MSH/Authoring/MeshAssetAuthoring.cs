@@ -676,6 +676,7 @@ namespace EarthTool.MSH.Authoring
     private int? _nextLocalId;
     private int? _nextSourceObjectLocalId;
     private AnimationClassBytes? _replacementAnimationLengths;
+    private AnimationClassBytes? _replacementAnimationFrameIndices;
 
     internal StaticMeshEditSession(StaticMeshAsset source)
     {
@@ -839,6 +840,13 @@ namespace EarthTool.MSH.Authoring
     {
       EnsureOpen();
       _replacementAnimationLengths = animationLengths;
+      return this;
+    }
+
+    internal StaticMeshEditSession ReplaceAnimationFrameIndices(AnimationClassBytes animationFrameIndices)
+    {
+      EnsureOpen();
+      _replacementAnimationFrameIndices = animationFrameIndices;
       return this;
     }
 
@@ -1066,6 +1074,7 @@ namespace EarthTool.MSH.Authoring
         && _replacementStaticSpotLights.Count == 0
         && _replacementStaticOmniLights.Count == 0
         && !_replacementAnimationLengths.HasValue
+        && !_replacementAnimationFrameIndices.HasValue
         && _removedRenderObjects.Count == 0
         && _additions.Count == 0
         && _editedRootSourceObject is null
@@ -1088,6 +1097,7 @@ namespace EarthTool.MSH.Authoring
           _replacementMarkerFlags,
           _replacementAnimations,
           _replacementAnimationLengths,
+          _replacementAnimationFrameIndices,
           _replacementAttachmentRecords,
           _replacementCannonRenderPositions,
           _replacementStaticSpotLights,
@@ -1150,6 +1160,11 @@ namespace EarthTool.MSH.Authoring
       if (_replacementAnimationLengths.HasValue)
       {
         changes.Add(Change("CommonBaseHeader.AnimationLengths",
+          PreservationDisposition.Regenerated, "AnimationEdit"));
+      }
+      if (_replacementAnimationFrameIndices.HasValue)
+      {
+        changes.Add(Change("CommonBaseHeader.AnimationFrameIndices",
           PreservationDisposition.Regenerated, "AnimationEdit"));
       }
       foreach (var physicalNumber in _replacementAttachmentRecords.Keys.OrderBy(value => value))

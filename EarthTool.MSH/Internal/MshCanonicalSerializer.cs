@@ -66,6 +66,7 @@ namespace EarthTool.MSH.Internal
       IReadOnlyDictionary<StaticRenderObjectId, StaticRenderObjectFlags>? markerFlags = null,
       IReadOnlyDictionary<StaticRenderObjectId, StaticAnimationReplacement>? animations = null,
       AnimationClassBytes? animationLengths = null,
+      AnimationClassBytes? animationFrameIndices = null,
       IReadOnlyDictionary<int, byte[]>? attachmentRecords = null,
       IReadOnlyDictionary<int, byte[]>? cannonRenderPositions = null,
       IReadOnlyDictionary<int, byte[]>? staticSpotLights = null,
@@ -172,6 +173,10 @@ namespace EarthTool.MSH.Internal
       if (animationLengths.HasValue)
       {
         WriteAnimationClassBytes(commonHeader, 0x10, animationLengths.Value);
+      }
+      if (animationFrameIndices.HasValue)
+      {
+        WriteAnimationClassBytes(commonHeader, 0x14, animationFrameIndices.Value);
       }
       foreach (var replacement in attachmentRecords)
       {

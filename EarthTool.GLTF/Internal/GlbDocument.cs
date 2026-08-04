@@ -250,7 +250,7 @@ namespace EarthTool.GLTF.Internal
 
     internal IReadOnlyList<ParsedGltfAnimationObject> Objects { get; }
 
-    internal float EndTime => Objects.Max(item => item.EndTime);
+    internal float EndTime => Objects.Count == 0 ? 0 : Objects.Max(item => item.EndTime);
 
     internal ParsedGltfAnimation(string? name, IReadOnlyList<ParsedGltfAnimationObject> objects)
     {
@@ -5548,10 +5548,6 @@ namespace EarthTool.GLTF.Internal
             times,
             interpolation!,
             values);
-        }
-        if (builders.Count == 0)
-        {
-          continue;
         }
         result.Add(new ParsedGltfAnimation(
           animation.TryGetProperty("name", out var name) ? name.GetString() : null,

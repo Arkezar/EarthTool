@@ -1775,6 +1775,7 @@ namespace EarthTool.GLTF
       cancellationToken.ThrowIfCancellationRequested();
       var sceneLightDiagnostics = CreateIgnoredSceneLightDiagnostics(parsed, options);
       var lightIntensityDiagnostics = CreateIgnoredNewModelLightIntensityDiagnostics(parsed, options);
+      var animationDiagnostics = CreateIgnoredNewModelAnimationDiagnostics(parsed, options);
       var inertDiagnostics = CreateIgnoredInertDataDiagnostics(parsed)
         .Concat(CreateIgnoredSceneNodeDiagnostics(parsed, options)).ToArray();
       var texBindingDiagnostics = CreateNewModelTexBindingDiagnostics(parsed, options);
@@ -1866,8 +1867,8 @@ namespace EarthTool.GLTF
       return new OperationResult<GltfNewModelImportResult>(
         OperationStatus.Succeeded,
         new GltfNewModelImportResult(authored, baseline, CreateNewModelPreservationReport(authored)),
-        sceneLightDiagnostics.Concat(lightIntensityDiagnostics).Concat(inertDiagnostics).Concat(texBindingDiagnostics)
-          .Concat(committed.Diagnostics));
+        sceneLightDiagnostics.Concat(lightIntensityDiagnostics).Concat(animationDiagnostics)
+          .Concat(inertDiagnostics).Concat(texBindingDiagnostics).Concat(committed.Diagnostics));
     }
 
     private static void ValidateNewModelMaterialBindings(
@@ -2534,52 +2535,40 @@ namespace EarthTool.GLTF
       int maximumOutputLength,
       GltfNewModelImportOptions options)
     {
-      if (parsed.Animations.Count == 0)
-      {
-        if (options.AnimationClasses.Count != 0)
-        {
-          throw new UnsupportedGltfDomainException("animations");
-        }
-        return new NewModelAnimationSet(default, Array.Empty<NewModelAnimationTrack>());
-      }
-      if (options.AnimationClasses.Keys.Any(handle => handle.Value > parsed.Animations.Count)
-        || parsed.Animations.Select((animation, index) => (animation, index))
-          .Where(item => !options.AnimationClasses.ContainsKey(new GltfAnimationHandle(item.index + 1)))
-          .GroupBy(item => item.animation.Name, StringComparer.Ordinal)
-          .Any(group => group.Key is null || group.Count() != 1))
+      if (options.AnimationClasses.Keys.Any(handle => handle.Value > parsed.Animations.Count))
       {
         throw new UnsupportedGltfDomainException("animations");
+      }
+      var authoredAnimations = parsed.Animations.Select((animation, index) => (animation, index))
+        .Where(item => options.AnimationClasses.ContainsKey(new GltfAnimationHandle(item.index + 1))
+          || TryGetCanonicalAnimationClass(item.animation.Name, out _)).ToArray();
+      if (authoredAnimations.Length == 0)
+      {
+        return new NewModelAnimationSet(default, Array.Empty<NewModelAnimationTrack>());
       }
 
       var lengths = new byte[4];
       var tracks = new List<NewModelAnimationTrack>();
       var animatedSourceNodes = new HashSet<int>();
-      for (var animationIndex = 0; animationIndex < parsed.Animations.Count; animationIndex++)
+      foreach (var authored in authoredAnimations)
       {
-        var animation = parsed.Animations[animationIndex];
+        var animation = authored.animation;
         var classIndex = options.AnimationClasses.TryGetValue(
-          new GltfAnimationHandle(animationIndex + 1),
+          new GltfAnimationHandle(authored.index + 1),
           out var explicitClass)
           ? (int)explicitClass
-          : animation.Name switch
-          {
-            "EarthTool A" => 0,
-            "EarthTool B" => 1,
-            "EarthTool C" => 2,
-            "EarthTool D" => 3,
-            _ => throw new UnsupportedGltfDomainException("animations")
-          };
+          : TryGetCanonicalAnimationClass(animation.Name, out var canonicalClass)
+            ? canonicalClass
+            : throw new UnsupportedGltfDomainException("animations");
         if (lengths[classIndex] != 0)
         {
           throw new UnsupportedGltfDomainException("animations");
         }
-        var endFrameValue = animation.EndTime * 24d;
-        var endFrame = (int)Math.Round(endFrameValue);
-        if (Math.Abs(endFrameValue - endFrame) > 1e-5 || endFrame is < 0 or >= byte.MaxValue)
+        if (animation.Objects.Count == 0
+          || !TryGetCanonicalAnimationFrameCount(animation, out var frameCount))
         {
           throw new UnsupportedGltfDomainException("animations");
         }
-        var frameCount = endFrame + 1;
         lengths[classIndex] = checked((byte)frameCount);
         var animatedObjects = animation.Objects.ToDictionary(item => item.NodeIndex);
         var consumedTargets = new HashSet<int>();
@@ -3193,7 +3182,7 @@ namespace EarthTool.GLTF
         edit);
       try
       {
-        var animationReplacements = ValidateAnimationProjection(
+        var animationPlan = CreateAnimationEditPlan(
           parsed,
           manifest,
           nodes.Select(node => node.Metadata?.ScopeKind == "object"
@@ -3207,7 +3196,7 @@ namespace EarthTool.GLTF
           profile.MaxOutputBytes);
         var sourcesByLocalId = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
           .ToDictionary(source => source.Id.Value);
-        foreach (var replacement in animationReplacements)
+        foreach (var replacement in animationPlan.Replacements)
         {
           var tracks = StaticAnimationProjection.CreateCanonicalTracks(replacement.Frames);
           edit.ReplaceAnimation(
@@ -3216,6 +3205,14 @@ namespace EarthTool.GLTF
             tracks.TranslationFrames,
             tracks.Matrices,
             replacement.AnimationClassValue);
+        }
+        if (!animationPlan.Lengths.Equals(asset.CommonBaseHeader.AnimationLengths))
+        {
+          edit.ReplaceAnimationLengths(animationPlan.Lengths);
+        }
+        if (!animationPlan.FrameIndices.Equals(asset.CommonBaseHeader.AnimationFrameIndices))
+        {
+          edit.ReplaceAnimationFrameIndices(animationPlan.FrameIndices);
         }
       }
       catch (StaleNativeProjectionException ex)
@@ -4012,6 +4009,22 @@ namespace EarthTool.GLTF
         .ToArray();
     }
 
+    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredNewModelAnimationDiagnostics(
+      ParsedGlb parsed,
+      GltfNewModelImportOptions options)
+    {
+      return parsed.Animations.Select((animation, index) => (animation, index))
+        .Where(item => !options.AnimationClasses.ContainsKey(new GltfAnimationHandle(item.index + 1))
+          && !TryGetCanonicalAnimationClass(item.animation.Name, out _))
+        .Select(item => new OperationDiagnostic(
+          GltfDiagnosticCodes.InertDataIgnored,
+          1119,
+          DiagnosticSeverity.Warning,
+          $"animations[{item.index}]",
+          "A noncanonical metadata-free animation remains scene-only and was ignored."))
+        .ToArray();
+    }
+
     private static IReadOnlyList<OperationDiagnostic> CreateIgnoredInertDataDiagnostics(
       ParsedGlb parsed)
     {
@@ -4277,7 +4290,7 @@ namespace EarthTool.GLTF
 
     }
 
-    private static IReadOnlyList<AnimationReplacement> ValidateAnimationProjection(
+    private static AnimationEditPlan CreateAnimationEditPlan(
       ParsedGlb parsed,
       MetadataEnvelope manifest,
       IReadOnlyList<MetadataEnvelope?> nodes,
@@ -4360,50 +4373,58 @@ namespace EarthTool.GLTF
         retainedNodeBySource.Add(metadata.LocalId, nodeIndex);
       }
 
-      var matchedClasses = new HashSet<int>();
+      var sourceByNode = retainedNodeBySource.ToDictionary(item => item.Value, item => item.Key);
+      var matchedClasses = new Dictionary<int, int>();
       var matchedObjects = new HashSet<int>();
       var replacements = new List<AnimationReplacement>();
-      foreach (var clip in parsed.Animations)
+      var currentFrameCounts = new Dictionary<int, byte>();
+      for (var clipIndex = 0; clipIndex < parsed.Animations.Count; clipIndex++)
       {
+        var clip = parsed.Animations[clipIndex];
+        if (!TryGetCanonicalAnimationClass(clip.Name, out var classIndex))
+        {
+          if (clip.Objects.Any(item => sourceByNode.TryGetValue(item.NodeIndex, out var sourceId)
+            && expectedBySource[sourceId].IsNative))
+          {
+            throw new StaleNativeProjectionException(
+              "A metadata-backed expected animation clip no longer has its canonical class name.");
+          }
+          continue;
+        }
         if (clip.Objects.Count == 0)
         {
           throw new StaleNativeProjectionException("A native animation clip has no participating objects.");
         }
-        int? classIndex = null;
+        if (!matchedClasses.TryAdd(classIndex, clipIndex))
+        {
+          throw new StaleNativeProjectionException("One animation class maps to multiple native clips.");
+        }
+        var frameCount = GetCanonicalAnimationFrameCount(clip);
+        currentFrameCounts.Add(classIndex, checked((byte)frameCount));
         foreach (var item in clip.Objects)
         {
-          var sourcePair = retainedNodeBySource.SingleOrDefault(pair => pair.Value == item.NodeIndex);
-          if (sourcePair.Key == 0
-            || !expectedBySource.TryGetValue(sourcePair.Key, out var expectedObject)
-            || !expectedObject.IsNative)
+          if (!sourceByNode.TryGetValue(item.NodeIndex, out var sourceId)
+            || !expectedBySource.TryGetValue(sourceId, out var expectedObject))
           {
             throw new StaleNativeProjectionException(
-              "A native animation targets an unexpected or metadata-only object.");
+              "A canonical animation targets an unsupported object.");
           }
-          if (classIndex.HasValue && classIndex.Value != expectedObject.ClassIndex)
-          {
-            throw new StaleNativeProjectionException("One native clip combines different animation classes.");
-          }
-          classIndex = expectedObject.ClassIndex;
-          if (!matchedObjects.Add(sourcePair.Key))
+          if (!matchedObjects.Add(sourceId))
           {
             throw new StaleNativeProjectionException(
-              "One object/class animation maps to multiple native clips.");
-          }
-          var frameCount = expectedObject.DeclaredLength == 0 ? 1 : expectedObject.DeclaredLength;
-          if (item.EndTime > ((frameCount - 1) / 24f) + 1e-6f)
-          {
-            throw new StaleNativeProjectionException(
-              "A native animation extends beyond its guarded class declaration.");
+              "One source object participates in multiple canonical animation classes.");
           }
           var frames = item.SampleFrames(frameCount);
           var fingerprint = AnimationProjectionFingerprint.CreateObject(
             baseline,
-            sourcePair.Key,
-            expectedObject.ClassIndex,
-            expectedObject.DeclaredLength,
+            sourceId,
+            classIndex,
+            checked((byte)frameCount),
             frames);
-          if (!string.Equals(fingerprint, expectedObject.Fingerprint, StringComparison.Ordinal))
+          var classChanged = expectedObject.ClassIndex != classIndex;
+          if (classChanged
+            || expectedObject.DeclaredLength != frameCount
+            || !string.Equals(fingerprint, expectedObject.Fingerprint, StringComparison.Ordinal))
           {
             estimatedOutputLength = GetAnimationReplacementLength(
               estimatedOutputLength,
@@ -4414,16 +4435,10 @@ namespace EarthTool.GLTF
               throw new ResourceLimitException(estimatedOutputLength, maximumOutputLength);
             }
             replacements.Add(new AnimationReplacement(
-              sourcePair.Key,
-              expectedObject.AnimationClassValue,
+              sourceId,
+              classChanged ? checked((uint)classIndex) : expectedObject.AnimationClassValue,
               frames));
           }
-        }
-
-        var resolvedClass = classIndex!.Value;
-        if (!matchedClasses.Add(resolvedClass))
-        {
-          throw new StaleNativeProjectionException("One animation class maps to multiple native clips.");
         }
       }
 
@@ -4438,10 +4453,88 @@ namespace EarthTool.GLTF
           0);
         replacements.Add(new AnimationReplacement(
           deleted.SourceObjectLocalId,
-          deleted.AnimationClassValue,
+          0,
           Array.Empty<ProjectedAnimationFrame>()));
       }
-      return replacements.AsReadOnly();
+
+      if (parsed.Animations.Any(clip => !TryGetCanonicalAnimationClass(clip.Name, out _))
+        && expected.Clips.Any(clip => !matchedClasses.ContainsKey(clip.ClassIndex)))
+      {
+        throw new StaleNativeProjectionException(
+          "A metadata-backed expected animation clip no longer has its canonical class name.");
+      }
+
+      var lengths = ToAnimationBytes(asset.CommonBaseHeader.AnimationLengths);
+      var frameIndices = ToAnimationBytes(asset.CommonBaseHeader.AnimationFrameIndices);
+      var baselineClasses = expected.Clips.Select(clip => clip.ClassIndex).ToHashSet();
+      for (var classIndex = 0; classIndex < 4; classIndex++)
+      {
+        if (currentFrameCounts.TryGetValue(classIndex, out var frameCount))
+        {
+          if (lengths[classIndex] != frameCount || !baselineClasses.Contains(classIndex))
+          {
+            lengths[classIndex] = frameCount;
+            frameIndices[classIndex] = 0;
+          }
+        }
+        else if (baselineClasses.Contains(classIndex))
+        {
+          lengths[classIndex] = 0;
+          frameIndices[classIndex] = 0;
+        }
+      }
+      return new AnimationEditPlan(
+        replacements.AsReadOnly(),
+        ToAnimationClassBytes(lengths),
+        ToAnimationClassBytes(frameIndices));
+    }
+
+    private static int GetCanonicalAnimationFrameCount(ParsedGltfAnimation animation)
+    {
+      if (TryGetCanonicalAnimationFrameCount(animation, out var frameCount))
+      {
+        return frameCount;
+      }
+      throw new StaleNativeProjectionException(
+        "A canonical animation must end on an integer 24 FPS frame before frame 255.");
+    }
+
+    private static bool TryGetCanonicalAnimationFrameCount(
+      ParsedGltfAnimation animation,
+      out int frameCount)
+    {
+      var endFrameValue = animation.EndTime * 24d;
+      var endFrame = (int)Math.Round(endFrameValue);
+      if (Math.Abs(endFrameValue - endFrame) > 1e-5 || endFrame is < 0 or >= byte.MaxValue)
+      {
+        frameCount = 0;
+        return false;
+      }
+      frameCount = endFrame + 1;
+      return true;
+    }
+
+    private static bool TryGetCanonicalAnimationClass(string? name, out int classIndex)
+    {
+      classIndex = name switch
+      {
+        "EarthTool A" => 0,
+        "EarthTool B" => 1,
+        "EarthTool C" => 2,
+        "EarthTool D" => 3,
+        _ => -1
+      };
+      return classIndex >= 0;
+    }
+
+    private static byte[] ToAnimationBytes(AnimationClassBytes value)
+    {
+      return new[] { value.A, value.B, value.C, value.D };
+    }
+
+    private static AnimationClassBytes ToAnimationClassBytes(IReadOnlyList<byte> values)
+    {
+      return new AnimationClassBytes(values[0], values[1], values[2], values[3]);
     }
 
     private static long GetAnimationReplacementLength(
@@ -4472,6 +4565,25 @@ namespace EarthTool.GLTF
         SourceObjectLocalId = sourceObjectLocalId;
         AnimationClassValue = animationClassValue;
         Frames = frames;
+      }
+    }
+
+    private sealed class AnimationEditPlan
+    {
+      internal IReadOnlyList<AnimationReplacement> Replacements { get; }
+
+      internal AnimationClassBytes Lengths { get; }
+
+      internal AnimationClassBytes FrameIndices { get; }
+
+      internal AnimationEditPlan(
+        IReadOnlyList<AnimationReplacement> replacements,
+        AnimationClassBytes lengths,
+        AnimationClassBytes frameIndices)
+      {
+        Replacements = replacements;
+        Lengths = lengths;
+        FrameIndices = frameIndices;
       }
     }
 
