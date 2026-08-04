@@ -93,6 +93,7 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String TextureDefaultPreviewUsed = "ETG1011"
   field System.String TextureDiagnosticPreviewUsed = "ETG1012"
   field System.String TexturePreviewUnavailable = "ETG1009"
+  field System.String TextureResourceBindingRequired = "ETG1029"
   field System.String TextureResourceMissing = "ETG1007"
   field System.String TextureResourceShadowed = "ETG1010"
   field System.String TextureVariantsNotRepresented = "ETG1013"

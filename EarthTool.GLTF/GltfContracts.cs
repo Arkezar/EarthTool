@@ -80,6 +80,8 @@ namespace EarthTool.GLTF
     public const string EmitterHierarchyFallback = "ETG1027";
     /// <summary>New-model photometric intensity was not used as terrain-light amplitude.</summary>
     public const string NewModelPhotometricIntensityIgnored = "ETG1028";
+    /// <summary>A textured new-model material requires a typed canonical TEX resource binding.</summary>
+    public const string TextureResourceBindingRequired = "ETG1029";
     /// <summary>Required EarthTool manifest metadata is absent.</summary>
     public const string MissingManifest = "ETG2000";
     /// <summary>The edit-import scene contract is invalid.</summary>

@@ -1909,13 +1909,15 @@ namespace EarthTool.GLTF
         .Select(primitive => primitive.MaterialIndex!.Value)
         .Distinct()
         .ToArray();
-      if (usedMaterialIndices.Any(index => parsed.Materials[index].HasBaseColorTexture
-        && (!options.TextureResourceBindings.TryGetValue(
-          GetMaterialHandle(parsed, index),
-          out var binding)
-          || binding is null)))
+      foreach (var materialIndex in usedMaterialIndices.Where(index =>
+        parsed.Materials[index].HasBaseColorTexture))
       {
-        throw new UnsupportedGltfDomainException("TexResourceBinding");
+        var materialHandle = GetMaterialHandle(parsed, materialIndex);
+        if (!options.TextureResourceBindings.TryGetValue(materialHandle, out var binding)
+          || binding is null)
+        {
+          throw new RequiredTextureResourceBindingException(materialIndex, materialHandle);
+        }
       }
       if (parsed.Meshes.SelectMany(mesh => mesh.Primitives).Any(primitive =>
         primitive.MaterialIndex.HasValue
@@ -7023,6 +7025,22 @@ namespace EarthTool.GLTF
         return Unsupported(unsupported.Domain, unsupported.Path ?? "$");
       }
 
+      if (exception is RequiredTextureResourceBindingException requiredBinding)
+      {
+        return new OperationDiagnostic(
+          GltfDiagnosticCodes.TextureResourceBindingRequired,
+          1121,
+          DiagnosticSeverity.Error,
+          $"materials[{requiredBinding.MaterialIndex}]",
+          "A base-color image is only a decoded texture preview. Supply a typed canonical TEX resource key through textureResourceBindings for this material.",
+          data: new Dictionary<string, string>
+          {
+            ["domain"] = "TexResourceBinding",
+            ["materialHandle"] = requiredBinding.MaterialHandle.Value.ToString(
+              System.Globalization.CultureInfo.InvariantCulture)
+          });
+      }
+
       if (exception is ResourceLimitException limit)
       {
         return Limit(path, limit.Actual, limit.Maximum);
@@ -7929,6 +7947,22 @@ namespace EarthTool.GLTF
     internal AmbiguousPartitionCorrespondenceException(string message)
       : base(message)
     {
+    }
+  }
+
+  internal sealed class RequiredTextureResourceBindingException : Exception
+  {
+    internal int MaterialIndex { get; }
+
+    internal GltfMaterialHandle MaterialHandle { get; }
+
+    internal RequiredTextureResourceBindingException(
+      int materialIndex,
+      GltfMaterialHandle materialHandle)
+      : base("A textured new-model material requires a typed canonical TEX resource binding.")
+    {
+      MaterialIndex = materialIndex;
+      MaterialHandle = materialHandle;
     }
   }
 }

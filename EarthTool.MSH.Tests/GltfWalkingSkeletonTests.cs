@@ -5125,12 +5125,34 @@ public class GltfWalkingSkeletonTests
           || diagnostic.Code == GltfDiagnosticCodes.TextureVariantsNotRepresented);
       using var constrainedJson = ReadGlbJson(constrained.ToArray());
       constrainedJson.RootElement.TryGetProperty("images", out _).Should().BeFalse();
-      var metadataFreePreview = RewriteJson(first.ToArray(), RemoveEarthToolMetadata);
+      var metadataFreePreview = RewriteJson(
+        first.ToArray(),
+        root => RemoveMetadataAndSetMisleadingTexturePresentation(root));
       await using var genericSource = new MemoryStream(metadataFreePreview);
       var genericImport = await new GltfInterchange().ImportNewModelGlbAsync(genericSource);
       genericImport.Status.Should().Be(OperationStatus.Failed);
-      genericImport.Diagnostics.Should().ContainSingle().Subject.Data.Should()
-        .Contain(new KeyValuePair<string, string>("domain", "TexResourceBinding"));
+      genericImport.Value.Should().BeNull();
+      var diagnostic = genericImport.Diagnostics.Should().ContainSingle().Subject;
+      diagnostic.Code.Should().Be(GltfDiagnosticCodes.TextureResourceBindingRequired);
+      diagnostic.EventId.Should().Be(1121);
+      diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
+      diagnostic.Path.Should().Be("materials[0]");
+      diagnostic.Message.Should().Contain("textureResourceBindings");
+      diagnostic.Data.Should().Contain(new KeyValuePair<string, string>("materialHandle", "1"));
+      var bindings = Enumerable.Range(1, asset.StaticRenderObjectSequence.Count).ToDictionary(
+        index => new GltfMaterialHandle(index),
+        index => (string?)$"Textures\\authored\\material-{index}.tex");
+      await using var typedSource = new MemoryStream(metadataFreePreview);
+
+      var typedImport = await interchange.ImportNewModelGlbAsync(
+        typedSource,
+        new GltfNewModelImportOptions(bindings));
+
+      typedImport.Status.Should().Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", typedImport.Diagnostics.Select(item => item.Message)));
+      typedImport.Value!.Asset.StaticRenderObjectSequence[0].TexturePathBytes.Should()
+        .Equal("Textures\\authored\\material-1.tex"u8.ToArray());
       var path = Path.Combine(directory, "preview.glb");
       await File.WriteAllBytesAsync(path, first.ToArray());
       await AssertKhronosValidAsync(path);
@@ -5305,6 +5327,36 @@ public class GltfWalkingSkeletonTests
       var validation = await interchange.ValidateGltfFileAsync(firstPath);
       validation.Status.Should().Be(OperationStatus.Succeeded);
       await AssertKhronosValidAsync(firstPath);
+
+      var inferredUri = "Textures-presentation-only.tex.png";
+      File.Move(Path.Combine(directory, expectedImageName), Path.Combine(directory, inferredUri));
+      var metadataFree = JsonNode.Parse(await File.ReadAllTextAsync(firstPath))!.AsObject();
+      RemoveMetadataAndSetMisleadingTexturePresentation(metadataFree, inferredUri);
+      await File.WriteAllTextAsync(firstPath, metadataFree.ToJsonString());
+
+      var inferred = await interchange.ImportNewModelGltfFileAsync(firstPath);
+
+      inferred.Status.Should().Be(OperationStatus.Failed);
+      inferred.Value.Should().BeNull();
+      var diagnostic = inferred.Diagnostics.Should().ContainSingle().Subject;
+      diagnostic.Code.Should().Be(GltfDiagnosticCodes.TextureResourceBindingRequired);
+      diagnostic.EventId.Should().Be(1121);
+      diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
+      diagnostic.Path.Should().Be("materials[0]");
+      diagnostic.Data.Should().Contain(new KeyValuePair<string, string>("materialHandle", "1"));
+      var bindings = Enumerable.Range(1, asset.StaticRenderObjectSequence.Count).ToDictionary(
+        index => new GltfMaterialHandle(index),
+        index => (string?)$"Textures\\authored\\material-{index}.tex");
+
+      var typed = await interchange.ImportNewModelGltfFileAsync(
+        firstPath,
+        new GltfNewModelImportOptions(bindings));
+
+      typed.Status.Should().Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", typed.Diagnostics.Select(item => item.Message)));
+      typed.Value!.Asset.StaticRenderObjectSequence[0].TexturePathBytes.Should()
+        .Equal("Textures\\authored\\material-1.tex"u8.ToArray());
     }
     finally
     {
@@ -6235,6 +6287,84 @@ public class GltfWalkingSkeletonTests
     rejected.Value.Should().BeNull();
     rejected.Diagnostics.Should().ContainSingle().Subject.Data.Should()
       .Contain(new KeyValuePair<string, string>("domain", "TexResourceBinding"));
+  }
+
+  [Fact]
+  public async Task GlbAndSeparateGltfUseSharedMaterialAssignmentAsTypedTexAuthority()
+  {
+    var sourceAsset = CreateTwoPartitionAsset();
+    var interchange = new GltfInterchange();
+    var options = new GltfNewModelImportOptions(new Dictionary<GltfMaterialHandle, string?>
+    {
+      [new GltfMaterialHandle(1)] = "Textures\\authored\\shared.tex"
+    });
+    await using var exportedGlb = new MemoryStream();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      exportedGlb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var metadataFreeGlb = RewriteJson(exportedGlb.ToArray(), ShareSecondMaterial);
+    await using var glbSource = new MemoryStream(metadataFreeGlb);
+
+    var glbImport = await interchange.ImportNewModelGlbAsync(glbSource, options);
+
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var path = Path.Combine(directory, "shared.gltf");
+    Directory.CreateDirectory(directory);
+    try
+    {
+      var export = await interchange.ExportGltfFileAsync(
+        sourceAsset,
+        path,
+        new GltfExportOptions(LineageId, DocumentId));
+      export.Status.Should().Be(OperationStatus.Succeeded);
+      var metadataFreeGltf = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+      ShareSecondMaterial(metadataFreeGltf);
+      await File.WriteAllTextAsync(path, metadataFreeGltf.ToJsonString());
+
+      var separateImport = await interchange.ImportNewModelGltfFileAsync(path, options);
+
+      glbImport.Status.Should().Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", glbImport.Diagnostics.Select(diagnostic => diagnostic.Message)));
+      separateImport.Status.Should().Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", separateImport.Diagnostics.Select(diagnostic => diagnostic.Message)));
+      foreach (var result in new[] { glbImport, separateImport })
+      {
+        var diagnostic = result.Diagnostics.Should().ContainSingle().Subject;
+        diagnostic.Code.Should().Be(GltfDiagnosticCodes.TextureResourceMissing);
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Warning);
+        diagnostic.Path.Should().Be("materials[1]");
+        diagnostic.Message.Should().Contain("reference-only");
+      }
+      var expectedBinding = Encoding.ASCII.GetBytes("Textures\\authored\\shared.tex");
+      glbImport.Value!.Asset.StaticRenderObjectSequence.Should().HaveCount(2)
+        .And.OnlyContain(record => record.TexturePathBytes.SequenceEqual(
+          expectedBinding));
+      glbImport.Value.Asset.StaticRenderObjectSequence[0].RenderVertices
+        .Min(vertex => vertex.Position.X).Should().Be(0);
+      glbImport.Value.Asset.StaticRenderObjectSequence[1].RenderVertices
+        .Min(vertex => vertex.Position.X).Should().Be(10);
+      var glbBytes = glbImport.Value.Asset.GetSerializedRepresentation();
+      var separateBytes = separateImport.Value!.Asset.GetSerializedRepresentation();
+      glbBytes.AsSpan(4, 16).Clear();
+      separateBytes.AsSpan(4, 16).Clear();
+      separateBytes.Should().Equal(glbBytes);
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+
+    static void ShareSecondMaterial(JsonObject root)
+    {
+      RemoveEarthToolMetadata(root);
+      root["materials"]![1]!["name"] = "Textures\\presentation-only.tex";
+      var primitives = root["meshes"]![0]!["primitives"]!.AsArray();
+      primitives[0]!["material"] = 1;
+      primitives[1]!["material"] = 1;
+    }
   }
 
   [Fact]
@@ -9688,6 +9818,19 @@ public class GltfWalkingSkeletonTests
       {
         RemoveEarthToolMetadata(child);
       }
+    }
+  }
+
+  private static void RemoveMetadataAndSetMisleadingTexturePresentation(
+    JsonObject root,
+    string? imageUri = null)
+  {
+    RemoveEarthToolMetadata(root);
+    root["materials"]![0]!["name"] = "Textures\\presentation-only.tex";
+    root["images"]![0]!["name"] = "Textures\\presentation-only.tex";
+    if (imageUri is not null)
+    {
+      root["images"]![0]!["uri"] = imageUri;
     }
   }
 
