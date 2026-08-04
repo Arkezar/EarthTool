@@ -1335,8 +1335,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1785789205.2058477,
-    "ast_hash": "e582ddfa40bfe45735822fb33e33f5a2",
+    "mtime": 1785828201.2995393,
+    "ast_hash": "b155687608217f854a8471412f6ce3ab",
     "semantic_hash": ""
   },
   "CONTRIBUTING.md": {
@@ -1480,18 +1480,18 @@
     "semantic_hash": ""
   },
   "EarthTool.GLTF/GltfContracts.cs": {
-    "mtime": 1785819934.800988,
-    "ast_hash": "0d25d142339f0ae165ec4de150e9ba42",
+    "mtime": 1785831028.6378138,
+    "ast_hash": "4da518d60fc72ac08a36e4c74355b29f",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/GltfInterchange.cs": {
-    "mtime": 1785821219.9894674,
-    "ast_hash": "850748ee02283a21e3c0cba50e1fc93b",
+    "mtime": 1785832685.185825,
+    "ast_hash": "f2c2971c39e1758b5da0b0a449aed766",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/GlbDocument.cs": {
-    "mtime": 1785821219.9884672,
-    "ast_hash": "755b684aa071107d4dffa8a65c4b7dbd",
+    "mtime": 1785830997.6717036,
+    "ast_hash": "19ff3503d47b8bd13fb1420b62405114",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/TransactionalFileSystem.cs": {
@@ -1505,8 +1505,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/GltfWalkingSkeletonTests.cs": {
-    "mtime": 1785820898.2731013,
-    "ast_hash": "e83817f05f973e148be510939682c209",
+    "mtime": 1785832808.4782677,
+    "ast_hash": "26ad0732ee47620a9dcb09db2b663a24",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/OneTriangleMshFixture.cs": {
@@ -1520,8 +1520,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH/Assets/StaticMeshAsset.cs": {
-    "mtime": 1785787472.132153,
-    "ast_hash": "e9a5f45a14f588db7e828de480f0dccb",
+    "mtime": 1785832107.5369303,
+    "ast_hash": "386357b37844d4bae7561eb5efb11e62",
     "semantic_hash": ""
   },
   "EarthTool.MSH/Internal/MshV1Decoder.cs": {
@@ -1570,8 +1570,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/Approvals/gltf.approved.txt": {
-    "mtime": 1785788667.7877035,
-    "ast_hash": "b976e84ee34df30d8a2fa9d1fa343c8c",
+    "mtime": 1785831370.3520527,
+    "ast_hash": "aafb7436f2d06194cd1ec026fecdda39",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/Approvals/msh.approved.txt": {
@@ -1595,8 +1595,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH/Authoring/MeshAssetAuthoring.cs": {
-    "mtime": 1785787472.1322422,
-    "ast_hash": "dbc0fcb6b3992b4bfca1ec814d2fc959",
+    "mtime": 1785832107.5459309,
+    "ast_hash": "135121f9bdf47f9fde2d193cefd768e6",
     "semantic_hash": ""
   },
   "EarthTool.MSH/Expert/MshExpert.cs": {
@@ -1605,8 +1605,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH/Internal/MshCanonicalSerializer.cs": {
-    "mtime": 1785787472.1322422,
-    "ast_hash": "3f315dff742f2c962718485d42d20f46",
+    "mtime": 1785832107.5459309,
+    "ast_hash": "be899a51a9b5bdcc07d97ce34192c78b",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/Approvals/msh-canonical-dynamic.approved.sha256.txt": {
@@ -1700,8 +1700,8 @@
     "semantic_hash": ""
   },
   "EarthTool.GLTF/GltfPlanAndReport.cs": {
-    "mtime": 1785787472.1291978,
-    "ast_hash": "f8634b1d9e3ec6728e1cd1b22d63ad16",
+    "mtime": 1785831028.6388137,
+    "ast_hash": "a0e70b49ac5e2ca3aee022da080e14df",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/Approvals/gltf-cli-report-v1.approved.json": {
@@ -1715,8 +1715,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/GltfPlanAndReportTests.cs": {
-    "mtime": 1785787472.1309733,
-    "ast_hash": "c914d078cded6774bbf2d2ade60032f7",
+    "mtime": 1785831384.628564,
+    "ast_hash": "0c253007d8222b1f49ce4c2fc7ec3221",
     "semantic_hash": ""
   },
   "EarthTool.CLI.Tests/EarthTool.CLI.Tests.csproj": {
@@ -1775,8 +1775,8 @@
     "semantic_hash": ""
   },
   "docs/migration-collada-to-gltf.md": {
-    "mtime": 1785820735.4114287,
-    "ast_hash": "a43b06bab59b3ee7347ab45e4b00901b",
+    "mtime": 1785831556.905729,
+    "ast_hash": "fe3c938094814806dfc61e07de300be6",
     "semantic_hash": ""
   },
   "test-tools/blender-matrix.v1.json": {
@@ -1890,8 +1890,8 @@
     "semantic_hash": ""
   },
   "docs/mesh-artist-quickstart.md": {
-    "mtime": 1785820498.2003024,
-    "ast_hash": "6481699b4d777d328758886c7833ae48",
+    "mtime": 1785831556.905729,
+    "ast_hash": "7e77dd377f19e4e75d49f3a5ec2f7094",
     "semantic_hash": ""
   }
 }
