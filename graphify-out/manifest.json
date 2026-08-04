@@ -1325,8 +1325,8 @@
     "semantic_hash": ""
   },
   ".github/workflows/release.yml": {
-    "mtime": 1785857780.0670552,
-    "ast_hash": "5d7c49d6a11518a8b04a073f3b735795",
+    "mtime": 1785858587.6803675,
+    "ast_hash": "cadb9252242e6c2a095aa822ece0c2ce",
     "semantic_hash": ""
   },
   "AGENTS.md": {
@@ -1745,8 +1745,8 @@
     "semantic_hash": ""
   },
   "EarthTool.CLI.Tests/PublicCutoverAcceptanceTests.cs": {
-    "mtime": 1785857446.8898132,
-    "ast_hash": "985628a6031ad1947b52c71c9018dfae",
+    "mtime": 1785858587.6763673,
+    "ast_hash": "4c8843c2d36953b2e41065a103f2f0cd",
     "semantic_hash": ""
   },
   "EarthTool.CLI/Commands/MSH/MshCommandComposition.cs": {
@@ -1835,8 +1835,8 @@
     "semantic_hash": ""
   },
   "test-tools/release-qualification.test.mjs": {
-    "mtime": 1785857780.0680552,
-    "ast_hash": "2f2c60fa5e57e9eeb5461ca40c51abe3",
+    "mtime": 1785858587.6803675,
+    "ast_hash": "e14fa40642e41049e86d60b4ad75f081",
     "semantic_hash": ""
   },
   ".github/actionlint.yaml": {

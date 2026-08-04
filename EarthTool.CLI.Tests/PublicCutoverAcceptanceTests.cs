@@ -79,23 +79,29 @@ public sealed partial class PublicCutoverAcceptanceTests
   private static async Task<CliResult> RunCliAsync(params string[] arguments)
   {
     var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../.."));
-    var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name
-      ?? throw new InvalidOperationException("The test build configuration could not be resolved.");
-    var platform = OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : "linux";
-    var architecture = RuntimeInformation.OSArchitecture switch
+    var executable = Environment.GetEnvironmentVariable("EARTHTOOL_CLI_EXECUTABLE");
+    if (string.IsNullOrWhiteSpace(executable))
     {
-      Architecture.X64 => "x64",
-      Architecture.Arm64 => "arm64",
-      var unsupported => throw new PlatformNotSupportedException($"Unsupported CLI test architecture: {unsupported}.")
-    };
-    var executable = Path.Combine(
-      root,
-      "EarthTool.CLI",
-      "bin",
-      configuration,
-      "net8.0",
-      $"{platform}-{architecture}",
-      OperatingSystem.IsWindows() ? "EarthTool.CLI.exe" : "EarthTool.CLI");
+      var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name
+        ?? throw new InvalidOperationException("The test build configuration could not be resolved.");
+      var platform = OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : "linux";
+      var architecture = RuntimeInformation.OSArchitecture switch
+      {
+        Architecture.X64 => "x64",
+        Architecture.Arm64 => "arm64",
+        var unsupported => throw new PlatformNotSupportedException($"Unsupported CLI test architecture: {unsupported}.")
+      };
+      executable = Path.Combine(
+        root,
+        "EarthTool.CLI",
+        "bin",
+        configuration,
+        "net8.0",
+        $"{platform}-{architecture}",
+        OperatingSystem.IsWindows() ? "EarthTool.CLI.exe" : "EarthTool.CLI");
+    }
+
+    executable = Path.GetFullPath(executable, root);
     var startInfo = new ProcessStartInfo(executable)
     {
       RedirectStandardOutput = true,

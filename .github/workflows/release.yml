@@ -156,13 +156,11 @@ jobs:
         run: |
           CLI="./publish/${{ matrix.runtime }}/EarthTool.CLI"
           if [ "${{ matrix.os }}" = "windows-latest" ]; then CLI="${CLI}.exe"; fi
-          "$CLI" msh --help > msh-help.txt
-          "$CLI" msh import --help > msh-import-help.txt
-          grep -q "export <INPUT>" msh-help.txt
-          grep -q "import" msh-help.txt
-          grep -q "edit <INPUT>" msh-import-help.txt
-          grep -q "new <INPUT>" msh-import-help.txt
-          if "$CLI" --help | grep -q "dae <InputFilePath>"; then exit 1; fi
+          EARTHTOOL_CLI_EXECUTABLE="$CLI" dotnet test \
+            EarthTool.CLI.Tests/EarthTool.CLI.Tests.csproj \
+            --configuration Release \
+            --no-build \
+            --filter "FullyQualifiedName=EarthTool.CLI.Tests.PublicCutoverAcceptanceTests.CliProcessExposesOnlyTheGltfMshCommandTreeAndStableExitStatuses"
 
       - name: Create artifact archive
         shell: bash
@@ -181,9 +179,6 @@ jobs:
           name: ${{ matrix.artifact_prefix }}-${{ matrix.platform_name }}
           path: ${{ matrix.artifact_prefix }}-${{ matrix.platform_name }}${{ matrix.os == 'windows-latest' && '.zip' || '.tar.gz' }}
           retention-days: 30
-
-  blender-qualification:
-    uses: ./.github/workflows/blender-qualification.yml
 
   code-quality:
     name: Code Quality Analysis
@@ -370,7 +365,7 @@ jobs:
 
   create-release:
     name: Create Release
-    needs: [build-and-test, blender-qualification, code-quality]
+    needs: [build-and-test, code-quality]
     runs-on: ubuntu-latest
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true')
 

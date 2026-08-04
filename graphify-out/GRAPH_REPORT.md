@@ -1,16 +1,16 @@
 # Graph Report - EarthTool2  (2026-08-04)
 
 ## Corpus Check
-- 363 files · ~298,356 words
+- 363 files · ~298,343 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 4714 nodes · 14296 edges · 182 communities (175 shown, 7 thin omitted)
+- 4714 nodes · 14296 edges · 180 communities (173 shown, 7 thin omitted)
 - Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 973 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `0198517e`
+- Built from commit: `8fcf6ed6`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -122,7 +122,7 @@
 - DestructibleEntity
 - WorkerContext
 - Reader
-- EarthTool.PAR.GUI.Services
+- IUndoRedoService
 - JsonElement
 - GltfCommandExecutor
 - glTF .NET foundation research
@@ -132,7 +132,6 @@
 - WD Archive Commands
 - EarthTool.TEX
 - .LoadPreview
-- .ReadRibbonPreview
 - .GenerateSampleData
 - EarthTool.TEX
 - EarthTool.TEX.Tests
@@ -140,7 +139,6 @@
 - Static Light
 - OfficialCorpusCliOracle
 - Modify An Existing Mesh
-- Missile
 - Base Header
 - IDialogService
 - UnitTest1.cs
@@ -229,7 +227,7 @@
 - **Spatial Coverage Metadata** — docs_msh_static_bytefield_box_presence_mask, docs_msh_static_bytefield_box_heights, docs_msh_static_bytefield_box_flags, docs_msh_static_bytefield_coverage_descriptors, docs_msh_static_bytefield_coverage_bitmaps [INFERRED 0.85]
 - **StaticObject Variable Record Layout** — docs_msh_static_bytefield_staticobject_record, docs_msh_static_bytefield_object_flags, docs_msh_static_bytefield_texture_path, docs_msh_static_bytefield_triangle_array, docs_msh_static_bytefield_baked_tcbscale_vectors, docs_msh_static_bytefield_baked_translation_vectors, docs_msh_static_bytefield_baked_transform_matrices, docs_msh_static_bytefield_animation_type, docs_msh_static_bytefield_object_pivot, docs_msh_static_bytefield_barrel_angle, docs_msh_static_bytefield_next_record_marker [INFERRED 0.85]
 
-## Communities (182 total, 7 thin omitted)
+## Communities (180 total, 7 thin omitted)
 
 ### Community 0 - "blender-qualification.mjs"
 Cohesion: 0.15
@@ -252,8 +250,8 @@ Cohesion: 0.11
 Nodes (15): ILogger, Stream, CompressorService, ILogger, ReadOnlySpan, Stream, DecompressorService, Fact (+7 more)
 
 ### Community 5 - "DynamicGltfDocument"
-Cohesion: 0.09
-Nodes (22): DynamicEffectPreview, float, int, Stream, string, Translation, uint, Vector2 (+14 more)
+Cohesion: 0.10
+Nodes (23): DynamicEditedPreview, DynamicEffectPreview, float, int, ReadOnlySpan, Stream, string, Translation (+15 more)
 
 ### Community 6 - "IReadOnlyList"
 Cohesion: 0.12
@@ -284,8 +282,8 @@ Cohesion: 0.06
 Nodes (35): DynamicAlphaTiming, DynamicEffectType, DynamicMeshAsset, EffectRectangle, IEnumerable, Vector3, CanonicalDynamicAlpha, CanonicalDynamicEffectShape (+27 more)
 
 ### Community 13 - "Vector3"
-Cohesion: 0.08
-Nodes (17): Action, BinaryWriter, float, int, Quaternion, string, Translation, Vector3 (+9 more)
+Cohesion: 0.07
+Nodes (18): Action, BinaryWriter, float, int, MemoryStream, Quaternion, string, Translation (+10 more)
 
 ### Community 14 - "MshV1Decoder"
 Cohesion: 0.16
@@ -408,8 +406,8 @@ Cohesion: 0.11
 Nodes (18): Baked TCBScale Vectors, Baked Transform Matrices, Baked Translation Vectors, Barrel Angle, End of File, Matrix Count, Next-record Heap Pointer Marker, Object Flags (+10 more)
 
 ### Community 46 - "StaticAnimationProjection"
-Cohesion: 0.14
-Nodes (15): AnimationObjectLayout, BinaryWriter, InterchangeBaseline, IReadOnlyList, Matrix4x4, Quaternion, Vector3, AnimationProjectionFingerprint (+7 more)
+Cohesion: 0.15
+Nodes (13): BinaryWriter, InterchangeBaseline, IReadOnlyList, Matrix4x4, Quaternion, Vector3, AnimationProjectionFingerprint, AnimationProjectionSet (+5 more)
 
 ### Community 47 - "EntityDetailsViewModel"
 Cohesion: 0.07
@@ -440,16 +438,16 @@ Cohesion: 0.17
 Nodes (10): ContentFingerprint, BinaryWriter, IEnumerable, IReadOnlyList, Vector3, ContentFingerprint, DiagnosticKey, OfficialCorpusQualification (+2 more)
 
 ### Community 54 - "IReadOnlyList"
-Cohesion: 0.13
-Nodes (20): AnimationLayout, Discarded, PartitionMatch, IReadOnlyList, MemoryStream, NativeProjectionFingerprint, ByteArrayComparer, GeometryPartition (+12 more)
+Cohesion: 0.15
+Nodes (18): AnimationObjectLayout, Discarded, PartitionMatch, IReadOnlyList, NativeProjectionFingerprint, AnimationLayout, ByteArrayComparer, GeometryPartition (+10 more)
 
 ### Community 55 - "IArchive"
 Cohesion: 0.10
 Nodes (12): Type, CommandTypeResolver, DateTime, Encoding, IReadOnlyCollection, IArchive, DateTime, Guid (+4 more)
 
 ### Community 56 - "Entity"
-Cohesion: 0.08
-Nodes (23): EarthTool.PAR.Models.Serialization, EntityGroupType, BinaryReader, IEnumerable, EntityFactory, List, ValidationError, ValidationResult (+15 more)
+Cohesion: 0.07
+Nodes (25): EarthTool.PAR.Models.Serialization, Encoding, IBinarySerializable, EntityGroupType, BinaryReader, IEnumerable, EntityFactory, List (+17 more)
 
 ### Community 57 - "EarthTool.MSH.Tests"
 Cohesion: 0.25
@@ -472,8 +470,8 @@ Cohesion: 0.09
 Nodes (11): EarthTool.PAR.Tests.TestDoubles, EarthTool.PAR.Extensions, EarthTool.PAR.Tests.TestData, EarthTool.PAR.Tests.Services, EarthTool.PAR.Enums, EarthTool.PAR.Models.Abstracts, EarthTool.PAR.Tests.Factories, EarthTool.PAR.Tests.Models (+3 more)
 
 ### Community 63 - "DestructibleEntity"
-Cohesion: 0.05
-Nodes (30): ArtifactType, ExplosionFlags, PassiveMask, StandType, StoreableFlags, WasteSize, Encoding, IEnumerable (+22 more)
+Cohesion: 0.04
+Nodes (38): ArtifactType, DamageFlags, ExplosionFlags, HitType, MissileType, PassiveMask, RocketType, StandType (+30 more)
 
 ### Community 64 - ".ResolveAndLoad"
 Cohesion: 0.44
@@ -513,11 +511,11 @@ Nodes (30): CliFixture, Action, CancellationToken, IEnumerable, int, IServiceCol
 
 ### Community 74 - "InteractableEntity"
 Cohesion: 0.04
-Nodes (38): BarrelBetaType, ConnectorType, LookRoundTypeFlags, RepairerCapabilityFlags, ShadowType, TargetType, WeaponFireType, Encoding (+30 more)
+Nodes (37): BarrelBetaType, LookRoundTypeFlags, RepairerCapabilityFlags, ShadowType, TargetType, WeaponFireType, Encoding, IEnumerable (+29 more)
 
 ### Community 75 - "AuthoringValidation"
-Cohesion: 0.18
-Nodes (4): HashSet, List, AuthoringValidation, Guid
+Cohesion: 0.21
+Nodes (3): HashSet, List, AuthoringValidation
 
 ### Community 76 - ".CreateStatic"
 Cohesion: 0.16
@@ -544,8 +542,8 @@ Cohesion: 0.08
 Nodes (9): AnimationLengths, Fact, JsonDocument, JsonElement, IReadOnlyList, Matrix4x4, Vector3, AnimationLengths (+1 more)
 
 ### Community 82 - "StaticMeshAsset"
-Cohesion: 0.12
-Nodes (12): GltfArtistObjectLocalIds, IEnumerable, InterchangeBaseline, IReadOnlyDictionary, Utf8JsonWriter, GltfPackage, StaticSourceObjectTraversal, StaticMeshAsset (+4 more)
+Cohesion: 0.11
+Nodes (15): AnimationLayout, GltfArtistObjectLocalIds, IEnumerable, InterchangeBaseline, IReadOnlyDictionary, Utf8JsonWriter, GltfPackage, StaticSourceObjectTraversal (+7 more)
 
 ### Community 83 - "Blender 4.5 glTF round-trip research"
 Cohesion: 0.20
@@ -647,9 +645,9 @@ Nodes (10): List, KhronosValidatorServer, ValidatorResult, WorkerContext, IAsync
 Cohesion: 0.32
 Nodes (9): dump(), dump_dynamic_record(), dump_object(), main(), Path, read_base_header(), Reader, rotate_footprint_slot() (+1 more)
 
-### Community 108 - "EarthTool.PAR.GUI.Services"
-Cohesion: 0.05
-Nodes (24): EarthTool.PAR.GUI.Services, Action, DateTime, UndoAction, Action, IEnumerable, IUndoRedoService, Action (+16 more)
+### Community 108 - "IUndoRedoService"
+Cohesion: 0.07
+Nodes (15): Action, DateTime, UndoAction, Action, IEnumerable, IUndoRedoService, Action, IEnumerable (+7 more)
 
 ### Community 109 - "JsonElement"
 Cohesion: 0.09
@@ -687,10 +685,6 @@ Nodes (18): EarthTool.TEX, EarthTool.TEX.Interfaces, EarthTool.CLI.Commands.TEX,
 Cohesion: 0.33
 Nodes (4): PreviewResolution, PreviewResolution, PreviewResolutionKind, TexResolutionBudget
 
-### Community 118 - ".ReadRibbonPreview"
-Cohesion: 0.38
-Nodes (3): DynamicEditedPreview, ReadOnlySpan, DynamicPreviewException
-
 ### Community 119 - ".GenerateSampleData"
 Cohesion: 0.24
 Nodes (4): Fact, MemoryMappedFile, string, MappedArchiveDataSourceTests
@@ -718,10 +712,6 @@ Nodes (13): CliProcessResult, CliReportOperation, IReadOnlyList, JsonElement, st
 ### Community 127 - "Modify An Existing Mesh"
 Cohesion: 0.29
 Nodes (7): 1. Extract and export, 2. Import into Blender, 3. Edit or add geometry, 4. Preview all animation classes, 5. Export from Blender, 6. Import the edit and install it, Modify An Existing Mesh
-
-### Community 128 - "Missile"
-Cohesion: 0.14
-Nodes (8): DamageFlags, HitType, MissileType, RocketType, Encoding, IEnumerable, Missile, Fact
 
 ### Community 129 - "Base Header"
 Cohesion: 0.40
@@ -809,7 +799,7 @@ Nodes (4): CancellationToken, CommandContext, ListCommand, ListSettings
 
 ### Community 158 - "MshCanonicalSerializer"
 Cohesion: 0.10
-Nodes (20): byte, Matrix4x4, Vector3, StaticAnimationTracks, StaticRenderObject, StaticAnimationReplacement, Encoding, IEnumerable (+12 more)
+Nodes (21): byte, Matrix4x4, Vector3, StaticAnimationTracks, StaticRenderObject, StaticAnimationReplacement, Encoding, Guid (+13 more)
 
 ### Community 159 - "QualificationProfiler"
 Cohesion: 0.12
@@ -852,8 +842,8 @@ Cohesion: 0.07
 Nodes (9): Action, Guid, IReadOnlyList, JsonObject, List, Vector3, BlenderOutputEvidence, GltfWalkingSkeletonTests (+1 more)
 
 ### Community 171 - "EarthTool.PAR.GUI.ViewModels"
-Cohesion: 0.06
-Nodes (24): EarthTool.PAR.GUI.ViewModels, EarthTool.PAR.GUI.Models, EarthTool.PAR.GUI.Views, Encoding, IBinarySerializable, Faction, ResearchType, ObservableCollection (+16 more)
+Cohesion: 0.05
+Nodes (31): EarthTool.PAR.GUI.Services, EarthTool.PAR.GUI.ViewModels, EarthTool.PAR.GUI.Models, EarthTool.PAR.GUI.Views, Faction, ResearchType, ObservableCollection, EntityGroupNodeViewModel (+23 more)
 
 ### Community 172 - "Underscore-prefixed custom attributes"
 Cohesion: 0.67
@@ -876,8 +866,8 @@ Cohesion: 0.29
 Nodes (5): object, ObservableCollection, Type, EnumPropertyEditorViewModel, EnumValueViewModel
 
 ### Community 180 - "IReadOnlyList"
-Cohesion: 0.12
-Nodes (17): DynamicAnimationLayout, DynamicAnimationTrack, DynamicImageLayout, DynamicMeshLayout, DynamicObjectScope, BinaryWriter, IEnumerable, InterchangeBaseline (+9 more)
+Cohesion: 0.10
+Nodes (19): DynamicAnimationLayout, DynamicAnimationTrack, DynamicImageLayout, DynamicMeshLayout, DynamicObjectScope, BinaryWriter, IEnumerable, InterchangeBaseline (+11 more)
 
 ### Community 181 - "ArchiveInfoViewModel"
 Cohesion: 0.18
@@ -885,7 +875,7 @@ Nodes (7): DateTime, int, long, string, ArchiveInfoViewModel, ArchiveItemViewMod
 
 ### Community 182 - "EquipableEntity"
 Cohesion: 0.07
-Nodes (18): BuildingExType, BuildingTabType, BuildingType, CopulaAnimationFlags, MaxShieldUpgradeType, PositionType, ResourceInputOutputFlags, SpaceStationType (+10 more)
+Nodes (19): BuildingExType, BuildingTabType, BuildingType, ConnectorType, CopulaAnimationFlags, MaxShieldUpgradeType, PositionType, ResourceInputOutputFlags (+11 more)
 
 ### Community 189 - ".Create"
 Cohesion: 0.07
@@ -912,4 +902,4 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `.Compress` be split into smaller, more focused modules?**
   _Cohesion score 0.10741971207087486 - nodes in this community are weakly interconnected._
 - **Should `DynamicGltfDocument` be split into smaller, more focused modules?**
-  _Cohesion score 0.09098039215686274 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09545454545454546 - nodes in this community are weakly interconnected._

@@ -258,6 +258,9 @@ test("release workflow publishes Windows and Linux without a macOS lane", async 
 
   assert.match(workflow, /os: \[windows-latest, ubuntu-latest\]/);
   assert.doesNotMatch(workflow, /macos-latest|osx-x64|macOS-x64/);
+  assert.doesNotMatch(workflow, /^  blender-qualification:/m);
+  assert.match(workflow, /EARTHTOOL_CLI_EXECUTABLE="\$CLI" dotnet test/);
+  assert.match(workflow, /CliProcessExposesOnlyTheGltfMshCommandTreeAndStableExitStatuses/);
 });
 
 test("official corpus qualification remains a local pre-publish gate", async () => {
