@@ -160,7 +160,7 @@ New-model import creates a static MSH. A material with a base-color image also n
 
 ## Attachment Identifier Cheat Sheet
 
-Attachments are Blender Empty nodes unless the table says **Light**. Keep them inside the model's single rooted object tree. Most are direct children of its root; matching turret and emitter helpers use the hierarchy described below. Canonical names are case-sensitive and identify the physical MSH target. The legacy code is the name used by the original AOD converter and game research.
+Attachments are Blender Empty nodes unless the table says **Light**. Keep them inside the model's single rooted object tree. Most are direct children of its root; emitter helpers use the marker-attachment hierarchy described below. Canonical names are case-sensitive and identify the physical MSH target. The legacy code is the name used by the original AOD converter and game research.
 
 | Physical records | Blender identifier(s) | Legacy ID | Purpose |
 |---:|---|---|---|
@@ -183,7 +183,7 @@ Attachments are Blender Empty nodes unless the table says **Light**. Keep them i
 | `48` | `ET_ProductionSpotEnd_1` | `MV1` | Movement and placement position and heading, paired with production. |
 | `49` | `ET_LandingSpot_1` | `LN1` | Landing and placement position plus heading. |
 
-When object flag `MarkerAttachment1` (`MI1`, `0x00001000`), `MarkerAttachment2` (`MI2`, `0x00002000`), `MarkerAttachment3` (`MI3`, `0x00004000`), or `MarkerAttachment4` (`MI4`, `0x00008000`) is present and both matching helpers are active, export places `ET_Emitter_n` under `ET_Turret_n`. The emitter transform is relative to the turret, so moving the turret in Blender carries its emitter. If the marker flag, turret, or emitter is missing, export preserves any active emitter under the model root and reports `ETG1027` rather than dropping it. A marker flag without an active emitter also reports `ETG1027`.
+When a source object contains a render object carrying flag `MarkerAttachment1` (`MI1`, `0x00001000`), `MarkerAttachment2` (`MI2`, `0x00002000`), `MarkerAttachment3` (`MI3`, `0x00004000`), or `MarkerAttachment4` (`MI4`, `0x00008000`), export places `ET_Emitter_n` under that source object. The emitter transform is relative to the flagged object's source object, so moving the source object in Blender carries its emitter. If no unique source object contains a render object carrying the matching flag, export preserves an active emitter under the model root and reports `ETG1027` rather than guessing. A marker flag without an active emitter also reports `ETG1027`.
 
 ### Directional Empty Presentation In Blender
 
@@ -216,7 +216,7 @@ This changes only the Blender viewport presentation; it does not add glTF or MSH
 - The file is GLB or separate glTF 2.0 and has one intended scene.
 - Existing edits still contain their `earthtool` custom properties.
 - New objects have no copied EarthTool object or mesh identity.
-- Attachment helper names match the table exactly and helpers have no mesh. Only matching `ET_Turret_n` helpers may have an `ET_Emitter_n` child.
+- Attachment helper names match the table exactly and helpers have no mesh. An `ET_Emitter_n` may be a child of the source object containing a render object carrying `MarkerAttachmentN`.
 - The scene is 24 FPS; animation names and frame limits follow the animation section above.
 - Geometry is triangular, finite, and has normals; textured primitives have UVs.
 - Blender export includes Extras, Attributes, Lights, and Animations.

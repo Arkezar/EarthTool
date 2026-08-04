@@ -3011,18 +3011,19 @@ namespace EarthTool.GLTF
         })
         .ToArray();
       var edit = asset.Edit();
-      ReconcileBaseHeaderArtistObjects(
-        parsed,
-        nodes.Select(node => (node.Parsed, node.Metadata)).ToArray(),
-        lights.Select(light => (light.Parsed, light.Metadata)).ToArray(),
-        asset,
-        reconciliationBaseline,
-        edit);
       var hierarchy = ReconcileHierarchy(
         parsed,
         nodes.Select(node => (node.Parsed, node.Metadata)).ToArray(),
         meshes.Select(mesh => (mesh.Parsed, mesh.Metadata)).ToArray(),
         asset,
+        reconciliationBaseline,
+        edit);
+      ReconcileBaseHeaderArtistObjects(
+        parsed,
+        nodes.Select(node => (node.Parsed, node.Metadata)).ToArray(),
+        lights.Select(light => (light.Parsed, light.Metadata)).ToArray(),
+        asset,
+        hierarchy.Root,
         reconciliationBaseline,
         edit);
       try
@@ -4532,10 +4533,10 @@ namespace EarthTool.GLTF
       IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
       IReadOnlyList<(ParsedGltfLight Parsed, MetadataEnvelope? Metadata)> lights,
       StaticMeshAsset asset,
+      StaticSourceObject hierarchyRoot,
       InterchangeBaseline expected,
       StaticMeshEditSession edit)
     {
-      var transforms = CreateArtistObjectTransforms(parsed.RootNodeIndex, nodes);
       var attachmentCandidates = new Dictionary<int, List<int>>();
       var cannonCandidates = new Dictionary<int, List<int>>();
       for (var nodeIndex = 0; nodeIndex < nodes.Count; nodeIndex++)
@@ -4571,17 +4572,43 @@ namespace EarthTool.GLTF
       {
         throw ArtistObjectConflict("A physical helper target is occupied by more than one artist object.");
       }
+      var parentIndices = CreateParentIndices(nodes);
+      var sourceParentedEmitters = new HashSet<int>();
+      foreach (var candidate in attachmentCandidates.Where(item => item.Key is >= 5 and <= 8))
+      {
+        var markerSources = GlbDocument.GetMarkerAttachmentSourceObjects(
+          asset,
+          candidate.Key - 4,
+          hierarchyRoot);
+        var expectedParent = markerSources.Count == 1 ? markerSources[0] : hierarchyRoot;
+        var nodeIndex = candidate.Value[0];
+        var parentIndex = parentIndices[nodeIndex];
+        if (parentIndex < 0
+          || !nodes[parentIndex].Parsed.MeshIndex.HasValue
+          || nodes[parentIndex].Metadata?.LocalId != expectedParent.Id.Value)
+        {
+          throw new UnsupportedGltfDomainException("EmitterMarkerHierarchy");
+        }
+        if (markerSources.Count == 1)
+        {
+          sourceParentedEmitters.Add(nodeIndex);
+        }
+      }
+      var transforms = CreateArtistObjectTransforms(parsed.RootNodeIndex, nodes)
+        .ToDictionary(item => item.Key, item => item.Value);
+      foreach (var nodeIndex in sourceParentedEmitters)
+      {
+        transforms[nodeIndex] = CreateEffectiveNodeTransform(
+          nodeIndex,
+          parsed.RootNodeIndex,
+          parentIndices,
+          nodes);
+      }
       foreach (var candidate in attachmentCandidates.Concat(cannonCandidates))
       {
         var node = nodes[candidate.Value[0]].Parsed;
-        var hasSupportedEmitterChild = candidate.Key is >= 1 and <= 4
-          && node.Children.Count == 1
-          && GlbDocument.HasMarkerAttachment(asset, candidate.Key)
-          && attachmentCandidates.TryGetValue(candidate.Key + 4, out var emitterCandidates)
-          && emitterCandidates.Count == 1
-          && node.Children[0] == emitterCandidates[0];
         if (node.MeshIndex.HasValue
-          || node.Children.Count != 0 && !hasSupportedEmitterChild
+          || node.Children.Count != 0
           || !transforms.ContainsKey(candidate.Value[0]))
         {
           throw new UnsupportedGltfDomainException("AttachmentOrCannonArtistObject");
@@ -5466,7 +5493,59 @@ namespace EarthTool.GLTF
     {
       var node = nodes[nodeIndex];
       var effective = node.Parsed.LocalTransform * inheritedTransform;
-      var isArtistObject = explicitArtistObjects.Contains(nodeIndex)
+      var isArtistObject = IsArtistObject(nodeIndex, node, explicitArtistObjects);
+      if (isArtistObject)
+      {
+        result.Add(nodeIndex, effective);
+        return;
+      }
+      var childInherited = node.Parsed.MeshIndex.HasValue ? Matrix4x4.Identity : effective;
+      foreach (var child in node.Parsed.Children)
+      {
+        AddArtistObjectTransforms(child, childInherited, nodes, result, explicitArtistObjects);
+      }
+    }
+
+    private static int[] CreateParentIndices(
+      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes)
+    {
+      var result = Enumerable.Repeat(-1, nodes.Count).ToArray();
+      for (var parentIndex = 0; parentIndex < nodes.Count; parentIndex++)
+      {
+        foreach (var childIndex in nodes[parentIndex].Parsed.Children)
+        {
+          result[childIndex] = parentIndex;
+        }
+      }
+      return result;
+    }
+
+    private static Matrix4x4 CreateEffectiveNodeTransform(
+      int nodeIndex,
+      int rootNodeIndex,
+      IReadOnlyList<int> parentIndices,
+      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes)
+    {
+      var result = Matrix4x4.Identity;
+      var current = nodeIndex;
+      while (current >= 0)
+      {
+        result *= nodes[current].Parsed.LocalTransform;
+        if (current == rootNodeIndex)
+        {
+          return result;
+        }
+        current = parentIndices[current];
+      }
+      throw new UnsupportedGltfDomainException("EmitterMarkerHierarchy");
+    }
+
+    private static bool IsArtistObject(
+      int nodeIndex,
+      (ParsedGltfNode Parsed, MetadataEnvelope? Metadata) node,
+      ISet<int> explicitArtistObjects)
+    {
+      return explicitArtistObjects.Contains(nodeIndex)
         || node.Metadata?.AttachmentRecord is not null
         || node.Metadata?.CannonRenderPositionRecord is not null
         || node.Metadata?.StaticLightAttachmentRecord is not null
@@ -5475,17 +5554,6 @@ namespace EarthTool.GLTF
             || GlbDocument.TryParseCannonHelperName(node.Parsed.Name, out _)
             || node.Parsed.LightIndex.HasValue
               && GlbDocument.TryParseStaticLightHelperName(node.Parsed.Name, out _, out _));
-      if (isArtistObject)
-      {
-        result.Add(nodeIndex, effective);
-      }
-      var childInherited = node.Parsed.MeshIndex.HasValue && !isArtistObject
-        ? Matrix4x4.Identity
-        : effective;
-      foreach (var child in node.Parsed.Children)
-      {
-        AddArtistObjectTransforms(child, childInherited, nodes, result, explicitArtistObjects);
-      }
     }
 
     private static byte[] CreateAttachmentRecord(Matrix4x4 transform, byte extra)
@@ -6660,9 +6728,9 @@ namespace EarthTool.GLTF
       for (var number = 1; number <= 4; number++)
       {
         var emitterPhysicalNumber = number + 4;
-        var (turretActive, emitterActive, markerPresent) =
+        var (emitterActive, markerObjectCount) =
           GlbDocument.GetEmitterHierarchyState(asset, number);
-        if (!emitterActive && !markerPresent)
+        if (!emitterActive && markerObjectCount == 0)
         {
           continue;
         }
@@ -6674,13 +6742,13 @@ namespace EarthTool.GLTF
         }
         else
         {
-          if (!markerPresent)
+          if (markerObjectCount == 0)
           {
-            missing.Add("markerFlag");
+            missing.Add("markerObject");
           }
-          if (!turretActive)
+          else if (markerObjectCount > 1)
           {
-            missing.Add("turret");
+            missing.Add("uniqueMarkerObject");
           }
         }
         if (missing.Count == 0)
@@ -6694,11 +6762,13 @@ namespace EarthTool.GLTF
           DiagnosticSeverity.Warning,
           $"CommonBaseHeader.AttachmentTable[{emitterPhysicalNumber}]",
           emitterActive
-            ? "The emitter helper remains under the root because its turret hierarchy is incomplete."
-            : "A marker attachment flag has no corresponding emitter helper.",
+            ? "The emitter helper remains under the root because it has no unique marker-attachment source object."
+            : "A marker-attachment source object has no corresponding emitter helper.",
           data: new Dictionary<string, string>
           {
             ["number"] = number.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["markerObjectCount"] = markerObjectCount.ToString(
+              System.Globalization.CultureInfo.InvariantCulture),
             ["missing"] = string.Join(",", missing)
           }));
       }

@@ -2765,17 +2765,16 @@ namespace EarthTool.GLTF.Internal
       var attachments = ProjectAttachments(asset);
       var cannons = ProjectCannons(asset);
       var staticLights = ProjectStaticLights(asset);
-      var turretsByNumber = cannons.ToDictionary(cannon => cannon.PhysicalNumber);
-      var nestedEmitterNumbers = Enumerable.Range(1, 4)
-        .Where(number => GetEmitterHierarchyState(asset, number) is (true, true, true))
-        .ToHashSet();
-      var parentedEmitters = attachments
-        .Where(attachment => attachment.PhysicalNumber is >= 5 and <= 8
-          && turretsByNumber.ContainsKey(attachment.PhysicalNumber - 4)
-          && nestedEmitterNumbers.Contains(attachment.PhysicalNumber - 4))
-        .ToDictionary(
-          attachment => attachment.PhysicalNumber,
-          attachment => turretsByNumber[attachment.PhysicalNumber - 4]);
+      var parentedEmitters = Enumerable.Range(1, 4)
+        .Select(number => new
+        {
+          PhysicalNumber = number + 4,
+          Sources = GetMarkerAttachmentSourceObjects(asset, number)
+        })
+        .Where(item => item.Sources.Count == 1
+          && attachments.Any(attachment => attachment.PhysicalNumber == item.PhysicalNumber))
+        .ToDictionary(item => item.PhysicalNumber, item => item.Sources[0]);
+      var sourceObjectTransforms = CreateSourceObjectTransforms(rootSourceObject, layouts);
       var placementRootIndex = sources.Length
         + attachments.Count
         + cannons.Count
@@ -2898,7 +2897,11 @@ namespace EarthTool.GLTF.Internal
             writer.WriteEndArray();
           }
           var isRoot = source.Id.Equals(rootSourceObject.Id);
-          if (source.Children.Count > 0 || isRoot && (attachments.Count > 0
+          var emitterChildren = parentedEmitters
+            .Where(item => item.Value.Id.Equals(source.Id))
+            .Select(item => attachmentNodeIndices[item.Key])
+            .ToArray();
+          if (source.Children.Count > 0 || emitterChildren.Length > 0 || isRoot && (attachments.Count > 0
             || cannons.Count > 0
             || staticLights.Count > 0))
           {
@@ -2906,6 +2909,10 @@ namespace EarthTool.GLTF.Internal
             foreach (var child in source.Children)
             {
               writer.WriteNumberValue(nodeIndices[child.Id]);
+            }
+            foreach (var emitterChild in emitterChildren)
+            {
+              writer.WriteNumberValue(emitterChild);
             }
             if (isRoot)
             {
@@ -2941,9 +2948,9 @@ namespace EarthTool.GLTF.Internal
         {
           writer.WriteStartObject();
           writer.WriteString("name", GetAttachmentHelperName(attachment.PhysicalNumber));
-          if (parentedEmitters.TryGetValue(attachment.PhysicalNumber, out var turret))
+          if (parentedEmitters.TryGetValue(attachment.PhysicalNumber, out var sourceObject))
           {
-            var relative = CreateRelativeTransform(attachment, turret);
+            var relative = CreateRelativeTransform(attachment, sourceObjectTransforms[sourceObject.Id]);
             WriteTransform(writer, relative.Translation, relative.Rotation);
           }
           else
@@ -2958,13 +2965,6 @@ namespace EarthTool.GLTF.Internal
           writer.WriteStartObject();
           writer.WriteString("name", GetCannonHelperName(cannon.PhysicalNumber));
           WriteTransform(writer, cannon.Translation, cannon.Rotation);
-          var emitterPhysicalNumber = cannon.PhysicalNumber + 4;
-          if (parentedEmitters.ContainsKey(emitterPhysicalNumber))
-          {
-            writer.WriteStartArray("children");
-            writer.WriteNumberValue(attachmentNodeIndices[emitterPhysicalNumber]);
-            writer.WriteEndArray();
-          }
           WriteExtras(writer, CreateCannonMetadata(baseline, cannon, unknownMetadata));
           writer.WriteEndObject();
         }
@@ -4655,9 +4655,9 @@ namespace EarthTool.GLTF.Internal
       return new Vector3(value.X, value.Z, -value.Y);
     }
 
-    internal static bool HasMarkerAttachment(StaticMeshAsset asset, int number)
+    internal static StaticRenderObjectFlags GetMarkerAttachmentFlag(int number)
     {
-      var flag = number switch
+      return number switch
       {
         1 => StaticRenderObjectFlags.MarkerAttachment1,
         2 => StaticRenderObjectFlags.MarkerAttachment2,
@@ -4665,11 +4665,23 @@ namespace EarthTool.GLTF.Internal
         4 => StaticRenderObjectFlags.MarkerAttachment4,
         _ => throw new ArgumentOutOfRangeException(nameof(number))
       };
-      return asset.StaticRenderObjectSequence.Any(renderObject =>
-        (renderObject.KnownFlags & flag) != 0);
     }
 
-    internal static (bool TurretActive, bool EmitterActive, bool MarkerPresent)
+    internal static IReadOnlyList<StaticSourceObject> GetMarkerAttachmentSourceObjects(
+      StaticMeshAsset asset,
+      int number,
+      StaticSourceObject? root = null)
+    {
+      var flag = GetMarkerAttachmentFlag(number);
+      var renderObjects = asset.StaticRenderObjectSequence.ToDictionary(renderObject => renderObject.Id);
+      return StaticSourceObjectTraversal.Flatten(root ?? asset.RootSourceObject)
+        .Where(source => source.StaticRenderObjectIds.Any(id =>
+          renderObjects.TryGetValue(id, out var renderObject)
+          && (renderObject.KnownFlags & flag) != 0))
+        .ToArray();
+    }
+
+    internal static (bool EmitterActive, int MarkerObjectCount)
       GetEmitterHierarchyState(StaticMeshAsset asset, int number)
     {
       if (number is < 1 or > 4)
@@ -4677,22 +4689,18 @@ namespace EarthTool.GLTF.Internal
         throw new ArgumentOutOfRangeException(nameof(number));
       }
       var attachments = asset.CommonBaseHeader.AttachmentTable.ToArray();
-      var turretActive = BinaryPrimitives.ReadInt16LittleEndian(
-        attachments.AsSpan((number - 1) * 8, 8)) != short.MinValue;
       var emitterActive = BinaryPrimitives.ReadInt16LittleEndian(
         attachments.AsSpan((number + 3) * 8, 8)) != short.MinValue;
-      return (turretActive, emitterActive, HasMarkerAttachment(asset, number));
+      return (emitterActive, GetMarkerAttachmentSourceObjects(asset, number).Count);
     }
 
     private static (Vector3 Translation, Quaternion Rotation) CreateRelativeTransform(
       ProjectedAttachment emitter,
-      ProjectedCannon turret)
+      Matrix4x4 parentTransform)
     {
-      var turretTransform = Matrix4x4.CreateFromQuaternion(turret.Rotation)
-        * Matrix4x4.CreateTranslation(turret.Translation);
-      if (!Matrix4x4.Invert(turretTransform, out var inverseTurret))
+      if (!Matrix4x4.Invert(parentTransform, out var inverseParent))
       {
-        throw new InvalidOperationException("A turret helper transform must be invertible.");
+        throw new InvalidOperationException("An attachment parent transform must be invertible.");
       }
 
       var targetTranslation = emitter.Translation;
@@ -4706,7 +4714,7 @@ namespace EarthTool.GLTF.Internal
         var emitterTransform = Matrix4x4.CreateFromQuaternion(emitter.Rotation)
           * Matrix4x4.CreateTranslation(targetTranslation);
         if (Matrix4x4.Decompose(
-            emitterTransform * inverseTurret,
+            emitterTransform * inverseParent,
             out _,
             out var rotation,
             out var translation))
@@ -4714,14 +4722,38 @@ namespace EarthTool.GLTF.Internal
           var normalizedRotation = Quaternion.Normalize(rotation);
           var effective = Matrix4x4.CreateFromQuaternion(normalizedRotation)
             * Matrix4x4.CreateTranslation(translation)
-            * turretTransform;
+            * parentTransform;
           if (QuantizesToAttachment(effective.Translation, emitter.Record))
           {
             return (translation, normalizedRotation);
           }
         }
       }
-      throw new InvalidOperationException("An emitter helper transform could not preserve its attachment record.");
+      throw new InvalidOperationException("An attachment child transform could not preserve its record.");
+    }
+
+    private static IReadOnlyDictionary<SourceObjectId, Matrix4x4> CreateSourceObjectTransforms(
+      StaticSourceObject root,
+      IReadOnlyDictionary<StaticRenderObjectId, PartitionLayout> layouts)
+    {
+      var result = new Dictionary<SourceObjectId, Matrix4x4>();
+      AddSourceObjectTransforms(root, Matrix4x4.Identity, layouts, result);
+      return result;
+    }
+
+    private static void AddSourceObjectTransforms(
+      StaticSourceObject source,
+      Matrix4x4 parentTransform,
+      IReadOnlyDictionary<StaticRenderObjectId, PartitionLayout> layouts,
+      IDictionary<SourceObjectId, Matrix4x4> result)
+    {
+      var pivot = layouts[source.StaticRenderObjectIds[0]].Partition.RenderObject.Pivot;
+      var effective = Matrix4x4.CreateTranslation(ProjectToGltf(pivot)) * parentTransform;
+      result.Add(source.Id, effective);
+      foreach (var child in source.Children)
+      {
+        AddSourceObjectTransforms(child, effective, layouts, result);
+      }
     }
 
     private static float MoveInsideTruncationBin(float value)

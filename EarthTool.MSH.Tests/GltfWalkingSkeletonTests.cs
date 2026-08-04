@@ -856,7 +856,7 @@ public class GltfWalkingSkeletonTests
   [InlineData(2, 0x00002000)]
   [InlineData(3, 0x00004000)]
   [InlineData(4, 0x00008000)]
-  public async Task MatchingMarkerParentsEmitterUnderTurretAndRoundTripsExactRecords(
+  public async Task MatchingMarkerParentsEmitterUnderFlaggedSourceObjectAndRoundTripsExactRecords(
     int number,
     int markerFlag)
   {
@@ -883,14 +883,14 @@ public class GltfWalkingSkeletonTests
     using (var json = ReadGlbJson(glb.ToArray()))
     {
       var nodes = json.RootElement.GetProperty("nodes").EnumerateArray().ToArray();
-      var turretIndex = Array.FindIndex(nodes,
-        node => node.GetProperty("name").GetString() == $"ET_Turret_{number}");
+      var sourceObjectIndex = Array.FindIndex(nodes,
+        node => node.TryGetProperty("mesh", out _));
       var emitterIndex = Array.FindIndex(nodes,
         node => node.GetProperty("name").GetString() == $"ET_Emitter_{number}");
 
-      turretIndex.Should().BeGreaterThanOrEqualTo(0);
+      sourceObjectIndex.Should().BeGreaterThanOrEqualTo(0);
       emitterIndex.Should().BeGreaterThanOrEqualTo(0);
-      FindParentIndex(nodes, emitterIndex).Should().Be(turretIndex);
+      FindParentIndex(nodes, emitterIndex).Should().Be(sourceObjectIndex);
     }
 
     glb.Position = 0;
@@ -904,7 +904,136 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
-  public async Task TurretTranslationEditCarriesItsEmitter()
+  public async Task NestedFlaggedSourceWithNonzeroPivotsOwnsEmitterAndRoundTripsExactly()
+  {
+    var vertices = new[]
+    {
+      new CanonicalStaticVertex(Vector3.Zero, Vector3.UnitZ, Vector2.Zero),
+      new CanonicalStaticVertex(Vector3.UnitX, Vector3.UnitZ, Vector2.UnitX),
+      new CanonicalStaticVertex(Vector3.UnitY, Vector3.UnitZ, Vector2.UnitY)
+    };
+    var renderObject = new CanonicalStaticRenderObject(
+      vertices,
+      [new CanonicalTriangle(0, 1, 2)]);
+    var build = StaticMeshBuilder.Create(
+        OneTriangleMshFixture.CreationGuid,
+        new MeshAssetLineageId(LineageId))
+      .SetRootSourceObject(new CanonicalStaticSourceObject(
+        [renderObject],
+        [new CanonicalStaticSourceObject(
+          [renderObject],
+          role: new CanonicalStaticObjectRole(StaticRenderObjectFlags.MarkerAttachment1))]))
+      .Build();
+    build.TryGetValue(out var builtAsset).Should().BeTrue();
+    await using var msh = new MemoryStream();
+    var write = await new MshWriter().WriteAsync(builtAsset!, msh);
+    write.Status.Should().Be(OperationStatus.Succeeded);
+    var sourceBytes = msh.ToArray();
+    var firstRecordOffset = 0x380;
+    var secondRecordOffset = firstRecordOffset
+      + builtAsset!.StaticRenderObjectSequence[0].GetSerializedRepresentation().Length;
+    WriteVector3(sourceBytes, firstRecordOffset
+      + builtAsset.StaticRenderObjectSequence[0].GetSerializedRepresentation().Length - 17,
+      new Vector3(2, 3, 4));
+    WriteVector3(sourceBytes, secondRecordOffset
+      + builtAsset.StaticRenderObjectSequence[1].GetSerializedRepresentation().Length - 17,
+      new Vector3(5, 6, 7));
+    var attachmentOffset = 0x14 + AttachmentAndCannonMshFixture.AttachmentTableOffset + (4 * 8);
+    BinaryPrimitives.WriteInt16LittleEndian(sourceBytes.AsSpan(attachmentOffset), 2560);
+    BinaryPrimitives.WriteInt16LittleEndian(sourceBytes.AsSpan(attachmentOffset + 2), -2816);
+    BinaryPrimitives.WriteInt16LittleEndian(sourceBytes.AsSpan(attachmentOffset + 4), 3072);
+    sourceBytes[attachmentOffset + 6] = 64;
+    sourceBytes[attachmentOffset + 7] = 0x80;
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+
+    export.Status.Should().Be(OperationStatus.Succeeded);
+    using (var json = ReadGlbJson(glb.ToArray()))
+    {
+      var nodes = json.RootElement.GetProperty("nodes").EnumerateArray().ToArray();
+      var emitterIndex = Array.FindIndex(nodes,
+        node => node.GetProperty("name").GetString() == "ET_Emitter_1");
+      var emitterParent = FindParentIndex(nodes, emitterIndex);
+      var rootSource = nodes.Select((node, index) => (node, index))
+        .Where(item => item.node.TryGetProperty("mesh", out _))
+        .Single(item => !nodes[FindParentIndex(nodes, item.index)].TryGetProperty("mesh", out _)).index;
+
+      nodes[emitterParent].TryGetProperty("mesh", out _).Should().BeTrue();
+      emitterParent.Should().NotBe(rootSource);
+    }
+
+    glb.Position = 0;
+    var import = await interchange.ImportEditGlbAsync(glb, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    import.Value!.Asset.GetSerializedRepresentation().Should().Equal(sourceBytes);
+  }
+
+  [Fact]
+  public async Task DuplicateMarkerSourcesKeepEmitterAtRootAndWarn()
+  {
+    var vertices = new[]
+    {
+      new CanonicalStaticVertex(Vector3.Zero, Vector3.UnitZ, Vector2.Zero),
+      new CanonicalStaticVertex(Vector3.UnitX, Vector3.UnitZ, Vector2.UnitX),
+      new CanonicalStaticVertex(Vector3.UnitY, Vector3.UnitZ, Vector2.UnitY)
+    };
+    var renderObject = new CanonicalStaticRenderObject(
+      vertices,
+      [new CanonicalTriangle(0, 1, 2)]);
+    var markerRole = new CanonicalStaticObjectRole(StaticRenderObjectFlags.MarkerAttachment1);
+    var build = StaticMeshBuilder.Create(
+        OneTriangleMshFixture.CreationGuid,
+        new MeshAssetLineageId(LineageId))
+      .SetRootSourceObject(new CanonicalStaticSourceObject(
+        [renderObject],
+        [new CanonicalStaticSourceObject([renderObject], role: markerRole)],
+        markerRole))
+      .Build();
+    build.TryGetValue(out var builtAsset).Should().BeTrue();
+    await using var msh = new MemoryStream();
+    var write = await new MshWriter().WriteAsync(builtAsset!, msh);
+    write.Status.Should().Be(OperationStatus.Succeeded);
+    var sourceBytes = msh.ToArray();
+    var attachmentOffset = 0x14 + AttachmentAndCannonMshFixture.AttachmentTableOffset + (4 * 8);
+    BinaryPrimitives.WriteInt16LittleEndian(sourceBytes.AsSpan(attachmentOffset), 256);
+    BinaryPrimitives.WriteInt16LittleEndian(sourceBytes.AsSpan(attachmentOffset + 2), -512);
+    BinaryPrimitives.WriteInt16LittleEndian(sourceBytes.AsSpan(attachmentOffset + 4), 768);
+    sourceBytes[attachmentOffset + 7] = 0x80;
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+
+    var export = await new GltfInterchange().ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+
+    export.Status.Should().Be(OperationStatus.Succeeded);
+    export.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.EmitterHierarchyFallback
+      && diagnostic.Data["missing"] == "uniqueMarkerObject"
+      && diagnostic.Data["markerObjectCount"] == "2");
+    using var json = ReadGlbJson(glb.ToArray());
+    var nodes = json.RootElement.GetProperty("nodes").EnumerateArray().ToArray();
+    var emitterIndex = Array.FindIndex(nodes,
+      node => node.GetProperty("name").GetString() == "ET_Emitter_1");
+    var emitterParent = FindParentIndex(nodes, emitterIndex);
+    var rootSource = nodes.Select((node, index) => (node, index))
+      .Where(item => item.node.TryGetProperty("mesh", out _))
+      .Single(item => !nodes[FindParentIndex(nodes, item.index)].TryGetProperty("mesh", out _)).index;
+    emitterParent.Should().Be(rootSource);
+  }
+
+  [Fact]
+  public async Task TurretTranslationEditDoesNotCarryEmitter()
   {
     var sourceBytes = AttachmentAndCannonMshFixture.Create(
       new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
@@ -938,9 +1067,43 @@ public class GltfWalkingSkeletonTests
     BinaryPrimitives.ReadInt16LittleEndian(
       AttachmentAndCannonMshFixture.GetAttachment(result, 1)).Should().Be(512);
     BinaryPrimitives.ReadInt16LittleEndian(
-      AttachmentAndCannonMshFixture.GetAttachment(result, 5)).Should().Be(1280);
+      AttachmentAndCannonMshFixture.GetAttachment(result, 5)).Should().Be(1024);
     BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(
       AttachmentAndCannonMshFixture.GetCannonRenderPosition(result, 1))).Should().Be(2);
+  }
+
+  [Fact]
+  public async Task FlaggedSourceObjectTranslationCarriesItsEmitter()
+  {
+    var sourceBytes = AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [5] = new(1024, -1280, 1536, 192, 0xA0)
+      },
+      objectFlags: (uint)StaticRenderObjectFlags.MarkerAttachment1);
+    var asset = await ReadAssetAsync(sourceBytes);
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      var sourceObject = root["nodes"]!.AsArray().Single(node =>
+        node!.AsObject().ContainsKey("mesh"))!.AsObject();
+      sourceObject["translation"] = new JsonArray(1, 0, 0);
+    });
+
+    await using var input = new MemoryStream(edited);
+    var import = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    import.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", import.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    BinaryPrimitives.ReadInt16LittleEndian(AttachmentAndCannonMshFixture.GetAttachment(
+      import.Value!.Asset.GetSerializedRepresentation().ToArray(),
+      5)).Should().Be(1280);
   }
 
   [Fact]
@@ -1019,7 +1182,7 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
-  public async Task EmitterWithoutMarkerOrTurretStaysAtRootAndWarns()
+  public async Task EmitterWithoutMarkerObjectStaysAtRootAndWarns()
   {
     var asset = await ReadAssetAsync(AttachmentAndCannonMshFixture.Create(
       new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
@@ -1037,7 +1200,7 @@ public class GltfWalkingSkeletonTests
     export.Diagnostics.Should().ContainSingle(diagnostic =>
       diagnostic.Code == GltfDiagnosticCodes.EmitterHierarchyFallback
       && diagnostic.Path == "CommonBaseHeader.AttachmentTable[5]"
-      && diagnostic.Data["missing"] == "markerFlag,turret");
+      && diagnostic.Data["missing"] == "markerObject");
     using var json = ReadGlbJson(glb.ToArray());
     var nodes = json.RootElement.GetProperty("nodes").EnumerateArray().ToArray();
     var emitterIndex = Array.FindIndex(nodes,
@@ -1047,7 +1210,7 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
-  public async Task MarkedEmitterWithoutTurretStaysAtRootAndWarns()
+  public async Task MarkedEmitterDoesNotRequireTurretParent()
   {
     var asset = await ReadAssetAsync(AttachmentAndCannonMshFixture.Create(
       new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
@@ -1063,10 +1226,8 @@ public class GltfWalkingSkeletonTests
       new GltfExportOptions(LineageId, DocumentId));
 
     export.Status.Should().Be(OperationStatus.Succeeded);
-    export.Diagnostics.Should().ContainSingle(diagnostic =>
-      diagnostic.Code == GltfDiagnosticCodes.EmitterHierarchyFallback
-      && diagnostic.Path == "CommonBaseHeader.AttachmentTable[6]"
-      && diagnostic.Data["missing"] == "turret");
+    export.Diagnostics.Should().NotContain(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.EmitterHierarchyFallback);
     using var json = ReadGlbJson(glb.ToArray());
     var nodes = json.RootElement.GetProperty("nodes").EnumerateArray().ToArray();
     var emitterIndex = Array.FindIndex(nodes,
@@ -1142,7 +1303,59 @@ public class GltfWalkingSkeletonTests
       diagnostic.Code == GltfDiagnosticCodes.UnsupportedDomain
       && diagnostic.Data.Contains(new KeyValuePair<string, string>(
         "domain",
-        "AttachmentOrCannonArtistObject")));
+        "EmitterMarkerHierarchy")));
+  }
+
+  [Fact]
+  public async Task MarkedEmitterCannotBeReparentedAwayFromFlaggedSourceObject()
+  {
+    var asset = await ReadAssetAsync(AttachmentAndCannonMshFixture.Create(
+      new Dictionary<int, AttachmentAndCannonMshFixture.AttachmentRecord>
+      {
+        [1] = new(256, -512, 768, 64, 0x80),
+        [5] = new(1024, -1280, 1536, 192, 0x80)
+      },
+      new Dictionary<int, Vector3> { [1] = new(1, -2, 3) },
+      (uint)StaticRenderObjectFlags.MarkerAttachment1));
+    await using var glb = new MemoryStream();
+    var interchange = new GltfInterchange();
+    var export = await interchange.ExportGlbAsync(
+      asset,
+      glb,
+      new GltfExportOptions(LineageId, DocumentId));
+    var edited = RewriteJson(glb.ToArray(), root =>
+    {
+      var nodes = root["nodes"]!.AsArray();
+      var turretIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["name"]!.GetValue<string>() == "ET_Turret_1").index;
+      var emitterIndex = nodes.Select((node, index) => (node, index)).Single(item =>
+        item.node!["name"]!.GetValue<string>() == "ET_Emitter_1").index;
+      foreach (var node in nodes.OfType<JsonObject>())
+      {
+        if (node["children"] is not JsonArray children)
+        {
+          continue;
+        }
+        for (var index = children.Count - 1; index >= 0; index--)
+        {
+          if (children[index]!.GetValue<int>() == emitterIndex)
+          {
+            children.RemoveAt(index);
+          }
+        }
+      }
+      nodes[turretIndex]!["children"] = new JsonArray(emitterIndex);
+    });
+
+    await using var input = new MemoryStream(edited);
+    var import = await interchange.ImportEditGlbAsync(input, export.Value!.Baseline);
+
+    import.Status.Should().Be(OperationStatus.Failed);
+    import.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.UnsupportedDomain
+      && diagnostic.Data.Contains(new KeyValuePair<string, string>(
+        "domain",
+        "EmitterMarkerHierarchy")));
   }
 
   [Fact]
@@ -6822,6 +7035,19 @@ public class GltfWalkingSkeletonTests
       }
     }
     return -1;
+  }
+
+  private static void WriteVector3(byte[] bytes, int offset, Vector3 value)
+  {
+    BinaryPrimitives.WriteInt32LittleEndian(
+      bytes.AsSpan(offset),
+      BitConverter.SingleToInt32Bits(value.X));
+    BinaryPrimitives.WriteInt32LittleEndian(
+      bytes.AsSpan(offset + 4),
+      BitConverter.SingleToInt32Bits(value.Y));
+    BinaryPrimitives.WriteInt32LittleEndian(
+      bytes.AsSpan(offset + 8),
+      BitConverter.SingleToInt32Bits(value.Z));
   }
 
   private static void RemoveArtistHelperNodes(JsonObject root)
