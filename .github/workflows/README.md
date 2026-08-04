@@ -289,8 +289,9 @@ If you're currently using `cli-ci.yml`, `cli-release.yml`, `gui-ci.yml`, or `gui
 4. **Reference issues** in commit messages (#123)
 5. **Test on dev branch** before releasing
 6. **Use preview builds** for validation
-7. **Create releases** from stable main/master branch
-8. **Review release notes** before publishing
+7. **Run the local pre-publish qualification** with the private official MSH corpus
+8. **Create releases** from stable main/master branch only after qualification passes
+9. **Review release notes** before publishing
 
 ## Support
 

@@ -3,14 +3,14 @@
 `gltf-validator` is pinned here as the independent package oracle used by the
 MSH/glTF contract tests.
 
-## Aggregate release qualification
+## Local pre-publish qualification
 
-The maintainer release gate is Linux x64 only and must start from a clean Git
-worktree. It requires the private official MSH corpus, resolves and runs every
-Blender lane, runs the complete reproducible test and approval contract, packs
-and consumes the public libraries, publishes all Linux release applications,
-and checks the GLTF-present and DAE-absent package, repository, CLI,
-documentation, migration, and artifact boundary.
+The maintainer must run this local Linux x64 gate before pushing a release tag.
+It must start from a clean Git worktree and requires the private official MSH
+corpus. It resolves and runs every Blender lane, runs the complete reproducible
+test and approval contract, packs and consumes the public libraries, publishes
+all Linux release applications, and checks the GLTF-present and DAE-absent
+package, repository, CLI, documentation, migration, and artifact boundary.
 
 Installations, validator failures, missing corpus data, failed tests, incomplete
 test discovery, unapproved snapshots, missing artifacts, and omitted Blender or
@@ -23,6 +23,9 @@ EARTHTOOL_OFFICIAL_MSH_CORPUS=/absolute/private/corpus \
   --workers 4 \
   --evidence artifacts/release-qualification-v1.json
 ```
+
+The tag-triggered GitHub release workflow handles public builds and publishing
+only. It does not access the private corpus or run corpus qualification.
 
 Use `--blender-cache /absolute/cache` to control where the exact official
 Blender archives and installations are retained. The report records the commit,

@@ -25,7 +25,6 @@ on:
       - "GitVersion.yml"
       - ".github/workflows/ci-unified.yml"
       - ".github/workflows/blender-qualification.yml"
-      - ".github/workflows/official-msh-corpus-qualification.yml"
   pull_request:
     branches: [main, master, dev]
     paths:
@@ -50,7 +49,6 @@ on:
       - "GitVersion.yml"
       - ".github/workflows/ci-unified.yml"
       - ".github/workflows/blender-qualification.yml"
-      - ".github/workflows/official-msh-corpus-qualification.yml"
   workflow_dispatch:
 
 env:
@@ -137,7 +135,6 @@ jobs:
               - 'GitVersion.yml'
               - '.github/workflows/ci-unified.yml'
               - '.github/workflows/blender-qualification.yml'
-              - '.github/workflows/official-msh-corpus-qualification.yml'
 
   msh-gltf-contract:
     name: MSH/glTF contract (${{ matrix.os }})

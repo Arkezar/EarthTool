@@ -259,3 +259,12 @@ test("release workflow publishes Windows and Linux without a macOS lane", async 
   assert.match(workflow, /os: \[windows-latest, ubuntu-latest\]/);
   assert.doesNotMatch(workflow, /macos-latest|osx-x64|macOS-x64/);
 });
+
+test("official corpus qualification remains a local pre-publish gate", async () => {
+  const workflow = await readFile(
+    new URL("../.github/workflows/release.yml", import.meta.url),
+    "utf8");
+
+  assert.equal(requiredGates.at(-1), "official-corpus");
+  assert.doesNotMatch(workflow, /official-msh-corpus-qualification|OFFICIAL_MSH_CORPUS_ROOT/);
+});
