@@ -1480,17 +1480,17 @@
     "semantic_hash": ""
   },
   "EarthTool.GLTF/GltfContracts.cs": {
-    "mtime": 1785839062.3456047,
-    "ast_hash": "1044c85a31f9b1cb66e8687cb740bf9f",
+    "mtime": 1785843814.2393687,
+    "ast_hash": "6855799b4031d89aea14b337266274bc",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/GltfInterchange.cs": {
-    "mtime": 1785843300.504889,
-    "ast_hash": "149ad09d6820bcd143439db015665141",
+    "mtime": 1785844353.0749896,
+    "ast_hash": "a33700be562b30a9c168c68b9f4efded",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/GlbDocument.cs": {
-    "mtime": 1785840881.416836,
+    "mtime": 1785844601.817002,
     "ast_hash": "ed7ac7430c8c72dc59ad770e5c1a9324",
     "semantic_hash": ""
   },
@@ -1505,8 +1505,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/GltfWalkingSkeletonTests.cs": {
-    "mtime": 1785843319.4975722,
-    "ast_hash": "ce52bff2d445c9c8e8f292cd03e155fd",
+    "mtime": 1785844461.0569048,
+    "ast_hash": "46c077b44bda82f21dbf747e11538db6",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/OneTriangleMshFixture.cs": {
@@ -1570,8 +1570,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/Approvals/gltf.approved.txt": {
-    "mtime": 1785838149.1049588,
-    "ast_hash": "c54ec104c04a56286fcafbd99d326e08",
+    "mtime": 1785844040.8006315,
+    "ast_hash": "2a0ce8ed268cbeb317bc9994b0655f5f",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/Approvals/msh.approved.txt": {
