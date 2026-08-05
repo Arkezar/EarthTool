@@ -52,10 +52,6 @@ _Avoid_: Earth mesh, model file
 A nonserialized classification of how an immutable mesh asset was constructed: loaded from accepted bytes, canonically authored, or created from an expert-supplied exact representation. It does not change serialized authority.
 _Avoid_: Source provenance, file origin
 
-**Mesh asset identity state**:
-The nonserialized asset lineage and lineage-local identities assigned to a mesh asset. A static mesh asset includes identities for its static render-object sequence and source object tree plus the next allocatable identities; a dynamic mesh asset carries only its lineage. Identity state is not inferred from serialized representations and does not affect serialization.
-_Avoid_: Serialized identity, glTF index identity, reconstruction metadata
-
 **Static mesh asset**:
 A mesh asset whose mesh kind is `Static` and whose payload is an authoritative static render-object sequence plus its reconstructed source object tree.
 _Avoid_: Static payload, static model
@@ -325,7 +321,7 @@ The combination of one asset-lineage UUID, a supported metadata scope kind, and 
 _Avoid_: Node index identity, name identity, content-derived identity
 
 **Interchange document identity**:
-A random UUID shared by the manifest and every local envelope from one EarthTool-emitted metadata baseline. Stock Blender preserves it through edits and exports; EarthTool rotates it after successful reconciliation. It is distinct from the longer-lived asset lineage and source provenance, so an older or sibling baseline is an explicit branch rather than an interchangeable metadata source.
+A random UUID shared by the manifest and every local envelope from one EarthTool-emitted metadata baseline. Stock Blender preserves it through changes and exports; EarthTool rotates it when emitting the next baseline after metadata-backed asset creation. It is distinct from the longer-lived interchange lineage and source provenance; an older or sibling baseline remains a valid self-contained input but its envelopes cannot be mixed with another baseline.
 _Avoid_: Lineage alias, source hash identity
 
 **Native projection fingerprint**:
@@ -337,27 +333,27 @@ An MSH meaning fully and unambiguously evidenced by artist-visible glTF state. R
 _Avoid_: Metadata-backed value, preserved semantic
 
 **Projection-bound authoring semantic**:
-An MSH meaning intentionally exposed through a native glTF property by EarthTool despite no general format-level equivalence. That property is authoring evidence only within a matching EarthTool edit projection, not in metadata-free glTF.
+An MSH meaning intentionally exposed through a native glTF property by EarthTool despite no general format-level equivalence. That property is authoring evidence only within its matching EarthTool native projection, not in metadata-free glTF.
 _Avoid_: Core glTF semantic, generic inference
 
 **Typed authoring input**:
-An explicit new-model value for a semantic that artist-visible glTF does not evidence safely. It cannot replace a canonical authoring identifier or contradict a reconstructable authoring semantic.
+An explicit metadata-free asset-creation value for a semantic that artist-visible glTF does not evidence safely. It cannot replace a canonical authoring identifier or contradict a reconstructable authoring semantic.
 _Avoid_: Metadata override, inference override
 
 **Metadata conflict**:
-A condition in a claimed EarthTool interchange lineage where expected preservation state cannot be applied safely, such as a stale non-derivable dependency, missing expected envelope, duplicate scope identity, foreign lineage, malformed envelope, or unsupported schema version. It blocks MSH creation until explicitly resolved; a glTF asset with no EarthTool manifest is instead a new-model input.
-_Avoid_: Metadata warning, silent canonical fallback
+A condition in a claimed EarthTool interchange lineage where preservation state cannot be applied safely, such as a stale non-derivable dependency, missing expected envelope, duplicate scope identity, foreign lineage, malformed envelope, or unsupported schema version. The claimed preservation state is discarded and asset creation uses canonical authored defaults with a warning rather than applying metadata partially.
+_Avoid_: Partial metadata application, silent canonical fallback
 
-**Edit import**:
-Import of artist-edited glTF into a specific expected EarthTool interchange lineage. It requires a valid matching metadata manifest, so loss of all custom properties cannot be mistaken for a new asset.
-_Avoid_: Metadata auto-detection
+**Metadata-backed asset creation**:
+Creation of a new immutable mesh asset from glTF carrying a self-consistent EarthTool metadata manifest whose local envelopes agree on interchange lineage and document identity. Applicable preserved MSH representations are reused while artist-visible glTF state remains authoritative; no externally supplied expected baseline is required.
+_Avoid_: MSH edit, metadata override
 
-**New-model import**:
-Import of glTF that is intentionally outside an existing EarthTool interchange lineage and therefore receives canonical authored MSH defaults. A claimed lineage must be explicitly discarded or adopted before using this path.
-_Avoid_: Metadata fallback, failed edit import
+**Metadata-free asset creation**:
+Creation of a new immutable mesh asset from glTF with no EarthTool metadata manifest. It receives canonical authored MSH defaults and emits a warning because intentional new authoring cannot be distinguished from complete metadata loss.
+_Avoid_: Silent canonical fallback, failed metadata-backed creation
 
 **Attachment artist object**:
-The artist-facing interchange representation of one runtime-available attachment record. Its interchange scope identity remains stable across edits, while its required canonical artist identifier authors the current physical attachment number and its presence and pose expose activity, position, and heading. Active cannon and light attachments use their corresponding compound artist objects instead.
+The artist-facing interchange representation of one runtime-available attachment record. Its interchange scope identity remains stable across metadata-backed asset creation, while its required canonical artist identifier authors the current physical attachment number and its presence and pose expose activity, position, and heading. Active cannon and light attachments use their corresponding compound artist objects instead.
 _Avoid_: Metadata-owned target, physical-number identity
 
 **Cannon artist object**:
@@ -365,7 +361,7 @@ The compound artist-facing representation of one active cannon slot, combining i
 _Avoid_: Separate cannon attachment, separate render-position helper
 
 **Static-light artist object**:
-The artist-facing interchange representation that combines one active spot or omni light with its independently serialized light attachment. An unchanged object preserves both source positions; editing its pose deliberately regenerates both representations.
+The artist-facing interchange representation that combines one active spot or omni light with its independently serialized light attachment. An unchanged object preserves both source positions; changing its pose deliberately regenerates both representations.
 _Avoid_: Light vector, separate light-attachment helper
 
 **Emitter marker ownership**:

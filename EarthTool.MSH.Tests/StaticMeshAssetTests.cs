@@ -24,7 +24,8 @@ public class StaticMeshAssetTests
     result.Status.Should().Be(OperationStatus.Succeeded);
     var asset = result.Value.Should().BeOfType<StaticMeshAsset>().Subject;
     asset.StaticRenderObjectSequence.Should().ContainSingle();
-    asset.RootSourceObject.StaticRenderObjectIds.Should()
+    asset
+      .RootSourceObject.StaticRenderObjectIds.Should()
       .Equal(asset.StaticRenderObjectSequence[0].Id);
     asset.RootSourceObject.Children.Should().BeEmpty();
     asset.StoredTrailingHierarchyUnwindCount.Should().Be(1);
@@ -40,20 +41,49 @@ public class StaticMeshAssetTests
 
     result.Status.Should().Be(OperationStatus.Succeeded);
     var asset = result.Value.Should().BeOfType<StaticMeshAsset>().Subject;
-    asset.StaticRenderObjectSequence
-      .Select(item => Encoding.ASCII.GetString(item.TexturePathBytes.ToArray())).Should().Equal(
+    asset
+      .StaticRenderObjectSequence.Select(item =>
+        Encoding.ASCII.GetString(item.TexturePathBytes.ToArray())
+      )
+      .Should()
+      .Equal(
         "Textures\\root-a.tex",
         "Textures\\barrel.tex",
         "Textures\\root-b.tex",
-        "Textures\\rotor.tex");
-    asset.RootSourceObject.StaticRenderObjectIds.Should().Equal(
-      asset.StaticRenderObjectSequence[0].Id,
-      asset.StaticRenderObjectSequence[2].Id);
+        "Textures\\rotor.tex"
+      );
+    asset
+      .RootSourceObject.StaticRenderObjectIds.Should()
+      .Equal(asset.StaticRenderObjectSequence[0].Id, asset.StaticRenderObjectSequence[2].Id);
     asset.RootSourceObject.Children.Should().HaveCount(2);
-    asset.RootSourceObject.Children[0].StaticRenderObjectIds.Should()
+    asset
+      .RootSourceObject.Children[0]
+      .StaticRenderObjectIds.Should()
       .Equal(asset.StaticRenderObjectSequence[1].Id);
-    asset.RootSourceObject.Children[1].StaticRenderObjectIds.Should()
+    asset
+      .RootSourceObject.Children[1]
+      .StaticRenderObjectIds.Should()
       .Equal(asset.StaticRenderObjectSequence[3].Id);
+    asset
+      .RootSourceObject.StaticRenderObjects[0]
+      .Should()
+      .BeSameAs(asset.StaticRenderObjectSequence[0]);
+    asset
+      .RootSourceObject.StaticRenderObjects[1]
+      .Should()
+      .BeSameAs(asset.StaticRenderObjectSequence[2]);
+    asset
+      .RootSourceObject.Children[0]
+      .StaticRenderObjects.Should()
+      .ContainSingle()
+      .Subject.Should()
+      .BeSameAs(asset.StaticRenderObjectSequence[1]);
+    asset
+      .RootSourceObject.Children[1]
+      .StaticRenderObjects.Should()
+      .ContainSingle()
+      .Subject.Should()
+      .BeSameAs(asset.StaticRenderObjectSequence[3]);
     asset.StoredTrailingHierarchyUnwindCount.Should().Be(2);
     asset.ExpectedTrailingHierarchyUnwindCount.Should().Be(2);
 
@@ -66,10 +96,19 @@ public class StaticMeshAssetTests
     barrel.RenderVertices[0].ReservedTextureComponent.Should().Be(0.25f);
     barrel.VertexBlockPadding.Should().Contain(0x5A);
     barrel.AnimationTracks.ScaleFrames.Should().ContainSingle().Subject.Should().Be(Vector3.One);
-    barrel.AnimationTracks.TranslationFrames.Should().ContainSingle().Subject
-      .Should().Be(new Vector3(10, 20, 30));
-    barrel.AnimationTracks.Matrices.Should().ContainSingle().Subject.Should().Be(Matrix4x4.Identity);
-    asset.StaticRenderObjectSequence.Select(item => item.NextRecordMarker).Should()
+    barrel
+      .AnimationTracks.TranslationFrames.Should()
+      .ContainSingle()
+      .Subject.Should()
+      .Be(new Vector3(10, 20, 30));
+    barrel
+      .AnimationTracks.Matrices.Should()
+      .ContainSingle()
+      .Subject.Should()
+      .Be(Matrix4x4.Identity);
+    asset
+      .StaticRenderObjectSequence.Select(item => item.NextRecordMarker)
+      .Should()
       .Equal(0xDEADBEEFu, 2u, 3u, 0u);
 
     await using var destination = new MemoryStream();
@@ -85,28 +124,39 @@ public class StaticMeshAssetTests
       [RenderObject()],
       [
         new CanonicalStaticSourceObject([RenderObject(), RenderObject()]),
-        new CanonicalStaticSourceObject([RenderObject()])
-      ]);
-    var build = StaticMeshBuilder.Create(
+        new CanonicalStaticSourceObject([RenderObject()]),
+      ]
+    );
+    var build = StaticMeshBuilder
+      .Create(
         new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
-        new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555")))
+        new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"))
+      )
       .SetRootSourceObject(root)
       .Build();
 
     build.TryGetValue(out var asset).Should().BeTrue();
     asset!.StaticRenderObjectSequence.Should().HaveCount(4);
-    asset.StaticRenderObjectSequence.Select(item => item.HierarchyUnwindCount).Should().Equal(0, 0, 0, 1);
-    asset.StaticRenderObjectSequence.Select(item => item.KnownFlags
-      .HasFlag(StaticRenderObjectFlags.BeginsNestedSourceObject)).Should()
+    asset
+      .StaticRenderObjectSequence.Select(item => item.HierarchyUnwindCount)
+      .Should()
+      .Equal(0, 0, 0, 1);
+    asset
+      .StaticRenderObjectSequence.Select(item =>
+        item.KnownFlags.HasFlag(StaticRenderObjectFlags.BeginsNestedSourceObject)
+      )
+      .Should()
       .Equal(false, true, false, true);
-    asset.StaticRenderObjectSequence.Select(item => item.NextRecordMarker).Should().Equal(1, 1, 1, 0);
+    asset
+      .StaticRenderObjectSequence.Select(item => item.NextRecordMarker)
+      .Should()
+      .Equal(1, 1, 1, 0);
     asset.StoredTrailingHierarchyUnwindCount.Should().Be(2);
     asset.ExpectedTrailingHierarchyUnwindCount.Should().Be(2);
 
     var first = await WriteAsync(asset);
-    var secondBuild = StaticMeshBuilder.Create(
-        new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
-        asset.LineageId)
+    var secondBuild = StaticMeshBuilder
+      .Create(new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"), asset.LineageId)
       .SetRootSourceObject(root)
       .Build();
     secondBuild.TryGetValue(out var second).Should().BeTrue();
@@ -126,7 +176,8 @@ public class StaticMeshAssetTests
     {
       BinaryPrimitives.WriteUInt32LittleEndian(
         fixture.Data.AsSpan(fixture.RecordOffsets[0] + 8 + 0xA0),
-        1);
+        1
+      );
     }
     else if (mutation == "trailing")
     {
@@ -136,13 +187,15 @@ public class StaticMeshAssetTests
     {
       BinaryPrimitives.WriteUInt16LittleEndian(
         fixture.Data.AsSpan(fixture.RecordOffsets[0] + 8 + 0x90),
-        0);
+        0
+      );
     }
     else if (mutation == "position-sharing")
     {
       BinaryPrimitives.WriteUInt16LittleEndian(
         fixture.Data.AsSpan(fixture.RecordOffsets[0] + 8 + 0x98),
-        0);
+        0
+      );
     }
     else
     {
@@ -156,7 +209,11 @@ public class StaticMeshAssetTests
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
-    result.Diagnostics.Should().ContainSingle().Subject.Code.Should().Be(MshDiagnosticCodes.StructuralHazard);
+    result
+      .Diagnostics.Should()
+      .ContainSingle()
+      .Subject.Code.Should()
+      .Be(MshDiagnosticCodes.StructuralHazard);
   }
 
   [Fact]
@@ -171,7 +228,7 @@ public class StaticMeshAssetTests
       new MshOperationProfile(maxStaticVertexBlocksPerObject: 0),
       new MshOperationProfile(maxStaticAnimationFramesPerTrack: 0),
       new MshOperationProfile(maxStaticTexturePathBytes: 0),
-      new MshOperationProfile(maxStaticHierarchyDepth: 1)
+      new MshOperationProfile(maxStaticHierarchyDepth: 1),
     };
 
     foreach (var profile in profiles)
@@ -181,7 +238,10 @@ public class StaticMeshAssetTests
 
       result.Status.Should().Be(OperationStatus.Failed);
       result.Value.Should().BeNull();
-      result.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+      result
+        .Diagnostics.Should()
+        .ContainSingle()
+        .Subject.Code.Should()
         .Be(MshDiagnosticCodes.ResourceLimitExceeded);
     }
   }
@@ -192,24 +252,27 @@ public class StaticMeshAssetTests
     var fixture = StaticMeshSequenceFixture.CreateInterleaved();
     var build = EarthTool.MSH.Expert.MshExpert.CreateStatic(
       fixture.Data,
-      new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555")));
+      new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"))
+    );
     build.TryGetValue(out var source).Should().BeTrue();
     var retainedIds = source!.StaticRenderObjectSequence.Select(item => item.Id).ToArray();
     var retainedSourceIds = SourceIds(source.RootSourceObject).ToArray();
     var replacement = source.StaticRenderObjectSequence[1];
 
-    var edit = source.Edit()
-      .ReplaceGeometry(replacement.Id, Vertices(), Triangles())
-      .Commit();
+    var edit = source.Edit().ReplaceGeometry(replacement.Id, Vertices(), Triangles()).Commit();
 
     edit.TryGetValue(out var edited).Should().BeTrue();
     edited!.StaticRenderObjectSequence.Select(item => item.Id).Should().Equal(retainedIds);
     SourceIds(edited.RootSourceObject).Should().Equal(retainedSourceIds);
-    edited.StaticRenderObjectSequence.Select(item => item.SourceObjectId).Should()
+    edited
+      .StaticRenderObjectSequence.Select(item => item.SourceObjectId)
+      .Should()
       .Equal(source.StaticRenderObjectSequence.Select(item => item.SourceObjectId));
-    edit.Preservation.Changes.Should().Contain(change =>
-      change.FieldPath == "StaticRenderObjectSequence[1].Id"
-      && change.Disposition == PreservationDisposition.Retained);
+    edit.Preservation.Changes.Should()
+      .Contain(change =>
+        change.FieldPath == "StaticRenderObjectSequence[1].Id"
+        && change.Disposition == PreservationDisposition.Retained
+      );
   }
 
   [Fact]
@@ -218,32 +281,39 @@ public class StaticMeshAssetTests
     var fixture = StaticMeshSequenceFixture.CreateInterleaved();
     var build = EarthTool.MSH.Expert.MshExpert.CreateStatic(
       fixture.Data,
-      new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555")));
+      new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"))
+    );
     build.TryGetValue(out var source).Should().BeTrue();
-    var vertices = Vertices().Append(
-      new CanonicalStaticVertex(Vector3.One, Vector3.UnitZ, Vector2.One));
+    var vertices = Vertices()
+      .Append(new CanonicalStaticVertex(Vector3.One, Vector3.UnitZ, Vector2.One));
 
-    var edit = source!.Edit()
+    var edit = source!
+      .Edit()
       .ReplaceGeometry(source.StaticRenderObjectSequence[0].Id, vertices, Triangles())
       .Commit();
 
     edit.TryGetValue(out var edited).Should().BeTrue();
-    edited!.StaticRenderObjectSequence[1].RenderVertices[0].NormalSharingIndex.Should()
+    edited!
+      .StaticRenderObjectSequence[1]
+      .RenderVertices[0]
+      .NormalSharingIndex.Should()
       .Be(ushort.MaxValue);
-    edit.Preservation.Changes.Should().Contain(change =>
-      change.FieldPath == "StaticRenderObjectSequence[1].RenderVertices[0].NormalSharingIndex"
-      && change.Disposition == PreservationDisposition.Canonicalized);
+    edit.Preservation.Changes.Should()
+      .Contain(change =>
+        change.FieldPath == "StaticRenderObjectSequence[1].RenderVertices[0].NormalSharingIndex"
+        && change.Disposition == PreservationDisposition.Canonicalized
+      );
   }
 
   [Fact]
   public void PartitionDeletionRebasesLaterLinkToRetainedTopology()
   {
     var lineage = new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"));
-    var build = StaticMeshBuilder.Create(
-        new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
-        lineage)
-      .SetRootSourceObject(new CanonicalStaticSourceObject(
-        [RenderObject(), RenderObject(), RenderObject()]))
+    var build = StaticMeshBuilder
+      .Create(new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"), lineage)
+      .SetRootSourceObject(
+        new CanonicalStaticSourceObject([RenderObject(), RenderObject(), RenderObject()])
+      )
       .Build();
     build.TryGetValue(out var canonical).Should().BeTrue();
     var bytes = canonical!.GetSerializedRepresentation();
@@ -251,48 +321,59 @@ public class StaticMeshAssetTests
     const int canonicalRecordLength = 0xDD;
     BinaryPrimitives.WriteUInt16LittleEndian(
       bytes.AsSpan(firstRecordOffset + (2 * canonicalRecordLength) + 8 + 0x90),
-      3);
+      3
+    );
     var expert = EarthTool.MSH.Expert.MshExpert.CreateStatic(bytes, lineage);
     expert.TryGetValue(out var source).Should().BeTrue();
 
-    var edit = source!.Edit()
-      .RemoveRenderObject(source.StaticRenderObjectSequence[0].Id)
-      .Commit();
+    var edit = source!.Edit().RemoveRenderObject(source.StaticRenderObjectSequence[0].Id).Commit();
 
     edit.TryGetValue(out var edited).Should().BeTrue();
     edited!.StaticRenderObjectSequence[1].RenderVertices[0].NormalSharingIndex.Should().Be(0);
-    edit.Preservation.Changes.Should().Contain(change =>
-      change.FieldPath == "StaticRenderObjectSequence[1].RenderVertices[0].NormalSharingIndex"
-      && change.Disposition == PreservationDisposition.Regenerated);
+    edit.Preservation.Changes.Should()
+      .Contain(change =>
+        change.FieldPath == "StaticRenderObjectSequence[1].RenderVertices[0].NormalSharingIndex"
+        && change.Disposition == PreservationDisposition.Regenerated
+      );
   }
 
   [Fact]
   public void PartitionDeletionTransfersNestedSourceHierarchyMarker()
   {
-    var build = StaticMeshBuilder.Create(
+    var build = StaticMeshBuilder
+      .Create(
         new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
-        new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555")))
-      .SetRootSourceObject(new CanonicalStaticSourceObject(
-        [RenderObject()],
-        [new CanonicalStaticSourceObject([RenderObject(), RenderObject()])]))
+        new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"))
+      )
+      .SetRootSourceObject(
+        new CanonicalStaticSourceObject(
+          [RenderObject()],
+          [new CanonicalStaticSourceObject([RenderObject(), RenderObject()])]
+        )
+      )
       .Build();
     build.TryGetValue(out var source).Should().BeTrue();
     var retainedChildId = source!.StaticRenderObjectSequence[2].Id;
 
-    var edit = source.Edit()
-      .RemoveRenderObject(source.StaticRenderObjectSequence[1].Id)
-      .Commit();
+    var edit = source.Edit().RemoveRenderObject(source.StaticRenderObjectSequence[1].Id).Commit();
 
     edit.TryGetValue(out var edited).Should().BeTrue();
     edited!.StaticRenderObjectSequence.Should().HaveCount(2);
     edited.StaticRenderObjectSequence[1].Id.Should().Be(retainedChildId);
-    edited.StaticRenderObjectSequence[1].KnownFlags.Should()
+    edited
+      .StaticRenderObjectSequence[1]
+      .KnownFlags.Should()
       .HaveFlag(StaticRenderObjectFlags.BeginsNestedSourceObject);
-    edited.RootSourceObject.Children.Should().ContainSingle().Subject.StaticRenderObjectIds.Should()
+    edited
+      .RootSourceObject.Children.Should()
+      .ContainSingle()
+      .Subject.StaticRenderObjectIds.Should()
       .Equal(retainedChildId);
-    edit.Preservation.Changes.Should().Contain(change =>
-      change.FieldPath == "StaticRenderObjectSequence[1].ObjectFlags"
-      && change.Disposition == PreservationDisposition.Regenerated);
+    edit.Preservation.Changes.Should()
+      .Contain(change =>
+        change.FieldPath == "StaticRenderObjectSequence[1].ObjectFlags"
+        && change.Disposition == PreservationDisposition.Regenerated
+      );
   }
 
   [Fact]
@@ -301,10 +382,10 @@ public class StaticMeshAssetTests
     var decoded = MshV1Decoder.Decode(
       StaticMeshSequenceFixture.CreateSingle().Data,
       MshOperationProfile.Default,
-      CancellationToken.None);
+      CancellationToken.None
+    );
     var decodedAsset = (StaticMeshAsset)decoded.Asset;
-    var lineage = new MeshAssetLineageId(
-      new Guid("11111111-2222-3333-4444-555555555555"));
+    var lineage = new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"));
     var source = MeshAssetRebinder.RebindStatic(
       decodedAsset,
       MeshAssetOrigin.Loaded,
@@ -313,36 +394,44 @@ public class StaticMeshAssetTests
         [new StaticRenderObjectId(lineage, int.MaxValue)],
         [new SourceObjectId(lineage, 1)],
         null,
-        2));
+        2
+      )
+    );
     var session = source.Edit();
 
-    Action add = () => session.AddRenderObject(
-      source.RootSourceObjectId,
-      Vertices(),
-      Triangles());
+    Action add = () => session.AddRenderObject(source.RootSourceObjectId, Vertices(), Triangles());
 
     add.Should().Throw<InvalidOperationException>();
-    source.StaticRenderObjectSequence.Should().ContainSingle()
-      .Subject.LocalId.Should().Be(int.MaxValue);
+    source
+      .StaticRenderObjectSequence.Should()
+      .ContainSingle()
+      .Subject.LocalId.Should()
+      .Be(int.MaxValue);
   }
 
   [Fact]
   public void CanonicalBuilderReturnsFailuresForLaterTriangleAndVertexBlockLimit()
   {
-    var invalidTriangle = StaticMeshBuilder.Create()
-      .SetRenderObject(
-        Vertices(),
-        [new CanonicalTriangle(0, 1, 2), new CanonicalTriangle(0, 1, 3)])
+    var invalidTriangle = StaticMeshBuilder
+      .Create()
+      .SetRenderObject(Vertices(), [new CanonicalTriangle(0, 1, 2), new CanonicalTriangle(0, 1, 3)])
       .Build();
-    var blockLimited = StaticMeshBuilder.Create()
+    var blockLimited = StaticMeshBuilder
+      .Create()
       .SetRenderObject(Vertices(), Triangles())
       .Build(new MshOperationProfile(maxStaticVertexBlocksPerObject: 0));
 
     invalidTriangle.TryGetValue(out _).Should().BeFalse();
-    invalidTriangle.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+    invalidTriangle
+      .Diagnostics.Should()
+      .ContainSingle()
+      .Subject.Code.Should()
       .Be(MshDiagnosticCodes.InvalidAuthoringInput);
     blockLimited.TryGetValue(out _).Should().BeFalse();
-    blockLimited.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+    blockLimited
+      .Diagnostics.Should()
+      .ContainSingle()
+      .Subject.Code.Should()
       .Be(MshDiagnosticCodes.ResourceLimitExceeded);
   }
 
@@ -352,13 +441,16 @@ public class StaticMeshAssetTests
     var fixture = StaticMeshSequenceFixture.CreateInterleaved();
     var build = EarthTool.MSH.Expert.MshExpert.CreateStatic(
       fixture.Data,
-      new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555")));
+      new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"))
+    );
     build.TryGetValue(out var source).Should().BeTrue();
 
     var edit = source!.Edit().Commit(new MshOperationProfile(maxStaticRenderObjects: 3));
 
     edit.TryGetValue(out _).Should().BeFalse();
-    edit.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+    edit.Diagnostics.Should()
+      .ContainSingle()
+      .Subject.Code.Should()
       .Be(MshDiagnosticCodes.ResourceLimitExceeded);
   }
 
@@ -373,7 +465,7 @@ public class StaticMeshAssetTests
     [
       new CanonicalStaticVertex(Vector3.Zero, Vector3.UnitZ, Vector2.Zero),
       new CanonicalStaticVertex(Vector3.UnitX, Vector3.UnitZ, Vector2.UnitX),
-      new CanonicalStaticVertex(Vector3.UnitY, Vector3.UnitZ, Vector2.UnitY)
+      new CanonicalStaticVertex(Vector3.UnitY, Vector3.UnitZ, Vector2.UnitY),
     ];
   }
 

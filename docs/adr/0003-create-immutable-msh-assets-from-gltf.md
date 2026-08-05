@@ -1,0 +1,3 @@
+# Create immutable MSH assets from glTF
+
+EarthTool.MSH is an immutable conversion substrate: its public interface reads, canonically authors, validates, and writes mesh assets, while EarthTool.GLTF creates each output asset from glTF and automatically applies valid EarthTool metadata. Missing or conflicting metadata is discarded in full and creation uses canonical authored defaults with a warning; we will not expose mesh edit sessions, and will remove MSH asset lineage and object identity types while keeping interchange identity and preservation reporting owned by EarthTool.GLTF. `GltfInterchange` exposes one creation interface through stream and file entry points, returning only the immutable mesh asset and its preservation report inside the operation result.

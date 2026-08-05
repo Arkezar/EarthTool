@@ -1335,8 +1335,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1785879306.2772858,
-    "ast_hash": "f872c5c4c2ed3c9029ab4142872990e7",
+    "mtime": 1785953004.7910578,
+    "ast_hash": "ec9de068faa1276de3fc04d366f649c6",
     "semantic_hash": ""
   },
   "CONTRIBUTING.md": {
@@ -1480,8 +1480,8 @@
     "semantic_hash": ""
   },
   "EarthTool.GLTF/GltfInterchange.cs": {
-    "mtime": 1785929500.5933986,
-    "ast_hash": "f47727d12c5accc3ce9e5f9183957155",
+    "mtime": 1785930802.574693,
+    "ast_hash": "d7f00da134eece5c6610eaf0046fc99e",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/GlbDocument.cs": {
@@ -1515,13 +1515,13 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH/Assets/StaticMeshAsset.cs": {
-    "mtime": 1785929832.7514708,
-    "ast_hash": "3fb05f3007c844ab136bb990998226ad",
+    "mtime": 1785954487.212536,
+    "ast_hash": "6dab43aededc1b9ae28947b3be4238de",
     "semantic_hash": ""
   },
   "EarthTool.MSH/Internal/MshV1Decoder.cs": {
-    "mtime": 1785929888.8826814,
-    "ast_hash": "eaec2fbfda01d4e75ca5f41b636f0cc6",
+    "mtime": 1785930802.573693,
+    "ast_hash": "1b008a8d94e284a7e5f5eae4b8b60eed",
     "semantic_hash": ""
   },
   "EarthTool.MSH/Internal/TransactionalFileSystem.cs": {
@@ -1570,8 +1570,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/Approvals/msh.approved.txt": {
-    "mtime": 1785787472.1309733,
-    "ast_hash": "a816ebe5c57145f83d258f5d14e3f0b1",
+    "mtime": 1785954527.6711078,
+    "ast_hash": "64ae17afd2a20e118369ff2de11e600b",
     "semantic_hash": ""
   },
   "docs/api/gltf.md": {
@@ -1585,23 +1585,23 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/CanonicalMeshAuthoringTests.cs": {
-    "mtime": 1785787472.1309733,
-    "ast_hash": "23b7bb8f91e2ddb0bdf627ad5e6f435d",
+    "mtime": 1785954409.7595305,
+    "ast_hash": "1305df3f5a5a2f8987e4015d46fefb92",
     "semantic_hash": ""
   },
   "EarthTool.MSH/Authoring/MeshAssetAuthoring.cs": {
-    "mtime": 1785927188.2365437,
-    "ast_hash": "0c742e611d68da9ad1c158d416e69df8",
+    "mtime": 1785954354.2613797,
+    "ast_hash": "29144c8b20a7b52422ea5b2f36f6a1de",
     "semantic_hash": ""
   },
   "EarthTool.MSH/Expert/MshExpert.cs": {
-    "mtime": 1785927188.2365437,
-    "ast_hash": "55068273ea4dd137c22d786d911b665b",
+    "mtime": 1785954375.9592202,
+    "ast_hash": "2e41b63477a740057e7b99c86038da35",
     "semantic_hash": ""
   },
   "EarthTool.MSH/Internal/MshCanonicalSerializer.cs": {
-    "mtime": 1785929905.6423414,
-    "ast_hash": "543c365c3bdf851dbac3fd94edae7d13",
+    "mtime": 1785930802.5726929,
+    "ast_hash": "0fae85feab3304fdbbf19041d49ca49e",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/Approvals/msh-canonical-dynamic.approved.sha256.txt": {
@@ -1615,8 +1615,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/DynamicMeshAssetTests.cs": {
-    "mtime": 1785929740.4218354,
-    "ast_hash": "aa3e71c912d036439dc25e4b03bf2f4c",
+    "mtime": 1785930802.573693,
+    "ast_hash": "ab2cd652fa2a07909d98534e13c79475",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/DynamicEffectRecipeTests.cs": {
@@ -1640,8 +1640,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/StaticMeshAssetTests.cs": {
-    "mtime": 1785927188.2365437,
-    "ast_hash": "1352800222ed3a53664dafea212749bf",
+    "mtime": 1785954389.7437546,
+    "ast_hash": "294025a960c8227744d67001429e67b7",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/StaticMeshSequenceFixture.cs": {
@@ -1680,8 +1680,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/MetadataGraphValidationTests.cs": {
-    "mtime": 1785929500.3903906,
-    "ast_hash": "8e34590f2b8d6c0ca7c9ec66c969804e",
+    "mtime": 1785930802.573693,
+    "ast_hash": "c3e61095f3b4d8136e05a634ee74f9db",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/MetadataGraphDetector.cs": {
@@ -1845,8 +1845,8 @@
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/DynamicGltfDocument.cs": {
-    "mtime": 1785929975.594097,
-    "ast_hash": "58ba08a35a1f30b137eab476fd4d58cd",
+    "mtime": 1785930802.574693,
+    "ast_hash": "6f1f710ffaa64e0f1f1ddc5d1096de21",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/DynamicGltfInterchangeTests.cs": {
@@ -1900,8 +1900,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH/Internal/DynamicMeshDecoder.cs": {
-    "mtime": 1785929883.2894611,
-    "ast_hash": "697eb0b729bb516b35c2c708d64b7893",
+    "mtime": 1785930802.5726929,
+    "ast_hash": "6b7914c7516f729281aaa63a1f0a160d",
     "semantic_hash": ""
   },
   "EarthTool.MSH/Internal/MshDecodeContext.cs": {
@@ -1910,8 +1910,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH/Internal/StaticMeshDecoder.cs": {
-    "mtime": 1785929895.777953,
-    "ast_hash": "0f1dbbf106b0046abb244a7d382f8e4e",
+    "mtime": 1785954498.671981,
+    "ast_hash": "9742cd622831837e46e2644255504411",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/MeshAssetRebinderTests.cs": {
@@ -1920,13 +1920,18 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH/Internal/MeshAssetRebinder.cs": {
-    "mtime": 1785927188.2365437,
+    "mtime": 1785954508.381764,
     "ast_hash": "91c0305d60b5cfd08463fa63d5722e04",
     "semantic_hash": ""
   },
   "EarthTool.MSH/Assets/CommonMeshBaseHeader.cs": {
-    "mtime": 1785929919.9309042,
-    "ast_hash": "19d0b99bfe76a64fb048cb7ce03f7820",
+    "mtime": 1785930417.514512,
+    "ast_hash": "e04a09cef2ac1af69584b067c54fec36",
+    "semantic_hash": ""
+  },
+  "docs/adr/0003-create-immutable-msh-assets-from-gltf.md": {
+    "mtime": 1785953680.1725798,
+    "ast_hash": "f65389a57c987298db15326ffa2dda28",
     "semantic_hash": ""
   }
 }

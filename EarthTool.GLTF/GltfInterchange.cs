@@ -28,9 +28,7 @@ namespace EarthTool.GLTF
 
     /// <summary>Initializes the facade using the platform filesystem.</summary>
     public GltfInterchange()
-      : this(new TransactionalFileSystem())
-    {
-    }
+      : this(new TransactionalFileSystem()) { }
 
     internal GltfInterchange(ITransactionalFileSystem fileSystem)
     {
@@ -43,7 +41,8 @@ namespace EarthTool.GLTF
       Stream destination,
       GltfExportOptions? options = null,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (asset is null)
       {
@@ -67,21 +66,26 @@ namespace EarthTool.GLTF
         }
         var baseline = new InterchangeBaseline(
           options.AssetLineageId ?? Guid.NewGuid(),
-          options.DocumentId ?? Guid.NewGuid());
+          options.DocumentId ?? Guid.NewGuid()
+        );
         var animationDiagnostics = CreateAnimationDiagnostics(asset, baseline);
         var projectionDiagnostics = animationDiagnostics
           .Concat(CreateCannonRenderPositionDiagnostics(asset))
           .Concat(CreateStaticLightDiagnostics(asset))
-          .Concat(CreateEmitterHierarchyDiagnostics(asset)).ToArray();
+          .Concat(CreateEmitterHierarchyDiagnostics(asset))
+          .ToArray();
         var metadataLength = GlbDocument.GetMaximumMetadataByteCount(
           asset,
           baseline,
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
-          options.ArtistObjectLocalIds);
+          options.ArtistObjectLocalIds
+        );
         if (metadataLength > profile.MaxMetadataBytes)
         {
-          return Failed<GltfExportReceipt>(Limit("scenes[0].extras.earthtool", metadataLength, profile.MaxMetadataBytes));
+          return Failed<GltfExportReceipt>(
+            Limit("scenes[0].extras.earthtool", metadataLength, profile.MaxMetadataBytes)
+          );
         }
 
         var minimumOutputLength = GlbDocument.GetMinimumOutputByteCount(
@@ -90,7 +94,8 @@ namespace EarthTool.GLTF
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
           options.ArtistObjectLocalIds,
-          true);
+          true
+        );
         if (minimumOutputLength > profile.MaxOutputBytes)
         {
           return Failed<GltfExportReceipt>(Limit("$", minimumOutputLength, profile.MaxOutputBytes));
@@ -103,40 +108,50 @@ namespace EarthTool.GLTF
           options.ArtistObjectLocalIds,
           new Dictionary<StaticRenderObjectId, TexPreview>(),
           options.SourceBaseName,
-          out var fingerprint);
+          out var fingerprint
+        );
         if (withoutPreviews.Length > profile.MaxOutputBytes)
         {
-          return Failed<GltfExportReceipt>(Limit("$", withoutPreviews.Length, profile.MaxOutputBytes));
+          return Failed<GltfExportReceipt>(
+            Limit("$", withoutPreviews.Length, profile.MaxOutputBytes)
+          );
         }
         var previewResult = TexPreviewLoader.Load(
           asset,
           options,
           profile,
           profile.MaxOutputBytes - withoutPreviews.Length,
-          cancellationToken);
+          cancellationToken
+        );
         if (previewResult.HasErrors)
         {
-          return Failed<GltfExportReceipt>(previewResult.Diagnostics.First(diagnostic =>
-            diagnostic.Severity == DiagnosticSeverity.Error));
+          return Failed<GltfExportReceipt>(
+            previewResult.Diagnostics.First(diagnostic =>
+              diagnostic.Severity == DiagnosticSeverity.Error
+            )
+          );
         }
 
-        var glb = previewResult.Previews.Count == 0
-          ? withoutPreviews
-          : GlbDocument.Create(
-            asset,
-            baseline,
-            options.PreservedUnknownMetadata,
-            options.MetadataNextIds,
-            options.ArtistObjectLocalIds,
-            previewResult.Previews,
-            options.SourceBaseName,
-            out fingerprint);
+        var glb =
+          previewResult.Previews.Count == 0
+            ? withoutPreviews
+            : GlbDocument.Create(
+              asset,
+              baseline,
+              options.PreservedUnknownMetadata,
+              options.MetadataNextIds,
+              options.ArtistObjectLocalIds,
+              previewResult.Previews,
+              options.SourceBaseName,
+              out fingerprint
+            );
         var exportDiagnostics = previewResult.Diagnostics.Concat(projectionDiagnostics).ToArray();
         if (glb.Length > profile.MaxOutputBytes)
         {
           glb = withoutPreviews;
           exportDiagnostics = WithoutEmittedPreviewDiagnostics(previewResult.Diagnostics)
-            .Concat(projectionDiagnostics).ToArray();
+            .Concat(projectionDiagnostics)
+            .ToArray();
         }
 
         GlbDocument.Validate(glb, profile);
@@ -145,7 +160,8 @@ namespace EarthTool.GLTF
         return new OperationResult<GltfExportReceipt>(
           OperationStatus.Succeeded,
           new GltfExportReceipt(baseline, fingerprint),
-          exportDiagnostics);
+          exportDiagnostics
+        );
       }
       catch (OperationCanceledException)
       {
@@ -163,7 +179,8 @@ namespace EarthTool.GLTF
       string destinationPath,
       GltfExportOptions? options = null,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (destinationPath is null)
       {
@@ -177,7 +194,8 @@ namespace EarthTool.GLTF
         OperationResult<GltfExportReceipt> result;
         using (var temporary = _fileSystem.CreateTemporary(temporaryPath))
         {
-          result = await ExportGlbAsync(asset, temporary, options, profile, cancellationToken).ConfigureAwait(false);
+          result = await ExportGlbAsync(asset, temporary, options, profile, cancellationToken)
+            .ConfigureAwait(false);
           if (!result.Succeeded)
           {
             return result;
@@ -210,7 +228,8 @@ namespace EarthTool.GLTF
       string destinationPath,
       GltfExportOptions? options = null,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (asset is null)
       {
@@ -236,21 +255,26 @@ namespace EarthTool.GLTF
         }
         var baseline = new InterchangeBaseline(
           options.AssetLineageId ?? Guid.NewGuid(),
-          options.DocumentId ?? Guid.NewGuid());
+          options.DocumentId ?? Guid.NewGuid()
+        );
         var animationDiagnostics = CreateAnimationDiagnostics(asset, baseline);
         var projectionDiagnostics = animationDiagnostics
           .Concat(CreateCannonRenderPositionDiagnostics(asset))
           .Concat(CreateStaticLightDiagnostics(asset))
-          .Concat(CreateEmitterHierarchyDiagnostics(asset)).ToArray();
+          .Concat(CreateEmitterHierarchyDiagnostics(asset))
+          .ToArray();
         var metadataLength = GlbDocument.GetMaximumMetadataByteCount(
           asset,
           baseline,
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
-          options.ArtistObjectLocalIds);
+          options.ArtistObjectLocalIds
+        );
         if (metadataLength > profile.MaxMetadataBytes)
         {
-          return Failed<GltfExportReceipt>(Limit("scenes[0].extras.earthtool", metadataLength, profile.MaxMetadataBytes));
+          return Failed<GltfExportReceipt>(
+            Limit("scenes[0].extras.earthtool", metadataLength, profile.MaxMetadataBytes)
+          );
         }
 
         var minimumOutputLength = GlbDocument.GetMinimumOutputByteCount(
@@ -259,7 +283,8 @@ namespace EarthTool.GLTF
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
           options.ArtistObjectLocalIds,
-          false);
+          false
+        );
         if (minimumOutputLength > profile.MaxOutputBytes)
         {
           return Failed<GltfExportReceipt>(Limit("$", minimumOutputLength, profile.MaxOutputBytes));
@@ -272,59 +297,76 @@ namespace EarthTool.GLTF
           options.ArtistObjectLocalIds,
           new Dictionary<StaticRenderObjectId, TexPreview>(),
           options.SourceBaseName,
-          out var fingerprint);
-        var withoutPreviewLength = checked(withoutPreviews.Json.Length + withoutPreviews.Binary.Length);
+          out var fingerprint
+        );
+        var withoutPreviewLength = checked(
+          withoutPreviews.Json.Length + withoutPreviews.Binary.Length
+        );
         if (withoutPreviewLength > profile.MaxOutputBytes)
         {
-          return Failed<GltfExportReceipt>(Limit("$", withoutPreviewLength, profile.MaxOutputBytes));
+          return Failed<GltfExportReceipt>(
+            Limit("$", withoutPreviewLength, profile.MaxOutputBytes)
+          );
         }
         var previewResult = TexPreviewLoader.Load(
           asset,
           options,
           profile,
           profile.MaxOutputBytes - withoutPreviewLength,
-          cancellationToken);
+          cancellationToken
+        );
         if (previewResult.HasErrors)
         {
-          return Failed<GltfExportReceipt>(previewResult.Diagnostics.First(diagnostic =>
-            diagnostic.Severity == DiagnosticSeverity.Error));
+          return Failed<GltfExportReceipt>(
+            previewResult.Diagnostics.First(diagnostic =>
+              diagnostic.Severity == DiagnosticSeverity.Error
+            )
+          );
         }
 
-        var package = previewResult.Previews.Count == 0
-          ? withoutPreviews
-          : GlbDocument.CreateSeparate(
-            asset,
-            baseline,
-            options.PreservedUnknownMetadata,
-            options.MetadataNextIds,
-            options.ArtistObjectLocalIds,
-            previewResult.Previews,
-            options.SourceBaseName,
-            out fingerprint);
-        var outputLength = checked(package.Json.Length
+        var package =
+          previewResult.Previews.Count == 0
+            ? withoutPreviews
+            : GlbDocument.CreateSeparate(
+              asset,
+              baseline,
+              options.PreservedUnknownMetadata,
+              options.MetadataNextIds,
+              options.ArtistObjectLocalIds,
+              previewResult.Previews,
+              options.SourceBaseName,
+              out fingerprint
+            );
+        var outputLength = checked(
+          package.Json.Length
           + package.Binary.Length
-          + package.ImageSidecars.Values.Sum(bytes => bytes.Length));
+          + package.ImageSidecars.Values.Sum(bytes => bytes.Length)
+        );
         var exportDiagnostics = previewResult.Diagnostics.Concat(projectionDiagnostics).ToArray();
         if (outputLength > profile.MaxOutputBytes)
         {
           package = withoutPreviews;
           exportDiagnostics = WithoutEmittedPreviewDiagnostics(previewResult.Diagnostics)
-            .Concat(projectionDiagnostics).ToArray();
+            .Concat(projectionDiagnostics)
+            .ToArray();
         }
 
         ValidateGeometryProfile(
           GlbDocument.ParseSeparate(package.Json, package.Binary, profile),
-          profile);
+          profile
+        );
         GlbDocument.ValidateSeparate(
           package.Json,
           package.Binary,
           package.BufferFileName,
-          package.ImageSidecars);
-        var directory = Path.GetDirectoryName(Path.GetFullPath(destinationPath))
+          package.ImageSidecars
+        );
+        var directory =
+          Path.GetDirectoryName(Path.GetFullPath(destinationPath))
           ?? Directory.GetCurrentDirectory();
         var sidecars = new Dictionary<string, byte[]>(package.ImageSidecars, StringComparer.Ordinal)
         {
-          [package.BufferFileName] = package.Binary
+          [package.BufferFileName] = package.Binary,
         };
         var manifestFullPath = Path.GetFullPath(destinationPath);
         if (Directory.Exists(manifestFullPath))
@@ -334,17 +376,23 @@ namespace EarthTool.GLTF
         var sidecarPaths = sidecars.ToDictionary(
           sidecar => sidecar.Key,
           sidecar => Path.Combine(directory, sidecar.Key),
-          StringComparer.Ordinal);
+          StringComparer.Ordinal
+        );
 
         foreach (var sidecar in sidecars.OrderBy(sidecar => sidecar.Key, StringComparer.Ordinal))
         {
           var sidecarPath = sidecarPaths[sidecar.Key];
-          if (string.Equals(
-            manifestFullPath,
-            Path.GetFullPath(sidecarPath),
-            StringComparison.OrdinalIgnoreCase))
+          if (
+            string.Equals(
+              manifestFullPath,
+              Path.GetFullPath(sidecarPath),
+              StringComparison.OrdinalIgnoreCase
+            )
+          )
           {
-            throw new IOException("The glTF manifest path collides with a content-addressed sidecar.");
+            throw new IOException(
+              "The glTF manifest path collides with a content-addressed sidecar."
+            );
           }
           if (Directory.Exists(sidecarPath))
           {
@@ -367,11 +415,9 @@ namespace EarthTool.GLTF
           sidecarTemporaryPaths.Add(sidecar.Key, temporaryPath);
           using (var temporary = _fileSystem.CreateTemporary(temporaryPath))
           {
-            await temporary.WriteAsync(
-              sidecar.Value,
-              0,
-              sidecar.Value.Length,
-              cancellationToken).ConfigureAwait(false);
+            await temporary
+              .WriteAsync(sidecar.Value, 0, sidecar.Value.Length, cancellationToken)
+              .ConfigureAwait(false);
             await temporary.FlushAsync(cancellationToken).ConfigureAwait(false);
           }
         }
@@ -399,8 +445,10 @@ namespace EarthTool.GLTF
 
         foreach (var sidecar in sidecars)
         {
-          if (!File.Exists(sidecarPaths[sidecar.Key])
-            || !HasSameContent(sidecarPaths[sidecar.Key], sidecar.Value))
+          if (
+            !File.Exists(sidecarPaths[sidecar.Key])
+            || !HasSameContent(sidecarPaths[sidecar.Key], sidecar.Value)
+          )
           {
             throw new IOException("A committed glTF sidecar is incomplete or invalid.");
           }
@@ -409,11 +457,9 @@ namespace EarthTool.GLTF
         cancellationToken.ThrowIfCancellationRequested();
         using (var temporary = _fileSystem.CreateTemporary(manifestTemporaryPath))
         {
-          await temporary.WriteAsync(
-            package.Json,
-            0,
-            package.Json.Length,
-            cancellationToken).ConfigureAwait(false);
+          await temporary
+            .WriteAsync(package.Json, 0, package.Json.Length, cancellationToken)
+            .ConfigureAwait(false);
           await temporary.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
@@ -422,7 +468,8 @@ namespace EarthTool.GLTF
         return new OperationResult<GltfExportReceipt>(
           OperationStatus.Succeeded,
           new GltfExportReceipt(baseline, fingerprint),
-          exportDiagnostics);
+          exportDiagnostics
+        );
       }
       catch (OperationCanceledException)
       {
@@ -448,7 +495,8 @@ namespace EarthTool.GLTF
       Stream destination,
       GltfExportOptions? options = null,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (asset is null)
       {
@@ -466,23 +514,24 @@ namespace EarthTool.GLTF
         cancellationToken.ThrowIfCancellationRequested();
         var baseline = new InterchangeBaseline(
           options.AssetLineageId ?? Guid.NewGuid(),
-          options.DocumentId ?? Guid.NewGuid());
+          options.DocumentId ?? Guid.NewGuid()
+        );
         var previewResult = TexPreviewLoader.Load(
           asset,
           options,
           profile,
           profile.MaxOutputBytes,
-          cancellationToken);
+          cancellationToken
+        );
         if (previewResult.HasErrors)
         {
-          return Failed<GltfExportReceipt>(previewResult.Diagnostics.First(diagnostic =>
-            diagnostic.Severity == DiagnosticSeverity.Error));
+          return Failed<GltfExportReceipt>(
+            previewResult.Diagnostics.First(diagnostic =>
+              diagnostic.Severity == DiagnosticSeverity.Error
+            )
+          );
         }
-        var meshPreviewResult = MshPreviewLoader.Load(
-          asset,
-          options,
-          profile,
-          cancellationToken);
+        var meshPreviewResult = MshPreviewLoader.Load(asset, options, profile, cancellationToken);
         var glb = DynamicGltfDocument.Create(
           asset,
           baseline,
@@ -491,14 +540,16 @@ namespace EarthTool.GLTF
           meshPreviewResult.Previews,
           options.DynamicObjectIds,
           options.SourceBaseName,
-          out var fingerprint);
+          out var fingerprint
+        );
         DynamicGltfDocument.ValidateGlb(glb, profile);
         cancellationToken.ThrowIfCancellationRequested();
         await destination.WriteAsync(glb, 0, glb.Length, cancellationToken).ConfigureAwait(false);
         return new OperationResult<GltfExportReceipt>(
           OperationStatus.Succeeded,
           new GltfExportReceipt(baseline, fingerprint),
-          previewResult.Diagnostics.Concat(meshPreviewResult.Diagnostics));
+          previewResult.Diagnostics.Concat(meshPreviewResult.Diagnostics)
+        );
       }
       catch (OperationCanceledException)
       {
@@ -516,7 +567,8 @@ namespace EarthTool.GLTF
       string destinationPath,
       GltfExportOptions? options = null,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (asset is null)
       {
@@ -566,7 +618,8 @@ namespace EarthTool.GLTF
       string destinationPath,
       GltfExportOptions? options = null,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (asset is null)
       {
@@ -588,23 +641,24 @@ namespace EarthTool.GLTF
         cancellationToken.ThrowIfCancellationRequested();
         var baseline = new InterchangeBaseline(
           options.AssetLineageId ?? Guid.NewGuid(),
-          options.DocumentId ?? Guid.NewGuid());
+          options.DocumentId ?? Guid.NewGuid()
+        );
         var previewResult = TexPreviewLoader.Load(
           asset,
           options,
           profile,
           profile.MaxOutputBytes,
-          cancellationToken);
+          cancellationToken
+        );
         if (previewResult.HasErrors)
         {
-          return Failed<GltfExportReceipt>(previewResult.Diagnostics.First(diagnostic =>
-            diagnostic.Severity == DiagnosticSeverity.Error));
+          return Failed<GltfExportReceipt>(
+            previewResult.Diagnostics.First(diagnostic =>
+              diagnostic.Severity == DiagnosticSeverity.Error
+            )
+          );
         }
-        var meshPreviewResult = MshPreviewLoader.Load(
-          asset,
-          options,
-          profile,
-          cancellationToken);
+        var meshPreviewResult = MshPreviewLoader.Load(asset, options, profile, cancellationToken);
         var package = DynamicGltfDocument.CreateSeparate(
           asset,
           baseline,
@@ -613,30 +667,35 @@ namespace EarthTool.GLTF
           meshPreviewResult.Previews,
           options.DynamicObjectIds,
           options.SourceBaseName,
-          out var fingerprint);
+          out var fingerprint
+        );
         GlbDocument.ValidateSeparate(
           package.Json,
           package.Binary,
           package.BufferFileName,
-          package.ImageSidecars);
-        var directory = Path.GetDirectoryName(Path.GetFullPath(destinationPath))
+          package.ImageSidecars
+        );
+        var directory =
+          Path.GetDirectoryName(Path.GetFullPath(destinationPath))
           ?? Directory.GetCurrentDirectory();
         var sidecarPath = Path.Combine(directory, package.BufferFileName);
-        if (Directory.Exists(sidecarPath)
-          || File.Exists(sidecarPath) && !HasSameContent(sidecarPath, package.Binary))
+        if (
+          Directory.Exists(sidecarPath)
+          || File.Exists(sidecarPath) && !HasSameContent(sidecarPath, package.Binary)
+        )
         {
-          throw new IOException("A content-addressed dynamic glTF sidecar has conflicting content.");
+          throw new IOException(
+            "A content-addressed dynamic glTF sidecar has conflicting content."
+          );
         }
         if (!File.Exists(sidecarPath))
         {
           sidecarTemporaryPath = _fileSystem.GetTemporaryPath(sidecarPath);
           using (var temporary = _fileSystem.CreateTemporary(sidecarTemporaryPath))
           {
-            await temporary.WriteAsync(
-              package.Binary,
-              0,
-              package.Binary.Length,
-              cancellationToken).ConfigureAwait(false);
+            await temporary
+              .WriteAsync(package.Binary, 0, package.Binary.Length, cancellationToken)
+              .ConfigureAwait(false);
             await temporary.FlushAsync(cancellationToken).ConfigureAwait(false);
           }
           cancellationToken.ThrowIfCancellationRequested();
@@ -646,11 +705,9 @@ namespace EarthTool.GLTF
         }
         using (var temporary = _fileSystem.CreateTemporary(manifestTemporaryPath))
         {
-          await temporary.WriteAsync(
-            package.Json,
-            0,
-            package.Json.Length,
-            cancellationToken).ConfigureAwait(false);
+          await temporary
+            .WriteAsync(package.Json, 0, package.Json.Length, cancellationToken)
+            .ConfigureAwait(false);
           await temporary.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
         cancellationToken.ThrowIfCancellationRequested();
@@ -659,7 +716,8 @@ namespace EarthTool.GLTF
         return new OperationResult<GltfExportReceipt>(
           OperationStatus.Succeeded,
           new GltfExportReceipt(baseline, fingerprint),
-          previewResult.Diagnostics.Concat(meshPreviewResult.Diagnostics));
+          previewResult.Diagnostics.Concat(meshPreviewResult.Diagnostics)
+        );
       }
       catch (OperationCanceledException)
       {
@@ -688,7 +746,8 @@ namespace EarthTool.GLTF
       Stream source,
       InterchangeBaseline expectedBaseline,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (source is null)
       {
@@ -707,7 +766,8 @@ namespace EarthTool.GLTF
           glb,
           expectedBaseline,
           profile,
-          cancellationToken);
+          cancellationToken
+        );
         var nextBaseline = new InterchangeBaseline(expectedBaseline.AssetLineageId, Guid.NewGuid());
         return new OperationResult<GltfDynamicEditImportResult>(
           OperationStatus.Succeeded,
@@ -717,8 +777,10 @@ namespace EarthTool.GLTF
             imported.Fingerprint,
             imported.Preservation,
             new[] { "RootDynamicObject" },
-            imported.ObjectIds),
-          CreateDynamicPlacementDiagnostics(imported));
+            imported.ObjectIds
+          ),
+          CreateDynamicPlacementDiagnostics(imported)
+        );
       }
       catch (OperationCanceledException)
       {
@@ -735,7 +797,8 @@ namespace EarthTool.GLTF
       string sourcePath,
       InterchangeBaseline expectedBaseline,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (sourcePath is null)
       {
@@ -757,7 +820,8 @@ namespace EarthTool.GLTF
           package.Images,
           expectedBaseline,
           profile,
-          cancellationToken);
+          cancellationToken
+        );
         var nextBaseline = new InterchangeBaseline(expectedBaseline.AssetLineageId, Guid.NewGuid());
         return new OperationResult<GltfDynamicEditImportResult>(
           OperationStatus.Succeeded,
@@ -767,8 +831,10 @@ namespace EarthTool.GLTF
             imported.Fingerprint,
             imported.Preservation,
             new[] { "RootDynamicObject" },
-            imported.ObjectIds),
-          CreateDynamicPlacementDiagnostics(imported));
+            imported.ObjectIds
+          ),
+          CreateDynamicPlacementDiagnostics(imported)
+        );
       }
       catch (OperationCanceledException)
       {
@@ -785,7 +851,8 @@ namespace EarthTool.GLTF
       Stream source,
       InterchangeBaseline expectedBaseline,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (source is null)
       {
@@ -800,27 +867,35 @@ namespace EarthTool.GLTF
       {
         var glb = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
           .ConfigureAwait(false);
-        var jsonLength = glb.Length >= 20
-          ? checked((int)BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(12, sizeof(uint))))
-          : 0;
-        if (jsonLength > 0 && 20 + jsonLength <= glb.Length
+        var jsonLength =
+          glb.Length >= 20
+            ? checked((int)BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(12, sizeof(uint))))
+            : 0;
+        if (
+          jsonLength > 0
+          && 20 + jsonLength <= glb.Length
           && DynamicGltfDocument.HasDynamicManifest(
             glb.AsMemory(20, jsonLength),
-            profile.MaxJsonDepth))
+            profile.MaxJsonDepth
+          )
+        )
         {
           await using var dynamicSource = new MemoryStream(glb, false);
-          return ToMeshResult(await ImportEditDynamicGlbAsync(
-            dynamicSource,
-            expectedBaseline,
-            profile,
-            cancellationToken).ConfigureAwait(false));
+          return ToMeshResult(
+            await ImportEditDynamicGlbAsync(
+                dynamicSource,
+                expectedBaseline,
+                profile,
+                cancellationToken
+              )
+              .ConfigureAwait(false)
+          );
         }
         await using var staticSource = new MemoryStream(glb, false);
-        return ToMeshResult(await ImportEditGlbAsync(
-          staticSource,
-          expectedBaseline,
-          profile,
-          cancellationToken).ConfigureAwait(false));
+        return ToMeshResult(
+          await ImportEditGlbAsync(staticSource, expectedBaseline, profile, cancellationToken)
+            .ConfigureAwait(false)
+        );
       }
       catch (OperationCanceledException)
       {
@@ -837,7 +912,8 @@ namespace EarthTool.GLTF
       string sourcePath,
       InterchangeBaseline expectedBaseline,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (sourcePath is null)
       {
@@ -856,20 +932,24 @@ namespace EarthTool.GLTF
           FileAccess.Read,
           FileShare.Read,
           81920,
-          true);
+          true
+        );
         var json = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
           .ConfigureAwait(false);
         return DynamicGltfDocument.HasDynamicManifest(json, profile.MaxJsonDepth)
-          ? ToMeshResult(await ImportEditDynamicGltfFileAsync(
-            sourcePath,
-            expectedBaseline,
-            profile,
-            cancellationToken).ConfigureAwait(false))
-          : ToMeshResult(await ImportEditGltfFileAsync(
-            sourcePath,
-            expectedBaseline,
-            profile,
-            cancellationToken).ConfigureAwait(false));
+          ? ToMeshResult(
+            await ImportEditDynamicGltfFileAsync(
+                sourcePath,
+                expectedBaseline,
+                profile,
+                cancellationToken
+              )
+              .ConfigureAwait(false)
+          )
+          : ToMeshResult(
+            await ImportEditGltfFileAsync(sourcePath, expectedBaseline, profile, cancellationToken)
+              .ConfigureAwait(false)
+          );
       }
       catch (OperationCanceledException)
       {
@@ -887,34 +967,41 @@ namespace EarthTool.GLTF
       InterchangeBaseline expectedBaseline,
       GltfImportPlan plan,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
-      return ToMeshResult(await ImportEditGlbWithPlanAsync(
-        source,
-        expectedBaseline,
-        plan,
-        profile,
-        cancellationToken).ConfigureAwait(false));
+      return ToMeshResult(
+        await ImportEditGlbWithPlanAsync(source, expectedBaseline, plan, profile, cancellationToken)
+          .ConfigureAwait(false)
+      );
     }
 
     /// <summary>Imports a planned static separate-glTF package through the kind-neutral result contract.</summary>
-    public async Task<OperationResult<GltfMeshEditImportResult>> ImportEditMeshGltfFileWithPlanAsync(
+    public async Task<
+      OperationResult<GltfMeshEditImportResult>
+    > ImportEditMeshGltfFileWithPlanAsync(
       string sourcePath,
       InterchangeBaseline expectedBaseline,
       GltfImportPlan plan,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
-      return ToMeshResult(await ImportEditGltfFileWithPlanAsync(
-        sourcePath,
-        expectedBaseline,
-        plan,
-        profile,
-        cancellationToken).ConfigureAwait(false));
+      return ToMeshResult(
+        await ImportEditGltfFileWithPlanAsync(
+            sourcePath,
+            expectedBaseline,
+            plan,
+            profile,
+            cancellationToken
+          )
+          .ConfigureAwait(false)
+      );
     }
 
     private static OperationResult<GltfMeshEditImportResult> ToMeshResult(
-      OperationResult<GltfEditImportResult> result)
+      OperationResult<GltfEditImportResult> result
+    )
     {
       return result.Succeeded
         ? new OperationResult<GltfMeshEditImportResult>(
@@ -926,13 +1013,19 @@ namespace EarthTool.GLTF
             result.Value.Preservation,
             result.Value.RestoredSerializedRepresentationPaths,
             result.Value.LineageDisposition,
-            result.Value.AppliedConflictResolutions),
-          result.Diagnostics)
-        : new OperationResult<GltfMeshEditImportResult>(result.Status, diagnostics: result.Diagnostics);
+            result.Value.AppliedConflictResolutions
+          ),
+          result.Diagnostics
+        )
+        : new OperationResult<GltfMeshEditImportResult>(
+          result.Status,
+          diagnostics: result.Diagnostics
+        );
     }
 
     private static OperationResult<GltfMeshEditImportResult> ToMeshResult(
-      OperationResult<GltfDynamicEditImportResult> result)
+      OperationResult<GltfDynamicEditImportResult> result
+    )
     {
       return result.Succeeded
         ? new OperationResult<GltfMeshEditImportResult>(
@@ -943,9 +1036,14 @@ namespace EarthTool.GLTF
             result.Value.AppliedFingerprint,
             result.Value.Preservation,
             result.Value.RestoredSerializedRepresentationPaths,
-            GltfMetadataLineageDisposition.Retained),
-          result.Diagnostics)
-        : new OperationResult<GltfMeshEditImportResult>(result.Status, diagnostics: result.Diagnostics);
+            GltfMetadataLineageDisposition.Retained
+          ),
+          result.Diagnostics
+        )
+        : new OperationResult<GltfMeshEditImportResult>(
+          result.Status,
+          diagnostics: result.Diagnostics
+        );
     }
 
     private static bool HasSameContent(string path, byte[] expected)
@@ -982,14 +1080,16 @@ namespace EarthTool.GLTF
       Stream source,
       InterchangeBaseline expectedBaseline,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       return ImportEditGlbWithResolutionsAsync(
         source,
         expectedBaseline,
         new GltfEditImportOptions(),
         profile,
-        cancellationToken);
+        cancellationToken
+      );
     }
 
     /// <summary>Imports a GLB using one validated, source-bound edit plan.</summary>
@@ -998,7 +1098,8 @@ namespace EarthTool.GLTF
       InterchangeBaseline expectedBaseline,
       GltfImportPlan plan,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (source is null)
       {
@@ -1018,25 +1119,29 @@ namespace EarthTool.GLTF
         GltfImportPlanKind.Edit,
         GltfPackageKind.Glb,
         expectedBaseline,
-        profile);
+        profile
+      );
       if (mismatch is not null)
       {
         return Failed<GltfEditImportResult>(mismatch);
       }
       try
       {
-        var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken).ConfigureAwait(false);
+        var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
+          .ConfigureAwait(false);
         if (!MatchesPlanSource(bytes, plan))
         {
           return Failed<GltfEditImportResult>(PlanMismatch("sourceSha256"));
         }
         using var captured = new MemoryStream(bytes, false);
         var result = await ImportEditGlbWithResolutionsAsync(
-          captured,
-          expectedBaseline,
-          plan.EditOptions!,
-          profile,
-          cancellationToken).ConfigureAwait(false);
+            captured,
+            expectedBaseline,
+            plan.EditOptions!,
+            profile,
+            cancellationToken
+          )
+          .ConfigureAwait(false);
         return TranslateStalePlan(result, plan);
       }
       catch (OperationCanceledException)
@@ -1055,7 +1160,8 @@ namespace EarthTool.GLTF
       InterchangeBaseline expectedBaseline,
       GltfEditImportOptions options,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (source is null)
       {
@@ -1075,15 +1181,18 @@ namespace EarthTool.GLTF
       byte[]? bytes = null;
       try
       {
-        bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken).ConfigureAwait(false);
+        bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
+          .ConfigureAwait(false);
         var parsed = GlbDocument.Parse(bytes, profile);
         ValidateGeometryProfile(parsed, profile);
         return await ImportParsedAsync(
-          parsed,
-          expectedBaseline,
-          options,
-          profile,
-          cancellationToken).ConfigureAwait(false);
+            parsed,
+            expectedBaseline,
+            options,
+            profile,
+            cancellationToken
+          )
+          .ConfigureAwait(false);
       }
       catch (OperationCanceledException)
       {
@@ -1091,13 +1200,16 @@ namespace EarthTool.GLTF
       }
       catch (Exception ex)
       {
-        if (bytes is not null
+        if (
+          bytes is not null
           && TryGetParseScopeResolution(
             ex,
             expectedBaseline,
             options,
             out var scopeResolution,
-            out var scopeFailure))
+            out var scopeFailure
+          )
+        )
         {
           if (scopeFailure is not null)
           {
@@ -1105,32 +1217,44 @@ namespace EarthTool.GLTF
           }
           try
           {
-            var rewritten = RewriteGlbMetadata(bytes, scopeResolution!.Diagnostic, scopeResolution.Resolution);
+            var rewritten = RewriteGlbMetadata(
+              bytes,
+              scopeResolution!.Diagnostic,
+              scopeResolution.Resolution
+            );
             var reparsed = GlbDocument.Parse(rewritten, profile);
             ValidateGeometryProfile(reparsed, profile);
             var retried = await ImportParsedAsync(
-              reparsed,
-              expectedBaseline,
-              new GltfEditImportOptions(options.ConflictResolutions.Where(resolution =>
-                !ReferenceEquals(resolution, scopeResolution.Resolution))),
-              profile,
-              cancellationToken).ConfigureAwait(false);
+                reparsed,
+                expectedBaseline,
+                new GltfEditImportOptions(
+                  options.ConflictResolutions.Where(resolution =>
+                    !ReferenceEquals(resolution, scopeResolution.Resolution)
+                  )
+                ),
+                profile,
+                cancellationToken
+              )
+              .ConfigureAwait(false);
             return WithAppliedResolution(retried, scopeResolution.Resolution);
           }
           catch (Exception rewriteException)
           {
-            return Failed<GltfEditImportResult>(BindConflictToBaseline(
-              ToDiagnostic(rewriteException),
-              expectedBaseline));
+            return Failed<GltfEditImportResult>(
+              BindConflictToBaseline(ToDiagnostic(rewriteException), expectedBaseline)
+            );
           }
         }
-        if (bytes is not null
+        if (
+          bytes is not null
           && TryGetWholeLineageResolution(
             ex,
             expectedBaseline,
             options,
             out var resolution,
-            out var resolutionFailure))
+            out var resolutionFailure
+          )
+        )
         {
           if (resolutionFailure is not null)
           {
@@ -1148,7 +1272,9 @@ namespace EarthTool.GLTF
             return Failed<GltfEditImportResult>(ToDiagnostic(discardException));
           }
         }
-        return Failed<GltfEditImportResult>(BindConflictToBaseline(ToDiagnostic(ex), expectedBaseline));
+        return Failed<GltfEditImportResult>(
+          BindConflictToBaseline(ToDiagnostic(ex), expectedBaseline)
+        );
       }
     }
 
@@ -1157,14 +1283,16 @@ namespace EarthTool.GLTF
       string sourcePath,
       InterchangeBaseline expectedBaseline,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       return ImportEditGltfFileWithResolutionsAsync(
         sourcePath,
         expectedBaseline,
         new GltfEditImportOptions(),
         profile,
-        cancellationToken);
+        cancellationToken
+      );
     }
 
     /// <summary>Imports separate glTF using one validated, source-bound edit plan.</summary>
@@ -1173,7 +1301,8 @@ namespace EarthTool.GLTF
       InterchangeBaseline expectedBaseline,
       GltfImportPlan plan,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (sourcePath is null)
       {
@@ -1193,7 +1322,8 @@ namespace EarthTool.GLTF
         GltfImportPlanKind.Edit,
         GltfPackageKind.Gltf,
         expectedBaseline,
-        profile);
+        profile
+      );
       if (mismatch is not null)
       {
         return Failed<GltfEditImportResult>(mismatch);
@@ -1207,12 +1337,14 @@ namespace EarthTool.GLTF
           return Failed<GltfEditImportResult>(PlanMismatch("sourceSha256"));
         }
         var result = await ImportEditSeparatePackageAsync(
-          package,
-          expectedBaseline,
-          plan.EditOptions!,
-          profile,
-          sourcePath,
-          cancellationToken).ConfigureAwait(false);
+            package,
+            expectedBaseline,
+            plan.EditOptions!,
+            profile,
+            sourcePath,
+            cancellationToken
+          )
+          .ConfigureAwait(false);
         return TranslateStalePlan(result, plan);
       }
       catch (OperationCanceledException)
@@ -1231,7 +1363,8 @@ namespace EarthTool.GLTF
       InterchangeBaseline expectedBaseline,
       GltfEditImportOptions options,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (sourcePath is null)
       {
@@ -1253,12 +1386,14 @@ namespace EarthTool.GLTF
         var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
           .ConfigureAwait(false);
         return await ImportEditSeparatePackageAsync(
-          package,
-          expectedBaseline,
-          options,
-          profile,
-          sourcePath,
-          cancellationToken).ConfigureAwait(false);
+            package,
+            expectedBaseline,
+            options,
+            profile,
+            sourcePath,
+            cancellationToken
+          )
+          .ConfigureAwait(false);
       }
       catch (OperationCanceledException)
       {
@@ -1266,9 +1401,9 @@ namespace EarthTool.GLTF
       }
       catch (Exception ex)
       {
-        return Failed<GltfEditImportResult>(BindConflictToBaseline(
-          ToDiagnostic(ex, sourcePath),
-          expectedBaseline));
+        return Failed<GltfEditImportResult>(
+          BindConflictToBaseline(ToDiagnostic(ex, sourcePath), expectedBaseline)
+        );
       }
     }
 
@@ -1278,24 +1413,39 @@ namespace EarthTool.GLTF
       GltfEditImportOptions options,
       GltfOperationProfile profile,
       string sourcePath,
-      CancellationToken cancellationToken)
+      CancellationToken cancellationToken
+    )
     {
       try
       {
         var parsed = GlbDocument.ParseSeparate(package.Json, package.Binary, profile);
-        GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri, package.Images);
+        GlbDocument.ValidateSeparate(
+          package.Json,
+          package.Binary,
+          package.BufferUri,
+          package.Images
+        );
         ValidateGeometryProfile(parsed, profile);
-        return await ImportParsedAsync(parsed, expectedBaseline, options, profile, cancellationToken)
+        return await ImportParsedAsync(
+            parsed,
+            expectedBaseline,
+            options,
+            profile,
+            cancellationToken
+          )
           .ConfigureAwait(false);
       }
       catch (Exception ex)
       {
-        if (TryGetParseScopeResolution(
+        if (
+          TryGetParseScopeResolution(
             ex,
             expectedBaseline,
             options,
             out var scopeResolution,
-            out var scopeFailure))
+            out var scopeFailure
+          )
+        )
         {
           if (scopeFailure is not null)
           {
@@ -1306,36 +1456,46 @@ namespace EarthTool.GLTF
             var rewritten = RewriteJsonScopeMetadata(
               package.Json,
               scopeResolution!.Diagnostic,
-              scopeResolution.Resolution);
+              scopeResolution.Resolution
+            );
             var reparsed = GlbDocument.ParseSeparate(rewritten, package.Binary, profile);
             GlbDocument.ValidateSeparate(
               rewritten,
               package.Binary,
               package.BufferUri,
-              package.Images);
+              package.Images
+            );
             ValidateGeometryProfile(reparsed, profile);
             var retried = await ImportParsedAsync(
-              reparsed,
-              expectedBaseline,
-              new GltfEditImportOptions(options.ConflictResolutions.Where(resolution =>
-                !ReferenceEquals(resolution, scopeResolution.Resolution))),
-              profile,
-              cancellationToken).ConfigureAwait(false);
+                reparsed,
+                expectedBaseline,
+                new GltfEditImportOptions(
+                  options.ConflictResolutions.Where(resolution =>
+                    !ReferenceEquals(resolution, scopeResolution.Resolution)
+                  )
+                ),
+                profile,
+                cancellationToken
+              )
+              .ConfigureAwait(false);
             return WithAppliedResolution(retried, scopeResolution.Resolution);
           }
           catch (Exception rewriteException)
           {
-            return Failed<GltfEditImportResult>(BindConflictToBaseline(
-              ToDiagnostic(rewriteException, sourcePath),
-              expectedBaseline));
+            return Failed<GltfEditImportResult>(
+              BindConflictToBaseline(ToDiagnostic(rewriteException, sourcePath), expectedBaseline)
+            );
           }
         }
-        if (TryGetWholeLineageResolution(
+        if (
+          TryGetWholeLineageResolution(
             ex,
             expectedBaseline,
             options,
             out var resolution,
-            out var resolutionFailure))
+            out var resolutionFailure
+          )
+        )
         {
           if (resolutionFailure is not null)
           {
@@ -1349,7 +1509,8 @@ namespace EarthTool.GLTF
               stripped,
               package.Binary,
               package.BufferUri,
-              package.Images);
+              package.Images
+            );
             ValidateGeometryProfile(parsed, profile);
             return ImportWithoutMetadata(parsed, profile, cancellationToken, resolution!);
           }
@@ -1358,9 +1519,9 @@ namespace EarthTool.GLTF
             return Failed<GltfEditImportResult>(ToDiagnostic(discardException, sourcePath));
           }
         }
-        return Failed<GltfEditImportResult>(BindConflictToBaseline(
-          ToDiagnostic(ex, sourcePath),
-          expectedBaseline));
+        return Failed<GltfEditImportResult>(
+          BindConflictToBaseline(ToDiagnostic(ex, sourcePath), expectedBaseline)
+        );
       }
     }
 
@@ -1369,7 +1530,8 @@ namespace EarthTool.GLTF
       Stream source,
       GltfNewModelImportOptions? options = null,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (source is null)
       {
@@ -1401,7 +1563,8 @@ namespace EarthTool.GLTF
       Stream source,
       GltfImportPlan plan,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (source is null)
       {
@@ -1417,24 +1580,28 @@ namespace EarthTool.GLTF
         GltfImportPlanKind.NewModel,
         GltfPackageKind.Glb,
         null,
-        profile);
+        profile
+      );
       if (mismatch is not null)
       {
         return Failed<GltfNewModelImportResult>(mismatch);
       }
       try
       {
-        var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken).ConfigureAwait(false);
+        var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
+          .ConfigureAwait(false);
         if (!MatchesPlanSource(bytes, plan))
         {
           return Failed<GltfNewModelImportResult>(PlanMismatch("sourceSha256"));
         }
         using var captured = new MemoryStream(bytes, false);
         return await ImportNewModelGlbAsync(
-          captured,
-          plan.NewModelOptions,
-          profile,
-          cancellationToken).ConfigureAwait(false);
+            captured,
+            plan.NewModelOptions,
+            profile,
+            cancellationToken
+          )
+          .ConfigureAwait(false);
       }
       catch (OperationCanceledException)
       {
@@ -1451,7 +1618,8 @@ namespace EarthTool.GLTF
       string sourcePath,
       GltfNewModelImportOptions? options = null,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (sourcePath is null)
       {
@@ -1477,11 +1645,14 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports metadata-free separate glTF using one validated, source-bound semantic plan.</summary>
-    public async Task<OperationResult<GltfNewModelImportResult>> ImportNewModelGltfFileWithPlanAsync(
+    public async Task<
+      OperationResult<GltfNewModelImportResult>
+    > ImportNewModelGltfFileWithPlanAsync(
       string sourcePath,
       GltfImportPlan plan,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (sourcePath is null)
       {
@@ -1497,7 +1668,8 @@ namespace EarthTool.GLTF
         GltfImportPlanKind.NewModel,
         GltfPackageKind.Gltf,
         null,
-        profile);
+        profile
+      );
       if (mismatch is not null)
       {
         return Failed<GltfNewModelImportResult>(mismatch);
@@ -1514,7 +1686,8 @@ namespace EarthTool.GLTF
           package,
           profile,
           cancellationToken,
-          plan.NewModelOptions!);
+          plan.NewModelOptions!
+        );
       }
       catch (OperationCanceledException)
       {
@@ -1530,12 +1703,10 @@ namespace EarthTool.GLTF
       SeparateGltfPackage package,
       GltfOperationProfile profile,
       CancellationToken cancellationToken,
-      GltfNewModelImportOptions options)
+      GltfNewModelImportOptions options
+    )
     {
-      var parsed = GlbDocument.ParseSeparateNewModel(
-        package.Json,
-        package.Binary,
-        profile);
+      var parsed = GlbDocument.ParseSeparateNewModel(package.Json, package.Binary, profile);
       GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri, package.Images);
       ValidateGeometryProfile(parsed, profile);
       return ImportNewModelParsed(parsed, profile, cancellationToken, options);
@@ -1545,7 +1716,8 @@ namespace EarthTool.GLTF
     public async Task<OperationResult> ValidateGlbAsync(
       Stream source,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (source is null)
       {
@@ -1555,14 +1727,20 @@ namespace EarthTool.GLTF
       profile ??= GltfOperationProfile.Default;
       try
       {
-        var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken).ConfigureAwait(false);
-        var jsonLength = bytes.Length >= 20
-          ? checked((int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(12, sizeof(uint))))
-          : 0;
-        if (jsonLength > 0 && 20 + jsonLength <= bytes.Length
+        var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
+          .ConfigureAwait(false);
+        var jsonLength =
+          bytes.Length >= 20
+            ? checked((int)BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(12, sizeof(uint))))
+            : 0;
+        if (
+          jsonLength > 0
+          && 20 + jsonLength <= bytes.Length
           && DynamicGltfDocument.HasDynamicManifest(
             bytes.AsMemory(20, jsonLength),
-            profile.MaxJsonDepth))
+            profile.MaxJsonDepth
+          )
+        )
         {
           DynamicGltfDocument.ValidateGlb(bytes, profile);
           return new OperationResult(OperationStatus.Succeeded);
@@ -1574,7 +1752,8 @@ namespace EarthTool.GLTF
         {
           return new OperationResult(
             OperationStatus.Failed,
-            metadataConflicts.Select(conflict => ToDiagnostic(conflict)));
+            metadataConflicts.Select(conflict => ToDiagnostic(conflict))
+          );
         }
         return new OperationResult(OperationStatus.Succeeded);
       }
@@ -1592,7 +1771,8 @@ namespace EarthTool.GLTF
     public async Task<OperationResult> ValidateGltfFileAsync(
       string sourcePath,
       GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
+      CancellationToken cancellationToken = default
+    )
     {
       if (sourcePath is null)
       {
@@ -1611,18 +1791,25 @@ namespace EarthTool.GLTF
             package.Binary,
             package.BufferUri,
             package.Images,
-            profile);
+            profile
+          );
           return new OperationResult(OperationStatus.Succeeded);
         }
         var parsed = GlbDocument.ParseSeparate(package.Json, package.Binary, profile);
         ValidateGeometryProfile(parsed, profile);
-        GlbDocument.ValidateSeparate(package.Json, package.Binary, package.BufferUri, package.Images);
+        GlbDocument.ValidateSeparate(
+          package.Json,
+          package.Binary,
+          package.BufferUri,
+          package.Images
+        );
         var metadataConflicts = parsed.MetadataConflicts.Build();
         if (metadataConflicts.Count != 0)
         {
           return new OperationResult(
             OperationStatus.Failed,
-            metadataConflicts.Select(conflict => ToDiagnostic(conflict, sourcePath)));
+            metadataConflicts.Select(conflict => ToDiagnostic(conflict, sourcePath))
+          );
         }
         return new OperationResult(OperationStatus.Succeeded);
       }
@@ -1639,7 +1826,8 @@ namespace EarthTool.GLTF
     internal static async Task<SeparateGltfPackage> ReadSeparatePackageAsync(
       string sourcePath,
       GltfOperationProfile profile,
-      CancellationToken cancellationToken)
+      CancellationToken cancellationToken
+    )
     {
       await using var jsonStream = new FileStream(
         sourcePath,
@@ -1647,12 +1835,13 @@ namespace EarthTool.GLTF
         FileAccess.Read,
         FileShare.Read,
         81920,
-        true);
+        true
+      );
       var json = await ReadBoundedAsync(jsonStream, profile.MaxInputBytes, cancellationToken)
         .ConfigureAwait(false);
       var bufferUri = GlbDocument.GetSeparateBufferUri(json, profile);
-      var directory = Path.GetDirectoryName(Path.GetFullPath(sourcePath))
-        ?? Directory.GetCurrentDirectory();
+      var directory =
+        Path.GetDirectoryName(Path.GetFullPath(sourcePath)) ?? Directory.GetCurrentDirectory();
       var bufferPath = ResolveContainedSidecar(directory, bufferUri);
       EnsureRegularSidecar(bufferPath);
       await using var binaryStream = new FileStream(
@@ -1661,7 +1850,8 @@ namespace EarthTool.GLTF
         FileAccess.Read,
         FileShare.Read,
         81920,
-        true);
+        true
+      );
       EnsureRegularSidecar(bufferPath);
       var remaining = profile.MaxInputBytes - json.Length;
       if (remaining <= 0)
@@ -1675,9 +1865,11 @@ namespace EarthTool.GLTF
       var images = new Dictionary<string, byte[]>(StringComparer.Ordinal);
       foreach (var imageUri in GlbDocument.GetSeparateImageUris(json, profile))
       {
-        if (!imageUri.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+        if (
+          !imageUri.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
           && !imageUri.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
-          && !imageUri.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))
+          && !imageUri.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)
+        )
         {
           throw new InvalidDataException("An external image URI must identify a PNG or JPEG file.");
         }
@@ -1693,9 +1885,11 @@ namespace EarthTool.GLTF
           FileAccess.Read,
           FileShare.Read,
           81920,
-          true);
+          true
+        );
         EnsureRegularSidecar(imagePath);
-        var image = await ReadBoundedAsync(imageStream, remaining, cancellationToken).ConfigureAwait(false);
+        var image = await ReadBoundedAsync(imageStream, remaining, cancellationToken)
+          .ConfigureAwait(false);
         remaining -= image.Length;
         images.Add(imageUri, image);
       }
@@ -1716,7 +1910,8 @@ namespace EarthTool.GLTF
         byte[] json,
         byte[] binary,
         string bufferUri,
-        IReadOnlyDictionary<string, byte[]> images)
+        IReadOnlyDictionary<string, byte[]> images
+      )
       {
         Json = json;
         Binary = binary;
@@ -1727,9 +1922,11 @@ namespace EarthTool.GLTF
 
     private static string ResolveContainedSidecar(string directory, string relativeUri)
     {
-      if (string.IsNullOrWhiteSpace(relativeUri)
+      if (
+        string.IsNullOrWhiteSpace(relativeUri)
         || relativeUri.IndexOfAny(new[] { '\\', '?', '#' }) >= 0
-        || Uri.TryCreate(relativeUri, UriKind.Absolute, out _))
+        || Uri.TryCreate(relativeUri, UriKind.Absolute, out _)
+      )
       {
         throw new InvalidDataException("A glTF sidecar URI must be safe, relative, and contained.");
       }
@@ -1749,8 +1946,10 @@ namespace EarthTool.GLTF
       foreach (var segment in segments.Take(segments.Length - 1))
       {
         current = Path.Combine(current, segment);
-        if (Directory.Exists(current)
-          && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+        if (
+          Directory.Exists(current)
+          && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0
+        )
         {
           throw new InvalidDataException("A glTF sidecar URI traverses a symbolic link.");
         }
@@ -1771,44 +1970,58 @@ namespace EarthTool.GLTF
       ParsedGlb parsed,
       GltfOperationProfile profile,
       CancellationToken cancellationToken,
-      GltfNewModelImportOptions options)
+      GltfNewModelImportOptions options
+    )
     {
       cancellationToken.ThrowIfCancellationRequested();
       var sceneLightDiagnostics = CreateIgnoredSceneLightDiagnostics(parsed);
-      var lightIntensityDiagnostics = CreateIgnoredNewModelLightIntensityDiagnostics(parsed, options);
+      var lightIntensityDiagnostics = CreateIgnoredNewModelLightIntensityDiagnostics(
+        parsed,
+        options
+      );
       var animationDiagnostics = CreateIgnoredNewModelAnimationDiagnostics(parsed);
       var inertDiagnostics = CreateIgnoredInertDataDiagnostics(parsed)
-        .Concat(CreateIgnoredSceneNodeDiagnostics(parsed)).ToArray();
+        .Concat(CreateIgnoredSceneNodeDiagnostics(parsed))
+        .ToArray();
       var texBindingDiagnostics = CreateNewModelTexBindingDiagnostics(parsed, options);
       if (parsed.HasReservedMetadata)
       {
-        return Failed<GltfNewModelImportResult>(Diagnostic(
-          GltfDiagnosticCodes.OrphanEnvelope,
-          2011,
-          "$",
-          "New-model import requires input without reserved EarthTool metadata."));
+        return Failed<GltfNewModelImportResult>(
+          Diagnostic(
+            GltfDiagnosticCodes.OrphanEnvelope,
+            2011,
+            "$",
+            "New-model import requires input without reserved EarthTool metadata."
+          )
+        );
       }
 
       ValidateNewModelMaterialBindings(parsed, options);
       long serializedLength;
       try
       {
-        serializedLength = EarthTool.MSH.Internal.MshCanonicalSerializer
-          .GetCanonicalStaticSerializedLength(parsed.Nodes
-            .Where(node => node.MeshIndex.HasValue)
+        serializedLength =
+          EarthTool.MSH.Internal.MshCanonicalSerializer.GetCanonicalStaticSerializedLength(
+            parsed
+              .Nodes.Where(node => node.MeshIndex.HasValue)
+              .SelectMany(node => parsed.Meshes[node.MeshIndex!.Value].Primitives)
+              .Select(primitive => (primitive.Vertices.Count, primitive.Triangles.Count))
+          );
+        serializedLength = checked(
+          serializedLength
+          + parsed
+            .Nodes.Where(node => node.MeshIndex.HasValue)
             .SelectMany(node => parsed.Meshes[node.MeshIndex!.Value].Primitives)
-             .Select(primitive => (
-                primitive.Vertices.Count,
-                primitive.Triangles.Count)));
-        serializedLength = checked(serializedLength + parsed.Nodes
-          .Where(node => node.MeshIndex.HasValue)
-          .SelectMany(node => parsed.Meshes[node.MeshIndex!.Value].Primitives)
-          .Sum(primitive => primitive.MaterialIndex.HasValue
-            && options.TextureResourceBindings.TryGetValue(
-              GetMaterialHandle(parsed, primitive.MaterialIndex.Value),
-              out var binding)
-            ? binding?.Length ?? 0
-            : 0));
+            .Sum(primitive =>
+              primitive.MaterialIndex.HasValue
+              && options.TextureResourceBindings.TryGetValue(
+                GetMaterialHandle(parsed, primitive.MaterialIndex.Value),
+                out var binding
+              )
+                ? binding?.Length ?? 0
+                : 0
+            )
+        );
       }
       catch (OverflowException)
       {
@@ -1826,13 +2039,17 @@ namespace EarthTool.GLTF
         parsed,
         options,
         animations.AnimatedSourceNodes,
-        emitterOwnership);
+        emitterOwnership
+      );
       var effectivePositions = CreateEffectivePositions(
         draft,
-        source => source.Source.RenderObjects.SelectMany(renderObject =>
-          renderObject.RenderVertices.Select(vertex => vertex.Position)),
+        source =>
+          source.Source.RenderObjects.SelectMany(renderObject =>
+            renderObject.RenderVertices.Select(vertex => vertex.Position)
+          ),
         source => source.Pivot,
-        source => source.Children);
+        source => source.Children
+      );
       CanonicalStaticFootprint footprint;
       if (options.Footprint is not null)
       {
@@ -1843,87 +2060,123 @@ namespace EarthTool.GLTF
         var maximumZ = effectivePositions.Max(position => position.Z);
         if (!float.IsFinite(maximumZ) || maximumZ < 0 || maximumZ * 256d > ushort.MaxValue)
         {
-          return Failed<GltfNewModelImportResult>(InvalidGeometry(
-            "CommonBaseHeader.Footprint",
-            $"The derived occupied top elevation {maximumZ:R} is outside the representable range 0..{ushort.MaxValue / 256f:R}."));
+          return Failed<GltfNewModelImportResult>(
+            InvalidGeometry(
+              "CommonBaseHeader.Footprint",
+              $"The derived occupied top elevation {maximumZ:R} is outside the representable range 0..{ushort.MaxValue / 256f:R}."
+            )
+          );
         }
         var elevations = new float[16];
         elevations[15] = maximumZ;
         footprint = new CanonicalStaticFootprint(0x8000, elevations, new byte[16]);
       }
       var horizontalExtents = options.HorizontalExtents?.ToCanonical();
-      if (horizontalExtents is null
+      if (
+        horizontalExtents is null
         && !TryCreateHorizontalExtents(
           effectivePositions,
           out horizontalExtents,
-          out var rangeFailure))
+          out var rangeFailure
+        )
+      )
       {
-        return Failed<GltfNewModelImportResult>(InvalidGeometry(
-          "CommonBaseHeader.HorizontalExtents",
-          rangeFailure!));
+        return Failed<GltfNewModelImportResult>(
+          InvalidGeometry("CommonBaseHeader.HorizontalExtents", rangeFailure!)
+        );
       }
       var lineage = new MeshAssetLineageId(Guid.NewGuid());
-      var builder = StaticMeshBuilder.Create(Guid.NewGuid(), lineage)
+      var builder = StaticMeshBuilder
+        .Create(Guid.NewGuid(), lineage)
         .SetRootSourceObject(draft.Source)
         .SetFootprint(footprint)
         .SetHorizontalExtents(horizontalExtents!);
-      var build = builder.Build(new MshOperationProfile(
+      var build = builder.Build(
+        new MshOperationProfile(
           maxOutputBytes: profile.MaxOutputBytes,
           maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
-          maxStaticHierarchyDepth: profile.MaxHierarchyDepth));
+          maxStaticHierarchyDepth: profile.MaxHierarchyDepth
+        )
+      );
       if (!build.TryGetValue(out var asset))
       {
         return new OperationResult<GltfNewModelImportResult>(
           OperationStatus.Failed,
-          diagnostics: build.Diagnostics.Select(ToGltfAuthoringDiagnostic));
+          diagnostics: build.Diagnostics.Select(ToGltfAuthoringDiagnostic)
+        );
       }
 
       var edit = asset.Edit();
       ApplyNewModelPivots(draft, asset.RootSourceObject, edit);
       ApplyNewModelAnimations(animations, draft, asset.RootSourceObject, edit);
       ApplyNewModelBaseHeaderArtistObjects(parsed, edit, options, emitterOwnership);
-      var committed = edit.Commit(new MshOperationProfile(
-        maxOutputBytes: profile.MaxOutputBytes,
-        maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
-        maxStaticHierarchyDepth: profile.MaxHierarchyDepth));
+      var committed = edit.Commit(
+        new MshOperationProfile(
+          maxOutputBytes: profile.MaxOutputBytes,
+          maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
+          maxStaticHierarchyDepth: profile.MaxHierarchyDepth
+        )
+      );
       if (!committed.TryGetValue(out var authored))
       {
         return new OperationResult<GltfNewModelImportResult>(
           OperationStatus.Failed,
-          diagnostics: committed.Diagnostics.Select(ToGltfAuthoringDiagnostic));
+          diagnostics: committed.Diagnostics.Select(ToGltfAuthoringDiagnostic)
+        );
       }
 
       var baseline = new InterchangeBaseline(lineage.Value, Guid.NewGuid());
       return new OperationResult<GltfNewModelImportResult>(
         OperationStatus.Succeeded,
-        new GltfNewModelImportResult(authored, baseline, CreateNewModelPreservationReport(authored)),
-        sceneLightDiagnostics.Concat(lightIntensityDiagnostics).Concat(animationDiagnostics)
-          .Concat(inertDiagnostics).Concat(texBindingDiagnostics).Concat(committed.Diagnostics));
+        new GltfNewModelImportResult(
+          authored,
+          baseline,
+          CreateNewModelPreservationReport(authored)
+        ),
+        sceneLightDiagnostics
+          .Concat(lightIntensityDiagnostics)
+          .Concat(animationDiagnostics)
+          .Concat(inertDiagnostics)
+          .Concat(texBindingDiagnostics)
+          .Concat(committed.Diagnostics)
+      );
     }
 
     private static void ValidateNewModelMaterialBindings(
       ParsedGlb parsed,
-      GltfNewModelImportOptions options)
+      GltfNewModelImportOptions options
+    )
     {
-      var usedMaterialIndices = parsed.Meshes.SelectMany(mesh => mesh.Primitives)
+      var usedMaterialIndices = parsed
+        .Meshes.SelectMany(mesh => mesh.Primitives)
         .Where(primitive => primitive.MaterialIndex.HasValue)
         .Select(primitive => primitive.MaterialIndex!.Value)
         .Distinct()
         .ToArray();
-      foreach (var materialIndex in usedMaterialIndices.Where(index =>
-        parsed.Materials[index].HasBaseColorTexture))
+      foreach (
+        var materialIndex in usedMaterialIndices.Where(index =>
+          parsed.Materials[index].HasBaseColorTexture
+        )
+      )
       {
         var materialHandle = GetMaterialHandle(parsed, materialIndex);
-        if (!options.TextureResourceBindings.TryGetValue(materialHandle, out var binding)
-          || binding is null)
+        if (
+          !options.TextureResourceBindings.TryGetValue(materialHandle, out var binding)
+          || binding is null
+        )
         {
           throw new RequiredTextureResourceBindingException(materialIndex, materialHandle);
         }
       }
-      if (parsed.Meshes.SelectMany(mesh => mesh.Primitives).Any(primitive =>
-        primitive.MaterialIndex.HasValue
-          && parsed.Materials[primitive.MaterialIndex.Value].HasBaseColorTexture
-          && !primitive.HasTextureCoordinate))
+      if (
+        parsed
+          .Meshes.SelectMany(mesh => mesh.Primitives)
+          .Any(primitive =>
+            primitive.MaterialIndex.HasValue
+            && parsed.Materials[primitive.MaterialIndex.Value].HasBaseColorTexture
+            && !primitive.HasTextureCoordinate
+          )
+      )
       {
         throw new UnsupportedGltfDomainException("TexResourceBinding");
       }
@@ -1948,18 +2201,20 @@ namespace EarthTool.GLTF
 
     private static void ValidateNewModelObjectRoles(
       ParsedGlb parsed,
-      GltfNewModelImportOptions options)
+      GltfNewModelImportOptions options
+    )
     {
       for (var nodeIndex = 0; nodeIndex < parsed.Nodes.Count; nodeIndex++)
       {
-        if (GlbDocument.TryParseStaticLightHelperName(
-            parsed.Nodes[nodeIndex].Name,
-            out _,
-            out _)
-          && (!parsed.Nodes[nodeIndex].LightIndex.HasValue
+        if (
+          GlbDocument.TryParseStaticLightHelperName(parsed.Nodes[nodeIndex].Name, out _, out _)
+          && (
+            !parsed.Nodes[nodeIndex].LightIndex.HasValue
             || parsed.Nodes[nodeIndex].MeshIndex.HasValue
             || parsed.Nodes[nodeIndex].CameraIndex.HasValue
-            || parsed.Nodes[nodeIndex].Children.Count != 0))
+            || parsed.Nodes[nodeIndex].Children.Count != 0
+          )
+        )
         {
           throw new UnsupportedGltfDomainException("StaticLights", $"nodes[{nodeIndex}]");
         }
@@ -1975,10 +2230,15 @@ namespace EarthTool.GLTF
       foreach (var light in options.StaticLightOptions)
       {
         var lightIndex = GetLightIndex(parsed, light.Key);
-        if (!lightIndex.HasValue
-          || !parsed.Nodes.Select((node, index) => (node, index)).Any(item =>
-            item.node.LightIndex == lightIndex.Value
-              && GlbDocument.TryParseStaticLightHelperName(item.node.Name, out _, out _)))
+        if (
+          !lightIndex.HasValue
+          || !parsed
+            .Nodes.Select((node, index) => (node, index))
+            .Any(item =>
+              item.node.LightIndex == lightIndex.Value
+              && GlbDocument.TryParseStaticLightHelperName(item.node.Name, out _, out _)
+            )
+        )
         {
           throw new UnsupportedGltfDomainException("StaticLights");
         }
@@ -2081,10 +2341,12 @@ namespace EarthTool.GLTF
       var candidates = new Dictionary<int, List<int>>();
       for (var nodeIndex = 0; nodeIndex < parsed.Nodes.Count; nodeIndex++)
       {
-        if (GlbDocument.TryParseAttachmentHelperName(
+        if (
+          GlbDocument.TryParseAttachmentHelperName(
             parsed.Nodes[nodeIndex].Name,
-            out var physicalNumber)
-          && physicalNumber is >= 5 and <= 8)
+            out var physicalNumber
+          ) && physicalNumber is >= 5 and <= 8
+        )
         {
           AddArtistCandidate(candidates, physicalNumber, nodeIndex);
         }
@@ -2095,7 +2357,8 @@ namespace EarthTool.GLTF
         var paths = string.Join(", ", duplicate.Value.Select(index => $"nodes[{index}]"));
         throw ArtistObjectConflict(
           $"Emitter {duplicate.Key - 4} is declared by multiple artist objects: {paths}.",
-          $"nodes[{duplicate.Value[0]}]");
+          $"nodes[{duplicate.Value[0]}]"
+        );
       }
 
       var nodes = parsed.Nodes.Select(node => (node, (MetadataEnvelope?)null)).ToArray();
@@ -2110,7 +2373,8 @@ namespace EarthTool.GLTF
         {
           throw new UnsupportedGltfDomainException(
             "EmitterMarkerHierarchy",
-            $"nodes[{emitterNode}]");
+            $"nodes[{emitterNode}]"
+          );
         }
         emitterNodes.Add(emitterNode);
         var current = parentIndices[emitterNode];
@@ -2123,7 +2387,8 @@ namespace EarthTool.GLTF
         {
           throw new UnsupportedGltfDomainException(
             "EmitterMarkerHierarchy",
-            $"nodes[{emitterNode}]");
+            $"nodes[{emitterNode}]"
+          );
         }
 
         var flag = GlbDocument.GetMarkerAttachmentFlag(candidate.Key - 4);
@@ -2138,7 +2403,8 @@ namespace EarthTool.GLTF
       ParsedGlb parsed,
       GltfNewModelImportOptions options,
       ISet<int> animatedSourceNodes,
-      EmitterOwnershipPlan emitterOwnership)
+      EmitterOwnershipPlan emitterOwnership
+    )
     {
       var roots = CreateNewModelSources(
         parsed.RootNodeIndex,
@@ -2146,7 +2412,8 @@ namespace EarthTool.GLTF
         parsed,
         options,
         animatedSourceNodes,
-        emitterOwnership);
+        emitterOwnership
+      );
       if (roots.Count != 1)
       {
         throw new UnsupportedGltfDomainException("SceneMembership");
@@ -2161,13 +2428,15 @@ namespace EarthTool.GLTF
       ParsedGlb parsed,
       GltfNewModelImportOptions options,
       ISet<int> animatedSourceNodes,
-      EmitterOwnershipPlan emitterOwnership)
+      EmitterOwnershipPlan emitterOwnership
+    )
     {
       var node = parsed.Nodes[nodeIndex];
       var effectiveTransform = node.LocalTransform * inheritedLinearTransform;
       if (!node.MeshIndex.HasValue)
       {
-        var claimedArtistObject = GlbDocument.TryParseAttachmentHelperName(node.Name, out _)
+        var claimedArtistObject =
+          GlbDocument.TryParseAttachmentHelperName(node.Name, out _)
           || GlbDocument.TryParseCannonHelperName(node.Name, out _)
           || GlbDocument.TryParseStaticLightHelperName(node.Name, out _, out _);
         if (claimedArtistObject)
@@ -2182,17 +2451,19 @@ namespace EarthTool.GLTF
         {
           return Array.Empty<NewModelSourceDraft>();
         }
-        var collapsed = node.Children
-          .SelectMany(child => CreateNewModelSources(
-            child,
-            effectiveTransform,
-            parsed,
-            options,
-            animatedSourceNodes,
-            emitterOwnership))
+        var collapsed = node
+          .Children.SelectMany(child =>
+            CreateNewModelSources(
+              child,
+              effectiveTransform,
+              parsed,
+              options,
+              animatedSourceNodes,
+              emitterOwnership
+            )
+          )
           .ToArray();
-        if (collapsed.Length == 0
-          && !emitterOwnership.ScaffoldingNodeIndices.Contains(nodeIndex))
+        if (collapsed.Length == 0 && !emitterOwnership.ScaffoldingNodeIndices.Contains(nodeIndex))
         {
           return Array.Empty<NewModelSourceDraft>();
         }
@@ -2213,48 +2484,59 @@ namespace EarthTool.GLTF
       var normalTransform = System.Numerics.Matrix4x4.Transpose(inverse);
       var reverseWinding = authoredLinearTransform.GetDeterminant() < 0;
       var mesh = parsed.Meshes[node.MeshIndex.Value];
-      var renderObjects = mesh.Primitives.Select(primitive => new CanonicalStaticRenderObject(
-        primitive.Vertices.Select(vertex => TransformNewModelVertex(
-          vertex,
-          authoredLinearTransform,
-          normalTransform)),
-        primitive.Triangles.Select(triangle => reverseWinding
-          ? new CanonicalTriangle(triangle.Vertex0, triangle.Vertex2, triangle.Vertex1)
-          : new CanonicalTriangle(triangle.Vertex0, triangle.Vertex1, triangle.Vertex2)),
-        primitive.MaterialIndex.HasValue
+      var renderObjects = mesh
+        .Primitives.Select(primitive => new CanonicalStaticRenderObject(
+          primitive.Vertices.Select(vertex =>
+            TransformNewModelVertex(vertex, authoredLinearTransform, normalTransform)
+          ),
+          primitive.Triangles.Select(triangle =>
+            reverseWinding
+              ? new CanonicalTriangle(triangle.Vertex0, triangle.Vertex2, triangle.Vertex1)
+              : new CanonicalTriangle(triangle.Vertex0, triangle.Vertex1, triangle.Vertex2)
+          ),
+          primitive.MaterialIndex.HasValue
           && options.TextureResourceBindings.TryGetValue(
             GetMaterialHandle(parsed, primitive.MaterialIndex.Value),
-            out var textureResourceKey)
-          ? textureResourceKey
-          : null))
+            out var textureResourceKey
+          )
+            ? textureResourceKey
+            : null
+        ))
         .ToArray();
-      var children = node.Children
-        .SelectMany(child => CreateNewModelSources(
-          child,
-          animatedSourceNodes.Contains(nodeIndex)
-            ? System.Numerics.Matrix4x4.Identity
-            : linearTransform,
-          parsed,
-          options,
-          animatedSourceNodes,
-          emitterOwnership))
+      var children = node
+        .Children.SelectMany(child =>
+          CreateNewModelSources(
+            child,
+            animatedSourceNodes.Contains(nodeIndex)
+              ? System.Numerics.Matrix4x4.Identity
+              : linearTransform,
+            parsed,
+            options,
+            animatedSourceNodes,
+            emitterOwnership
+          )
+        )
         .ToArray();
       var pivot = new System.Numerics.Vector3(translation.X, -translation.Z, translation.Y);
       var typedRole = options.ObjectRoles.TryGetValue(
         GetNodeHandle(parsed, nodeIndex),
-        out var role)
-          ? role.ToCanonical()
-          : null;
+        out var role
+      )
+        ? role.ToCanonical()
+        : null;
       var inferredMarkerFlags = emitterOwnership.MarkerFlagsBySourceNode.TryGetValue(
         nodeIndex,
-        out var markers)
-          ? markers
-          : StaticRenderObjectFlags.None;
-      var canonicalRole = typedRole is null && inferredMarkerFlags == StaticRenderObjectFlags.None
-        ? null
-        : new CanonicalStaticObjectRole(
-          (typedRole?.Flags ?? StaticRenderObjectFlags.None) | inferredMarkerFlags,
-          typedRole?.BarrelMaximumAngle ?? 0);
+        out var markers
+      )
+        ? markers
+        : StaticRenderObjectFlags.None;
+      var canonicalRole =
+        typedRole is null && inferredMarkerFlags == StaticRenderObjectFlags.None
+          ? null
+          : new CanonicalStaticObjectRole(
+            (typedRole?.Flags ?? StaticRenderObjectFlags.None) | inferredMarkerFlags,
+            typedRole?.BarrelMaximumAngle ?? 0
+          );
       return new[]
       {
         new NewModelSourceDraft(
@@ -2262,9 +2544,11 @@ namespace EarthTool.GLTF
           new CanonicalStaticSourceObject(
             renderObjects,
             children.Select(child => child.Source),
-            canonicalRole),
+            canonicalRole
+          ),
           pivot,
-          children)
+          children
+        ),
       };
     }
 
@@ -2272,7 +2556,8 @@ namespace EarthTool.GLTF
       ParsedGlb parsed,
       StaticMeshEditSession edit,
       GltfNewModelImportOptions options,
-      EmitterOwnershipPlan emitterOwnership)
+      EmitterOwnershipPlan emitterOwnership
+    )
     {
       var nodes = parsed.Nodes.Select(node => (node, (MetadataEnvelope?)null)).ToArray();
       var transforms = CreateArtistObjectTransforms(parsed.RootNodeIndex, nodes)
@@ -2284,7 +2569,8 @@ namespace EarthTool.GLTF
           nodeIndex,
           parsed.RootNodeIndex,
           parentIndices,
-          nodes);
+          nodes
+        );
       }
       var attachments = new Dictionary<int, int>();
       var cannons = new Dictionary<int, int>();
@@ -2307,17 +2593,22 @@ namespace EarthTool.GLTF
         {
           if (!cannons.TryAdd(physicalNumber, index))
           {
-            throw ArtistObjectConflict("A cannon render-position target is occupied more than once.");
+            throw ArtistObjectConflict(
+              "A cannon render-position target is occupied more than once."
+            );
           }
         }
-        else if (node.LightIndex.HasValue
-          && GlbDocument.TryParseStaticLightHelperName(node.Name, out var type, out physicalNumber))
+        else if (
+          node.LightIndex.HasValue
+          && GlbDocument.TryParseStaticLightHelperName(node.Name, out var type, out physicalNumber)
+        )
         {
           if (!lights.TryAdd((type, physicalNumber), index))
           {
             throw ArtistObjectConflict(
               "A static-light target is occupied more than once.",
-              $"nodes[{index}]");
+              $"nodes[{index}]"
+            );
           }
         }
       }
@@ -2325,16 +2616,19 @@ namespace EarthTool.GLTF
       {
         edit.ReplaceAttachmentRecord(
           attachment.Key,
-          CreateAttachmentRecord(transforms[attachment.Value], 0x80));
+          CreateAttachmentRecord(transforms[attachment.Value], 0x80)
+        );
       }
       foreach (var cannon in cannons)
       {
         edit.ReplaceAttachmentRecord(
           cannon.Key,
-          CreateAttachmentRecord(transforms[cannon.Value], 0x80));
+          CreateAttachmentRecord(transforms[cannon.Value], 0x80)
+        );
         edit.ReplaceCannonRenderPosition(
           cannon.Key,
-          CreateCannonRenderPositionRecord(transforms[cannon.Value].Translation));
+          CreateCannonRenderPositionRecord(transforms[cannon.Value].Translation)
+        );
       }
       var definitionReferenceCounts = new int[parsed.Lights.Count];
       foreach (var lightIndex in parsed.Nodes.Select(node => node.LightIndex).OfType<int>())
@@ -2348,71 +2642,91 @@ namespace EarthTool.GLTF
       foreach (var item in lights)
       {
         var node = parsed.Nodes[item.Value];
-        if (node.LightIndex is null
+        if (
+          node.LightIndex is null
           || node.LightIndex.Value < 0
           || node.LightIndex.Value >= parsed.Lights.Count
-          || parsed.Lights[node.LightIndex.Value].Type != item.Key.Type)
+          || parsed.Lights[node.LightIndex.Value].Type != item.Key.Type
+        )
         {
           throw new UnsupportedGltfDomainException(
             "StaticLights",
-            $"nodes[{item.Value}].extensions.KHR_lights_punctual");
+            $"nodes[{item.Value}].extensions.KHR_lights_punctual"
+          );
         }
         if (definitionReferenceCounts[node.LightIndex.Value] != 1)
         {
           throw ArtistObjectConflict(
             "A static-light artist object must own an unshared punctual-light definition.",
-            $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}]");
+            $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}]"
+          );
         }
         var lightOptions = options.StaticLightOptions.TryGetValue(
           GetLightHandle(parsed, node.LightIndex.Value),
-          out var explicitLightOptions)
+          out var explicitLightOptions
+        )
           ? explicitLightOptions
           : null;
         var range = parsed.Lights[node.LightIndex.Value].Range;
-        if (item.Key.Type == "spot"
+        if (
+          item.Key.Type == "spot"
           && range.HasValue
-          && lightOptions?.TargetDistance.HasValue == true)
+          && lightOptions?.TargetDistance.HasValue == true
+        )
         {
           throw new UnsupportedGltfDomainException(
             "StaticLights",
-            $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}].range");
+            $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}].range"
+          );
         }
         var targetDistance = range ?? lightOptions?.TargetDistance;
-        if (item.Key.Type == "spot"
-          && (targetDistance is not > 0 || !float.IsFinite(targetDistance.Value)))
+        if (
+          item.Key.Type == "spot"
+          && (targetDistance is not > 0 || !float.IsFinite(targetDistance.Value))
+        )
         {
           throw new UnsupportedGltfDomainException(
             "StaticLights",
-            $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}].range");
+            $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}].range"
+          );
         }
         if (!usedLightDefinitions.Add(node.LightIndex.Value))
         {
           throw ArtistObjectConflict(
             "A new-model static-light definition cannot be shared.",
-            $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}]");
+            $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}]"
+          );
         }
         var hasCanonicalNodeName = GlbDocument.TryParseStaticLightHelperName(
           node.Name,
           out _,
-          out _);
+          out _
+        );
         var hasCanonicalDefinitionName = GlbDocument.TryParseStaticLightHelperName(
           parsed.Lights[node.LightIndex.Value].Name,
           out var definitionType,
-          out var definitionNumber);
-        if (hasCanonicalNodeName && !hasCanonicalDefinitionName
+          out var definitionNumber
+        );
+        if (
+          hasCanonicalNodeName && !hasCanonicalDefinitionName
           || hasCanonicalDefinitionName
-            && (definitionType != item.Key.Type || definitionNumber != item.Key.Number))
+            && (definitionType != item.Key.Type || definitionNumber != item.Key.Number)
+        )
         {
           throw new StaticLightMetadataException(
             $"extensions.KHR_lights_punctual.lights[{node.LightIndex.Value}].name",
-            "The canonical static-light instance and definition names contradict each other.");
+            "The canonical static-light instance and definition names contradict each other."
+          );
         }
-        var attachmentNumber = item.Key.Type == "spot" ? item.Key.Number + 12 : item.Key.Number + 16;
+        var attachmentNumber =
+          item.Key.Type == "spot" ? item.Key.Number + 12 : item.Key.Number + 16;
         edit.ReplaceAttachmentRecord(
           attachmentNumber,
           CreateStaticLightAttachmentRecord(
             transforms[item.Value].Translation,
-            $"nodes[{item.Value}].translation"));
+            $"nodes[{item.Value}].translation"
+          )
+        );
         edit.ReplaceStaticLightRecord(
           ToStaticLightRecordKind(item.Key.Type),
           item.Key.Number,
@@ -2421,23 +2735,28 @@ namespace EarthTool.GLTF
             transforms[item.Value],
             $"nodes[{item.Value}]",
             lightOptions,
-            StaticLightAuthoringIntent.NewModel),
-          new[] { "NewStaticLight" });
+            StaticLightAuthoringIntent.NewModel
+          ),
+          new[] { "NewStaticLight" }
+        );
       }
     }
 
     private static CanonicalStaticVertex TransformNewModelVertex(
       RenderVertex vertex,
       System.Numerics.Matrix4x4 linearTransform,
-      System.Numerics.Matrix4x4 normalTransform)
+      System.Numerics.Matrix4x4 normalTransform
+    )
     {
       var position = System.Numerics.Vector3.Transform(vertex.Position, linearTransform);
       var normal = System.Numerics.Vector3.TransformNormal(vertex.Normal, normalTransform);
       var normalLengthSquared = normal.LengthSquared();
-      if (!IsFinite(position)
+      if (
+        !IsFinite(position)
         || !IsFinite(normal)
         || !float.IsFinite(normalLengthSquared)
-        || normalLengthSquared == 0)
+        || normalLengthSquared == 0
+      )
       {
         throw new UnsupportedGltfDomainException("TransformOrHierarchy");
       }
@@ -2450,13 +2769,15 @@ namespace EarthTool.GLTF
       return new CanonicalStaticVertex(
         new System.Numerics.Vector3(position.X, -position.Z, position.Y),
         new System.Numerics.Vector3(normal.X, -normal.Z, normal.Y),
-        vertex.TextureCoordinate);
+        vertex.TextureCoordinate
+      );
     }
 
     private static void ApplyNewModelPivots(
       NewModelSourceDraft draft,
       StaticSourceObject source,
-      StaticMeshEditSession edit)
+      StaticMeshEditSession edit
+    )
     {
       if (draft.Pivot != System.Numerics.Vector3.Zero)
       {
@@ -2471,10 +2792,13 @@ namespace EarthTool.GLTF
     private static NewModelAnimationSet CreateNewModelAnimations(
       ParsedGlb parsed,
       long serializedLength,
-      int maximumOutputLength)
+      int maximumOutputLength
+    )
     {
-      var authoredAnimations = parsed.Animations.Select((animation, index) => (animation, index))
-        .Where(item => TryGetCanonicalAnimationClass(item.animation.Name, out _)).ToArray();
+      var authoredAnimations = parsed
+        .Animations.Select((animation, index) => (animation, index))
+        .Where(item => TryGetCanonicalAnimationClass(item.animation.Name, out _))
+        .ToArray();
       if (authoredAnimations.Length == 0)
       {
         return new NewModelAnimationSet(default, Array.Empty<NewModelAnimationTrack>());
@@ -2493,8 +2817,10 @@ namespace EarthTool.GLTF
         {
           throw new UnsupportedGltfDomainException("animations");
         }
-        if (animation.Objects.Count == 0
-          || !TryGetCanonicalAnimationFrameCount(animation, out var frameCount))
+        if (
+          animation.Objects.Count == 0
+          || !TryGetCanonicalAnimationFrameCount(animation, out var frameCount)
+        )
         {
           throw new UnsupportedGltfDomainException("animations");
         }
@@ -2508,27 +2834,36 @@ namespace EarthTool.GLTF
           parsed,
           animatedObjects.Keys.ToHashSet(),
           consumedTargets,
-          paths);
-        if (!consumedTargets.OrderBy(value => value)
-          .SequenceEqual(animatedObjects.Keys.OrderBy(value => value)))
+          paths
+        );
+        if (
+          !consumedTargets
+            .OrderBy(value => value)
+            .SequenceEqual(animatedObjects.Keys.OrderBy(value => value))
+        )
         {
           throw new UnsupportedGltfDomainException("animations");
         }
-        serializedLength = checked(serializedLength
-          + ((long)paths.Count * frameCount * (12 + 12 + 64)));
+        serializedLength = checked(
+          serializedLength + ((long)paths.Count * frameCount * (12 + 12 + 64))
+        );
         if (serializedLength > maximumOutputLength)
         {
           throw new ResourceLimitException(serializedLength, maximumOutputLength);
         }
         var sampledByNode = animatedObjects.ToDictionary(
           item => item.Key,
-          item => item.Value.SampleFrames(frameCount));
+          item => item.Value.SampleFrames(frameCount)
+        );
         foreach (var path in paths)
         {
-          tracks.Add(new NewModelAnimationTrack(
-            path.NodeIndex,
-            classIndex,
-            ComposeNewModelAnimationFrames(path.Path, parsed, sampledByNode, frameCount)));
+          tracks.Add(
+            new NewModelAnimationTrack(
+              path.NodeIndex,
+              classIndex,
+              ComposeNewModelAnimationFrames(path.Path, parsed, sampledByNode, frameCount)
+            )
+          );
         }
       }
 
@@ -2541,7 +2876,8 @@ namespace EarthTool.GLTF
       }
       return new NewModelAnimationSet(
         new AnimationClassBytes(lengths[0], lengths[1], lengths[2], lengths[3]),
-        tracks.AsReadOnly());
+        tracks.AsReadOnly()
+      );
     }
 
     private static void CollectNewModelAnimationPaths(
@@ -2550,7 +2886,8 @@ namespace EarthTool.GLTF
       ParsedGlb parsed,
       ISet<int> animatedNodes,
       ISet<int> consumedTargets,
-      ICollection<(int NodeIndex, IReadOnlyList<int> Path)> paths)
+      ICollection<(int NodeIndex, IReadOnlyList<int> Path)> paths
+    )
     {
       var path = collapsedPath.Concat(new[] { nodeIndex }).ToArray();
       var node = parsed.Nodes[nodeIndex];
@@ -2573,20 +2910,15 @@ namespace EarthTool.GLTF
             parsed,
             animatedNodes,
             consumedTargets,
-            paths);
+            paths
+          );
         }
         return;
       }
 
       foreach (var child in node.Children)
       {
-        CollectNewModelAnimationPaths(
-          child,
-          path,
-          parsed,
-          animatedNodes,
-          consumedTargets,
-          paths);
+        CollectNewModelAnimationPaths(child, path, parsed, animatedNodes, consumedTargets, paths);
       }
     }
 
@@ -2594,7 +2926,8 @@ namespace EarthTool.GLTF
       IReadOnlyList<int> path,
       ParsedGlb parsed,
       IReadOnlyDictionary<int, IReadOnlyList<ProjectedAnimationFrame>> sampledByNode,
-      int frameCount)
+      int frameCount
+    )
     {
       var frames = new ProjectedAnimationFrame[frameCount];
       for (var frame = 0; frame < frameCount; frame++)
@@ -2630,7 +2963,8 @@ namespace EarthTool.GLTF
       NewModelAnimationSet animations,
       NewModelSourceDraft draft,
       StaticSourceObject rootSourceObject,
-      StaticMeshEditSession edit)
+      StaticMeshEditSession edit
+    )
     {
       if (animations.Tracks.Count == 0)
       {
@@ -2647,7 +2981,8 @@ namespace EarthTool.GLTF
           tracks.ScaleFrames,
           tracks.TranslationFrames,
           tracks.Matrices,
-          checked((uint)animation.ClassIndex));
+          checked((uint)animation.ClassIndex)
+        );
       }
       edit.ReplaceAnimationLengths(animations.Lengths);
     }
@@ -2655,7 +2990,8 @@ namespace EarthTool.GLTF
     private static void AddNewModelSources(
       NewModelSourceDraft draft,
       StaticSourceObject source,
-      IDictionary<int, StaticSourceObject> result)
+      IDictionary<int, StaticSourceObject> result
+    )
     {
       result.Add(draft.NodeIndex, source);
       for (var index = 0; index < draft.Children.Count; index++)
@@ -2679,7 +3015,7 @@ namespace EarthTool.GLTF
         Canonicalized("CommonBaseHeader.HorizontalExtents"),
         Canonicalized("StaticRenderObjectSequence"),
         Canonicalized("RootSourceObject"),
-        Canonicalized("RootTrailingBytes")
+        Canonicalized("RootTrailingBytes"),
       };
       for (var index = 0; index < asset.StaticRenderObjectSequence.Count; index++)
       {
@@ -2718,7 +3054,8 @@ namespace EarthTool.GLTF
         diagnostic.Path,
         diagnostic.Message,
         diagnostic.ByteOffset,
-        diagnostic.Data);
+        diagnostic.Data
+      );
     }
 
     private sealed class NewModelAnimationSet
@@ -2731,7 +3068,8 @@ namespace EarthTool.GLTF
 
       internal NewModelAnimationSet(
         AnimationClassBytes lengths,
-        IReadOnlyList<NewModelAnimationTrack> tracks)
+        IReadOnlyList<NewModelAnimationTrack> tracks
+      )
       {
         Lengths = lengths;
         Tracks = tracks;
@@ -2750,7 +3088,8 @@ namespace EarthTool.GLTF
       internal NewModelAnimationTrack(
         int nodeIndex,
         int classIndex,
-        IReadOnlyList<ProjectedAnimationFrame> frames)
+        IReadOnlyList<ProjectedAnimationFrame> frames
+      )
       {
         NodeIndex = nodeIndex;
         ClassIndex = classIndex;
@@ -2772,7 +3111,8 @@ namespace EarthTool.GLTF
         int nodeIndex,
         CanonicalStaticSourceObject source,
         System.Numerics.Vector3 pivot,
-        IReadOnlyList<NewModelSourceDraft> children)
+        IReadOnlyList<NewModelSourceDraft> children
+      )
       {
         NodeIndex = nodeIndex;
         Source = source;
@@ -2790,7 +3130,8 @@ namespace EarthTool.GLTF
       internal EmitterOwnershipPlan(
         IReadOnlyDictionary<int, StaticRenderObjectFlags> markerFlagsBySourceNode,
         ISet<int> emitterNodeIndices,
-        ISet<int> scaffoldingNodeIndices)
+        ISet<int> scaffoldingNodeIndices
+      )
       {
         MarkerFlagsBySourceNode = markerFlagsBySourceNode;
         EmitterNodeIndices = emitterNodeIndices;
@@ -2803,60 +3144,71 @@ namespace EarthTool.GLTF
       InterchangeBaseline expectedBaseline,
       GltfEditImportOptions options,
       GltfOperationProfile profile,
-      CancellationToken cancellationToken)
+      CancellationToken cancellationToken
+    )
     {
       var sceneLightDiagnostics = CreateIgnoredSceneLightDiagnostics(parsed);
       var manifest = GlbDocument.ParseMetadata(
         parsed.ManifestMetadata ?? throw new MissingMetadataException("scene"),
-        profile);
+        profile
+      );
       ValidateManifestMetadata(manifest, expectedBaseline, parsed.MetadataConflicts);
       var metadataBaseline = new InterchangeBaseline(manifest.AssetLineageId, manifest.DocumentId);
 
       byte[] sourceMsh;
       try
       {
-        sourceMsh = GlbDocument.DecodeBase64Url(
-          manifest.SourceMsh!,
-          profile.MaxMetadataBytes).ToArray();
+        sourceMsh = GlbDocument
+          .DecodeBase64Url(manifest.SourceMsh!, profile.MaxMetadataBytes)
+          .ToArray();
       }
       catch (FormatException ex)
       {
-        return Failed<GltfEditImportResult>(MetadataDiagnostic(
-          GltfDiagnosticCodes.MalformedMetadata,
-          2003,
-          "scenes[0]",
-          ex.Message,
-          GltfMetadataConflictActions.Abort,
-          GltfMetadataConflictActions.RetryWithMetadata,
-          GltfMetadataConflictActions.DiscardLineage));
+        return Failed<GltfEditImportResult>(
+          MetadataDiagnostic(
+            GltfDiagnosticCodes.MalformedMetadata,
+            2003,
+            "scenes[0]",
+            ex.Message,
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.DiscardLineage
+          )
+        );
       }
 
       cancellationToken.ThrowIfCancellationRequested();
-      if (!IsStrictlyIncreasing(manifest.StaticRenderObjectInventory)
+      if (
+        !IsStrictlyIncreasing(manifest.StaticRenderObjectInventory)
         || !IsStrictlyIncreasing(manifest.SourceObjectInventory)
         || !manifest.StaticRenderObjectInventory.SequenceEqual(
-          manifest.StaticRenderObjectLocalIds.OrderBy(id => id))
+          manifest.StaticRenderObjectLocalIds.OrderBy(id => id)
+        )
         || !manifest.SourceObjectInventory.SequenceEqual(
-          manifest.SourceObjectLocalIds.OrderBy(id => id)))
+          manifest.SourceObjectLocalIds.OrderBy(id => id)
+        )
+      )
       {
-        return Failed<GltfEditImportResult>(MetadataDiagnostic(
-          GltfDiagnosticCodes.MalformedMetadata,
-          2003,
-          "scenes[0]",
-          "Preserved MSH state did not pass the safe MSH reader.",
-          GltfMetadataConflictActions.Abort,
-          GltfMetadataConflictActions.RetryWithMetadata,
-          GltfMetadataConflictActions.DiscardLineage));
+        return Failed<GltfEditImportResult>(
+          MetadataDiagnostic(
+            GltfDiagnosticCodes.MalformedMetadata,
+            2003,
+            "scenes[0]",
+            "Preserved MSH state did not pass the safe MSH reader.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.DiscardLineage
+          )
+        );
       }
 
       StaticMeshAsset asset;
       try
       {
         using var sourceMshStream = new MemoryStream(sourceMsh, writable: false);
-        var read = await new MshReader().ReadAsync(
-          sourceMshStream,
-          MshOperationProfile.Default,
-          cancellationToken).ConfigureAwait(false);
+        var read = await new MshReader()
+          .ReadAsync(sourceMshStream, MshOperationProfile.Default, cancellationToken)
+          .ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         if (read.Value is null)
         {
@@ -2872,22 +3224,29 @@ namespace EarthTool.GLTF
           MeshAssetOrigin.Loaded,
           new EarthTool.MSH.Internal.StaticMeshIdentityState(
             lineageId,
-            manifest.StaticRenderObjectLocalIds.Select(id =>
-              new StaticRenderObjectId(lineageId, id)),
+            manifest.StaticRenderObjectLocalIds.Select(id => new StaticRenderObjectId(
+              lineageId,
+              id
+            )),
             manifest.SourceObjectLocalIds.Select(id => new SourceObjectId(lineageId, id)),
             manifest.NextStaticRenderObjectLocalId,
-            manifest.NextSourceObjectLocalId));
+            manifest.NextSourceObjectLocalId
+          )
+        );
       }
       catch (Exception ex) when (ex is ArgumentException || ex is InvalidDataException)
       {
-        return Failed<GltfEditImportResult>(MetadataDiagnostic(
-          GltfDiagnosticCodes.MalformedMetadata,
-          2003,
-          "scenes[0]",
-          ex.Message,
-          GltfMetadataConflictActions.Abort,
-          GltfMetadataConflictActions.RetryWithMetadata,
-            GltfMetadataConflictActions.DiscardLineage));
+        return Failed<GltfEditImportResult>(
+          MetadataDiagnostic(
+            GltfDiagnosticCodes.MalformedMetadata,
+            2003,
+            "scenes[0]",
+            ex.Message,
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.DiscardLineage
+          )
+        );
       }
 
       MetadataGraphDetector.Detect(
@@ -2896,74 +3255,98 @@ namespace EarthTool.GLTF
         asset,
         metadataBaseline,
         profile,
-        parsed.MetadataConflicts);
+        parsed.MetadataConflicts
+      );
       var metadataConflicts = parsed.MetadataConflicts.Build();
       var lineageResolution = options.ConflictResolutions.SingleOrDefault(resolution =>
         resolution.Action == GltfMetadataConflictActions.AdoptAsNew
-        || resolution.Action == GltfMetadataConflictActions.DiscardLineage);
+        || resolution.Action == GltfMetadataConflictActions.DiscardLineage
+      );
       if (lineageResolution is not null)
       {
-        var conflictDiagnostics = metadataConflicts.Select(conflict =>
-          BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline)).ToArray();
+        var conflictDiagnostics = metadataConflicts
+          .Select(conflict => BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline))
+          .ToArray();
         var matching = conflictDiagnostics.SingleOrDefault(diagnostic =>
-          diagnostic.Data["conflictKey"] == lineageResolution.ConflictKey);
-        if (options.ConflictResolutions.Count != 1
+          diagnostic.Data["conflictKey"] == lineageResolution.ConflictKey
+        );
+        if (
+          options.ConflictResolutions.Count != 1
           || matching is null
-          || !matching.Data["actions"].Split(',').Contains(
-            lineageResolution.Action,
-            StringComparer.Ordinal))
+          || !matching
+            .Data["actions"]
+            .Split(',')
+            .Contains(lineageResolution.Action, StringComparer.Ordinal)
+        )
         {
-          return Failed<GltfEditImportResult>(InvalidConflictResolution(
-            "The whole-lineage action is stale or is not allowed for the matching conflict."));
+          return Failed<GltfEditImportResult>(
+            InvalidConflictResolution(
+              "The whole-lineage action is stale or is not allowed for the matching conflict."
+            )
+          );
         }
 
-        return ImportWithoutMetadata(
-          parsed,
-          profile,
-          cancellationToken,
-          lineageResolution);
+        return ImportWithoutMetadata(parsed, profile, cancellationToken, lineageResolution);
       }
       var deletionResolution = options.ConflictResolutions.FirstOrDefault(resolution =>
-        resolution.Action == GltfMetadataConflictActions.AcceptDeletion);
+        resolution.Action == GltfMetadataConflictActions.AcceptDeletion
+      );
       if (deletionResolution is not null)
       {
-        var conflictDiagnostics = metadataConflicts.Select(conflict =>
-          BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline)).ToArray();
+        var conflictDiagnostics = metadataConflicts
+          .Select(conflict => BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline))
+          .ToArray();
         var matching = conflictDiagnostics.SingleOrDefault(diagnostic =>
-          diagnostic.Data["conflictKey"] == deletionResolution.ConflictKey);
+          diagnostic.Data["conflictKey"] == deletionResolution.ConflictKey
+        );
         if (matching is null || matching.Code != GltfDiagnosticCodes.MissingExpectedScope)
         {
-          return Failed<GltfEditImportResult>(InvalidConflictResolution(
-            "Deletion acceptance is stale or unsupported for the matching conflict."));
+          return Failed<GltfEditImportResult>(
+            InvalidConflictResolution(
+              "Deletion acceptance is stale or unsupported for the matching conflict."
+            )
+          );
         }
-        var accepted = matching.Data["carrierType"] == "material"
-          ? RestoreDeletedMaterialScope(parsed, matching, metadataBaseline, profile)
+        var accepted =
+          matching.Data["carrierType"] == "material"
+            ? RestoreDeletedMaterialScope(parsed, matching, metadataBaseline, profile)
           : matching.Data["carrierType"] == "mesh"
             ? RestoreDeletedMeshScope(parsed, matching, metadataBaseline, asset, profile)
-            : AcceptDeletedNativeScope(parsed, matching, profile);
+          : AcceptDeletedNativeScope(parsed, matching, profile);
         var retried = await ImportParsedAsync(
-          accepted,
-          expectedBaseline,
-          new GltfEditImportOptions(options.ConflictResolutions.Where(resolution =>
-            !ReferenceEquals(resolution, deletionResolution))),
-          profile,
-          cancellationToken).ConfigureAwait(false);
+            accepted,
+            expectedBaseline,
+            new GltfEditImportOptions(
+              options.ConflictResolutions.Where(resolution =>
+                !ReferenceEquals(resolution, deletionResolution)
+              )
+            ),
+            profile,
+            cancellationToken
+          )
+          .ConfigureAwait(false);
         return WithAppliedResolution(retried, deletionResolution);
       }
       var guardResolution = options.ConflictResolutions.FirstOrDefault(resolution =>
         resolution.Action == GltfMetadataConflictActions.RegenerateDerivedState
-        || resolution.Action == GltfMetadataConflictActions.DiscardAffectedState);
+        || resolution.Action == GltfMetadataConflictActions.DiscardAffectedState
+      );
       if (guardResolution is not null)
       {
-        var conflictDiagnostics = metadataConflicts.Select(conflict =>
-          BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline)).ToArray();
+        var conflictDiagnostics = metadataConflicts
+          .Select(conflict => BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline))
+          .ToArray();
         var matching = conflictDiagnostics.SingleOrDefault(diagnostic =>
-          diagnostic.Data["conflictKey"] == guardResolution.ConflictKey);
-        if (matching is not null
+          diagnostic.Data["conflictKey"] == guardResolution.ConflictKey
+        );
+        if (
+          matching is not null
           && matching.Path.Contains(".guards.", StringComparison.Ordinal)
-          && matching.Data["actions"].Split(',').Contains(
-            guardResolution.Action,
-            StringComparer.Ordinal))
+          && matching
+            .Data["actions"]
+            .Split(',')
+            .Contains(guardResolution.Action, StringComparer.Ordinal)
+        )
         {
           var discard = guardResolution.Action == GltfMetadataConflictActions.DiscardAffectedState;
           var regenerated = matching.Data["carrierType"] switch
@@ -2971,38 +3354,55 @@ namespace EarthTool.GLTF
             "mesh" => RewriteMeshGuard(parsed, matching, metadataBaseline, discard, profile),
             "node" => RewriteNodeGuard(parsed, matching, metadataBaseline, asset, discard, profile),
             "light" => RewriteLightGuard(parsed, matching, metadataBaseline, discard, profile),
-            _ => null
+            _ => null,
           };
           if (regenerated is null)
           {
-            return Failed<GltfEditImportResult>(InvalidConflictResolution(
-              "The guard action is not supported for the matching carrier."));
+            return Failed<GltfEditImportResult>(
+              InvalidConflictResolution(
+                "The guard action is not supported for the matching carrier."
+              )
+            );
           }
           var retried = await ImportParsedAsync(
-            regenerated,
-            expectedBaseline,
-            new GltfEditImportOptions(options.ConflictResolutions.Where(resolution =>
-              !ReferenceEquals(resolution, guardResolution))),
-            profile,
-            cancellationToken).ConfigureAwait(false);
+              regenerated,
+              expectedBaseline,
+              new GltfEditImportOptions(
+                options.ConflictResolutions.Where(resolution =>
+                  !ReferenceEquals(resolution, guardResolution)
+                )
+              ),
+              profile,
+              cancellationToken
+            )
+            .ConfigureAwait(false);
           return WithAppliedResolution(retried, guardResolution);
         }
       }
       var mapResolution = options.ConflictResolutions.FirstOrDefault(resolution =>
-        resolution.Action == GltfMetadataConflictActions.MapScope);
+        resolution.Action == GltfMetadataConflictActions.MapScope
+      );
       if (mapResolution is not null)
       {
-        var conflictDiagnostics = metadataConflicts.Select(conflict =>
-          BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline)).ToArray();
+        var conflictDiagnostics = metadataConflicts
+          .Select(conflict => BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline))
+          .ToArray();
         var matching = conflictDiagnostics.SingleOrDefault(diagnostic =>
-          diagnostic.Data["conflictKey"] == mapResolution.ConflictKey);
-        if (matching is null
-          || !matching.Data["actions"].Split(',').Contains(
-            GltfMetadataConflictActions.MapScope,
-            StringComparer.Ordinal))
+          diagnostic.Data["conflictKey"] == mapResolution.ConflictKey
+        );
+        if (
+          matching is null
+          || !matching
+            .Data["actions"]
+            .Split(',')
+            .Contains(GltfMetadataConflictActions.MapScope, StringComparer.Ordinal)
+        )
         {
-          return Failed<GltfEditImportResult>(InvalidConflictResolution(
-            "The scope mapping is stale, incomplete, or is not allowed for the matching conflict."));
+          return Failed<GltfEditImportResult>(
+            InvalidConflictResolution(
+              "The scope mapping is stale, incomplete, or is not allowed for the matching conflict."
+            )
+          );
         }
 
         ParsedGlb mapped;
@@ -3015,79 +3415,99 @@ namespace EarthTool.GLTF
           return Failed<GltfEditImportResult>(InvalidConflictResolution(ex.Message));
         }
         var retried = await ImportParsedAsync(
-          mapped,
-          expectedBaseline,
-          new GltfEditImportOptions(options.ConflictResolutions.Where(resolution =>
-            !ReferenceEquals(resolution, mapResolution))),
-          profile,
-          cancellationToken).ConfigureAwait(false);
+            mapped,
+            expectedBaseline,
+            new GltfEditImportOptions(
+              options.ConflictResolutions.Where(resolution =>
+                !ReferenceEquals(resolution, mapResolution)
+              )
+            ),
+            profile,
+            cancellationToken
+          )
+          .ConfigureAwait(false);
         return WithAppliedResolution(retried, mapResolution);
       }
       var forkResolution = options.ConflictResolutions.FirstOrDefault(resolution =>
-        resolution.Action == GltfMetadataConflictActions.ForkScope);
+        resolution.Action == GltfMetadataConflictActions.ForkScope
+      );
       if (forkResolution is not null)
       {
-        var conflictDiagnostics = metadataConflicts.Select(conflict =>
-          BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline)).ToArray();
+        var conflictDiagnostics = metadataConflicts
+          .Select(conflict => BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline))
+          .ToArray();
         var matching = conflictDiagnostics.SingleOrDefault(diagnostic =>
-          diagnostic.Data["conflictKey"] == forkResolution.ConflictKey);
-        if (matching is null
-          || !matching.Data["actions"].Split(',').Contains(
-            GltfMetadataConflictActions.ForkScope,
-            StringComparer.Ordinal))
+          diagnostic.Data["conflictKey"] == forkResolution.ConflictKey
+        );
+        if (
+          matching is null
+          || !matching
+            .Data["actions"]
+            .Split(',')
+            .Contains(GltfMetadataConflictActions.ForkScope, StringComparer.Ordinal)
+        )
         {
-          return Failed<GltfEditImportResult>(InvalidConflictResolution(
-            "The scope fork is stale, incomplete, or is not allowed for the matching conflict."));
+          return Failed<GltfEditImportResult>(
+            InvalidConflictResolution(
+              "The scope fork is stale, incomplete, or is not allowed for the matching conflict."
+            )
+          );
         }
 
         var forked = RemoveScopeMetadata(parsed, matching.Data["nativePath"], profile);
         var retried = await ImportParsedAsync(
-          forked,
-          expectedBaseline,
-          new GltfEditImportOptions(options.ConflictResolutions.Where(resolution =>
-            !ReferenceEquals(resolution, forkResolution))),
-          profile,
-          cancellationToken).ConfigureAwait(false);
+            forked,
+            expectedBaseline,
+            new GltfEditImportOptions(
+              options.ConflictResolutions.Where(resolution =>
+                !ReferenceEquals(resolution, forkResolution)
+              )
+            ),
+            profile,
+            cancellationToken
+          )
+          .ConfigureAwait(false);
         return WithAppliedResolution(retried, forkResolution);
       }
-      var conflictResolution = ResolveMetadataConflicts(metadataConflicts, expectedBaseline, options);
+      var conflictResolution = ResolveMetadataConflicts(
+        metadataConflicts,
+        expectedBaseline,
+        options
+      );
       if (conflictResolution.Diagnostics.Count != 0)
       {
         return Failed<GltfEditImportResult>(conflictResolution.Diagnostics);
       }
       var branchAccepted = conflictResolution.Applied.Any(resolution =>
-        resolution.Action == GltfMetadataConflictActions.AcceptBranch);
+        resolution.Action == GltfMetadataConflictActions.AcceptBranch
+      );
       var reconciliationBaseline = branchAccepted ? metadataBaseline : expectedBaseline;
 
-      var meshes = parsed.Meshes
-        .Select(mesh => new
+      var meshes = parsed
+        .Meshes.Select(mesh => new
         {
           Parsed = mesh,
           Metadata = mesh.Metadata is null
             ? null
-            : GlbDocument.ParseMetadata(mesh.Metadata, profile)
+            : GlbDocument.ParseMetadata(mesh.Metadata, profile),
         })
         .ToArray();
-      var nodes = parsed.Nodes
-        .Select(node => new
+      var nodes = parsed
+        .Nodes.Select(node => new
         {
           Parsed = node,
           Metadata = node.Metadata is null
             ? null
-            : GlbDocument.ParseMetadata(
-              node.Metadata,
-              profile)
+            : GlbDocument.ParseMetadata(node.Metadata, profile),
         })
         .ToArray();
-      var lights = parsed.Lights
-        .Select(light => new
+      var lights = parsed
+        .Lights.Select(light => new
         {
           Parsed = light,
           Metadata = light.Metadata is null
             ? null
-            : GlbDocument.ParseMetadata(
-              light.Metadata,
-              profile)
+            : GlbDocument.ParseMetadata(light.Metadata, profile),
         })
         .ToArray();
       var edit = asset.Edit();
@@ -3097,7 +3517,8 @@ namespace EarthTool.GLTF
         meshes.Select(mesh => (mesh.Parsed, mesh.Metadata)).ToArray(),
         asset,
         reconciliationBaseline,
-        edit);
+        edit
+      );
       var artistObjects = ReconcileBaseHeaderArtistObjects(
         parsed,
         nodes.Select(node => (node.Parsed, node.Metadata)).ToArray(),
@@ -3106,22 +3527,29 @@ namespace EarthTool.GLTF
         hierarchy,
         reconciliationBaseline,
         manifest.ScopeNextIds,
-        edit);
+        edit
+      );
       try
       {
         var animationPlan = CreateAnimationEditPlan(
           parsed,
           manifest,
-          nodes.Select(node => node.Metadata?.ScopeKind == "object"
+          nodes
+            .Select(node =>
+              node.Metadata?.ScopeKind == "object"
               && node.Metadata.AttachmentRecord is null
               && node.Metadata.CannonRenderPositionRecord is null
               && node.Metadata.StaticLightAttachmentRecord is null
                 ? node.Metadata
-                : null).ToArray(),
+                : null
+            )
+            .ToArray(),
           asset,
           reconciliationBaseline,
-          profile.MaxOutputBytes);
-        var sourcesByLocalId = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
+          profile.MaxOutputBytes
+        );
+        var sourcesByLocalId = StaticSourceObjectTraversal
+          .Flatten(asset.RootSourceObject)
           .ToDictionary(source => source.Id.Value);
         foreach (var replacement in animationPlan.Replacements)
         {
@@ -3131,7 +3559,8 @@ namespace EarthTool.GLTF
             tracks.ScaleFrames,
             tracks.TranslationFrames,
             tracks.Matrices,
-            replacement.AnimationClassValue);
+            replacement.AnimationClassValue
+          );
         }
         if (!animationPlan.Lengths.Equals(asset.CommonBaseHeader.AnimationLengths))
         {
@@ -3144,54 +3573,69 @@ namespace EarthTool.GLTF
       }
       catch (StaleNativeProjectionException ex)
       {
-        return Failed<GltfEditImportResult>(Diagnostic(
-          GltfDiagnosticCodes.StaleNativeProjection,
-          2016,
-          "animations",
-          ex.Message));
+        return Failed<GltfEditImportResult>(
+          Diagnostic(GltfDiagnosticCodes.StaleNativeProjection, 2016, "animations", ex.Message)
+        );
       }
       IReadOnlyList<PartitionMatch> partitionMatches;
       try
       {
-        partitionMatches = MatchPartitions(meshes.Select((mesh, index) =>
-          (mesh.Parsed,
-            mesh.Metadata,
-            Discarded: parsed.DiscardedMetadataScopes.Contains($"meshes[{index}]"),
-            Index: index))
-          .Where(mesh => hierarchy.RetainedMeshIndices.Contains(mesh.Index))
-          .Select(mesh => (mesh.Parsed, Metadata: mesh.Metadata!, mesh.Discarded)).ToArray(),
+        partitionMatches = MatchPartitions(
+          meshes
+            .Select(
+              (mesh, index) =>
+                (
+                  mesh.Parsed,
+                  mesh.Metadata,
+                  Discarded: parsed.DiscardedMetadataScopes.Contains($"meshes[{index}]"),
+                  Index: index
+                )
+            )
+            .Where(mesh => hierarchy.RetainedMeshIndices.Contains(mesh.Index))
+            .Select(mesh => (mesh.Parsed, Metadata: mesh.Metadata!, mesh.Discarded))
+            .ToArray(),
           asset,
-          reconciliationBaseline);
-        partitionMatches = partitionMatches.Select(match =>
-          hierarchy.Transforms.TryGetValue(match.SourceObjectId, out var transform)
-            ? TransformPartition(match, transform)
-            : match).ToArray();
+          reconciliationBaseline
+        );
+        partitionMatches = partitionMatches
+          .Select(match =>
+            hierarchy.Transforms.TryGetValue(match.SourceObjectId, out var transform)
+              ? TransformPartition(match, transform)
+              : match
+          )
+          .ToArray();
       }
       catch (StaleNativeProjectionException ex)
       {
-        return Failed<GltfEditImportResult>(Diagnostic(
-          GltfDiagnosticCodes.StaleNativeProjection,
-          2016,
-          "meshes",
-          ex.Message));
+        return Failed<GltfEditImportResult>(
+          Diagnostic(GltfDiagnosticCodes.StaleNativeProjection, 2016, "meshes", ex.Message)
+        );
       }
       catch (AmbiguousPartitionCorrespondenceException ex)
       {
-        return Failed<GltfEditImportResult>(Diagnostic(
-          GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
-          2012,
-          "meshes",
-          ex.Message));
+        return Failed<GltfEditImportResult>(
+          Diagnostic(
+            GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
+            2012,
+            "meshes",
+            ex.Message
+          )
+        );
       }
 
       foreach (var replacement in hierarchy.Pivots)
       {
         edit.ReplacePivot(replacement.Key, replacement.Value);
       }
-      var matchedLocalIds = partitionMatches.Where(match => !match.Added)
-        .Select(match => match.Partition.LocalId).ToHashSet();
-      foreach (var removed in asset.StaticRenderObjectSequence.Where(record =>
-        !matchedLocalIds.Contains(record.LocalId)))
+      var matchedLocalIds = partitionMatches
+        .Where(match => !match.Added)
+        .Select(match => match.Partition.LocalId)
+        .ToHashSet();
+      foreach (
+        var removed in asset.StaticRenderObjectSequence.Where(record =>
+          !matchedLocalIds.Contains(record.LocalId)
+        )
+      )
       {
         edit.RemoveRenderObject(removed.Id);
       }
@@ -3199,10 +3643,13 @@ namespace EarthTool.GLTF
       foreach (var match in partitionMatches.Where(match => !match.Retained))
       {
         var vertices = match.Partition.Vertices.Select(ToCanonicalVertex).ToArray();
-        var triangles = match.Partition.Triangles.Select(triangle => new CanonicalTriangle(
-          triangle.Vertex0,
-          triangle.Vertex1,
-          triangle.Vertex2)).ToArray();
+        var triangles = match
+          .Partition.Triangles.Select(triangle => new CanonicalTriangle(
+            triangle.Vertex0,
+            triangle.Vertex1,
+            triangle.Vertex2
+          ))
+          .ToArray();
         if (match.Added)
         {
           var added = edit.AddRenderObject(match.SourceObjectId, vertices, triangles);
@@ -3211,7 +3658,8 @@ namespace EarthTool.GLTF
         else
         {
           var renderObject = asset.StaticRenderObjectSequence.Single(record =>
-            record.LocalId == match.Partition.LocalId);
+            record.LocalId == match.Partition.LocalId
+          );
           edit.ReplaceGeometry(renderObject.Id, vertices, triangles);
         }
       }
@@ -3220,62 +3668,87 @@ namespace EarthTool.GLTF
         hierarchy.Root,
         partitionMatches,
         artistObjects,
-        edit);
+        edit
+      );
       ApplyMaterialBindings(
         parsed,
         asset,
         reconciliationBaseline,
-        partitionMatches.Select(match => match.Partition)
+        partitionMatches
+          .Select(match => match.Partition)
           .Concat(hierarchy.AddedPartitions)
           .ToArray(),
         edit,
-        profile);
+        profile
+      );
 
       var sourceEffectivePositions = CreateEffectivePositions(
         asset.RootSourceObject,
-        source => source.StaticRenderObjectIds.SelectMany(renderObjectId =>
-          asset.StaticRenderObjectSequence.Single(record =>
-            record.Id.Equals(renderObjectId)).RenderVertices.Select(vertex => vertex.Position)),
-        source => asset.StaticRenderObjectSequence.Single(record =>
-          record.Id.Equals(source.StaticRenderObjectIds[0])).Pivot,
-        source => source.Children);
-      var partitionsByLocalId = partitionMatches.Select(match => match.Partition)
+        source =>
+          source.StaticRenderObjectIds.SelectMany(renderObjectId =>
+            asset
+              .StaticRenderObjectSequence.Single(record => record.Id.Equals(renderObjectId))
+              .RenderVertices.Select(vertex => vertex.Position)
+          ),
+        source =>
+          asset
+            .StaticRenderObjectSequence.Single(record =>
+              record.Id.Equals(source.StaticRenderObjectIds[0])
+            )
+            .Pivot,
+        source => source.Children
+      );
+      var partitionsByLocalId = partitionMatches
+        .Select(match => match.Partition)
         .Concat(hierarchy.AddedPartitions)
         .ToDictionary(partition => partition.LocalId);
       var sourceRecordsById = asset.StaticRenderObjectSequence.ToDictionary(record => record.Id);
-      var sourceRecordsByLocalId = asset.StaticRenderObjectSequence.ToDictionary(record => record.LocalId);
+      var sourceRecordsByLocalId = asset.StaticRenderObjectSequence.ToDictionary(record =>
+        record.LocalId
+      );
       var currentEffectivePositions = CreateEffectivePositions(
         hierarchy.Root,
-        source => source.StaticRenderObjectIds.SelectMany(renderObjectId =>
-          partitionsByLocalId.TryGetValue(renderObjectId.Value, out var partition)
-            ? partition.Vertices.Select(vertex => ToCanonicalPosition(vertex.Position))
-            : Enumerable.Empty<System.Numerics.Vector3>()),
-        source => hierarchy.Pivots.TryGetValue(source.StaticRenderObjectIds[0], out var pivot)
-          ? pivot
+        source =>
+          source.StaticRenderObjectIds.SelectMany(renderObjectId =>
+            partitionsByLocalId.TryGetValue(renderObjectId.Value, out var partition)
+              ? partition.Vertices.Select(vertex => ToCanonicalPosition(vertex.Position))
+              : Enumerable.Empty<System.Numerics.Vector3>()
+          ),
+        source =>
+          hierarchy.Pivots.TryGetValue(source.StaticRenderObjectIds[0], out var pivot) ? pivot
           : sourceRecordsById.TryGetValue(source.StaticRenderObjectIds[0], out var record)
             ? record.Pivot
-            : System.Numerics.Vector3.Zero,
-        source => source.Children);
-      var effectivePositionsChanged = hierarchy.Transforms.Count != 0
+          : System.Numerics.Vector3.Zero,
+        source => source.Children
+      );
+      var effectivePositionsChanged =
+        hierarchy.Transforms.Count != 0
         || hierarchy.Pivots.Keys.Any(renderObjectId =>
-          !renderObjectId.Equals(hierarchy.Root.StaticRenderObjectIds[0]))
+          !renderObjectId.Equals(hierarchy.Root.StaticRenderObjectIds[0])
+        )
         || !HaveSameEffectivePositions(sourceEffectivePositions, currentEffectivePositions)
-        || partitionMatches.Any(match => !match.Added
+        || partitionMatches.Any(match =>
+          !match.Added
           && !match.Retained
-          && !sourceRecordsByLocalId[match.Partition.LocalId].RenderVertices
-            .Select(vertex => vertex.Position)
-            .SequenceEqual(match.Partition.Vertices.Select(vertex =>
-              ToCanonicalPosition(vertex.Position))));
+          && !sourceRecordsByLocalId[match.Partition.LocalId]
+            .RenderVertices.Select(vertex => vertex.Position)
+            .SequenceEqual(
+              match.Partition.Vertices.Select(vertex => ToCanonicalPosition(vertex.Position))
+            )
+        );
       if (effectivePositionsChanged)
       {
-        if (!TryCreateHorizontalExtents(
-          currentEffectivePositions,
-          out var horizontalExtents,
-          out var rangeFailure))
+        if (
+          !TryCreateHorizontalExtents(
+            currentEffectivePositions,
+            out var horizontalExtents,
+            out var rangeFailure
+          )
+        )
         {
-          return Failed<GltfEditImportResult>(InvalidGeometry(
-            "CommonBaseHeader.HorizontalExtents",
-            rangeFailure!));
+          return Failed<GltfEditImportResult>(
+            InvalidGeometry("CommonBaseHeader.HorizontalExtents", rangeFailure!)
+          );
         }
         edit.ReplaceHorizontalExtents(horizontalExtents!);
       }
@@ -3285,32 +3758,51 @@ namespace EarthTool.GLTF
         edit.ApplyHierarchy(hierarchy.Root, hierarchy.Sequence);
       }
 
-      var partitions = partitionMatches.Select(match => match.Partition)
-        .Concat(hierarchy.AddedPartitions).ToArray();
+      var partitions = partitionMatches
+        .Select(match => match.Partition)
+        .Concat(hierarchy.AddedPartitions)
+        .ToArray();
       var fingerprint = StaticGeometryFingerprint.Create(reconciliationBaseline, partitions);
-      var committed = edit.Commit(new MshOperationProfile(
-        maxOutputBytes: profile.MaxOutputBytes,
-        maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
-        maxStaticHierarchyDepth: profile.MaxHierarchyDepth));
+      var committed = edit.Commit(
+        new MshOperationProfile(
+          maxOutputBytes: profile.MaxOutputBytes,
+          maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
+          maxStaticHierarchyDepth: profile.MaxHierarchyDepth
+        )
+      );
       if (!committed.TryGetValue(out var reconciled))
       {
-        var message = string.Join("; ", committed.Diagnostics.Select(diagnostic => diagnostic.Message));
+        var message = string.Join(
+          "; ",
+          committed.Diagnostics.Select(diagnostic => diagnostic.Message)
+        );
         return Failed<GltfEditImportResult>(InvalidGeometry("meshes", message));
       }
 
-      var nextBaseline = new InterchangeBaseline(reconciliationBaseline.AssetLineageId, Guid.NewGuid());
-      var changedRecordPaths = committed.Preservation.Changes
-        .Where(change => change.Disposition != PreservationDisposition.Retained)
+      var nextBaseline = new InterchangeBaseline(
+        reconciliationBaseline.AssetLineageId,
+        Guid.NewGuid()
+      );
+      var changedRecordPaths = committed
+        .Preservation.Changes.Where(change =>
+          change.Disposition != PreservationDisposition.Retained
+        )
         .Select(change => change.FieldPath)
         .ToArray();
       var restoredRecordIndices = partitionMatches
         .Where(match => match.Retained)
-        .Select(match => asset.StaticRenderObjectSequence
-          .Select((record, index) => (record, index))
-          .Single(item => item.record.LocalId == match.Partition.LocalId).index)
-        .Where(index => !changedRecordPaths.Any(path =>
-          path == $"StaticRenderObjectSequence[{index}]"
-          || path.StartsWith($"StaticRenderObjectSequence[{index}].", StringComparison.Ordinal)))
+        .Select(match =>
+          asset
+            .StaticRenderObjectSequence.Select((record, index) => (record, index))
+            .Single(item => item.record.LocalId == match.Partition.LocalId)
+            .index
+        )
+        .Where(index =>
+          !changedRecordPaths.Any(path =>
+            path == $"StaticRenderObjectSequence[{index}]"
+            || path.StartsWith($"StaticRenderObjectSequence[{index}].", StringComparison.Ordinal)
+          )
+        )
         .Distinct()
         .OrderBy(index => index)
         .ToArray();
@@ -3318,36 +3810,61 @@ namespace EarthTool.GLTF
       {
         "ArchiveFraming",
         "CommonBaseHeader.AnimationLengths",
-        "CommonBaseHeader.AnimationFrameIndices"
-      }.Concat(restoredRecordIndices.Select(index => $"StaticRenderObjectSequence[{index}]"))
-        .Concat(restoredRecordIndices.SelectMany(index => new[]
-        {
-          $"StaticRenderObjectSequence[{index}].AnimationClassValue",
-          $"StaticRenderObjectSequence[{index}].AnimationTracks.ScaleFrames",
-          $"StaticRenderObjectSequence[{index}].AnimationTracks.TranslationFrames",
-          $"StaticRenderObjectSequence[{index}].AnimationTracks.Matrices"
-        }))
-        .Concat(Enumerable.Range(1, 49)
-          .Select(number => $"CommonBaseHeader.AttachmentTable[{number}]")
-          .Where(path => !changedRecordPaths.Contains(path, StringComparer.Ordinal)))
-        .Concat(Enumerable.Range(1, 4)
-          .Select(number => $"CommonBaseHeader.CannonRenderPositions[{number}]")
-          .Where(path => !changedRecordPaths.Contains(path, StringComparer.Ordinal)))
-        .Concat(Enumerable.Range(1, 4)
-          .Select(number => $"CommonBaseHeader.StaticSpotLights[{number}]")
-          .Where(path => !changedRecordPaths.Any(changed =>
-            changed == path || changed.StartsWith(path + ".", StringComparison.Ordinal))))
-        .Concat(Enumerable.Range(1, 4)
-          .Select(number => $"CommonBaseHeader.StaticOmniLights[{number}]")
-          .Where(path => !changedRecordPaths.Any(changed =>
-            changed == path || changed.StartsWith(path + ".", StringComparison.Ordinal))));
+        "CommonBaseHeader.AnimationFrameIndices",
+      }
+        .Concat(restoredRecordIndices.Select(index => $"StaticRenderObjectSequence[{index}]"))
+        .Concat(
+          restoredRecordIndices.SelectMany(index =>
+            new[]
+            {
+              $"StaticRenderObjectSequence[{index}].AnimationClassValue",
+              $"StaticRenderObjectSequence[{index}].AnimationTracks.ScaleFrames",
+              $"StaticRenderObjectSequence[{index}].AnimationTracks.TranslationFrames",
+              $"StaticRenderObjectSequence[{index}].AnimationTracks.Matrices",
+            }
+          )
+        )
+        .Concat(
+          Enumerable
+            .Range(1, 49)
+            .Select(number => $"CommonBaseHeader.AttachmentTable[{number}]")
+            .Where(path => !changedRecordPaths.Contains(path, StringComparer.Ordinal))
+        )
+        .Concat(
+          Enumerable
+            .Range(1, 4)
+            .Select(number => $"CommonBaseHeader.CannonRenderPositions[{number}]")
+            .Where(path => !changedRecordPaths.Contains(path, StringComparer.Ordinal))
+        )
+        .Concat(
+          Enumerable
+            .Range(1, 4)
+            .Select(number => $"CommonBaseHeader.StaticSpotLights[{number}]")
+            .Where(path =>
+              !changedRecordPaths.Any(changed =>
+                changed == path || changed.StartsWith(path + ".", StringComparison.Ordinal)
+              )
+            )
+        )
+        .Concat(
+          Enumerable
+            .Range(1, 4)
+            .Select(number => $"CommonBaseHeader.StaticOmniLights[{number}]")
+            .Where(path =>
+              !changedRecordPaths.Any(changed =>
+                changed == path || changed.StartsWith(path + ".", StringComparison.Ordinal)
+              )
+            )
+        );
       var nextMetadataIds = manifest.ScopeNextIds.ToDictionary(
         pair => pair.Key,
         pair => pair.Value,
-        StringComparer.Ordinal);
+        StringComparer.Ordinal
+      );
       nextMetadataIds["object"] = Math.Max(
         nextMetadataIds.TryGetValue("object", out var nextObjectLocalId) ? nextObjectLocalId : 1,
-        artistObjects.NextObjectLocalId);
+        artistObjects.NextObjectLocalId
+      );
       return new OperationResult<GltfEditImportResult>(
         OperationStatus.Succeeded,
         new GltfEditImportResult(
@@ -3358,82 +3875,107 @@ namespace EarthTool.GLTF
           restoredPaths,
           CollectUnknownMetadata(
             new[] { manifest }
-              .Concat(meshes.Where(item => item.Metadata is not null).Select(item => item.Metadata!))
+              .Concat(
+                meshes.Where(item => item.Metadata is not null).Select(item => item.Metadata!)
+              )
               .Concat(nodes.Where(item => item.Metadata is not null).Select(item => item.Metadata!))
-              .Concat(lights.Where(item => item.Metadata is not null).Select(item => item.Metadata!))),
+              .Concat(
+                lights.Where(item => item.Metadata is not null).Select(item => item.Metadata!)
+              )
+          ),
           nextMetadataIds,
           artistObjects.ArtistObjectLocalIds,
           branchAccepted
             ? GltfMetadataLineageDisposition.BranchAccepted
             : GltfMetadataLineageDisposition.Retained,
-          conflictResolution.Applied),
+          conflictResolution.Applied
+        ),
         sceneLightDiagnostics
           .Concat(CreateIgnoredInertDataDiagnostics(parsed))
           .Concat(CreateIgnoredSceneNodeDiagnostics(parsed))
           .Concat(CreateEmitterHierarchyDiagnostics(reconciled))
-          .Concat(committed.Diagnostics));
+          .Concat(committed.Diagnostics)
+      );
     }
 
     private static IReadOnlyDictionary<string, string> CollectUnknownMetadata(
-      IEnumerable<MetadataEnvelope> envelopes)
+      IEnumerable<MetadataEnvelope> envelopes
+    )
     {
       return new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
-        envelopes.SelectMany(envelope => envelope.UnknownMembers.Select(member => new
-        {
-          Key = $"{envelope.ScopeKind}:{envelope.LocalId}:{member.Key}",
-          member.Value
-        }))
-          .ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal));
+        envelopes
+          .SelectMany(envelope =>
+            envelope.UnknownMembers.Select(member => new
+            {
+              Key = $"{envelope.ScopeKind}:{envelope.LocalId}:{member.Key}",
+              member.Value,
+            })
+          )
+          .ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal)
+      );
     }
 
     private static OperationResult<GltfEditImportResult> ImportWithoutMetadata(
       ParsedGlb parsed,
       GltfOperationProfile profile,
       CancellationToken cancellationToken,
-      GltfMetadataConflictResolution resolution)
+      GltfMetadataConflictResolution resolution
+    )
     {
       var unclaimed = new ParsedGlb(
         manifestMetadata: null,
         hasReservedMetadata: false,
         parsed.Meshes.Select(mesh => new ParsedGltfMesh(null, mesh.Primitives)).ToArray(),
-        parsed.Nodes.Select(node => new ParsedGltfNode(
-          node.Name,
-          node.IsPlacementRoot,
-          metadata: null,
-          node.MeshIndex,
-          node.LightIndex,
-          node.CameraIndex,
-          node.Children,
-          node.LocalTransform)).ToArray(),
-        parsed.Materials.Select(material => new ParsedGltfMaterial(
-          metadata: null,
-          material.HasBaseColorTexture)).ToArray(),
+        parsed
+          .Nodes.Select(node => new ParsedGltfNode(
+            node.Name,
+            node.IsPlacementRoot,
+            metadata: null,
+            node.MeshIndex,
+            node.LightIndex,
+            node.CameraIndex,
+            node.Children,
+            node.LocalTransform
+          ))
+          .ToArray(),
+        parsed
+          .Materials.Select(material => new ParsedGltfMaterial(
+            metadata: null,
+            material.HasBaseColorTexture
+          ))
+          .ToArray(),
         parsed.Animations,
-        parsed.Lights.Select(light => new ParsedGltfLight(
-          light.Name,
-          metadata: null,
-          light.Type,
-          light.Color,
-          light.Intensity,
-          light.Range,
-          light.InnerConeAngle,
-          light.OuterConeAngle)).ToArray(),
+        parsed
+          .Lights.Select(light => new ParsedGltfLight(
+            light.Name,
+            metadata: null,
+            light.Type,
+            light.Color,
+            light.Intensity,
+            light.Range,
+            light.InnerConeAngle,
+            light.OuterConeAngle
+          ))
+          .ToArray(),
         GetNewModelRootNodeIndex(parsed),
         new MetadataConflictCollector(profile.MaxMetadataConflicts),
-        parsed.IgnoredInertPaths);
+        parsed.IgnoredInertPaths
+      );
       var imported = ImportNewModelParsed(
         unclaimed,
         profile,
         cancellationToken,
-        new GltfNewModelImportOptions());
+        new GltfNewModelImportOptions()
+      );
       if (imported.Value is not GltfNewModelImportResult value)
       {
         return Failed<GltfEditImportResult>(imported.Diagnostics);
       }
 
-      var disposition = resolution.Action == GltfMetadataConflictActions.AdoptAsNew
-        ? GltfMetadataLineageDisposition.AdoptedAsNew
-        : GltfMetadataLineageDisposition.Discarded;
+      var disposition =
+        resolution.Action == GltfMetadataConflictActions.AdoptAsNew
+          ? GltfMetadataLineageDisposition.AdoptedAsNew
+          : GltfMetadataLineageDisposition.Discarded;
       return new OperationResult<GltfEditImportResult>(
         OperationStatus.Succeeded,
         new GltfEditImportResult(
@@ -3443,8 +3985,10 @@ namespace EarthTool.GLTF
           value.Preservation,
           Array.Empty<string>(),
           lineageDisposition: disposition,
-          appliedConflictResolutions: new[] { resolution }),
-        imported.Diagnostics);
+          appliedConflictResolutions: new[] { resolution }
+        ),
+        imported.Diagnostics
+      );
     }
 
     private static int GetNewModelRootNodeIndex(ParsedGlb parsed)
@@ -3462,7 +4006,8 @@ namespace EarthTool.GLTF
     private static ParsedGlb RemoveScopeMetadata(
       ParsedGlb parsed,
       string nativePath,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile
+    )
     {
       return RewriteScopeMetadata(parsed, nativePath, metadata: null, profile);
     }
@@ -3471,21 +4016,28 @@ namespace EarthTool.GLTF
       ParsedGlb parsed,
       OperationDiagnostic conflict,
       GltfMetadataConflictResolution resolution,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile
+    )
     {
       var targetMetadata = GetScopeMetadata(parsed, resolution.TargetNativePath!);
       if (targetMetadata is null)
       {
         throw new InvalidDataException("The scope mapping target has no valid metadata envelope.");
       }
-      var target = JsonNode.Parse(targetMetadata)?.AsObject()
+      var target =
+        JsonNode.Parse(targetMetadata)?.AsObject()
         ?? throw new InvalidDataException("The scope mapping target metadata is malformed.");
-      var targetId = target["id"]?.GetValue<int>()
+      var targetId =
+        target["id"]?.GetValue<int>()
         ?? throw new InvalidDataException("The scope mapping target has no local ID.");
-      if (conflict.Data.TryGetValue("referencedScopeKind", out var referencedKind)
-        && target["kind"]?.GetValue<string>() != referencedKind)
+      if (
+        conflict.Data.TryGetValue("referencedScopeKind", out var referencedKind)
+        && target["kind"]?.GetValue<string>() != referencedKind
+      )
       {
-        throw new InvalidDataException("The scope mapping target kind does not match the reference.");
+        throw new InvalidDataException(
+          "The scope mapping target kind does not match the reference."
+        );
       }
 
       var nativePath = conflict.Data["nativePath"];
@@ -3494,27 +4046,35 @@ namespace EarthTool.GLTF
       {
         throw new InvalidDataException("The conflicted scope has no metadata envelope to map.");
       }
-      var source = JsonNode.Parse(sourceMetadata)?.AsObject()
+      var source =
+        JsonNode.Parse(sourceMetadata)?.AsObject()
         ?? throw new InvalidDataException("The conflicted scope metadata is malformed.");
       if (conflict.Path.Contains(".payload.partitions[", StringComparison.Ordinal))
       {
-        var marker = conflict.Path.IndexOf(".payload.partitions[", StringComparison.Ordinal)
+        var marker =
+          conflict.Path.IndexOf(".payload.partitions[", StringComparison.Ordinal)
           + ".payload.partitions[".Length;
         var end = conflict.Path.IndexOf(']', marker);
         var partitionIndex = int.Parse(
           conflict.Path.Substring(marker, end - marker),
-          System.Globalization.CultureInfo.InvariantCulture);
+          System.Globalization.CultureInfo.InvariantCulture
+        );
         source["payload"]!["partitions"]![partitionIndex]!["localId"] = targetId;
       }
-      else if (conflict.Path.EndsWith(
-        ".payload.staticLightInstance.definitionLocalId",
-        StringComparison.Ordinal))
+      else if (
+        conflict.Path.EndsWith(
+          ".payload.staticLightInstance.definitionLocalId",
+          StringComparison.Ordinal
+        )
+      )
       {
         source["payload"]!["staticLightInstance"]!["definitionLocalId"] = targetId;
       }
       else
       {
-        throw new InvalidDataException("The conflict does not expose a supported scope reference mapping.");
+        throw new InvalidDataException(
+          "The conflict does not expose a supported scope reference mapping."
+        );
       }
 
       return RewriteScopeMetadata(parsed, nativePath, source.ToJsonString(), profile);
@@ -3525,28 +4085,36 @@ namespace EarthTool.GLTF
       OperationDiagnostic conflict,
       InterchangeBaseline baseline,
       bool discardAffectedState,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile
+    )
     {
       var nativePath = conflict.Data["nativePath"];
       if (!TryReadIndex(nativePath, "meshes", out var meshIndex))
       {
         throw new InvalidDataException("The guard conflict is not owned by a mesh scope.");
       }
-      var metadata = JsonNode.Parse(parsed.Meshes[meshIndex].Metadata!)?.AsObject()
+      var metadata =
+        JsonNode.Parse(parsed.Meshes[meshIndex].Metadata!)?.AsObject()
         ?? throw new InvalidDataException("The mesh metadata envelope is malformed.");
       var localId = metadata["id"]!.GetValue<int>();
-      var partitions = parsed.Meshes[meshIndex].Primitives.Select((primitive, index) =>
-        new GeometryPartition(
-          metadata["payload"]!["partitions"]![index]!["localId"]!.GetValue<int>(),
-          primitive.Vertices,
-          primitive.Triangles)).ToArray();
+      var partitions = parsed
+        .Meshes[meshIndex]
+        .Primitives.Select(
+          (primitive, index) =>
+            new GeometryPartition(
+              metadata["payload"]!["partitions"]![index]!["localId"]!.GetValue<int>(),
+              primitive.Vertices,
+              primitive.Triangles
+            )
+        )
+        .ToArray();
       var fingerprint = StaticGeometryFingerprint.CreateMesh(baseline, localId, partitions);
       metadata["guards"]!["nativeProjection"] = new JsonObject
       {
         ["projection"] = "static-geometry",
         ["version"] = 1,
         ["algorithm"] = "sha256",
-        ["digest"] = EncodeSha256(fingerprint.Sha256)
+        ["digest"] = EncodeSha256(fingerprint.Sha256),
       };
       if (discardAffectedState)
       {
@@ -3570,41 +4138,49 @@ namespace EarthTool.GLTF
       InterchangeBaseline baseline,
       StaticMeshAsset asset,
       bool discardAffectedState,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile
+    )
     {
       var nativePath = conflict.Data["nativePath"];
       if (discardAffectedState)
       {
         return RemoveScopeMetadata(parsed, nativePath, profile);
       }
-      var value = GetScopeMetadata(parsed, nativePath)
+      var value =
+        GetScopeMetadata(parsed, nativePath)
         ?? throw new InvalidDataException("The node guard carrier has no metadata.");
       var envelope = GlbDocument.ParseMetadata(value, profile);
       var guardName = conflict.Path.Substring(
-        conflict.Path.IndexOf(".guards.", StringComparison.Ordinal) + ".guards.".Length);
+        conflict.Path.IndexOf(".guards.", StringComparison.Ordinal) + ".guards.".Length
+      );
       string digest;
       string projection;
       if (envelope.AttachmentRecord is not null)
       {
-        var number = envelope.AttachmentPhysicalNumber
+        var number =
+          envelope.AttachmentPhysicalNumber
           ?? throw new InvalidDataException("The attachment guard has no physical target.");
         digest = GlbDocument.CreateAttachmentPoseFingerprint(
           baseline,
           envelope.LocalId,
           number,
-          envelope.AttachmentRecord);
+          envelope.AttachmentRecord
+        );
         projection = "attachment.pose";
       }
-      else if (envelope.CannonPhysicalNumber is int cannonNumber
+      else if (
+        envelope.CannonPhysicalNumber is int cannonNumber
         && envelope.CannonAttachmentRecord is not null
-        && envelope.CannonRenderPositionRecord is not null)
+        && envelope.CannonRenderPositionRecord is not null
+      )
       {
         var guards = GlbDocument.CreateCannonGuards(
           baseline,
           envelope.LocalId,
           cannonNumber,
           envelope.CannonAttachmentRecord,
-          envelope.CannonRenderPositionRecord);
+          envelope.CannonRenderPositionRecord
+        );
         if (!guards.TryGetValue(guardName, out var cannonDigest))
         {
           throw new InvalidDataException("The cannon guard is not regenerable.");
@@ -3626,7 +4202,8 @@ namespace EarthTool.GLTF
       OperationDiagnostic conflict,
       InterchangeBaseline baseline,
       bool discardAffectedState,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile
+    )
     {
       var nativePath = conflict.Data["nativePath"];
       if (!TryReadIndex(nativePath, "extensions.KHR_lights_punctual.lights", out var lightIndex))
@@ -3638,8 +4215,10 @@ namespace EarthTool.GLTF
         var discarded = RemoveScopeMetadata(parsed, nativePath, profile);
         for (var index = 0; index < discarded.Nodes.Count; index++)
         {
-          if (discarded.Nodes[index].LightIndex == lightIndex
-            && discarded.Nodes[index].Metadata is not null)
+          if (
+            discarded.Nodes[index].LightIndex == lightIndex
+            && discarded.Nodes[index].Metadata is not null
+          )
           {
             discarded = RewriteScopeMetadata(discarded, $"nodes[{index}]", null, profile);
           }
@@ -3647,10 +4226,12 @@ namespace EarthTool.GLTF
         discarded.DiscardedMetadataScopes.Add(nativePath);
         return discarded;
       }
-      var value = parsed.Lights[lightIndex].Metadata
+      var value =
+        parsed.Lights[lightIndex].Metadata
         ?? throw new InvalidDataException("The light guard carrier has no metadata.");
       var envelope = GlbDocument.ParseMetadata(value, profile);
-      var instance = parsed.Nodes.Where(node => node.LightIndex == lightIndex && node.Metadata is not null)
+      var instance = parsed
+        .Nodes.Where(node => node.LightIndex == lightIndex && node.Metadata is not null)
         .Select(node => GlbDocument.ParseMetadata(node.Metadata!, profile))
         .Single(node => node.StaticLightDefinitionLocalId == envelope.LocalId);
       var guards = GlbDocument.CreateStaticLightGuards(
@@ -3659,9 +4240,11 @@ namespace EarthTool.GLTF
         envelope.StaticLightPhysicalNumber!.Value,
         envelope.LocalId,
         envelope.StaticLightRecord!.ToArray(),
-        instance.StaticLightAttachmentRecord!.ToArray());
+        instance.StaticLightAttachmentRecord!.ToArray()
+      );
       var guardName = conflict.Path.Substring(
-        conflict.Path.IndexOf(".guards.", StringComparison.Ordinal) + ".guards.".Length);
+        conflict.Path.IndexOf(".guards.", StringComparison.Ordinal) + ".guards.".Length
+      );
       var metadata = JsonNode.Parse(value)!.AsObject();
       metadata["guards"]![guardName] = CreateGuard(guardName, guards[guardName]);
       return RewriteScopeMetadata(parsed, nativePath, metadata.ToJsonString(), profile);
@@ -3674,7 +4257,7 @@ namespace EarthTool.GLTF
         ["projection"] = projection,
         ["version"] = 1,
         ["algorithm"] = "sha256",
-        ["digest"] = EncodeSha256(hexadecimal)
+        ["digest"] = EncodeSha256(hexadecimal),
       };
     }
 
@@ -3682,11 +4265,13 @@ namespace EarthTool.GLTF
       ParsedGlb parsed,
       OperationDiagnostic conflict,
       InterchangeBaseline baseline,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile
+    )
     {
       var localId = int.Parse(
         conflict.Data["localId"],
-        System.Globalization.CultureInfo.InvariantCulture);
+        System.Globalization.CultureInfo.InvariantCulture
+      );
       var metadata = new JsonObject
       {
         ["format"] = "earthtool.msh.gltf",
@@ -3696,22 +4281,21 @@ namespace EarthTool.GLTF
         ["document"] = baseline.DocumentId.ToString("D"),
         ["id"] = localId,
         ["guards"] = new JsonObject(),
-        ["payload"] = new JsonObject
-        {
-          ["textureBinding"] = string.Empty
-        }
+        ["payload"] = new JsonObject { ["textureBinding"] = string.Empty },
       };
       return RewriteScopeMetadata(
         parsed,
         conflict.Data["nativePath"],
         metadata.ToJsonString(),
-        profile);
+        profile
+      );
     }
 
     private static ParsedGlb AcceptDeletedNativeScope(
       ParsedGlb parsed,
       OperationDiagnostic conflict,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile
+    )
     {
       var nativePath = conflict.Data["nativePath"];
       var current = parsed;
@@ -3719,7 +4303,10 @@ namespace EarthTool.GLTF
       {
         for (var index = 0; index < current.Nodes.Count; index++)
         {
-          if (current.Nodes[index].MeshIndex == meshIndex && current.Nodes[index].Metadata is not null)
+          if (
+            current.Nodes[index].MeshIndex == meshIndex
+            && current.Nodes[index].Metadata is not null
+          )
           {
             current = RewriteScopeMetadata(current, $"nodes[{index}]", metadata: null, profile);
           }
@@ -3730,11 +4317,16 @@ namespace EarthTool.GLTF
         const string lights = "extensions.KHR_lights_punctual.lights";
         if (!TryReadIndex(nativePath, lights, out var lightIndex))
         {
-          throw new InvalidDataException("Deletion acceptance requires a mesh, material, or light scope.");
+          throw new InvalidDataException(
+            "Deletion acceptance requires a mesh, material, or light scope."
+          );
         }
         for (var index = 0; index < current.Nodes.Count; index++)
         {
-          if (current.Nodes[index].LightIndex == lightIndex && current.Nodes[index].Metadata is not null)
+          if (
+            current.Nodes[index].LightIndex == lightIndex
+            && current.Nodes[index].Metadata is not null
+          )
           {
             current = RewriteScopeMetadata(current, $"nodes[{index}]", metadata: null, profile);
           }
@@ -3749,7 +4341,8 @@ namespace EarthTool.GLTF
       OperationDiagnostic conflict,
       InterchangeBaseline baseline,
       StaticMeshAsset asset,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile
+    )
     {
       var nativePath = conflict.Data["nativePath"];
       if (!TryReadIndex(nativePath, "meshes", out var meshIndex))
@@ -3758,29 +4351,43 @@ namespace EarthTool.GLTF
       }
       var localId = int.Parse(
         conflict.Data["localId"],
-        System.Globalization.CultureInfo.InvariantCulture);
-      var source = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
+        System.Globalization.CultureInfo.InvariantCulture
+      );
+      var source = StaticSourceObjectTraversal
+        .Flatten(asset.RootSourceObject)
         .Single(item => item.Id.Value == localId);
       var primitives = parsed.Meshes[meshIndex].Primitives;
       if (primitives.Count != source.StaticRenderObjectIds.Count)
       {
         throw new InvalidDataException(
-          "Deletion acceptance requires one native partition per source render object.");
+          "Deletion acceptance requires one native partition per source render object."
+        );
       }
-      var partitions = primitives.Select((primitive, index) => new GeometryPartition(
-        source.StaticRenderObjectIds[index].Value,
-        primitive.Vertices,
-        primitive.Triangles)).ToArray();
+      var partitions = primitives
+        .Select(
+          (primitive, index) =>
+            new GeometryPartition(
+              source.StaticRenderObjectIds[index].Value,
+              primitive.Vertices,
+              primitive.Triangles
+            )
+        )
+        .ToArray();
       var fingerprint = StaticGeometryFingerprint.CreateMesh(baseline, localId, partitions);
-      var metadataPartitions = new JsonArray(partitions.Select(partition => new JsonObject
-      {
-        ["localId"] = partition.LocalId,
-        ["sha256"] = StaticGeometryFingerprint.CreatePartition(
-          baseline,
-          partition.LocalId,
-          partition.Vertices,
-          partition.Triangles)
-      }).ToArray());
+      var metadataPartitions = new JsonArray(
+        partitions
+          .Select(partition => new JsonObject
+          {
+            ["localId"] = partition.LocalId,
+            ["sha256"] = StaticGeometryFingerprint.CreatePartition(
+              baseline,
+              partition.LocalId,
+              partition.Vertices,
+              partition.Triangles
+            ),
+          })
+          .ToArray()
+      );
       var metadata = new JsonObject
       {
         ["format"] = "earthtool.msh.gltf",
@@ -3796,13 +4403,10 @@ namespace EarthTool.GLTF
             ["projection"] = "static-geometry",
             ["version"] = 1,
             ["algorithm"] = "sha256",
-            ["digest"] = EncodeSha256(fingerprint.Sha256)
-          }
+            ["digest"] = EncodeSha256(fingerprint.Sha256),
+          },
         },
-        ["payload"] = new JsonObject
-        {
-          ["partitions"] = metadataPartitions
-        }
+        ["payload"] = new JsonObject { ["partitions"] = metadataPartitions },
       };
       var restored = RewriteScopeMetadata(parsed, nativePath, metadata.ToJsonString(), profile);
       restored.DiscardedMetadataScopes.Add(nativePath);
@@ -3811,10 +4415,16 @@ namespace EarthTool.GLTF
 
     private static string EncodeSha256(string hexadecimal)
     {
-      var bytes = Enumerable.Range(0, 32).Select(index => byte.Parse(
-        hexadecimal.Substring(index * 2, 2),
-        System.Globalization.NumberStyles.HexNumber,
-        System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+      var bytes = Enumerable
+        .Range(0, 32)
+        .Select(index =>
+          byte.Parse(
+            hexadecimal.Substring(index * 2, 2),
+            System.Globalization.NumberStyles.HexNumber,
+            System.Globalization.CultureInfo.InvariantCulture
+          )
+        )
+        .ToArray();
       return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 
@@ -3841,13 +4451,16 @@ namespace EarthTool.GLTF
     private static bool TryReadIndex(string path, string collection, out int index)
     {
       var prefix = collection + "[";
-      if (path.StartsWith(prefix, StringComparison.Ordinal)
+      if (
+        path.StartsWith(prefix, StringComparison.Ordinal)
         && path.EndsWith("]", StringComparison.Ordinal)
         && int.TryParse(
           path.Substring(prefix.Length, path.Length - prefix.Length - 1),
           System.Globalization.NumberStyles.None,
           System.Globalization.CultureInfo.InvariantCulture,
-          out index))
+          out index
+        )
+      )
       {
         return true;
       }
@@ -3859,51 +4472,82 @@ namespace EarthTool.GLTF
       ParsedGlb parsed,
       string nativePath,
       string? metadata,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile
+    )
     {
-      var nodes = parsed.Nodes.Select((node, index) => new ParsedGltfNode(
-        node.Name,
-        node.IsPlacementRoot,
-        nativePath == $"nodes[{index}]" ? metadata : node.Metadata,
-        node.MeshIndex,
-        node.LightIndex,
-        node.CameraIndex,
-        node.Children,
-        node.LocalTransform)).ToArray();
-      var meshes = parsed.Meshes.Select((mesh, index) => new ParsedGltfMesh(
-        nativePath == $"meshes[{index}]" ? metadata : mesh.Metadata,
-        mesh.Primitives)).ToArray();
-      var materials = parsed.Materials.Select((material, index) => new ParsedGltfMaterial(
-        nativePath == $"materials[{index}]" ? metadata : material.Metadata,
-        material.HasBaseColorTexture)).ToArray();
-      var lights = parsed.Lights.Select((light, index) => new ParsedGltfLight(
-        light.Name,
-        nativePath == $"extensions.KHR_lights_punctual.lights[{index}]"
-          ? metadata
-          : light.Metadata,
-        light.Type,
-        light.Color,
-        light.Intensity,
-        light.Range,
-        light.InnerConeAngle,
-        light.OuterConeAngle)).ToArray();
-      return CopyDiscardedScopes(parsed, new ParsedGlb(
-        parsed.ManifestMetadata,
-        parsed.HasReservedMetadata,
-        meshes,
-        nodes,
-        materials,
-        parsed.Animations,
-        lights,
-        parsed.RootNodeIndex,
-        new MetadataConflictCollector(profile.MaxMetadataConflicts),
-        parsed.IgnoredInertPaths), profile);
+      var nodes = parsed
+        .Nodes.Select(
+          (node, index) =>
+            new ParsedGltfNode(
+              node.Name,
+              node.IsPlacementRoot,
+              nativePath == $"nodes[{index}]" ? metadata : node.Metadata,
+              node.MeshIndex,
+              node.LightIndex,
+              node.CameraIndex,
+              node.Children,
+              node.LocalTransform
+            )
+        )
+        .ToArray();
+      var meshes = parsed
+        .Meshes.Select(
+          (mesh, index) =>
+            new ParsedGltfMesh(
+              nativePath == $"meshes[{index}]" ? metadata : mesh.Metadata,
+              mesh.Primitives
+            )
+        )
+        .ToArray();
+      var materials = parsed
+        .Materials.Select(
+          (material, index) =>
+            new ParsedGltfMaterial(
+              nativePath == $"materials[{index}]" ? metadata : material.Metadata,
+              material.HasBaseColorTexture
+            )
+        )
+        .ToArray();
+      var lights = parsed
+        .Lights.Select(
+          (light, index) =>
+            new ParsedGltfLight(
+              light.Name,
+              nativePath == $"extensions.KHR_lights_punctual.lights[{index}]"
+                ? metadata
+                : light.Metadata,
+              light.Type,
+              light.Color,
+              light.Intensity,
+              light.Range,
+              light.InnerConeAngle,
+              light.OuterConeAngle
+            )
+        )
+        .ToArray();
+      return CopyDiscardedScopes(
+        parsed,
+        new ParsedGlb(
+          parsed.ManifestMetadata,
+          parsed.HasReservedMetadata,
+          meshes,
+          nodes,
+          materials,
+          parsed.Animations,
+          lights,
+          parsed.RootNodeIndex,
+          new MetadataConflictCollector(profile.MaxMetadataConflicts),
+          parsed.IgnoredInertPaths
+        ),
+        profile
+      );
     }
 
     private static ParsedGlb CopyDiscardedScopes(
       ParsedGlb source,
       ParsedGlb destination,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile
+    )
     {
       foreach (var path in source.DiscardedMetadataScopes)
       {
@@ -3919,7 +4563,8 @@ namespace EarthTool.GLTF
 
     private static OperationResult<GltfEditImportResult> WithAppliedResolution(
       OperationResult<GltfEditImportResult> result,
-      GltfMetadataConflictResolution resolution)
+      GltfMetadataConflictResolution resolution
+    )
     {
       if (result.Value is not GltfEditImportResult value)
       {
@@ -3937,35 +4582,50 @@ namespace EarthTool.GLTF
           value.NextExportOptions.MetadataNextIds,
           value.NextExportOptions.ArtistObjectLocalIds,
           value.LineageDisposition,
-          new[] { resolution }.Concat(value.AppliedConflictResolutions)),
-        result.Diagnostics);
+          new[] { resolution }.Concat(value.AppliedConflictResolutions)
+        ),
+        result.Diagnostics
+      );
     }
 
-    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredSceneLightDiagnostics(ParsedGlb parsed)
+    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredSceneLightDiagnostics(
+      ParsedGlb parsed
+    )
     {
-      return parsed.Nodes.Select((node, index) => (node, index))
-          .Where(item => item.node.LightIndex.HasValue
+      return parsed
+        .Nodes.Select((node, index) => (node, index))
+        .Where(item =>
+          item.node.LightIndex.HasValue
           && item.node.Metadata is null
-          && !GlbDocument.TryParseStaticLightHelperName(item.node.Name, out _, out _))
+          && !GlbDocument.TryParseStaticLightHelperName(item.node.Name, out _, out _)
+        )
         .Select(item => new OperationDiagnostic(
           GltfDiagnosticCodes.SceneLightIgnored,
           1118,
           DiagnosticSeverity.Warning,
           $"nodes[{item.index}]",
-          "An untagged noncanonical punctual light remains scene-only artist lighting."))
+          "An untagged noncanonical punctual light remains scene-only artist lighting."
+        ))
         .ToArray();
     }
 
     private static IReadOnlyList<OperationDiagnostic> CreateIgnoredNewModelLightIntensityDiagnostics(
       ParsedGlb parsed,
-      GltfNewModelImportOptions options)
+      GltfNewModelImportOptions options
+    )
     {
-      return parsed.Nodes.Select(node => node.LightIndex)
+      return parsed
+        .Nodes.Select(node => node.LightIndex)
         .OfType<int>()
         .Where(index => index >= 0 && index < parsed.Lights.Count)
-        .Where(index => parsed.Nodes.Select((node, nodeIndex) => (node, nodeIndex)).Any(item =>
-          item.node.LightIndex == index
-          && GlbDocument.TryParseStaticLightHelperName(item.node.Name, out _, out _)))
+        .Where(index =>
+          parsed
+            .Nodes.Select((node, nodeIndex) => (node, nodeIndex))
+            .Any(item =>
+              item.node.LightIndex == index
+              && GlbDocument.TryParseStaticLightHelperName(item.node.Name, out _, out _)
+            )
+        )
         .Distinct()
         .Where(index => parsed.Lights[index].Intensity != 1)
         .Select(index => new OperationDiagnostic(
@@ -3973,38 +4633,49 @@ namespace EarthTool.GLTF
           1120,
           DiagnosticSeverity.Warning,
           $"extensions.KHR_lights_punctual.lights[{index}].intensity",
-          "New-model photometric intensity was not used as terrain-light amplitude."))
+          "New-model photometric intensity was not used as terrain-light amplitude."
+        ))
         .ToArray();
     }
 
-    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredNewModelAnimationDiagnostics(ParsedGlb parsed)
+    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredNewModelAnimationDiagnostics(
+      ParsedGlb parsed
+    )
     {
-      return parsed.Animations.Select((animation, index) => (animation, index))
+      return parsed
+        .Animations.Select((animation, index) => (animation, index))
         .Where(item => !TryGetCanonicalAnimationClass(item.animation.Name, out _))
         .Select(item => new OperationDiagnostic(
           GltfDiagnosticCodes.InertDataIgnored,
           1119,
           DiagnosticSeverity.Warning,
           $"animations[{item.index}]",
-          "A noncanonical metadata-free animation remains scene-only and was ignored."))
+          "A noncanonical metadata-free animation remains scene-only and was ignored."
+        ))
         .ToArray();
     }
 
     private static IReadOnlyList<OperationDiagnostic> CreateIgnoredInertDataDiagnostics(
-      ParsedGlb parsed)
+      ParsedGlb parsed
+    )
     {
-      return parsed.IgnoredInertPaths.Select(path => new OperationDiagnostic(
-        GltfDiagnosticCodes.InertDataIgnored,
-        1119,
-        DiagnosticSeverity.Warning,
-        path,
-        "Inert native glTF data was excluded from canonical MSH state."))
+      return parsed
+        .IgnoredInertPaths.Select(path => new OperationDiagnostic(
+          GltfDiagnosticCodes.InertDataIgnored,
+          1119,
+          DiagnosticSeverity.Warning,
+          path,
+          "Inert native glTF data was excluded from canonical MSH state."
+        ))
         .ToArray();
     }
 
-    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredSceneNodeDiagnostics(ParsedGlb parsed)
+    private static IReadOnlyList<OperationDiagnostic> CreateIgnoredSceneNodeDiagnostics(
+      ParsedGlb parsed
+    )
     {
-      return GetNodeOrder(parsed).Where(nodeIndex =>
+      return GetNodeOrder(parsed)
+        .Where(nodeIndex =>
         {
           var node = parsed.Nodes[nodeIndex];
           return node.Children.Count == 0
@@ -4022,12 +4693,14 @@ namespace EarthTool.GLTF
           1119,
           DiagnosticSeverity.Warning,
           $"nodes[{nodeIndex}]",
-          "An unknown metadata-free empty leaf node remains scene-only and was ignored."))
+          "An unknown metadata-free empty leaf node remains scene-only and was ignored."
+        ))
         .ToArray();
     }
 
     private static IReadOnlyList<OperationDiagnostic> CreateDynamicPlacementDiagnostics(
-      DynamicGltfImport imported)
+      DynamicGltfImport imported
+    )
     {
       return imported.PlacementDataIgnored
         ? new[]
@@ -4037,26 +4710,31 @@ namespace EarthTool.GLTF
             1119,
             DiagnosticSeverity.Warning,
             $"nodes[{imported.PlacementRootIndex}]",
-            "Placement-root transforms and animation remain scene-only and were excluded from canonical MSH state.")
+            "Placement-root transforms and animation remain scene-only and were excluded from canonical MSH state."
+          ),
         }
         : Array.Empty<OperationDiagnostic>();
     }
 
     private static IReadOnlyList<OperationDiagnostic> CreateNewModelTexBindingDiagnostics(
       ParsedGlb parsed,
-      GltfNewModelImportOptions options)
+      GltfNewModelImportOptions options
+    )
     {
-      return options.TextureResourceBindings
-        .Where(binding => binding.Value is not null)
+      return options
+        .TextureResourceBindings.Where(binding => binding.Value is not null)
         .Select(binding => (binding, MaterialIndex: GetMaterialIndex(parsed, binding.Key)))
-        .Where(item => item.MaterialIndex.HasValue
-          && !parsed.Materials[item.MaterialIndex.Value].HasBaseColorTexture)
+        .Where(item =>
+          item.MaterialIndex.HasValue
+          && !parsed.Materials[item.MaterialIndex.Value].HasBaseColorTexture
+        )
         .Select(item => new OperationDiagnostic(
           GltfDiagnosticCodes.TextureResourceMissing,
           1107,
           DiagnosticSeverity.Warning,
           $"materials[{item.MaterialIndex!.Value}]",
-          "The explicit TEX resource binding has no decoded native preview and remains reference-only."))
+          "The explicit TEX resource binding has no decoded native preview and remains reference-only."
+        ))
         .ToArray();
     }
 
@@ -4066,28 +4744,39 @@ namespace EarthTool.GLTF
       InterchangeBaseline expectedBaseline,
       IReadOnlyList<GeometryPartition> partitions,
       StaticMeshEditSession edit,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile
+    )
     {
-      var materials = parsed.Materials.Select(material => GlbDocument.ParseMetadata(
-        material.Metadata ?? throw new MissingMetadataException("material"),
-        profile)).ToArray();
+      var materials = parsed
+        .Materials.Select(material =>
+          GlbDocument.ParseMetadata(
+            material.Metadata ?? throw new MissingMetadataException("material"),
+            profile
+          )
+        )
+        .ToArray();
       foreach (var material in materials)
       {
-        if (material.ScopeKind != "material"
+        if (
+          material.ScopeKind != "material"
           || material.LocalId <= 0
           || material.AssetLineageId != expectedBaseline.AssetLineageId
           || material.DocumentId != expectedBaseline.DocumentId
           || material.SourceMsh is not null
           || material.Fingerprint is not null
           || material.Partitions.Count != 0
-          || material.TextureBinding is null)
+          || material.TextureBinding is null
+        )
         {
           throw new MalformedMetadataException("The material metadata envelope is malformed.");
         }
         var origin = asset.StaticRenderObjectSequence.SingleOrDefault(record =>
-          record.LocalId == material.LocalId);
-        if ((origin is null || !origin.TexturePathBytes.SequenceEqual(material.TextureBinding))
-          && material.TextureBinding.Count != 0)
+          record.LocalId == material.LocalId
+        );
+        if (
+          (origin is null || !origin.TexturePathBytes.SequenceEqual(material.TextureBinding))
+          && material.TextureBinding.Count != 0
+        )
         {
           if (!IsCanonicalTextureResourceKey(material.TextureBinding))
           {
@@ -4098,15 +4787,18 @@ namespace EarthTool.GLTF
 
       foreach (var partition in partitions)
       {
-        var materialIndex = partition.MaterialIndex
-          ?? throw new UnsupportedGltfDomainException("TexResourceBinding");
+        var materialIndex =
+          partition.MaterialIndex ?? throw new UnsupportedGltfDomainException("TexResourceBinding");
         if (materialIndex < 0 || materialIndex >= materials.Length)
         {
-          throw new MalformedMetadataException("A material assignment is outside the material scope set.");
+          throw new MalformedMetadataException(
+            "A material assignment is outside the material scope set."
+          );
         }
         var binding = materials[materialIndex].TextureBinding!;
         var record = asset.StaticRenderObjectSequence.SingleOrDefault(item =>
-          item.LocalId == partition.LocalId);
+          item.LocalId == partition.LocalId
+        );
         if (record is not null && record.TexturePathBytes.SequenceEqual(binding))
         {
           continue;
@@ -4128,7 +4820,8 @@ namespace EarthTool.GLTF
 
     private static OperationDiagnostic? ValidateAssetProfile(
       StaticMeshAsset asset,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile
+    )
     {
       if (asset.StaticRenderObjectSequence.Count == 0)
       {
@@ -4137,46 +4830,60 @@ namespace EarthTool.GLTF
 
       foreach (var renderObject in asset.StaticRenderObjectSequence)
       {
-        if (renderObject.RenderVertices.Count == 0
+        if (
+          renderObject.RenderVertices.Count == 0
           || renderObject.RenderVertices.Count > profile.MaxActiveRenderVertices
-          || renderObject.Triangles.Count == 0)
+          || renderObject.Triangles.Count == 0
+        )
         {
           return renderObject.RenderVertices.Count > profile.MaxActiveRenderVertices
             ? Limit(
               $"StaticRenderObjectSequence[{renderObject.LocalId}].RenderVertices",
               renderObject.RenderVertices.Count,
-              profile.MaxActiveRenderVertices)
+              profile.MaxActiveRenderVertices
+            )
             : InvalidGeometry(
               $"StaticRenderObjectSequence[{renderObject.LocalId}]",
-              "Static geometry must contain vertices and triangles.");
+              "Static geometry must contain vertices and triangles."
+            );
         }
 
-        if (renderObject.RenderVertices.Any(vertex =>
-            !IsFinite(vertex.Position)
-            || !IsFinite(vertex.Normal)))
+        if (
+          renderObject.RenderVertices.Any(vertex =>
+            !IsFinite(vertex.Position) || !IsFinite(vertex.Normal)
+          )
+        )
         {
           return InvalidGeometry(
             $"StaticRenderObjectSequence[{renderObject.LocalId}].RenderVertices",
-            "Static geometry positions and normals must be finite.");
+            "Static geometry positions and normals must be finite."
+          );
         }
 
-        if (renderObject.Triangles.Any(triangle =>
+        if (
+          renderObject.Triangles.Any(triangle =>
             triangle.Vertex0 >= renderObject.RenderVertices.Count
             || triangle.Vertex1 >= renderObject.RenderVertices.Count
-            || triangle.Vertex2 >= renderObject.RenderVertices.Count))
+            || triangle.Vertex2 >= renderObject.RenderVertices.Count
+          )
+        )
         {
           return InvalidGeometry(
             $"StaticRenderObjectSequence[{renderObject.LocalId}].Triangles",
-            "Triangle index is outside the active render-vertex range.");
+            "Triangle index is outside the active render-vertex range."
+          );
         }
 
-        if (renderObject.RenderVertices.Any(vertex =>
-          !IsFinite(vertex.TextureCoordinate.X)
-          || !IsFinite(vertex.TextureCoordinate.Y)))
+        if (
+          renderObject.RenderVertices.Any(vertex =>
+            !IsFinite(vertex.TextureCoordinate.X) || !IsFinite(vertex.TextureCoordinate.Y)
+          )
+        )
         {
           return InvalidGeometry(
             $"StaticRenderObjectSequence[{renderObject.LocalId}].RenderVertices",
-            "Static geometry texture coordinates must be finite.");
+            "Static geometry texture coordinates must be finite."
+          );
         }
       }
 
@@ -4191,7 +4898,8 @@ namespace EarthTool.GLTF
         {
           throw new ResourceLimitException(
             primitive.Vertices.Count,
-            profile.MaxActiveRenderVertices);
+            profile.MaxActiveRenderVertices
+          );
         }
       }
     }
@@ -4216,7 +4924,8 @@ namespace EarthTool.GLTF
     private static void ValidateManifestMetadata(
       MetadataEnvelope manifest,
       InterchangeBaseline expected,
-      MetadataConflictCollector conflicts)
+      MetadataConflictCollector conflicts
+    )
     {
       if (manifest.ScopeKind != "manifest" || manifest.LocalId != 0 || manifest.SourceMsh is null)
       {
@@ -4225,27 +4934,32 @@ namespace EarthTool.GLTF
 
       if (manifest.AssetLineageId != expected.AssetLineageId)
       {
-        conflicts.Add(new MetadataConflictException(
-          GltfDiagnosticCodes.AssetLineageMismatch,
-          2006,
-          "scenes[0]",
-          "The GLB belongs to a different asset lineage.",
-          GltfMetadataConflictActions.Abort,
-          GltfMetadataConflictActions.AdoptAsNew,
-          GltfMetadataConflictActions.DiscardLineage));
+        conflicts.Add(
+          new MetadataConflictException(
+            GltfDiagnosticCodes.AssetLineageMismatch,
+            2006,
+            "scenes[0]",
+            "The GLB belongs to a different asset lineage.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.AdoptAsNew,
+            GltfMetadataConflictActions.DiscardLineage
+          )
+        );
       }
       if (manifest.DocumentId != expected.DocumentId)
       {
-        conflicts.Add(new MetadataConflictException(
-          GltfDiagnosticCodes.DocumentMismatch,
-          2007,
-          "scenes[0]",
-          "The GLB belongs to a different interchange document.",
-          GltfMetadataConflictActions.Abort,
-          GltfMetadataConflictActions.RetryWithMetadata,
-          GltfMetadataConflictActions.AcceptBranch));
+        conflicts.Add(
+          new MetadataConflictException(
+            GltfDiagnosticCodes.DocumentMismatch,
+            2007,
+            "scenes[0]",
+            "The GLB belongs to a different interchange document.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.RetryWithMetadata,
+            GltfMetadataConflictActions.AcceptBranch
+          )
+        );
       }
-
     }
 
     private static AnimationEditPlan CreateAnimationEditPlan(
@@ -4254,7 +4968,8 @@ namespace EarthTool.GLTF
       IReadOnlyList<MetadataEnvelope?> nodes,
       StaticMeshAsset asset,
       InterchangeBaseline baseline,
-      int maximumOutputLength)
+      int maximumOutputLength
+    )
     {
       long estimatedOutputLength = asset.SerializedLength;
       if (estimatedOutputLength > maximumOutputLength)
@@ -4262,35 +4977,58 @@ namespace EarthTool.GLTF
         throw new ResourceLimitException(estimatedOutputLength, maximumOutputLength);
       }
       var expected = StaticAnimationProjection.Create(asset, baseline);
-      if (!manifest.AnimationLengths.HasValue
+      if (
+        !manifest.AnimationLengths.HasValue
         || !manifest.AnimationLengths.Value.Equals(asset.CommonBaseHeader.AnimationLengths)
         || !manifest.AnimationFrameIndices.HasValue
-        || !manifest.AnimationFrameIndices.Value.Equals(asset.CommonBaseHeader.AnimationFrameIndices)
+        || !manifest.AnimationFrameIndices.Value.Equals(
+          asset.CommonBaseHeader.AnimationFrameIndices
+        )
         || manifest.AnimationClasses.Select(item => item.ClassIndex).Distinct().Count()
-          != manifest.AnimationClasses.Count)
+          != manifest.AnimationClasses.Count
+      )
       {
-        throw new MalformedMetadataException("The manifest static animation metadata is malformed.");
+        throw new MalformedMetadataException(
+          "The manifest static animation metadata is malformed."
+        );
       }
 
-      var expectedGroups = expected.Objects.Where(item => item.HasSourceTracks)
+      var expectedGroups = expected
+        .Objects.Where(item => item.HasSourceTracks)
         .GroupBy(item => item.ClassIndex)
-        .OrderBy(group => group.Key).ToArray();
+        .OrderBy(group => group.Key)
+        .ToArray();
       if (manifest.AnimationClasses.Count != expectedGroups.Length)
       {
-        throw new MalformedMetadataException("The manifest static animation class set is incomplete.");
+        throw new MalformedMetadataException(
+          "The manifest static animation class set is incomplete."
+        );
       }
       foreach (var group in expectedGroups)
       {
-        var metadata = manifest.AnimationClasses.SingleOrDefault(item => item.ClassIndex == group.Key)
-          ?? throw new MalformedMetadataException("The manifest static animation class set is incomplete.");
+        var metadata =
+          manifest.AnimationClasses.SingleOrDefault(item => item.ClassIndex == group.Key)
+          ?? throw new MalformedMetadataException(
+            "The manifest static animation class set is incomplete."
+          );
         var expectedObjects = group.OrderBy(item => item.SourceObjectLocalId).ToArray();
         var expectedNativeObjects = expectedObjects.Where(item => item.IsNative).ToArray();
         var expectedClip = expected.Clips.SingleOrDefault(item => item.ClassIndex == group.Key);
-        if (!metadata.Objects.SequenceEqual(expectedObjects.Select(item => item.SourceObjectLocalId))
-          || !metadata.NativeObjects.SequenceEqual(expectedNativeObjects.Select(item => item.SourceObjectLocalId))
-          || !string.Equals(metadata.Fingerprint, expectedClip?.Fingerprint, StringComparison.Ordinal))
+        if (
+          !metadata.Objects.SequenceEqual(expectedObjects.Select(item => item.SourceObjectLocalId))
+          || !metadata.NativeObjects.SequenceEqual(
+            expectedNativeObjects.Select(item => item.SourceObjectLocalId)
+          )
+          || !string.Equals(
+            metadata.Fingerprint,
+            expectedClip?.Fingerprint,
+            StringComparison.Ordinal
+          )
+        )
         {
-          throw new MalformedMetadataException("The manifest static animation class binding is malformed.");
+          throw new MalformedMetadataException(
+            "The manifest static animation class binding is malformed."
+          );
         }
       }
 
@@ -4307,26 +5045,39 @@ namespace EarthTool.GLTF
         {
           if (metadata.AnimationProjection is not null)
           {
-            throw new MalformedMetadataException("Animation metadata appears on an object without source tracks.");
+            throw new MalformedMetadataException(
+              "Animation metadata appears on an object without source tracks."
+            );
           }
           continue;
         }
         var animation = metadata.AnimationProjection;
-        if (animation is null
+        if (
+          animation is null
           || animation.AnimationClassValue != expectedObject.AnimationClassValue
           || animation.ClassIndex != expectedObject.ClassIndex
           || animation.DeclaredLength != expectedObject.DeclaredLength
           || animation.IsNative != expectedObject.IsNative
           || animation.HasSourceTracks != expectedObject.HasSourceTracks
-          || !string.Equals(animation.Fingerprint, expectedObject.Fingerprint, StringComparison.Ordinal)
+          || !string.Equals(
+            animation.Fingerprint,
+            expectedObject.Fingerprint,
+            StringComparison.Ordinal
+          )
           || !animation.ScaleFrames.SequenceEqual(
-            StaticAnimationProjection.SerializeScaleFrames(expectedObject.SourceTracks))
+            StaticAnimationProjection.SerializeScaleFrames(expectedObject.SourceTracks)
+          )
           || !animation.TranslationFrames.SequenceEqual(
-            StaticAnimationProjection.SerializeTranslationFrames(expectedObject.SourceTracks))
+            StaticAnimationProjection.SerializeTranslationFrames(expectedObject.SourceTracks)
+          )
           || !animation.Matrices.SequenceEqual(
-            StaticAnimationProjection.SerializeMatrices(expectedObject.SourceTracks)))
+            StaticAnimationProjection.SerializeMatrices(expectedObject.SourceTracks)
+          )
+        )
         {
-          throw new MalformedMetadataException("The object static animation metadata is malformed.");
+          throw new MalformedMetadataException(
+            "The object static animation metadata is malformed."
+          );
         }
         retainedNodeBySource.Add(metadata.LocalId, nodeIndex);
       }
@@ -4341,36 +5092,49 @@ namespace EarthTool.GLTF
         var clip = parsed.Animations[clipIndex];
         if (!TryGetCanonicalAnimationClass(clip.Name, out var classIndex))
         {
-          if (clip.Objects.Any(item => sourceByNode.TryGetValue(item.NodeIndex, out var sourceId)
-            && expectedBySource[sourceId].IsNative))
+          if (
+            clip.Objects.Any(item =>
+              sourceByNode.TryGetValue(item.NodeIndex, out var sourceId)
+              && expectedBySource[sourceId].IsNative
+            )
+          )
           {
             throw new StaleNativeProjectionException(
-              "A metadata-backed expected animation clip no longer has its canonical class name.");
+              "A metadata-backed expected animation clip no longer has its canonical class name."
+            );
           }
           continue;
         }
         if (clip.Objects.Count == 0)
         {
-          throw new StaleNativeProjectionException("A native animation clip has no participating objects.");
+          throw new StaleNativeProjectionException(
+            "A native animation clip has no participating objects."
+          );
         }
         if (!matchedClasses.TryAdd(classIndex, clipIndex))
         {
-          throw new StaleNativeProjectionException("One animation class maps to multiple native clips.");
+          throw new StaleNativeProjectionException(
+            "One animation class maps to multiple native clips."
+          );
         }
         var frameCount = GetCanonicalAnimationFrameCount(clip);
         currentFrameCounts.Add(classIndex, checked((byte)frameCount));
         foreach (var item in clip.Objects)
         {
-          if (!sourceByNode.TryGetValue(item.NodeIndex, out var sourceId)
-            || !expectedBySource.TryGetValue(sourceId, out var expectedObject))
+          if (
+            !sourceByNode.TryGetValue(item.NodeIndex, out var sourceId)
+            || !expectedBySource.TryGetValue(sourceId, out var expectedObject)
+          )
           {
             throw new StaleNativeProjectionException(
-              "A canonical animation targets an unsupported object.");
+              "A canonical animation targets an unsupported object."
+            );
           }
           if (!matchedObjects.Add(sourceId))
           {
             throw new StaleNativeProjectionException(
-              "One source object participates in multiple canonical animation classes.");
+              "One source object participates in multiple canonical animation classes."
+            );
           }
           var frames = item.SampleFrames(frameCount);
           var fingerprint = AnimationProjectionFingerprint.CreateObject(
@@ -4378,48 +5142,65 @@ namespace EarthTool.GLTF
             sourceId,
             classIndex,
             checked((byte)frameCount),
-            frames);
+            frames
+          );
           var classChanged = expectedObject.ClassIndex != classIndex;
-          if (classChanged
+          if (
+            classChanged
             || expectedObject.DeclaredLength != frameCount
-            || !string.Equals(fingerprint, expectedObject.Fingerprint, StringComparison.Ordinal))
+            || !string.Equals(fingerprint, expectedObject.Fingerprint, StringComparison.Ordinal)
+          )
           {
             estimatedOutputLength = GetAnimationReplacementLength(
               estimatedOutputLength,
               expectedObject.SourceTracks,
-              frames.Count);
+              frames.Count
+            );
             if (estimatedOutputLength > maximumOutputLength)
             {
               throw new ResourceLimitException(estimatedOutputLength, maximumOutputLength);
             }
-            replacements.Add(new AnimationReplacement(
-              sourceId,
-              classChanged ? checked((uint)classIndex) : expectedObject.AnimationClassValue,
-              frames));
+            replacements.Add(
+              new AnimationReplacement(
+                sourceId,
+                classChanged ? checked((uint)classIndex) : expectedObject.AnimationClassValue,
+                frames
+              )
+            );
           }
         }
       }
 
-      foreach (var deleted in expected.Objects.Where(item =>
-        item.IsNative
-        && retainedNodeBySource.ContainsKey(item.SourceObjectLocalId)
-        && !matchedObjects.Contains(item.SourceObjectLocalId)))
+      foreach (
+        var deleted in expected.Objects.Where(item =>
+          item.IsNative
+          && retainedNodeBySource.ContainsKey(item.SourceObjectLocalId)
+          && !matchedObjects.Contains(item.SourceObjectLocalId)
+        )
+      )
       {
         estimatedOutputLength = GetAnimationReplacementLength(
           estimatedOutputLength,
           deleted.SourceTracks,
-          0);
-        replacements.Add(new AnimationReplacement(
-          deleted.SourceObjectLocalId,
-          0,
-          Array.Empty<ProjectedAnimationFrame>()));
+          0
+        );
+        replacements.Add(
+          new AnimationReplacement(
+            deleted.SourceObjectLocalId,
+            0,
+            Array.Empty<ProjectedAnimationFrame>()
+          )
+        );
       }
 
-      if (parsed.Animations.Any(clip => !TryGetCanonicalAnimationClass(clip.Name, out _))
-        && expected.Clips.Any(clip => !matchedClasses.ContainsKey(clip.ClassIndex)))
+      if (
+        parsed.Animations.Any(clip => !TryGetCanonicalAnimationClass(clip.Name, out _))
+        && expected.Clips.Any(clip => !matchedClasses.ContainsKey(clip.ClassIndex))
+      )
       {
         throw new StaleNativeProjectionException(
-          "A metadata-backed expected animation clip no longer has its canonical class name.");
+          "A metadata-backed expected animation clip no longer has its canonical class name."
+        );
       }
 
       var lengths = ToAnimationBytes(asset.CommonBaseHeader.AnimationLengths);
@@ -4444,7 +5225,8 @@ namespace EarthTool.GLTF
       return new AnimationEditPlan(
         replacements.AsReadOnly(),
         ToAnimationClassBytes(lengths),
-        ToAnimationClassBytes(frameIndices));
+        ToAnimationClassBytes(frameIndices)
+      );
     }
 
     private static int GetCanonicalAnimationFrameCount(ParsedGltfAnimation animation)
@@ -4454,12 +5236,14 @@ namespace EarthTool.GLTF
         return frameCount;
       }
       throw new StaleNativeProjectionException(
-        "A canonical animation must end on an integer 24 FPS frame before frame 255.");
+        "A canonical animation must end on an integer 24 FPS frame before frame 255."
+      );
     }
 
     private static bool TryGetCanonicalAnimationFrameCount(
       ParsedGltfAnimation animation,
-      out int frameCount)
+      out int frameCount
+    )
     {
       var endFrameValue = animation.EndTime * 24d;
       var endFrame = (int)Math.Round(endFrameValue);
@@ -4480,7 +5264,7 @@ namespace EarthTool.GLTF
         "EarthTool B" => 1,
         "EarthTool C" => 2,
         "EarthTool D" => 3,
-        _ => -1
+        _ => -1,
       };
       return classIndex >= 0;
     }
@@ -4498,12 +5282,14 @@ namespace EarthTool.GLTF
     private static long GetAnimationReplacementLength(
       long currentLength,
       StaticAnimationTracks source,
-      int frameCount)
+      int frameCount
+    )
     {
       var sourceLength = checked(
         (source.ScaleFrames.Count * 12L)
         + (source.TranslationFrames.Count * 12L)
-        + (source.Matrices.Count * 64L));
+        + (source.Matrices.Count * 64L)
+      );
       return checked(currentLength - sourceLength + (frameCount * 88L));
     }
 
@@ -4518,7 +5304,8 @@ namespace EarthTool.GLTF
       internal AnimationReplacement(
         int sourceObjectLocalId,
         uint animationClassValue,
-        IReadOnlyList<ProjectedAnimationFrame> frames)
+        IReadOnlyList<ProjectedAnimationFrame> frames
+      )
       {
         SourceObjectLocalId = sourceObjectLocalId;
         AnimationClassValue = animationClassValue;
@@ -4537,7 +5324,8 @@ namespace EarthTool.GLTF
       internal AnimationEditPlan(
         IReadOnlyList<AnimationReplacement> replacements,
         AnimationClassBytes lengths,
-        AnimationClassBytes frameIndices)
+        AnimationClassBytes frameIndices
+      )
       {
         Replacements = replacements;
         Lengths = lengths;
@@ -4548,20 +5336,25 @@ namespace EarthTool.GLTF
     private static IReadOnlyList<PartitionMatch> MatchPartitions(
       IReadOnlyList<(ParsedGltfMesh Parsed, MetadataEnvelope Metadata, bool Discarded)> meshes,
       StaticMeshAsset asset,
-      InterchangeBaseline expected)
+      InterchangeBaseline expected
+    )
     {
-      var sources = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
+      var sources = StaticSourceObjectTraversal
+        .Flatten(asset.RootSourceObject)
         .ToDictionary(source => source.Id.Value);
       if (meshes.Select(mesh => mesh.Metadata.LocalId).Distinct().Count() != meshes.Count)
       {
-        throw new MalformedMetadataException("The mesh scope set does not match the source hierarchy.");
+        throw new MalformedMetadataException(
+          "The mesh scope set does not match the source hierarchy."
+        );
       }
 
       var result = new List<PartitionMatch>();
       foreach (var mesh in meshes)
       {
         var metadata = mesh.Metadata;
-        if (metadata.ScopeKind != "mesh"
+        if (
+          metadata.ScopeKind != "mesh"
           || metadata.LocalId <= 0
           || metadata.Fingerprint is null
           || metadata.FingerprintName != "static-geometry"
@@ -4572,122 +5365,174 @@ namespace EarthTool.GLTF
           || metadata.Partitions.Count != source.StaticRenderObjectIds.Count
           || metadata.Partitions.Select(partition => partition.LocalId).Distinct().Count()
             != metadata.Partitions.Count
-          || !metadata.Partitions.Select(partition => partition.LocalId)
+          || !metadata
+            .Partitions.Select(partition => partition.LocalId)
             .OrderBy(value => value)
-            .SequenceEqual(source.StaticRenderObjectIds.Select(id => id.Value).OrderBy(value => value)))
+            .SequenceEqual(
+              source.StaticRenderObjectIds.Select(id => id.Value).OrderBy(value => value)
+            )
+        )
         {
           throw new MalformedMetadataException("The mesh metadata envelope is malformed.");
         }
 
-        var sourceRecords = source.StaticRenderObjectIds
-          .Select(id => asset.StaticRenderObjectSequence.Single(record => record.Id.Equals(id)))
+        var sourceRecords = source
+          .StaticRenderObjectIds.Select(id =>
+            asset.StaticRenderObjectSequence.Single(record => record.Id.Equals(id))
+          )
           .ToArray();
-        var sourceGeometry = sourceRecords.Select((record, index) => new GeometryPartition(
-          record.LocalId,
-          record.RenderVertices.Select(GlbDocument.ProjectToGltf).ToArray(),
-          record.Triangles,
-          index < mesh.Parsed.Primitives.Count
-            ? mesh.Parsed.Primitives[index].MaterialIndex
-            : null)).ToArray();
-        var currentGeometry = mesh.Parsed.Primitives.Select(primitive => new GeometryPartition(
-          0,
-          primitive.Vertices,
-          primitive.Triangles,
-          primitive.MaterialIndex)).ToArray();
+        var sourceGeometry = sourceRecords
+          .Select(
+            (record, index) =>
+              new GeometryPartition(
+                record.LocalId,
+                record.RenderVertices.Select(GlbDocument.ProjectToGltf).ToArray(),
+                record.Triangles,
+                index < mesh.Parsed.Primitives.Count
+                  ? mesh.Parsed.Primitives[index].MaterialIndex
+                  : null
+              )
+          )
+          .ToArray();
+        var currentGeometry = mesh
+          .Parsed.Primitives.Select(primitive => new GeometryPartition(
+            0,
+            primitive.Vertices,
+            primitive.Triangles,
+            primitive.MaterialIndex
+          ))
+          .ToArray();
         if (mesh.Discarded)
         {
           if (currentGeometry.Length != metadata.Partitions.Count)
           {
             throw new AmbiguousPartitionCorrespondenceException(
-              "Discarding affected geometry requires one native partition per preserved identity.");
+              "Discarding affected geometry requires one native partition per preserved identity."
+            );
           }
-          result.AddRange(currentGeometry.Select((partition, index) => new PartitionMatch(
-            new GeometryPartition(
-              metadata.Partitions[index].LocalId,
-              partition.Vertices,
-              partition.Triangles,
-              partition.MaterialIndex),
-            source.Id,
-            retained: false,
-            added: false)));
+          result.AddRange(
+            currentGeometry.Select(
+              (partition, index) =>
+                new PartitionMatch(
+                  new GeometryPartition(
+                    metadata.Partitions[index].LocalId,
+                    partition.Vertices,
+                    partition.Triangles,
+                    partition.MaterialIndex
+                  ),
+                  source.Id,
+                  retained: false,
+                  added: false
+                )
+            )
+          );
           continue;
         }
-        if (string.Equals(
-          StaticGeometryFingerprint.CreateSurfaceKey(sourceGeometry),
-          StaticGeometryFingerprint.CreateSurfaceKey(currentGeometry),
-          StringComparison.Ordinal))
+        if (
+          string.Equals(
+            StaticGeometryFingerprint.CreateSurfaceKey(sourceGeometry),
+            StaticGeometryFingerprint.CreateSurfaceKey(currentGeometry),
+            StringComparison.Ordinal
+          )
+        )
         {
           if (sourceGeometry.Length != currentGeometry.Length)
           {
-            var materialIndices = currentGeometry.Select(partition => partition.MaterialIndex)
+            var materialIndices = currentGeometry
+              .Select(partition => partition.MaterialIndex)
               .Distinct()
               .ToArray();
             if (materialIndices.Length != 1)
             {
               throw new AmbiguousPartitionCorrespondenceException(
-                "A representation-only partition split has conflicting material assignments.");
+                "A representation-only partition split has conflicting material assignments."
+              );
             }
-            result.AddRange(sourceGeometry.Select(partition => new PartitionMatch(
-              new GeometryPartition(
-                partition.LocalId,
-                partition.Vertices,
-                partition.Triangles,
-                materialIndices[0]),
-              source.Id,
-              true,
-              false)));
+            result.AddRange(
+              sourceGeometry.Select(partition => new PartitionMatch(
+                new GeometryPartition(
+                  partition.LocalId,
+                  partition.Vertices,
+                  partition.Triangles,
+                  materialIndices[0]
+                ),
+                source.Id,
+                true,
+                false
+              ))
+            );
             continue;
           }
-          var sourceBySurface = sourceGeometry.GroupBy(partition =>
-              StaticGeometryFingerprint.CreateSurfaceKey(
-                partition.Vertices,
-                partition.Triangles))
-            .ToDictionary(
-              group => group.Key,
-              group => new Queue<GeometryPartition>(group));
+          var sourceBySurface = sourceGeometry
+            .GroupBy(partition =>
+              StaticGeometryFingerprint.CreateSurfaceKey(partition.Vertices, partition.Triangles)
+            )
+            .ToDictionary(group => group.Key, group => new Queue<GeometryPartition>(group));
           foreach (var current in currentGeometry)
           {
             var surface = StaticGeometryFingerprint.CreateSurfaceKey(
               current.Vertices,
-              current.Triangles);
-            if (!sourceBySurface.TryGetValue(surface, out var candidates)
-              || candidates.Count == 0)
+              current.Triangles
+            );
+            if (!sourceBySurface.TryGetValue(surface, out var candidates) || candidates.Count == 0)
             {
               throw new AmbiguousPartitionCorrespondenceException(
-                "The unchanged native surface set did not identify each preserved partition.");
+                "The unchanged native surface set did not identify each preserved partition."
+              );
             }
             var sourcePartition = candidates.Dequeue();
-            result.Add(new PartitionMatch(
-              new GeometryPartition(
-                sourcePartition.LocalId,
-                current.Vertices,
-                current.Triangles,
-                current.MaterialIndex),
-              source.Id,
-              true,
-              false));
+            result.Add(
+              new PartitionMatch(
+                new GeometryPartition(
+                  sourcePartition.LocalId,
+                  current.Vertices,
+                  current.Triangles,
+                  current.MaterialIndex
+                ),
+                source.Id,
+                true,
+                false
+              )
+            );
           }
           continue;
         }
 
-        var sourceSurfaceCounts = sourceRecords.GroupBy(record =>
-          StaticGeometryFingerprint.CreateSurfaceKey(
-            record.RenderVertices.Select(GlbDocument.ProjectToGltf).ToArray(),
-            record.Triangles)).ToDictionary(group => group.Key, group => group.Count());
-        var currentSurfaceCounts = mesh.Parsed.Primitives.GroupBy(primitive =>
-          StaticGeometryFingerprint.CreateSurfaceKey(primitive.Vertices, primitive.Triangles))
+        var sourceSurfaceCounts = sourceRecords
+          .GroupBy(record =>
+            StaticGeometryFingerprint.CreateSurfaceKey(
+              record.RenderVertices.Select(GlbDocument.ProjectToGltf).ToArray(),
+              record.Triangles
+            )
+          )
           .ToDictionary(group => group.Key, group => group.Count());
-        if (sourceSurfaceCounts.Any(item => item.Value > 1
-          && (!currentSurfaceCounts.TryGetValue(item.Key, out var currentCount)
-            || currentCount < item.Value)))
+        var currentSurfaceCounts = mesh
+          .Parsed.Primitives.GroupBy(primitive =>
+            StaticGeometryFingerprint.CreateSurfaceKey(primitive.Vertices, primitive.Triangles)
+          )
+          .ToDictionary(group => group.Key, group => group.Count());
+        if (
+          sourceSurfaceCounts.Any(item =>
+            item.Value > 1
+            && (
+              !currentSurfaceCounts.TryGetValue(item.Key, out var currentCount)
+              || currentCount < item.Value
+            )
+          )
+        )
         {
           throw new AmbiguousPartitionCorrespondenceException(
-            "Duplicate native geometry identifies more than one possible preserved partition deletion.");
+            "Duplicate native geometry identifies more than one possible preserved partition deletion."
+          );
         }
 
         var unmatched = new List<MetadataPartition>(metadata.Partitions);
         var pending = new List<(ParsedGltfPrimitive Primitive, int Index)>();
-        for (var primitiveIndex = 0; primitiveIndex < mesh.Parsed.Primitives.Count; primitiveIndex++)
+        for (
+          var primitiveIndex = 0;
+          primitiveIndex < mesh.Parsed.Primitives.Count;
+          primitiveIndex++
+        )
         {
           var primitive = mesh.Parsed.Primitives[primitiveIndex];
           if (primitiveIndex < metadata.Partitions.Count)
@@ -4697,20 +5542,31 @@ namespace EarthTool.GLTF
               expected,
               positional.LocalId,
               primitive.Vertices,
-              primitive.Triangles);
-            if (unmatched.Contains(positional)
-              && string.Equals(positional.Fingerprint, positionalFingerprint, StringComparison.Ordinal))
+              primitive.Triangles
+            );
+            if (
+              unmatched.Contains(positional)
+              && string.Equals(
+                positional.Fingerprint,
+                positionalFingerprint,
+                StringComparison.Ordinal
+              )
+            )
             {
               unmatched.Remove(positional);
-              result.Add(new PartitionMatch(
-                new GeometryPartition(
-                  positional.LocalId,
-                  primitive.Vertices,
-                  primitive.Triangles,
-                  primitive.MaterialIndex),
-                source.Id,
-                true,
-                false));
+              result.Add(
+                new PartitionMatch(
+                  new GeometryPartition(
+                    positional.LocalId,
+                    primitive.Vertices,
+                    primitive.Triangles,
+                    primitive.MaterialIndex
+                  ),
+                  source.Id,
+                  true,
+                  false
+                )
+              );
               continue;
             }
           }
@@ -4724,14 +5580,20 @@ namespace EarthTool.GLTF
           for (var pendingIndex = pending.Count - 1; pendingIndex >= 0; pendingIndex--)
           {
             var primitive = pending[pendingIndex].Primitive;
-            var matches = unmatched.Where(partition => string.Equals(
-              partition.Fingerprint,
-              StaticGeometryFingerprint.CreatePartition(
-                expected,
-                partition.LocalId,
-                primitive.Vertices,
-                primitive.Triangles),
-              StringComparison.Ordinal)).ToArray();
+            var matches = unmatched
+              .Where(partition =>
+                string.Equals(
+                  partition.Fingerprint,
+                  StaticGeometryFingerprint.CreatePartition(
+                    expected,
+                    partition.LocalId,
+                    primitive.Vertices,
+                    primitive.Triangles
+                  ),
+                  StringComparison.Ordinal
+                )
+              )
+              .ToArray();
             if (matches.Length != 1)
             {
               continue;
@@ -4740,15 +5602,19 @@ namespace EarthTool.GLTF
             var match = matches[0];
             unmatched.Remove(match);
             pending.RemoveAt(pendingIndex);
-            result.Add(new PartitionMatch(
-              new GeometryPartition(
+            result.Add(
+              new PartitionMatch(
+                new GeometryPartition(
                   match.LocalId,
                   primitive.Vertices,
                   primitive.Triangles,
-                  primitive.MaterialIndex),
-              source.Id,
-              true,
-              false));
+                  primitive.MaterialIndex
+                ),
+                source.Id,
+                true,
+                false
+              )
+            );
             resolved = true;
           }
 
@@ -4759,15 +5625,19 @@ namespace EarthTool.GLTF
 
           if (unmatched.Count == 0)
           {
-            result.AddRange(pending.Select(item => new PartitionMatch(
-              new GeometryPartition(
-                -1,
-                item.Primitive.Vertices,
-                item.Primitive.Triangles,
-                item.Primitive.MaterialIndex),
-              source.Id,
-              false,
-              true)));
+            result.AddRange(
+              pending.Select(item => new PartitionMatch(
+                new GeometryPartition(
+                  -1,
+                  item.Primitive.Vertices,
+                  item.Primitive.Triangles,
+                  item.Primitive.MaterialIndex
+                ),
+                source.Id,
+                false,
+                true
+              ))
+            );
             pending.Clear();
             continue;
           }
@@ -4778,27 +5648,41 @@ namespace EarthTool.GLTF
             var primitive = pending[0].Primitive;
             unmatched.Clear();
             pending.Clear();
-            result.Add(new PartitionMatch(
-              new GeometryPartition(
-                stale.LocalId,
-                primitive.Vertices,
-                primitive.Triangles,
-                primitive.MaterialIndex),
-              source.Id,
-              false,
-              false));
+            result.Add(
+              new PartitionMatch(
+                new GeometryPartition(
+                  stale.LocalId,
+                  primitive.Vertices,
+                  primitive.Triangles,
+                  primitive.MaterialIndex
+                ),
+                source.Id,
+                false,
+                false
+              )
+            );
             continue;
           }
 
-          var actual = string.Join(",", pending.Select(item =>
-            string.Join(",", unmatched.Select(partition =>
-              StaticGeometryFingerprint.CreatePartition(
-                expected,
-                partition.LocalId,
-                item.Primitive.Vertices,
-                item.Primitive.Triangles)))));
+          var actual = string.Join(
+            ",",
+            pending.Select(item =>
+              string.Join(
+                ",",
+                unmatched.Select(partition =>
+                  StaticGeometryFingerprint.CreatePartition(
+                    expected,
+                    partition.LocalId,
+                    item.Primitive.Vertices,
+                    item.Primitive.Triangles
+                  )
+                )
+              )
+            )
+          );
           throw new AmbiguousPartitionCorrespondenceException(
-            $"The native geometry did not identify one partition correspondence. Expected: {string.Join(",", unmatched.Select(partition => partition.Fingerprint))}. Actual: {actual}.");
+            $"The native geometry did not identify one partition correspondence. Expected: {string.Join(",", unmatched.Select(partition => partition.Fingerprint))}. Actual: {actual}."
+          );
         }
       }
 
@@ -4810,7 +5694,8 @@ namespace EarthTool.GLTF
       return new CanonicalStaticVertex(
         ToCanonicalPosition(vertex.Position),
         new System.Numerics.Vector3(vertex.Normal.X, -vertex.Normal.Z, vertex.Normal.Y),
-        vertex.TextureCoordinate);
+        vertex.TextureCoordinate
+      );
     }
 
     private static System.Numerics.Vector3 ToCanonicalPosition(System.Numerics.Vector3 position)
@@ -4822,7 +5707,8 @@ namespace EarthTool.GLTF
       TSource root,
       Func<TSource, IEnumerable<System.Numerics.Vector3>> getPositions,
       Func<TSource, System.Numerics.Vector3> getPivot,
-      Func<TSource, IEnumerable<TSource>> getChildren)
+      Func<TSource, IEnumerable<TSource>> getChildren
+    )
     {
       var positions = new List<System.Numerics.Vector3>();
       AddEffectivePositions(
@@ -4832,7 +5718,8 @@ namespace EarthTool.GLTF
         getPositions,
         getPivot,
         getChildren,
-        positions);
+        positions
+      );
       return positions;
     }
 
@@ -4843,7 +5730,8 @@ namespace EarthTool.GLTF
       Func<TSource, IEnumerable<System.Numerics.Vector3>> getPositions,
       Func<TSource, System.Numerics.Vector3> getPivot,
       Func<TSource, IEnumerable<TSource>> getChildren,
-      ICollection<System.Numerics.Vector3> positions)
+      ICollection<System.Numerics.Vector3> positions
+    )
     {
       var offset = root ? System.Numerics.Vector3.Zero : parentOffset + getPivot(source);
       foreach (var position in getPositions(source))
@@ -4859,7 +5747,8 @@ namespace EarthTool.GLTF
     private static bool TryCreateHorizontalExtents(
       IReadOnlyCollection<System.Numerics.Vector3> positions,
       out CanonicalHorizontalExtents? horizontalExtents,
-      out string? rangeFailure)
+      out string? rangeFailure
+    )
     {
       var positiveY = Math.Max(0, positions.Max(position => position.Y));
       var negativeY = -Math.Min(0, positions.Min(position => position.Y));
@@ -4870,14 +5759,15 @@ namespace EarthTool.GLTF
         (Axis: "+Y", Value: positiveY),
         (Axis: "-Y", Value: negativeY),
         (Axis: "+X", Value: positiveX),
-        (Axis: "-X", Value: negativeX)
+        (Axis: "-X", Value: negativeX),
       };
       foreach (var value in values)
       {
         if (!float.IsFinite(value.Value) || value.Value * 256d > ushort.MaxValue)
         {
           horizontalExtents = null;
-          rangeFailure = $"The derived {value.Axis} horizontal extent {value.Value:R} exceeds the representable maximum {ushort.MaxValue / 256f:R}.";
+          rangeFailure =
+            $"The derived {value.Axis} horizontal extent {value.Value:R} exceeds the representable maximum {ushort.MaxValue / 256f:R}.";
           return false;
         }
       }
@@ -4885,22 +5775,27 @@ namespace EarthTool.GLTF
         positiveY,
         negativeY,
         positiveX,
-        negativeX);
+        negativeX
+      );
       rangeFailure = null;
       return true;
     }
 
     private static bool HaveSameEffectivePositions(
       IEnumerable<System.Numerics.Vector3> source,
-      IEnumerable<System.Numerics.Vector3> current)
+      IEnumerable<System.Numerics.Vector3> current
+    )
     {
-      var sourceCounts = source.GroupBy(position => position)
+      var sourceCounts = source
+        .GroupBy(position => position)
         .ToDictionary(group => group.Key, group => group.Count());
-      var currentCounts = current.GroupBy(position => position)
+      var currentCounts = current
+        .GroupBy(position => position)
         .ToDictionary(group => group.Key, group => group.Count());
       return sourceCounts.Count == currentCounts.Count
-        && sourceCounts.All(item => currentCounts.TryGetValue(item.Key, out var count)
-          && count == item.Value);
+        && sourceCounts.All(item =>
+          currentCounts.TryGetValue(item.Key, out var count) && count == item.Value
+        );
     }
 
     private sealed class PartitionMatch
@@ -4917,7 +5812,8 @@ namespace EarthTool.GLTF
         GeometryPartition partition,
         SourceObjectId sourceObjectId,
         bool retained,
-        bool added)
+        bool added
+      )
       {
         Partition = partition;
         SourceObjectId = sourceObjectId;
@@ -4934,7 +5830,8 @@ namespace EarthTool.GLTF
       StaticHierarchyPlan hierarchy,
       InterchangeBaseline expected,
       IReadOnlyDictionary<string, int> metadataNextIds,
-      StaticMeshEditSession edit)
+      StaticMeshEditSession edit
+    )
     {
       var attachmentCandidates = new Dictionary<int, List<int>>();
       var cannonCandidates = new Dictionary<int, List<int>>();
@@ -4946,48 +5843,68 @@ namespace EarthTool.GLTF
         if (node.Metadata?.AttachmentRecord is not null)
         {
           var sourcePhysicalNumber = ValidateAttachmentMetadata(node.Metadata, asset, expected);
-          physicalNumber = ReadCanonicalAttachmentTarget(node.Parsed.Name, sourcePhysicalNumber, nodeIndex);
+          physicalNumber = ReadCanonicalAttachmentTarget(
+            node.Parsed.Name,
+            sourcePhysicalNumber,
+            nodeIndex
+          );
           sourcePhysicalNumbers.Add(nodeIndex, sourcePhysicalNumber);
           AddArtistCandidate(attachmentCandidates, physicalNumber, nodeIndex);
         }
         else if (node.Metadata?.CannonRenderPositionRecord is not null)
         {
           var sourcePhysicalNumber = ValidateCannonMetadata(node.Metadata, asset, expected);
-          physicalNumber = ReadCanonicalCannonTarget(node.Parsed.Name, sourcePhysicalNumber, nodeIndex);
+          physicalNumber = ReadCanonicalCannonTarget(
+            node.Parsed.Name,
+            sourcePhysicalNumber,
+            nodeIndex
+          );
           sourcePhysicalNumbers.Add(nodeIndex, sourcePhysicalNumber);
           AddArtistCandidate(cannonCandidates, physicalNumber, nodeIndex);
         }
-        else if (node.Metadata is null
+        else if (
+          node.Metadata is null
           && !node.Parsed.MeshIndex.HasValue
-          && GlbDocument.TryParseAttachmentHelperName(node.Parsed.Name, out physicalNumber))
+          && GlbDocument.TryParseAttachmentHelperName(node.Parsed.Name, out physicalNumber)
+        )
         {
           AddArtistCandidate(attachmentCandidates, physicalNumber, nodeIndex);
         }
-        else if (node.Metadata is null
+        else if (
+          node.Metadata is null
           && !node.Parsed.MeshIndex.HasValue
-          && GlbDocument.TryParseCannonHelperName(node.Parsed.Name, out physicalNumber))
+          && GlbDocument.TryParseCannonHelperName(node.Parsed.Name, out physicalNumber)
+        )
         {
           AddArtistCandidate(cannonCandidates, physicalNumber, nodeIndex);
         }
       }
 
-      var duplicate = attachmentCandidates.Concat(cannonCandidates)
+      var duplicate = attachmentCandidates
+        .Concat(cannonCandidates)
         .FirstOrDefault(item => item.Value.Count != 1);
       if (duplicate.Value is not null)
       {
         var paths = string.Join(", ", duplicate.Value.Select(index => $"nodes[{index}]"));
         throw ArtistObjectConflict(
           $"Physical helper target {duplicate.Key} is occupied by multiple artist objects: {paths}.",
-          $"nodes[{duplicate.Value[0]}]");
+          $"nodes[{duplicate.Value[0]}]"
+        );
       }
       var nextObjectLocalId = metadataNextIds.TryGetValue("object", out var nextObject)
         ? nextObject
-        : checked(nodes.Select(node => node.Metadata?.LocalId)
-          .OfType<int>()
-          .Concat(StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
-            .Select(source => source.Id.Value))
-          .DefaultIfEmpty(0)
-          .Max() + 1);
+        : checked(
+          nodes
+            .Select(node => node.Metadata?.LocalId)
+            .OfType<int>()
+            .Concat(
+              StaticSourceObjectTraversal
+                .Flatten(asset.RootSourceObject)
+                .Select(source => source.Id.Value)
+            )
+            .DefaultIfEmpty(0)
+            .Max() + 1
+        );
       var attachmentArtistObjectLocalIds = new Dictionary<int, int>();
       var cannonArtistObjectLocalIds = new Dictionary<int, int>();
       foreach (var candidate in attachmentCandidates)
@@ -5022,7 +5939,8 @@ namespace EarthTool.GLTF
           : sourcePhysicalNumbers[nodeIndex];
         var markerSources = GlbDocument.GetMarkerAttachmentSourceObjects(
           asset,
-          sourcePhysicalNumber - 4);
+          sourcePhysicalNumber - 4
+        );
         var expectedParent = markerSources.Count == 1 ? markerSources[0] : asset.RootSourceObject;
         var ownerNodeIndex = parentIndices[nodeIndex];
         while (ownerNodeIndex >= 0 && !hierarchy.SourceByNode.ContainsKey(ownerNodeIndex))
@@ -5031,12 +5949,11 @@ namespace EarthTool.GLTF
         }
         if (ownerNodeIndex < 0)
         {
-          throw new UnsupportedGltfDomainException(
-            "EmitterMarkerHierarchy",
-            $"nodes[{nodeIndex}]");
+          throw new UnsupportedGltfDomainException("EmitterMarkerHierarchy", $"nodes[{nodeIndex}]");
         }
         var owner = hierarchy.SourceByNode[ownerNodeIndex];
-        var ownershipChanged = nodes[nodeIndex].Metadata is null
+        var ownershipChanged =
+          nodes[nodeIndex].Metadata is null
           || sourcePhysicalNumber != candidate.Key
           || !owner.Id.Equals(expectedParent.Id);
         if (ownershipChanged)
@@ -5050,8 +5967,12 @@ namespace EarthTool.GLTF
             candidate.Key - 4,
             new UnchangedEmitterOwnership(
               owner.Id,
-              asset.StaticRenderObjectSequence.Where(record =>
-                (record.KnownFlags & flag) != 0).Select(record => record.Id).ToArray()));
+              asset
+                .StaticRenderObjectSequence.Where(record => (record.KnownFlags & flag) != 0)
+                .Select(record => record.Id)
+                .ToArray()
+            )
+          );
         }
         if (markerSources.Count == 1 || ownershipChanged)
         {
@@ -5066,18 +5987,22 @@ namespace EarthTool.GLTF
           nodeIndex,
           parsed.RootNodeIndex,
           parentIndices,
-          nodes);
+          nodes
+        );
       }
       foreach (var candidate in attachmentCandidates.Concat(cannonCandidates))
       {
         var node = nodes[candidate.Value[0]].Parsed;
-        if (node.MeshIndex.HasValue
+        if (
+          node.MeshIndex.HasValue
           || node.Children.Count != 0
-          || !transforms.ContainsKey(candidate.Value[0]))
+          || !transforms.ContainsKey(candidate.Value[0])
+        )
         {
           throw new UnsupportedGltfDomainException(
             "AttachmentOrCannonArtistObject",
-            $"nodes[{candidate.Value[0]}]");
+            $"nodes[{candidate.Value[0]}]"
+          );
         }
       }
 
@@ -5085,8 +6010,10 @@ namespace EarthTool.GLTF
       for (var number = 1; number <= 4; number++)
       {
         var physicalNumber = number + 4;
-        var sourceActive = BinaryPrimitives.ReadInt16LittleEndian(
-          attachmentTable.AsSpan((physicalNumber - 1) * 8, 8)) != short.MinValue;
+        var sourceActive =
+          BinaryPrimitives.ReadInt16LittleEndian(
+            attachmentTable.AsSpan((physicalNumber - 1) * 8, 8)
+          ) != short.MinValue;
         if (sourceActive && !attachmentCandidates.ContainsKey(physicalNumber))
         {
           markerOwnershipChanges[number] = null;
@@ -5111,14 +6038,15 @@ namespace EarthTool.GLTF
 
         var nodeIndex = candidates[0];
         var metadata = nodes[nodeIndex].Metadata;
-        var originalPhysicalNumber = metadata is null ? physicalNumber : sourcePhysicalNumbers[nodeIndex];
-        if (metadata is not null
-          && originalPhysicalNumber != physicalNumber
-          && sourceActive)
+        var originalPhysicalNumber = metadata is null
+          ? physicalNumber
+          : sourcePhysicalNumbers[nodeIndex];
+        if (metadata is not null && originalPhysicalNumber != physicalNumber && sourceActive)
         {
           throw ArtistObjectConflict(
             $"The attachment at nodes[{nodeIndex}] cannot target occupied CommonBaseHeader.AttachmentTable[{physicalNumber}].",
-            $"nodes[{nodeIndex}].name");
+            $"nodes[{nodeIndex}].name"
+          );
         }
         var extra = metadata is null ? (byte)0x80 : metadata.AttachmentRecord![7];
         var replacement = CreateAttachmentRecord(transforms[nodeIndex], extra);
@@ -5132,7 +6060,8 @@ namespace EarthTool.GLTF
       for (var physicalNumber = 1; physicalNumber <= 4; physicalNumber++)
       {
         var sourceAttachment = attachmentTable.AsSpan((physicalNumber - 1) * 8, 8).ToArray();
-        var sourceActive = BinaryPrimitives.ReadInt16LittleEndian(sourceAttachment) != short.MinValue;
+        var sourceActive =
+          BinaryPrimitives.ReadInt16LittleEndian(sourceAttachment) != short.MinValue;
         if (!cannonCandidates.TryGetValue(physicalNumber, out var candidates))
         {
           if (sourceActive)
@@ -5146,42 +6075,46 @@ namespace EarthTool.GLTF
         var nodeIndex = candidates[0];
         var transform = transforms[nodeIndex];
         var metadata = nodes[nodeIndex].Metadata;
-        var originalPhysicalNumber = metadata is null ? physicalNumber : sourcePhysicalNumbers[nodeIndex];
+        var originalPhysicalNumber = metadata is null
+          ? physicalNumber
+          : sourcePhysicalNumbers[nodeIndex];
         if (metadata is not null && originalPhysicalNumber != physicalNumber && sourceActive)
         {
           throw ArtistObjectConflict(
             $"The cannon at nodes[{nodeIndex}] cannot target occupied CommonBaseHeader.AttachmentTable[{physicalNumber}].",
-            $"nodes[{nodeIndex}].name");
+            $"nodes[{nodeIndex}].name"
+          );
         }
-        var originalAttachment = attachmentTable.AsSpan(
-          (originalPhysicalNumber - 1) * 8,
-          8).ToArray();
+        var originalAttachment = attachmentTable
+          .AsSpan((originalPhysicalNumber - 1) * 8, 8)
+          .ToArray();
         if (originalPhysicalNumber != physicalNumber)
         {
-          var originalRenderPosition = cannonRecords.AsSpan(
-            (originalPhysicalNumber - 1) * 12,
-            12).ToArray();
+          var originalRenderPosition = cannonRecords
+            .AsSpan((originalPhysicalNumber - 1) * 12, 12)
+            .ToArray();
           var (retargetTranslation, retargetHeading) = ReadAttachmentTransform(transform);
           var retargetSourcePreview = new Vector3(
             GlbDocument.ReadFinitePreview(originalRenderPosition, 0),
             GlbDocument.ReadFinitePreview(originalRenderPosition, 8),
-            GlbDocument.ReadFinitePreview(originalRenderPosition, 4));
+            GlbDocument.ReadFinitePreview(originalRenderPosition, 4)
+          );
           var retargetTranslationChanged = retargetTranslation != retargetSourcePreview;
           var replacementAttachment = originalAttachment.ToArray();
           if (retargetTranslationChanged)
           {
-            CreateAttachmentRecord(transform, originalAttachment[7]).AsSpan(0, 6)
+            CreateAttachmentRecord(transform, originalAttachment[7])
+              .AsSpan(0, 6)
               .CopyTo(replacementAttachment);
           }
           replacementAttachment[6] = retargetHeading;
-          edit.ReplaceAttachmentRecord(
-            physicalNumber,
-            replacementAttachment);
+          edit.ReplaceAttachmentRecord(physicalNumber, replacementAttachment);
           edit.ReplaceCannonRenderPosition(
             physicalNumber,
             retargetTranslationChanged
               ? CreateCannonRenderPositionRecord(retargetTranslation)
-              : originalRenderPosition);
+              : originalRenderPosition
+          );
           continue;
         }
         var sourceRecord = cannonRecords.AsSpan((physicalNumber - 1) * 12, 12).ToArray();
@@ -5189,7 +6122,8 @@ namespace EarthTool.GLTF
         var sourcePreview = new Vector3(
           GlbDocument.ReadFinitePreview(sourceRecord, 0),
           GlbDocument.ReadFinitePreview(sourceRecord, 8),
-          GlbDocument.ReadFinitePreview(sourceRecord, 4));
+          GlbDocument.ReadFinitePreview(sourceRecord, 4)
+        );
         var translationChanged = !sourceActive || translation != sourcePreview;
         var rotationChanged = !sourceActive || heading != sourceAttachment[6];
         var generatedAttachment = translationChanged
@@ -5199,7 +6133,8 @@ namespace EarthTool.GLTF
         {
           edit.ReplaceCannonRenderPosition(
             physicalNumber,
-            CreateCannonRenderPositionRecord(translation));
+            CreateCannonRenderPositionRecord(translation)
+          );
         }
         if (translationChanged || rotationChanged)
         {
@@ -5216,12 +6151,11 @@ namespace EarthTool.GLTF
         }
       }
 
-      var replacementLightIndices = parsed.AcceptedDeletionScopes
-        .Concat(parsed.DiscardedMetadataScopes)
-        .Select(path => TryReadIndex(
-          path,
-          "extensions.KHR_lights_punctual.lights",
-          out var index) ? index : -1)
+      var replacementLightIndices = parsed
+        .AcceptedDeletionScopes.Concat(parsed.DiscardedMetadataScopes)
+        .Select(path =>
+          TryReadIndex(path, "extensions.KHR_lights_punctual.lights", out var index) ? index : -1
+        )
         .Where(index => index >= 0)
         .ToHashSet();
       var staticLightArtistObjectLocalIds = ReconcileStaticLights(
@@ -5232,42 +6166,58 @@ namespace EarthTool.GLTF
         expected,
         replacementLightIndices,
         ref nextObjectLocalId,
-        edit);
+        edit
+      );
       return new EditArtistObjectPlan(
         markerOwnershipChanges,
         unchangedMarkerRecords,
         new GltfArtistObjectLocalIds(
           attachmentArtistObjectLocalIds,
           cannonArtistObjectLocalIds,
-          staticLightArtistObjectLocalIds),
-        nextObjectLocalId);
+          staticLightArtistObjectLocalIds
+        ),
+        nextObjectLocalId
+      );
     }
 
-    private static int ReadCanonicalAttachmentTarget(string? name, int sourcePhysicalNumber, int nodeIndex)
+    private static int ReadCanonicalAttachmentTarget(
+      string? name,
+      int sourcePhysicalNumber,
+      int nodeIndex
+    )
     {
       if (!GlbDocument.TryParseAttachmentHelperName(name, out var targetPhysicalNumber))
       {
         throw ArtistObjectConflict(
           $"The metadata-backed attachment at CommonBaseHeader.AttachmentTable[{sourcePhysicalNumber}] must retain a canonical attachment artist identifier at nodes[{nodeIndex}].name.",
-          $"nodes[{nodeIndex}].name");
+          $"nodes[{nodeIndex}].name"
+        );
       }
-      if (GlbDocument.GetAttachmentHelperFamilyStart(sourcePhysicalNumber)
-        != GlbDocument.GetAttachmentHelperFamilyStart(targetPhysicalNumber))
+      if (
+        GlbDocument.GetAttachmentHelperFamilyStart(sourcePhysicalNumber)
+        != GlbDocument.GetAttachmentHelperFamilyStart(targetPhysicalNumber)
+      )
       {
         throw ArtistObjectConflict(
           $"The attachment at CommonBaseHeader.AttachmentTable[{sourcePhysicalNumber}] cannot change canonical helper family at nodes[{nodeIndex}].name.",
-          $"nodes[{nodeIndex}].name");
+          $"nodes[{nodeIndex}].name"
+        );
       }
       return targetPhysicalNumber;
     }
 
-    private static int ReadCanonicalCannonTarget(string? name, int sourcePhysicalNumber, int nodeIndex)
+    private static int ReadCanonicalCannonTarget(
+      string? name,
+      int sourcePhysicalNumber,
+      int nodeIndex
+    )
     {
       if (!GlbDocument.TryParseCannonHelperName(name, out var targetPhysicalNumber))
       {
         throw ArtistObjectConflict(
           $"The metadata-backed cannon at CommonBaseHeader.AttachmentTable[{sourcePhysicalNumber}] must retain an ET_Turret_n canonical artist identifier at nodes[{nodeIndex}].name.",
-          $"nodes[{nodeIndex}].name");
+          $"nodes[{nodeIndex}].name"
+        );
       }
       return targetPhysicalNumber;
     }
@@ -5277,15 +6227,17 @@ namespace EarthTool.GLTF
       StaticSourceObject hierarchyRoot,
       IReadOnlyList<PartitionMatch> partitions,
       EditArtistObjectPlan ownership,
-      StaticMeshEditSession edit)
+      StaticMeshEditSession edit
+    )
     {
       const StaticRenderObjectFlags markerMask = StaticRenderObjectFlagMasks.MarkerAttachments;
       var sourceRecords = asset.StaticRenderObjectSequence.ToDictionary(record => record.Id);
       var sources = StaticSourceObjectTraversal.Flatten(hierarchyRoot).ToArray();
-      var partitionIds = partitions.Select(partition => new StaticRenderObjectId(
-        asset.LineageId,
-        partition.Partition.LocalId)).ToArray();
-      var finalRecordIds = sources.SelectMany(source => source.StaticRenderObjectIds)
+      var partitionIds = partitions
+        .Select(partition => new StaticRenderObjectId(asset.LineageId, partition.Partition.LocalId))
+        .ToArray();
+      var finalRecordIds = sources
+        .SelectMany(source => source.StaticRenderObjectIds)
         .Where(id => !sourceRecords.ContainsKey(id) || partitionIds.Contains(id))
         .Concat(partitionIds)
         .Distinct()
@@ -5293,8 +6245,10 @@ namespace EarthTool.GLTF
       var changes = ownership.Changes.ToDictionary(item => item.Key, item => item.Value);
       foreach (var unchanged in ownership.UnchangedMarkerRecords)
       {
-        if (unchanged.Value.MarkerRecordIds.Count != 0
-          && !unchanged.Value.MarkerRecordIds.Any(finalRecordIds.Contains))
+        if (
+          unchanged.Value.MarkerRecordIds.Count != 0
+          && !unchanged.Value.MarkerRecordIds.Any(finalRecordIds.Contains)
+        )
         {
           changes[unchanged.Key] = unchanged.Value.Owner;
         }
@@ -5303,12 +6257,13 @@ namespace EarthTool.GLTF
       {
         return;
       }
-      var finalFlags = finalRecordIds
-        .ToDictionary(
-          id => id,
-          id => sourceRecords.TryGetValue(id, out var record)
+      var finalFlags = finalRecordIds.ToDictionary(
+        id => id,
+        id =>
+          sourceRecords.TryGetValue(id, out var record)
             ? record.KnownFlags & markerMask
-            : StaticRenderObjectFlags.None);
+            : StaticRenderObjectFlags.None
+      );
       foreach (var change in changes)
       {
         var flag = GlbDocument.GetMarkerAttachmentFlag(change.Key);
@@ -5322,7 +6277,8 @@ namespace EarthTool.GLTF
           var first = source.StaticRenderObjectIds.FirstOrDefault(finalRecordIds.Contains);
           if (first.Equals(default(StaticRenderObjectId)))
           {
-            var localId = partitions.First(partition => partition.SourceObjectId.Equals(source.Id))
+            var localId = partitions
+              .First(partition => partition.SourceObjectId.Equals(source.Id))
               .Partition.LocalId;
             first = new StaticRenderObjectId(asset.LineageId, localId);
           }
@@ -5352,7 +6308,8 @@ namespace EarthTool.GLTF
         IReadOnlyDictionary<int, SourceObjectId?> changes,
         IReadOnlyDictionary<int, UnchangedEmitterOwnership> unchangedMarkerRecords,
         GltfArtistObjectLocalIds artistObjectLocalIds,
-        int nextObjectLocalId)
+        int nextObjectLocalId
+      )
       {
         Changes = changes;
         UnchangedMarkerRecords = unchangedMarkerRecords;
@@ -5368,7 +6325,8 @@ namespace EarthTool.GLTF
 
       internal UnchangedEmitterOwnership(
         SourceObjectId owner,
-        IReadOnlyList<StaticRenderObjectId> markerRecordIds)
+        IReadOnlyList<StaticRenderObjectId> markerRecordIds
+      )
       {
         Owner = owner;
         MarkerRecordIds = markerRecordIds;
@@ -5383,7 +6341,8 @@ namespace EarthTool.GLTF
       InterchangeBaseline expected,
       ISet<int> replacementLightIndices,
       ref int nextObjectLocalId,
-      StaticMeshEditSession edit)
+      StaticMeshEditSession edit
+    )
     {
       var artistObjectLocalIds = new Dictionary<int, int>();
       var definitionReferenceCounts = new int[lights.Count];
@@ -5399,7 +6358,8 @@ namespace EarthTool.GLTF
         {
           throw new StaticLightMetadataException(
             $"nodes[{nodeIndex}].extensions.KHR_lights_punctual.light",
-            "A static-light instance references a missing definition.");
+            "A static-light instance references a missing definition."
+          );
         }
         definitionReferenceCounts[lightIndex.Value]++;
         if (nodes[nodeIndex].Metadata?.StaticLightAttachmentRecord is not null)
@@ -5409,13 +6369,18 @@ namespace EarthTool.GLTF
       }
       for (var lightIndex = 0; lightIndex < lights.Count; lightIndex++)
       {
-        if (lights[lightIndex].Metadata is not null
-          && (definitionReferenceCounts[lightIndex] != 1
-            || taggedDefinitionReferenceCounts[lightIndex] != 1))
+        if (
+          lights[lightIndex].Metadata is not null
+          && (
+            definitionReferenceCounts[lightIndex] != 1
+            || taggedDefinitionReferenceCounts[lightIndex] != 1
+          )
+        )
         {
           throw ArtistObjectConflict(
             "A tagged static-light definition must have exactly one tagged instance.",
-            $"extensions.KHR_lights_punctual.lights[{lightIndex}]");
+            $"extensions.KHR_lights_punctual.lights[{lightIndex}]"
+          );
         }
       }
 
@@ -5426,22 +6391,27 @@ namespace EarthTool.GLTF
         var node = nodes[nodeIndex];
         if (node.Metadata?.StaticLightAttachmentRecord is null)
         {
-          if (node.Metadata is null
+          if (
+            node.Metadata is null
             && node.Parsed.LightIndex.HasValue
             && GlbDocument.TryParseStaticLightHelperName(
               node.Parsed.Name,
               out var namedType,
-              out var namedNumber))
+              out var namedNumber
+            )
+          )
           {
             if (!candidates.TryAdd((namedType, namedNumber), nodeIndex))
             {
               throw ArtistObjectConflict(
                 "A static-light physical target is occupied more than once.",
-                $"nodes[{nodeIndex}]");
+                $"nodes[{nodeIndex}]"
+              );
             }
             artistObjectLocalIds.Add(
               namedType == "spot" ? namedNumber : namedNumber + 4,
-              nextObjectLocalId);
+              nextObjectLocalId
+            );
             nextObjectLocalId = checked(nextObjectLocalId + 1);
           }
           continue;
@@ -5449,7 +6419,8 @@ namespace EarthTool.GLTF
         var type = node.Metadata.StaticLightType;
         var number = node.Metadata.StaticLightPhysicalNumber;
         var lightIndex = node.Parsed.LightIndex;
-        if (type is not ("spot" or "point")
+        if (
+          type is not ("spot" or "point")
           || number is null or < 1 or > 4
           || lightIndex is null or < 0
           || lightIndex.Value >= lights.Count
@@ -5465,69 +6436,95 @@ namespace EarthTool.GLTF
           || node.Metadata.StaticLightRecord is not null
           || node.Metadata.Fingerprint is not null
           || node.Metadata.Guards.Count != 0
-          || !HasNoUnrelatedArtistObjectMetadata(node.Metadata))
+          || !HasNoUnrelatedArtistObjectMetadata(node.Metadata)
+        )
         {
           throw new StaticLightMetadataException(
             $"nodes[{nodeIndex}].extras.earthtool",
-            "The static-light instance metadata envelope is malformed.");
+            "The static-light instance metadata envelope is malformed."
+          );
         }
-        if (!GlbDocument.TryParseStaticLightHelperName(
-              node.Parsed.Name,
-              out var targetType,
-              out var targetNumber))
+        if (
+          !GlbDocument.TryParseStaticLightHelperName(
+            node.Parsed.Name,
+            out var targetType,
+            out var targetNumber
+          )
+        )
         {
           throw ArtistObjectConflict(
             $"The metadata-backed static light at CommonBaseHeader.{(type == "spot" ? "StaticSpotLights" : "StaticOmniLights")}[{number.Value}] must retain a canonical static-light artist identifier.",
-            $"nodes[{nodeIndex}].name");
+            $"nodes[{nodeIndex}].name"
+          );
         }
         if (targetType != type)
         {
           throw new UnsupportedGltfDomainException(
             "StaticLightTypeConversion",
-            $"nodes[{nodeIndex}].name");
+            $"nodes[{nodeIndex}].name"
+          );
         }
         var key = (targetType, targetNumber);
         if (!candidates.TryAdd(key, nodeIndex))
         {
           throw ArtistObjectConflict(
             "A static-light physical target is occupied more than once.",
-            $"nodes[{nodeIndex}]");
+            $"nodes[{nodeIndex}]"
+          );
         }
         artistObjectLocalIds.Add(
           targetType == "spot" ? targetNumber : targetNumber + 4,
-          node.Metadata.LocalId);
+          node.Metadata.LocalId
+        );
 
         var definition = lights[lightIndex.Value];
-        var metadata = definition.Metadata
+        var metadata =
+          definition.Metadata
           ?? throw new StaticLightMetadataException(
             $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}]",
-            "A tagged static-light definition lost its metadata.");
-        if (!GlbDocument.TryParseStaticLightHelperName(
-              definition.Parsed.Name,
-              out var definitionType,
-              out var definitionNumber)
+            "A tagged static-light definition lost its metadata."
+          );
+        if (
+          !GlbDocument.TryParseStaticLightHelperName(
+            definition.Parsed.Name,
+            out var definitionType,
+            out var definitionNumber
+          )
           || definitionType != targetType
-          || definitionNumber != targetNumber)
+          || definitionNumber != targetNumber
+        )
         {
           throw new StaticLightMetadataException(
             $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].name",
-            "The canonical static-light instance and definition names contradict each other.");
+            "The canonical static-light instance and definition names contradict each other."
+          );
         }
         var localId = type == "spot" ? number.Value : number.Value + 4;
-        var record = type == "spot"
-          ? asset.CommonBaseHeader.StaticSpotLights.Skip((number.Value - 1) * 0x30).Take(0x30).ToArray()
-          : asset.CommonBaseHeader.StaticOmniLights.Skip((number.Value - 1) * 0x1C).Take(0x1C).ToArray();
+        var record =
+          type == "spot"
+            ? asset
+              .CommonBaseHeader.StaticSpotLights.Skip((number.Value - 1) * 0x30)
+              .Take(0x30)
+              .ToArray()
+            : asset
+              .CommonBaseHeader.StaticOmniLights.Skip((number.Value - 1) * 0x1C)
+              .Take(0x1C)
+              .ToArray();
         var attachmentNumber = type == "spot" ? number.Value + 12 : number.Value + 16;
-        var attachment = asset.CommonBaseHeader.AttachmentTable
-          .Skip((attachmentNumber - 1) * 8).Take(8).ToArray();
+        var attachment = asset
+          .CommonBaseHeader.AttachmentTable.Skip((attachmentNumber - 1) * 8)
+          .Take(8)
+          .ToArray();
         var expectedGuards = GlbDocument.CreateStaticLightGuards(
           expected,
           type,
           number.Value,
           localId,
           record,
-          attachment);
-        if (metadata.ScopeKind != "light"
+          attachment
+        );
+        if (
+          metadata.ScopeKind != "light"
           || metadata.LocalId != localId
           || metadata.AssetLineageId != expected.AssetLineageId
           || metadata.DocumentId != expected.DocumentId
@@ -5537,30 +6534,37 @@ namespace EarthTool.GLTF
           || !metadata.StaticLightRecord.SequenceEqual(record)
           || !node.Metadata.StaticLightAttachmentRecord.SequenceEqual(attachment)
           || metadata.Guards.Count != expectedGuards.Count
-          || expectedGuards.Any(guard => !metadata.Guards.TryGetValue(guard.Key, out var value)
-            || !string.Equals(value, guard.Value, StringComparison.Ordinal))
+          || expectedGuards.Any(guard =>
+            !metadata.Guards.TryGetValue(guard.Key, out var value)
+            || !string.Equals(value, guard.Value, StringComparison.Ordinal)
+          )
           || metadata.AttachmentRecord is not null
           || metadata.CannonRenderPositionRecord is not null
           || metadata.StaticLightAttachmentRecord is not null
           || metadata.Fingerprint is not null
           || metadata.FingerprintName is not null
           || metadata.FingerprintVersion is not null
-          || !HasNoUnrelatedArtistObjectMetadata(metadata))
+          || !HasNoUnrelatedArtistObjectMetadata(metadata)
+        )
         {
           throw new StaticLightMetadataException(
             $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].extras.earthtool",
-            "The static-light metadata does not match its source records.");
+            "The static-light metadata does not match its source records."
+          );
         }
-
 
         var actualGuards = CreateCurrentStaticLightGuards(
           expected,
           localId,
           definition.Parsed,
           transforms[nodeIndex],
-          $"nodes[{nodeIndex}]");
-        var changed = expectedGuards.Keys.Where(key =>
-          !string.Equals(metadata.Guards[key], actualGuards[key], StringComparison.Ordinal)).ToHashSet();
+          $"nodes[{nodeIndex}]"
+        );
+        var changed = expectedGuards
+          .Keys.Where(key =>
+            !string.Equals(metadata.Guards[key], actualGuards[key], StringComparison.Ordinal)
+          )
+          .ToHashSet();
         var retargeted = targetNumber != number.Value;
         if (changed.Count == 0 && !retargeted)
         {
@@ -5571,7 +6575,8 @@ namespace EarthTool.GLTF
         {
           throw new UnsupportedGltfDomainException(
             "StaticLightTypeConversion",
-            $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].type");
+            $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].type"
+          );
         }
         var replacement = record.ToArray();
         var attachmentReplacement = attachment.ToArray();
@@ -5583,7 +6588,8 @@ namespace EarthTool.GLTF
           {
             throw new UnsupportedGltfDomainException(
               "StaticLightPose",
-              $"nodes[{nodeIndex}].translation");
+              $"nodes[{nodeIndex}].translation"
+            );
           }
           WriteSingle(replacement, 0, translation.X);
           WriteSingle(replacement, 4, translation.Z);
@@ -5594,33 +6600,42 @@ namespace EarthTool.GLTF
               translation.X,
               true,
               "StaticLightPose",
-              $"nodes[{nodeIndex}].translation"));
+              $"nodes[{nodeIndex}].translation"
+            )
+          );
           BinaryPrimitives.WriteInt16LittleEndian(
             attachmentReplacement.AsSpan(2),
             QuantizeAttachmentCoordinate(
               translation.Z,
               false,
               "StaticLightPose",
-              $"nodes[{nodeIndex}].translation"));
+              $"nodes[{nodeIndex}].translation"
+            )
+          );
           BinaryPrimitives.WriteInt16LittleEndian(
             attachmentReplacement.AsSpan(4),
             QuantizeAttachmentCoordinate(
               translation.Y,
               false,
               "StaticLightPose",
-              $"nodes[{nodeIndex}].translation"));
+              $"nodes[{nodeIndex}].translation"
+            )
+          );
           changedFields.Add("Position");
         }
         if (changed.Contains("staticLight.color"))
         {
-          if (!IsFinite(definition.Parsed.Color)
+          if (
+            !IsFinite(definition.Parsed.Color)
             || definition.Parsed.Color.X < 0
             || definition.Parsed.Color.Y < 0
-            || definition.Parsed.Color.Z < 0)
+            || definition.Parsed.Color.Z < 0
+          )
           {
             throw new UnsupportedGltfDomainException(
               "StaticLightColor",
-              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].color");
+              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].color"
+            );
           }
           WriteSingle(replacement, 0x0C, definition.Parsed.Color.X);
           WriteSingle(replacement, 0x10, definition.Parsed.Color.Y);
@@ -5633,7 +6648,8 @@ namespace EarthTool.GLTF
           {
             throw new UnsupportedGltfDomainException(
               "StaticLightIntensity",
-              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].intensity");
+              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].intensity"
+            );
           }
           WriteSingle(replacement, type == "spot" ? 0x2C : 0x18, definition.Parsed.Intensity);
           changedFields.Add("TerrainLightAmplitude");
@@ -5644,33 +6660,39 @@ namespace EarthTool.GLTF
           {
             throw new UnsupportedGltfDomainException(
               "StaticLightDirection",
-              $"nodes[{nodeIndex}].rotation");
+              $"nodes[{nodeIndex}].rotation"
+            );
           }
           WriteStaticLightDirection(
             replacement,
             transforms[nodeIndex],
-            $"nodes[{nodeIndex}].rotation");
+            $"nodes[{nodeIndex}].rotation"
+          );
           changedFields.Add("Direction");
         }
         if (changed.Contains("staticLight.cones"))
         {
-          if (type != "spot"
+          if (
+            type != "spot"
             || !float.IsFinite(definition.Parsed.InnerConeAngle)
             || !float.IsFinite(definition.Parsed.OuterConeAngle)
             || definition.Parsed.InnerConeAngle < 0
             || definition.Parsed.OuterConeAngle < definition.Parsed.InnerConeAngle
-            || definition.Parsed.OuterConeAngle > MathF.PI / 2)
+            || definition.Parsed.OuterConeAngle > MathF.PI / 2
+          )
           {
             throw new UnsupportedGltfDomainException(
               "StaticLightCones",
-              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].spot");
+              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].spot"
+            );
           }
           var targetDistance = ReadSingle(replacement, 0x18);
           if (!float.IsFinite(targetDistance))
           {
             throw new UnsupportedGltfDomainException(
               "StaticLightCones",
-              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].spot");
+              $"extensions.KHR_lights_punctual.lights[{lightIndex.Value}].spot"
+            );
           }
           WriteSingle(replacement, 0x20, MathF.Tan(definition.Parsed.InnerConeAngle));
           WriteSingle(replacement, 0x24, definition.Parsed.OuterConeAngle * targetDistance);
@@ -5679,33 +6701,39 @@ namespace EarthTool.GLTF
         if (retargeted)
         {
           var targetAttachmentNumber = type == "spot" ? targetNumber + 12 : targetNumber + 16;
-          var targetAttachment = asset.CommonBaseHeader.AttachmentTable
-            .Skip((targetAttachmentNumber - 1) * 8).Take(8).ToArray();
+          var targetAttachment = asset
+            .CommonBaseHeader.AttachmentTable.Skip((targetAttachmentNumber - 1) * 8)
+            .Take(8)
+            .ToArray();
           if (BinaryPrimitives.ReadInt16LittleEndian(targetAttachment) != short.MinValue)
           {
             throw ArtistObjectConflict(
               $"The static light at nodes[{nodeIndex}] cannot target occupied CommonBaseHeader.AttachmentTable[{targetAttachmentNumber}].",
-              $"nodes[{nodeIndex}].name");
+              $"nodes[{nodeIndex}].name"
+            );
           }
           if (!reservedTargets.Add((type, targetNumber)))
           {
             throw ArtistObjectConflict(
               "More than one static-light edit targets the same physical record.",
-              $"nodes[{nodeIndex}].name");
+              $"nodes[{nodeIndex}].name"
+            );
           }
           edit.ReplaceAttachmentRecord(attachmentNumber, CreateAbsentAttachmentRecord());
           edit.ReplaceStaticLightRecord(
             ToStaticLightRecordKind(type),
             number.Value,
             new byte[type == "spot" ? 0x30 : 0x1C],
-            new[] { "RetargetSourceCleared" });
+            new[] { "RetargetSourceCleared" }
+          );
           edit.ReplaceAttachmentRecord(targetAttachmentNumber, attachmentReplacement);
           changedFields.Add("Retarget");
           edit.ReplaceStaticLightRecord(
             ToStaticLightRecordKind(type),
             targetNumber,
             replacement,
-            changedFields);
+            changedFields
+          );
         }
         else
         {
@@ -5717,92 +6745,121 @@ namespace EarthTool.GLTF
             ToStaticLightRecordKind(type),
             number.Value,
             replacement,
-            changedFields);
+            changedFields
+          );
         }
       }
 
-
-      foreach (var candidate in candidates.Where(item => nodes[item.Value].Metadata is null).ToArray())
+      foreach (
+        var candidate in candidates.Where(item => nodes[item.Value].Metadata is null).ToArray()
+      )
       {
         var node = nodes[candidate.Value].Parsed;
         var lightIndex = node.LightIndex!.Value;
-        if (lightIndex >= 0
+        if (
+          lightIndex >= 0
           && lightIndex < definitionReferenceCounts.Length
-          && definitionReferenceCounts[lightIndex] != 1)
+          && definitionReferenceCounts[lightIndex] != 1
+        )
         {
           throw ArtistObjectConflict(
             "A static-light artist object must own an unshared punctual-light definition.",
-            $"extensions.KHR_lights_punctual.lights[{lightIndex}]");
+            $"extensions.KHR_lights_punctual.lights[{lightIndex}]"
+          );
         }
-        if (lightIndex < 0 || lightIndex >= lights.Count
+        if (
+          lightIndex < 0
+          || lightIndex >= lights.Count
           || lights[lightIndex].Metadata is not null
           || lights[lightIndex].Parsed.Type != candidate.Key.Type
           || node.Children.Count != 0
-          || !transforms.TryGetValue(candidate.Value, out var transform))
+          || !transforms.TryGetValue(candidate.Value, out var transform)
+        )
         {
           throw new StaticLightMetadataException(
             $"nodes[{candidate.Value}]",
-            "The canonically named static-light addition is malformed.");
+            "The canonically named static-light addition is malformed."
+          );
         }
-        if (!GlbDocument.TryParseStaticLightHelperName(
-              lights[lightIndex].Parsed.Name,
-              out var definitionType,
-              out var definitionNumber)
+        if (
+          !GlbDocument.TryParseStaticLightHelperName(
+            lights[lightIndex].Parsed.Name,
+            out var definitionType,
+            out var definitionNumber
+          )
           || definitionType != candidate.Key.Type
-          || definitionNumber != candidate.Key.Number)
+          || definitionNumber != candidate.Key.Number
+        )
         {
           throw new StaticLightMetadataException(
             $"extensions.KHR_lights_punctual.lights[{lightIndex}].name",
-            "The canonical static-light instance and definition names contradict each other.");
+            "The canonical static-light instance and definition names contradict each other."
+          );
         }
-        var attachmentNumber = candidate.Key.Type == "spot"
-          ? candidate.Key.Number + 12
-          : candidate.Key.Number + 16;
-        var sourceAttachment = asset.CommonBaseHeader.AttachmentTable
-          .Skip((attachmentNumber - 1) * 8).Take(8).ToArray();
+        var attachmentNumber =
+          candidate.Key.Type == "spot" ? candidate.Key.Number + 12 : candidate.Key.Number + 16;
+        var sourceAttachment = asset
+          .CommonBaseHeader.AttachmentTable.Skip((attachmentNumber - 1) * 8)
+          .Take(8)
+          .ToArray();
         var replacing = replacementLightIndices.Contains(lightIndex);
-        if (BinaryPrimitives.ReadInt16LittleEndian(sourceAttachment) != short.MinValue && !replacing)
+        if (
+          BinaryPrimitives.ReadInt16LittleEndian(sourceAttachment) != short.MinValue
+          && !replacing
+        )
         {
           throw ArtistObjectConflict(
             "A canonically named static light targets an occupied physical record.",
-            $"CommonBaseHeader.AttachmentTable[{attachmentNumber}]");
+            $"CommonBaseHeader.AttachmentTable[{attachmentNumber}]"
+          );
         }
         if (!reservedTargets.Add(candidate.Key))
         {
           throw ArtistObjectConflict(
             "More than one static-light edit targets the same physical record.",
-            $"CommonBaseHeader.{(candidate.Key.Type == "spot" ? "StaticSpotLights" : "StaticOmniLights")}[{candidate.Key.Number}]");
+            $"CommonBaseHeader.{(candidate.Key.Type == "spot" ? "StaticSpotLights" : "StaticOmniLights")}[{candidate.Key.Number}]"
+          );
         }
         edit.ReplaceAttachmentRecord(
           attachmentNumber,
           CreateStaticLightAttachmentRecord(
             transform.Translation,
-            $"nodes[{candidate.Value}].translation"));
-        var sourceRecord = candidate.Key.Type == "spot"
-          ? asset.CommonBaseHeader.StaticSpotLights
-            .Skip((candidate.Key.Number - 1) * 0x30).Take(0x30).ToArray()
-          : asset.CommonBaseHeader.StaticOmniLights
-            .Skip((candidate.Key.Number - 1) * 0x1C).Take(0x1C).ToArray();
-        var localId = candidate.Key.Type == "spot"
-          ? candidate.Key.Number
-          : candidate.Key.Number + 4;
+            $"nodes[{candidate.Value}].translation"
+          )
+        );
+        var sourceRecord =
+          candidate.Key.Type == "spot"
+            ? asset
+              .CommonBaseHeader.StaticSpotLights.Skip((candidate.Key.Number - 1) * 0x30)
+              .Take(0x30)
+              .ToArray()
+            : asset
+              .CommonBaseHeader.StaticOmniLights.Skip((candidate.Key.Number - 1) * 0x1C)
+              .Take(0x1C)
+              .ToArray();
+        var localId =
+          candidate.Key.Type == "spot" ? candidate.Key.Number : candidate.Key.Number + 4;
         var inactiveGuards = GlbDocument.CreateStaticLightGuards(
           expected,
           candidate.Key.Type,
           candidate.Key.Number,
           localId,
           sourceRecord,
-          sourceAttachment);
+          sourceAttachment
+        );
         var currentGuards = CreateCurrentStaticLightGuards(
           expected,
           localId,
           lights[lightIndex].Parsed,
           transform,
-          $"nodes[{candidate.Value}]");
-        if (replacing || inactiveGuards.Any(guard => !string.Equals(
-          guard.Value,
-          currentGuards[guard.Key],
-          StringComparison.Ordinal)))
+          $"nodes[{candidate.Value}]"
+        );
+        if (
+          replacing
+          || inactiveGuards.Any(guard =>
+            !string.Equals(guard.Value, currentGuards[guard.Key], StringComparison.Ordinal)
+          )
+        )
         {
           edit.ReplaceStaticLightRecord(
             ToStaticLightRecordKind(candidate.Key.Type),
@@ -5810,8 +6867,10 @@ namespace EarthTool.GLTF
             CreateConvertedStaticLightRecord(
               lights[lightIndex].Parsed,
               transform,
-              $"extensions.KHR_lights_punctual.lights[{lightIndex}]"),
-            new[] { replacing ? "Regeneration" : "Addition" });
+              $"extensions.KHR_lights_punctual.lights[{lightIndex}]"
+            ),
+            new[] { replacing ? "Regeneration" : "Addition" }
+          );
         }
       }
 
@@ -5820,8 +6879,10 @@ namespace EarthTool.GLTF
         foreach (var type in new[] { "spot", "point" })
         {
           var attachmentNumber = type == "spot" ? number + 12 : number + 16;
-          var attachment = asset.CommonBaseHeader.AttachmentTable
-            .Skip((attachmentNumber - 1) * 8).Take(8).ToArray();
+          var attachment = asset
+            .CommonBaseHeader.AttachmentTable.Skip((attachmentNumber - 1) * 8)
+            .Take(8)
+            .ToArray();
           var active = BinaryPrimitives.ReadInt16LittleEndian(attachment) != short.MinValue;
           if (active && !candidates.ContainsKey((type, number)))
           {
@@ -5830,7 +6891,8 @@ namespace EarthTool.GLTF
               ToStaticLightRecordKind(type),
               number,
               new byte[type == "spot" ? 0x30 : 0x1C],
-              new[] { "Deletion" });
+              new[] { "Deletion" }
+            );
           }
         }
       }
@@ -5842,11 +6904,14 @@ namespace EarthTool.GLTF
       int localId,
       ParsedGltfLight light,
       Matrix4x4 transform,
-      string path)
+      string path
+    )
     {
-      if (!Matrix4x4.Decompose(transform, out _, out var rotation, out var translation)
+      if (
+        !Matrix4x4.Decompose(transform, out _, out var rotation, out var translation)
         || !IsFinite(rotation)
-        || !IsFinite(translation))
+        || !IsFinite(translation)
+      )
       {
         throw new UnsupportedGltfDomainException("StaticLightPose", path);
       }
@@ -5861,27 +6926,32 @@ namespace EarthTool.GLTF
           baseline,
           localId,
           "staticLight.pose",
-          writer => WriteFingerprintVector(writer, translation)),
+          writer => WriteFingerprintVector(writer, translation)
+        ),
         ["staticLight.type"] = StaticLightFingerprint(
           baseline,
           localId,
           "staticLight.type",
-          writer => WriteFingerprintString(writer, light.Type)),
+          writer => WriteFingerprintString(writer, light.Type)
+        ),
         ["staticLight.color"] = StaticLightFingerprint(
           baseline,
           localId,
           "staticLight.color",
-          writer => WriteFingerprintVector(writer, light.Color)),
+          writer => WriteFingerprintVector(writer, light.Color)
+        ),
         ["staticLight.intensity"] = StaticLightFingerprint(
           baseline,
           localId,
           "staticLight.intensity",
-          writer => WriteFingerprintFloat(writer, light.Intensity)),
+          writer => WriteFingerprintFloat(writer, light.Intensity)
+        ),
         ["staticLight.direction"] = StaticLightFingerprint(
           baseline,
           localId,
           "staticLight.direction",
-          writer => WriteFingerprintDirection(writer, direction)),
+          writer => WriteFingerprintDirection(writer, direction)
+        ),
         ["staticLight.cones"] = StaticLightFingerprint(
           baseline,
           localId,
@@ -5890,7 +6960,8 @@ namespace EarthTool.GLTF
           {
             WriteFingerprintFloat(writer, light.InnerConeAngle);
             WriteFingerprintFloat(writer, light.OuterConeAngle);
-          })
+          }
+        ),
       };
     }
 
@@ -5903,13 +6974,15 @@ namespace EarthTool.GLTF
       InterchangeBaseline baseline,
       int localId,
       string projection,
-      Action<BinaryWriter> writeProjection)
+      Action<BinaryWriter> writeProjection
+    )
     {
       return GlbDocument.CreateStaticLightFingerprint(
         baseline,
         localId,
         projection,
-        writeProjection);
+        writeProjection
+      );
     }
 
     private static void WriteFingerprintVector(BinaryWriter writer, Vector3 value)
@@ -5942,16 +7015,13 @@ namespace EarthTool.GLTF
     private static float ReadSingle(byte[] source, int offset)
     {
       return BitConverter.Int32BitsToSingle(
-        BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan(offset)));
+        BinaryPrimitives.ReadInt32LittleEndian(source.AsSpan(offset))
+      );
     }
 
-    private static void WriteStaticLightDirection(
-      byte[] record,
-      Matrix4x4 transform,
-      string path)
+    private static void WriteStaticLightDirection(byte[] record, Matrix4x4 transform, string path)
     {
-      if (!Matrix4x4.Decompose(transform, out _, out var rotation, out _)
-        || !IsFinite(rotation))
+      if (!Matrix4x4.Decompose(transform, out _, out var rotation, out _) || !IsFinite(rotation))
       {
         throw new UnsupportedGltfDomainException("StaticLightDirection", path);
       }
@@ -5971,8 +7041,9 @@ namespace EarthTool.GLTF
       {
         heading += MathF.PI * 2;
       }
-      record[0x1C] = unchecked((byte)((int)MathF.Floor(
-        (heading * 256 / (MathF.PI * 2)) + 0.5f) & 0xFF));
+      record[0x1C] = unchecked(
+        (byte)((int)MathF.Floor((heading * 256 / (MathF.PI * 2)) + 0.5f) & 0xFF)
+      );
       WriteSingle(record, 0x28, direction.Y / horizontalLength);
     }
 
@@ -5985,13 +7056,16 @@ namespace EarthTool.GLTF
       var result = new byte[8];
       BinaryPrimitives.WriteInt16LittleEndian(
         result,
-        QuantizeAttachmentCoordinate(translation.X, true, "StaticLightPose", path));
+        QuantizeAttachmentCoordinate(translation.X, true, "StaticLightPose", path)
+      );
       BinaryPrimitives.WriteInt16LittleEndian(
         result.AsSpan(2),
-        QuantizeAttachmentCoordinate(translation.Z, false, "StaticLightPose", path));
+        QuantizeAttachmentCoordinate(translation.Z, false, "StaticLightPose", path)
+      );
       BinaryPrimitives.WriteInt16LittleEndian(
         result.AsSpan(4),
-        QuantizeAttachmentCoordinate(translation.Y, false, "StaticLightPose", path));
+        QuantizeAttachmentCoordinate(translation.Y, false, "StaticLightPose", path)
+      );
       return result;
     }
 
@@ -6000,15 +7074,18 @@ namespace EarthTool.GLTF
       Matrix4x4 transform,
       string path,
       GltfNewModelStaticLightOptions? options = null,
-      StaticLightAuthoringIntent intent = StaticLightAuthoringIntent.EditProjection)
+      StaticLightAuthoringIntent intent = StaticLightAuthoringIntent.EditProjection
+    )
     {
-      if (!IsFinite(light.Color)
+      if (
+        !IsFinite(light.Color)
         || light.Color.X < 0
         || light.Color.Y < 0
         || light.Color.Z < 0
         || !float.IsFinite(light.Intensity)
         || light.Intensity < 0
-        || !IsFinite(transform.Translation))
+        || !IsFinite(transform.Translation)
+      )
       {
         throw new UnsupportedGltfDomainException("StaticLightTypeConversion", path);
       }
@@ -6021,43 +7098,56 @@ namespace EarthTool.GLTF
       WriteSingle(result, 0x14, light.Color.Z);
       if (light.Type == "point")
       {
-        WriteSingle(result, 0x18, intent == StaticLightAuthoringIntent.NewModel
-          ? options?.TerrainLightAmplitude ?? 1
-          : light.Intensity);
+        WriteSingle(
+          result,
+          0x18,
+          intent == StaticLightAuthoringIntent.NewModel
+            ? options?.TerrainLightAmplitude ?? 1
+            : light.Intensity
+        );
         return result;
       }
-      if (light.InnerConeAngle < 0
+      if (
+        light.InnerConeAngle < 0
         || light.OuterConeAngle < light.InnerConeAngle
-        || light.OuterConeAngle > MathF.PI / 2)
+        || light.OuterConeAngle > MathF.PI / 2
+      )
       {
         throw new UnsupportedGltfDomainException("StaticLightTypeConversion", path);
       }
-      var distance = light.Range is > 0 && float.IsFinite(light.Range.Value)
-        ? light.Range.Value
-        : options?.TargetDistance ?? 1;
+      var distance =
+        light.Range is > 0 && float.IsFinite(light.Range.Value)
+          ? light.Range.Value
+          : options?.TargetDistance ?? 1;
       WriteSingle(result, 0x18, distance);
       WriteStaticLightDirection(result, transform, path + ".rotation");
       WriteSingle(result, 0x20, MathF.Tan(light.InnerConeAngle));
       WriteSingle(result, 0x24, light.OuterConeAngle * distance);
-      WriteSingle(result, 0x2C, intent == StaticLightAuthoringIntent.NewModel
-        ? options?.TerrainLightAmplitude ?? 1
-        : light.Intensity);
+      WriteSingle(
+        result,
+        0x2C,
+        intent == StaticLightAuthoringIntent.NewModel
+          ? options?.TerrainLightAmplitude ?? 1
+          : light.Intensity
+      );
       return result;
     }
 
     private enum StaticLightAuthoringIntent
     {
       EditProjection,
-      NewModel
+      NewModel,
     }
 
     private static int ValidateAttachmentMetadata(
       MetadataEnvelope metadata,
       StaticMeshAsset asset,
-      InterchangeBaseline expected)
+      InterchangeBaseline expected
+    )
     {
       var physicalNumber = metadata.AttachmentPhysicalNumber;
-      if (metadata.AssetLineageId != expected.AssetLineageId
+      if (
+        metadata.AssetLineageId != expected.AssetLineageId
         || metadata.DocumentId != expected.DocumentId
         || metadata.ScopeKind != "object"
         || physicalNumber is null or < 5 or > 49
@@ -6074,21 +7164,30 @@ namespace EarthTool.GLTF
         || metadata.CannonAttachmentRecord is not null
         || metadata.CannonRenderPositionRecord is not null
         || metadata.Guards.Count != 0
-        || !HasNoUnrelatedArtistObjectMetadata(metadata))
+        || !HasNoUnrelatedArtistObjectMetadata(metadata)
+      )
       {
         throw new MalformedMetadataException("The attachment metadata envelope is malformed.");
       }
-      var sourceRecord = asset.CommonBaseHeader.AttachmentTable
-        .Skip((physicalNumber.Value - 1) * 8).Take(8);
-      if (!sourceRecord.SequenceEqual(metadata.AttachmentRecord)
-        || metadata.Fingerprint != GlbDocument.CreateAttachmentPoseFingerprint(
-          expected,
-          metadata.LocalId,
-          physicalNumber.Value,
-          sourceRecord.ToArray())
-        || BinaryPrimitives.ReadInt16LittleEndian(metadata.AttachmentRecord.ToArray()) == short.MinValue)
+      var sourceRecord = asset
+        .CommonBaseHeader.AttachmentTable.Skip((physicalNumber.Value - 1) * 8)
+        .Take(8);
+      if (
+        !sourceRecord.SequenceEqual(metadata.AttachmentRecord)
+        || metadata.Fingerprint
+          != GlbDocument.CreateAttachmentPoseFingerprint(
+            expected,
+            metadata.LocalId,
+            physicalNumber.Value,
+            sourceRecord.ToArray()
+          )
+        || BinaryPrimitives.ReadInt16LittleEndian(metadata.AttachmentRecord.ToArray())
+          == short.MinValue
+      )
       {
-        throw new MalformedMetadataException("The attachment metadata does not match its source record.");
+        throw new MalformedMetadataException(
+          "The attachment metadata does not match its source record."
+        );
       }
       return physicalNumber.Value;
     }
@@ -6096,10 +7195,12 @@ namespace EarthTool.GLTF
     private static int ValidateCannonMetadata(
       MetadataEnvelope metadata,
       StaticMeshAsset asset,
-      InterchangeBaseline expected)
+      InterchangeBaseline expected
+    )
     {
       var physicalNumber = metadata.CannonPhysicalNumber;
-      if (metadata.AssetLineageId != expected.AssetLineageId
+      if (
+        metadata.AssetLineageId != expected.AssetLineageId
         || metadata.DocumentId != expected.DocumentId
         || metadata.ScopeKind != "object"
         || physicalNumber is null or < 1 or > 4
@@ -6116,27 +7217,39 @@ namespace EarthTool.GLTF
         || metadata.StaticLightRecord is not null
         || metadata.StaticLightAttachmentRecord is not null
         || metadata.Guards.Count != 2
-        || !HasNoUnrelatedArtistObjectMetadata(metadata))
+        || !HasNoUnrelatedArtistObjectMetadata(metadata)
+      )
       {
         throw new MalformedMetadataException("The cannon metadata envelope is malformed.");
       }
-      var sourceAttachment = asset.CommonBaseHeader.AttachmentTable
-        .Skip((physicalNumber.Value - 1) * 8).Take(8).ToArray();
-      var sourceRenderPosition = asset.CommonBaseHeader.CannonRenderPositions
-        .Skip((physicalNumber.Value - 1) * 12).Take(12).ToArray();
+      var sourceAttachment = asset
+        .CommonBaseHeader.AttachmentTable.Skip((physicalNumber.Value - 1) * 8)
+        .Take(8)
+        .ToArray();
+      var sourceRenderPosition = asset
+        .CommonBaseHeader.CannonRenderPositions.Skip((physicalNumber.Value - 1) * 12)
+        .Take(12)
+        .ToArray();
       var expectedGuards = GlbDocument.CreateCannonGuards(
         expected,
         metadata.LocalId,
         physicalNumber.Value,
         sourceAttachment,
-        sourceRenderPosition);
-      if (!sourceAttachment.SequenceEqual(metadata.CannonAttachmentRecord)
+        sourceRenderPosition
+      );
+      if (
+        !sourceAttachment.SequenceEqual(metadata.CannonAttachmentRecord)
         || !sourceRenderPosition.SequenceEqual(metadata.CannonRenderPositionRecord)
         || BinaryPrimitives.ReadInt16LittleEndian(sourceAttachment) == short.MinValue
-        || expectedGuards.Any(guard => !metadata.Guards.TryGetValue(guard.Key, out var digest)
-          || !string.Equals(digest, guard.Value, StringComparison.Ordinal)))
+        || expectedGuards.Any(guard =>
+          !metadata.Guards.TryGetValue(guard.Key, out var digest)
+          || !string.Equals(digest, guard.Value, StringComparison.Ordinal)
+        )
+      )
       {
-        throw new MalformedMetadataException("The cannon metadata does not match its source records.");
+        throw new MalformedMetadataException(
+          "The cannon metadata does not match its source records."
+        );
       }
       return physicalNumber.Value;
     }
@@ -6161,7 +7274,8 @@ namespace EarthTool.GLTF
     private static void AddArtistCandidate(
       IDictionary<int, List<int>> candidates,
       int physicalNumber,
-      int nodeIndex)
+      int nodeIndex
+    )
     {
       if (!candidates.TryGetValue(physicalNumber, out var nodes))
       {
@@ -6171,19 +7285,24 @@ namespace EarthTool.GLTF
       nodes.Add(nodeIndex);
     }
 
-    private static MetadataIdentityException ArtistObjectConflict(string message, string? path = null)
+    private static MetadataIdentityException ArtistObjectConflict(
+      string message,
+      string? path = null
+    )
     {
       return new MetadataIdentityException(
         GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
         2012,
         message,
-        path);
+        path
+      );
     }
 
     private static IReadOnlyDictionary<int, Matrix4x4> CreateArtistObjectTransforms(
       int rootNodeIndex,
       IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
-      ISet<int>? explicitArtistObjects = null)
+      ISet<int>? explicitArtistObjects = null
+    )
     {
       var result = new Dictionary<int, Matrix4x4>();
       AddArtistObjectTransforms(
@@ -6191,7 +7310,8 @@ namespace EarthTool.GLTF
         Matrix4x4.Identity,
         nodes,
         result,
-        explicitArtistObjects ?? new HashSet<int>());
+        explicitArtistObjects ?? new HashSet<int>()
+      );
       return result;
     }
 
@@ -6200,7 +7320,8 @@ namespace EarthTool.GLTF
       Matrix4x4 inheritedTransform,
       IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
       IDictionary<int, Matrix4x4> result,
-      ISet<int> explicitArtistObjects)
+      ISet<int> explicitArtistObjects
+    )
     {
       var node = nodes[nodeIndex];
       var effective = node.Parsed.LocalTransform * inheritedTransform;
@@ -6218,7 +7339,8 @@ namespace EarthTool.GLTF
     }
 
     private static int[] CreateParentIndices(
-      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes)
+      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes
+    )
     {
       var result = Enumerable.Repeat(-1, nodes.Count).ToArray();
       for (var parentIndex = 0; parentIndex < nodes.Count; parentIndex++)
@@ -6235,7 +7357,8 @@ namespace EarthTool.GLTF
       int nodeIndex,
       int rootNodeIndex,
       IReadOnlyList<int> parentIndices,
-      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes)
+      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes
+    )
     {
       var result = Matrix4x4.Identity;
       var current = nodeIndex;
@@ -6254,30 +7377,38 @@ namespace EarthTool.GLTF
     private static bool IsArtistObject(
       int nodeIndex,
       (ParsedGltfNode Parsed, MetadataEnvelope? Metadata) node,
-      ISet<int> explicitArtistObjects)
+      ISet<int> explicitArtistObjects
+    )
     {
       return explicitArtistObjects.Contains(nodeIndex)
         || node.Metadata?.AttachmentRecord is not null
         || node.Metadata?.CannonRenderPositionRecord is not null
         || node.Metadata?.StaticLightAttachmentRecord is not null
         || node.Metadata is null
-          && (GlbDocument.TryParseAttachmentHelperName(node.Parsed.Name, out _)
+          && (
+            GlbDocument.TryParseAttachmentHelperName(node.Parsed.Name, out _)
             || GlbDocument.TryParseCannonHelperName(node.Parsed.Name, out _)
             || node.Parsed.LightIndex.HasValue
-              && GlbDocument.TryParseStaticLightHelperName(node.Parsed.Name, out _, out _));
+              && GlbDocument.TryParseStaticLightHelperName(node.Parsed.Name, out _, out _)
+          );
     }
 
     private static byte[] CreateAttachmentRecord(Matrix4x4 transform, byte extra)
     {
       var (translation, heading) = ReadAttachmentTransform(transform);
       var record = new byte[8];
-      BinaryPrimitives.WriteInt16LittleEndian(record, QuantizeAttachmentCoordinate(translation.X, true));
+      BinaryPrimitives.WriteInt16LittleEndian(
+        record,
+        QuantizeAttachmentCoordinate(translation.X, true)
+      );
       BinaryPrimitives.WriteInt16LittleEndian(
         record.AsSpan(2),
-        QuantizeAttachmentCoordinate(translation.Z, false));
+        QuantizeAttachmentCoordinate(translation.Z, false)
+      );
       BinaryPrimitives.WriteInt16LittleEndian(
         record.AsSpan(4),
-        QuantizeAttachmentCoordinate(translation.Y, false));
+        QuantizeAttachmentCoordinate(translation.Y, false)
+      );
       record[6] = heading;
       record[7] = extra;
       return record;
@@ -6285,14 +7416,17 @@ namespace EarthTool.GLTF
 
     private static (Vector3 Translation, byte Heading) ReadAttachmentTransform(Matrix4x4 transform)
     {
-      if (!Matrix4x4.Decompose(transform, out var scale, out var rotation, out var translation)
+      if (
+        !Matrix4x4.Decompose(transform, out var scale, out var rotation, out var translation)
         || !IsFinite(scale)
         || !IsFinite(translation)
-        || !IsFinite(rotation))
+        || !IsFinite(rotation)
+      )
       {
         throw new UnsupportedGltfDomainException("AttachmentPose");
       }
-      var reconstructed = Matrix4x4.CreateScale(scale)
+      var reconstructed =
+        Matrix4x4.CreateScale(scale)
         * Matrix4x4.CreateFromQuaternion(rotation)
         * Matrix4x4.CreateTranslation(translation);
       if (!NearlyEqual(transform, reconstructed, 1e-4f))
@@ -6312,7 +7446,8 @@ namespace EarthTool.GLTF
       float value,
       bool rejectsSentinel,
       string domain = "AttachmentPose",
-      string? path = null)
+      string? path = null
+    )
     {
       var scaled = Math.Truncate(value * 256d);
       if (!double.IsFinite(scaled) || scaled < short.MinValue || scaled > short.MaxValue)
@@ -6353,7 +7488,8 @@ namespace EarthTool.GLTF
     {
       BinaryPrimitives.WriteInt32LittleEndian(
         destination.AsSpan(offset),
-        BitConverter.SingleToInt32Bits(value == 0 ? 0 : value));
+        BitConverter.SingleToInt32Bits(value == 0 ? 0 : value)
+      );
     }
 
     private static bool IsFinite(Quaternion value)
@@ -6390,23 +7526,35 @@ namespace EarthTool.GLTF
       IReadOnlyList<(ParsedGltfMesh Parsed, MetadataEnvelope? Metadata)> meshes,
       StaticMeshAsset asset,
       InterchangeBaseline expected,
-      StaticMeshEditSession edit)
+      StaticMeshEditSession edit
+    )
     {
-      var sources = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
+      var sources = StaticSourceObjectTraversal
+        .Flatten(asset.RootSourceObject)
         .ToDictionary(source => source.Id.Value);
-      if (nodes.Any(node => !node.Parsed.MeshIndex.HasValue
-        && node.Metadata is not null
-        && node.Metadata.AttachmentRecord is null
-        && node.Metadata.CannonRenderPositionRecord is null
-        && node.Metadata.StaticLightAttachmentRecord is null))
+      if (
+        nodes.Any(node =>
+          !node.Parsed.MeshIndex.HasValue
+          && node.Metadata is not null
+          && node.Metadata.AttachmentRecord is null
+          && node.Metadata.CannonRenderPositionRecord is null
+          && node.Metadata.StaticLightAttachmentRecord is null
+        )
+      )
       {
-        throw new MalformedMetadataException("The object scope set does not match the source hierarchy.");
+        throw new MalformedMetadataException(
+          "The object scope set does not match the source hierarchy."
+        );
       }
 
-      var identifiedSourceIds = nodes.Where(node => node.Parsed.MeshIndex.HasValue && node.Metadata is not null)
-        .Select(node => node.Metadata!.LocalId).ToArray();
-      var acceptedDeletionMeshIndices = parsed.AcceptedDeletionScopes
-        .Select(path => TryReadIndex(path, "meshes", out var index) ? index : -1)
+      var identifiedSourceIds = nodes
+        .Where(node => node.Parsed.MeshIndex.HasValue && node.Metadata is not null)
+        .Select(node => node.Metadata!.LocalId)
+        .ToArray();
+      var acceptedDeletionMeshIndices = parsed
+        .AcceptedDeletionScopes.Select(path =>
+          TryReadIndex(path, "meshes", out var index) ? index : -1
+        )
         .Where(index => index >= 0)
         .ToHashSet();
       if (identifiedSourceIds.Distinct().Count() != identifiedSourceIds.Length)
@@ -6414,35 +7562,48 @@ namespace EarthTool.GLTF
         throw new MetadataIdentityException(
           GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
           2012,
-          "Duplicate object scope identities require an explicit fork resolution.");
+          "Duplicate object scope identities require an explicit fork resolution."
+        );
       }
-      if (nodes.Any(node => node.Parsed.MeshIndex.HasValue
+      if (
+        nodes.Any(node =>
+          node.Parsed.MeshIndex.HasValue
           && node.Metadata is null
-          && !acceptedDeletionMeshIndices.Contains(node.Parsed.MeshIndex.Value))
-        && sources.Keys.Any(id => !identifiedSourceIds.Contains(id)))
+          && !acceptedDeletionMeshIndices.Contains(node.Parsed.MeshIndex.Value)
+        ) && sources.Keys.Any(id => !identifiedSourceIds.Contains(id))
+      )
       {
         throw new MetadataIdentityException(
           GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
           2012,
-          "An untagged object cannot be distinguished from a missing expected object scope.");
+          "An untagged object cannot be distinguished from a missing expected object scope."
+        );
       }
-      if (nodes.Count(node => node.Parsed.MeshIndex.HasValue
-        && node.Metadata is null
-        && !acceptedDeletionMeshIndices.Contains(node.Parsed.MeshIndex.Value)) > 1)
+      if (
+        nodes.Count(node =>
+          node.Parsed.MeshIndex.HasValue
+          && node.Metadata is null
+          && !acceptedDeletionMeshIndices.Contains(node.Parsed.MeshIndex.Value)
+        ) > 1
+      )
       {
         throw new MetadataIdentityException(
           GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
           2012,
-          "Multiple untagged objects require explicit scope identities.");
+          "Multiple untagged objects require explicit scope identities."
+        );
       }
-      var meshLocalIds = meshes.Where(mesh => mesh.Metadata is not null)
-        .Select(mesh => mesh.Metadata!.LocalId).ToArray();
+      var meshLocalIds = meshes
+        .Where(mesh => mesh.Metadata is not null)
+        .Select(mesh => mesh.Metadata!.LocalId)
+        .ToArray();
       if (meshLocalIds.Distinct().Count() != meshLocalIds.Length)
       {
         throw new MetadataIdentityException(
           GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
           2012,
-          "Duplicate mesh scope identities require an explicit fork resolution.");
+          "Duplicate mesh scope identities require an explicit fork resolution."
+        );
       }
 
       var effectiveTransforms = CreateEffectiveTransforms(parsed.RootNodeIndex, nodes);
@@ -6460,23 +7621,29 @@ namespace EarthTool.GLTF
         }
         var metadata = node.Metadata;
         StaticSourceObject? originalSource = null;
-        if (metadata is not null
-          && (metadata.ScopeKind != "object"
+        if (
+          metadata is not null
+          && (
+            metadata.ScopeKind != "object"
             || metadata.LocalId <= 0
             || metadata.SourceMsh is not null
             || metadata.Fingerprint is not null
             || metadata.Partitions.Count != 0
             || metadata.AssetLineageId != expected.AssetLineageId
             || metadata.DocumentId != expected.DocumentId
-            || !sources.TryGetValue(metadata.LocalId, out originalSource)))
+            || !sources.TryGetValue(metadata.LocalId, out originalSource)
+          )
+        )
         {
           throw new MalformedMetadataException("The object metadata envelope is malformed.");
         }
 
-        if (!node.Parsed.MeshIndex.HasValue
+        if (
+          !node.Parsed.MeshIndex.HasValue
           || node.Parsed.MeshIndex.Value >= meshes.Count
           || metadata is not null
-            && meshes[node.Parsed.MeshIndex.Value].Metadata?.ScopeKind != "mesh")
+            && meshes[node.Parsed.MeshIndex.Value].Metadata?.ScopeKind != "mesh"
+        )
         {
           throw new UnsupportedGltfDomainException("HierarchyEdits");
         }
@@ -6505,8 +7672,9 @@ namespace EarthTool.GLTF
             transforms.Add(originalSource!.Id, linearTransform);
           }
           var pivotRecordId = originalSource!.StaticRenderObjectIds[0];
-          var sourcePivot = asset.StaticRenderObjectSequence.Single(record =>
-            record.Id.Equals(pivotRecordId)).Pivot;
+          var sourcePivot = asset
+            .StaticRenderObjectSequence.Single(record => record.Id.Equals(pivotRecordId))
+            .Pivot;
           if (pivot != sourcePivot)
           {
             pivots.Add(pivotRecordId, pivot);
@@ -6522,18 +7690,23 @@ namespace EarthTool.GLTF
             -1,
             primitive.Vertices,
             primitive.Triangles,
-            primitive.MaterialIndex);
+            primitive.MaterialIndex
+          );
           if (hasLinearTransform)
           {
             partition = TransformPartition(
               new PartitionMatch(partition, sourceId, false, true),
-              linearTransform).Partition;
+              linearTransform
+            ).Partition;
           }
           var vertices = partition.Vertices.Select(ToCanonicalVertex).ToArray();
-          var triangles = partition.Triangles.Select(triangle => new CanonicalTriangle(
-            triangle.Vertex0,
-            triangle.Vertex1,
-            triangle.Vertex2)).ToArray();
+          var triangles = partition
+            .Triangles.Select(triangle => new CanonicalTriangle(
+              triangle.Vertex0,
+              triangle.Vertex1,
+              triangle.Vertex2
+            ))
+            .ToArray();
           var renderObjectId = edit.AddRenderObject(sourceId, vertices, triangles);
           partition.AssignLocalId(renderObjectId.Value);
           renderObjectIds.Add(renderObjectId);
@@ -6544,10 +7717,10 @@ namespace EarthTool.GLTF
           throw new UnsupportedGltfDomainException("Geometry");
         }
         pivots.Add(renderObjectIds[0], pivot);
-        sourceByNode.Add(nodeIndex, new StaticSourceObject(
-          sourceId,
-          renderObjectIds,
-          Array.Empty<StaticSourceObject>()));
+        sourceByNode.Add(
+          nodeIndex,
+          new StaticSourceObject(sourceId, renderObjectIds, Array.Empty<StaticSourceObject>())
+        );
       }
 
       var editedRoots = BuildHierarchy(parsed.RootNodeIndex, nodes, sourceByNode);
@@ -6573,16 +7746,18 @@ namespace EarthTool.GLTF
         transforms,
         retainedMeshIndices,
         addedPartitions,
-        changed);
+        changed
+      );
     }
 
     private static IReadOnlyList<StaticSourceObject> BuildHierarchy(
       int nodeIndex,
       IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
-      IReadOnlyDictionary<int, StaticSourceObject> sources)
+      IReadOnlyDictionary<int, StaticSourceObject> sources
+    )
     {
-      var children = nodes[nodeIndex].Parsed.Children
-        .SelectMany(child => BuildHierarchy(child, nodes, sources))
+      var children = nodes[nodeIndex]
+        .Parsed.Children.SelectMany(child => BuildHierarchy(child, nodes, sources))
         .ToArray();
       if (!sources.TryGetValue(nodeIndex, out var source))
       {
@@ -6596,19 +7771,17 @@ namespace EarthTool.GLTF
       return new StaticSourceObject(
         source.Id,
         source.StaticRenderObjectIds,
-        source.Children.OrderBy(child => child.Id.Value).Select(SortHierarchy));
+        source.Children.OrderBy(child => child.Id.Value).Select(SortHierarchy)
+      );
     }
 
     private static IReadOnlyDictionary<int, System.Numerics.Matrix4x4> CreateEffectiveTransforms(
       int rootNodeIndex,
-      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes)
+      IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes
+    )
     {
       var result = new Dictionary<int, System.Numerics.Matrix4x4>();
-      AddEffectiveTransforms(
-        rootNodeIndex,
-        System.Numerics.Matrix4x4.Identity,
-        nodes,
-        result);
+      AddEffectiveTransforms(rootNodeIndex, System.Numerics.Matrix4x4.Identity, nodes, result);
       return result;
     }
 
@@ -6616,7 +7789,8 @@ namespace EarthTool.GLTF
       int nodeIndex,
       System.Numerics.Matrix4x4 scaffoldingTransform,
       IReadOnlyList<(ParsedGltfNode Parsed, MetadataEnvelope? Metadata)> nodes,
-      IDictionary<int, System.Numerics.Matrix4x4> result)
+      IDictionary<int, System.Numerics.Matrix4x4> result
+    )
     {
       var node = nodes[nodeIndex].Parsed;
       // System.Numerics uses row-vector composition, so a collapsed parent follows the child.
@@ -6640,7 +7814,8 @@ namespace EarthTool.GLTF
     private static bool SameHierarchy(StaticSourceObject left, StaticSourceObject right)
     {
       return left.Id.Equals(right.Id)
-        && left.Children.Select(child => child.Id).SequenceEqual(right.Children.Select(child => child.Id))
+        && left.Children.Select(child => child.Id)
+          .SequenceEqual(right.Children.Select(child => child.Id))
         && left.Children.Zip(right.Children, SameHierarchy).All(value => value);
     }
 
@@ -6662,7 +7837,8 @@ namespace EarthTool.GLTF
 
     private static PartitionMatch TransformPartition(
       PartitionMatch match,
-      System.Numerics.Matrix4x4 transform)
+      System.Numerics.Matrix4x4 transform
+    )
     {
       if (!System.Numerics.Matrix4x4.Invert(transform, out var inverse))
       {
@@ -6670,38 +7846,50 @@ namespace EarthTool.GLTF
       }
       // Normals follow the inverse transpose; a reflected basis reverses winding exactly once.
       var normalTransform = System.Numerics.Matrix4x4.Transpose(inverse);
-      var vertices = match.Partition.Vertices.Select(vertex =>
-      {
-        var normal = System.Numerics.Vector3.TransformNormal(vertex.Normal, normalTransform);
-        if (normal.LengthSquared() == 0
-          || !float.IsFinite(normal.X)
-          || !float.IsFinite(normal.Y)
-          || !float.IsFinite(normal.Z))
+      var vertices = match
+        .Partition.Vertices.Select(vertex =>
         {
-          throw new UnsupportedGltfDomainException("TransformOrHierarchy");
-        }
-        return new RenderVertex(
-          System.Numerics.Vector3.Transform(vertex.Position, transform),
-          System.Numerics.Vector3.Normalize(normal),
-          vertex.TextureCoordinate);
-      }).ToArray();
+          var normal = System.Numerics.Vector3.TransformNormal(vertex.Normal, normalTransform);
+          if (
+            normal.LengthSquared() == 0
+            || !float.IsFinite(normal.X)
+            || !float.IsFinite(normal.Y)
+            || !float.IsFinite(normal.Z)
+          )
+          {
+            throw new UnsupportedGltfDomainException("TransformOrHierarchy");
+          }
+          return new RenderVertex(
+            System.Numerics.Vector3.Transform(vertex.Position, transform),
+            System.Numerics.Vector3.Normalize(normal),
+            vertex.TextureCoordinate
+          );
+        })
+        .ToArray();
       var reversesWinding = transform.GetDeterminant() < 0;
-      var triangles = match.Partition.Triangles.Select(triangle => reversesWinding
-        ? new StaticTriangle(
-          triangle.Vertex0,
-          triangle.Vertex2,
-          triangle.Vertex1,
-          triangle.TriangleRenderPassFlags)
-        : triangle).ToArray();
+      var triangles = match
+        .Partition.Triangles.Select(triangle =>
+          reversesWinding
+            ? new StaticTriangle(
+              triangle.Vertex0,
+              triangle.Vertex2,
+              triangle.Vertex1,
+              triangle.TriangleRenderPassFlags
+            )
+            : triangle
+        )
+        .ToArray();
       return new PartitionMatch(
         new GeometryPartition(
           match.Partition.LocalId,
           vertices,
           triangles,
-          match.Partition.MaterialIndex),
+          match.Partition.MaterialIndex
+        ),
         match.SourceObjectId,
         false,
-        match.Added);
+        match.Added
+      );
     }
 
     private sealed class StaticHierarchyPlan
@@ -6723,7 +7911,8 @@ namespace EarthTool.GLTF
         IReadOnlyDictionary<SourceObjectId, System.Numerics.Matrix4x4> transforms,
         IReadOnlyCollection<int> retainedMeshIndices,
         IReadOnlyList<GeometryPartition> addedPartitions,
-        bool changed)
+        bool changed
+      )
       {
         Root = root;
         SourceByNode = sourceByNode;
@@ -6739,7 +7928,8 @@ namespace EarthTool.GLTF
     private static async Task<byte[]> ReadBoundedAsync(
       Stream source,
       int maximum,
-      CancellationToken cancellationToken)
+      CancellationToken cancellationToken
+    )
     {
       cancellationToken.ThrowIfCancellationRequested();
       if (source.CanSeek && source.Length - source.Position > maximum)
@@ -6751,7 +7941,9 @@ namespace EarthTool.GLTF
       var buffer = new byte[81920];
       while (true)
       {
-        var read = await source.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
+        var read = await source
+          .ReadAsync(buffer, 0, buffer.Length, cancellationToken)
+          .ConfigureAwait(false);
         if (read == 0)
         {
           return owned.ToArray();
@@ -6772,7 +7964,8 @@ namespace EarthTool.GLTF
       {
         var actions = GltfMetadataConflictCatalog.ActionsByCode.TryGetValue(
           conflict.Code,
-          out var catalogActions)
+          out var catalogActions
+        )
           ? catalogActions
           : conflict.Actions;
         var data = new Dictionary<string, string>(conflict.ConflictData, StringComparer.Ordinal);
@@ -6790,38 +7983,41 @@ namespace EarthTool.GLTF
           DiagnosticSeverity.Error,
           conflict.Path,
           conflict.Message,
-          data: data);
+          data: data
+        );
       }
 
       if (exception is MetadataIdentityException identity)
       {
-        var actions = identity.Code == GltfDiagnosticCodes.DocumentMismatch
-          ? new[]
-          {
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.RetryWithMetadata,
-            GltfMetadataConflictActions.AcceptBranch
-          }
+        var actions =
+          identity.Code == GltfDiagnosticCodes.DocumentMismatch
+            ? new[]
+            {
+              GltfMetadataConflictActions.Abort,
+              GltfMetadataConflictActions.RetryWithMetadata,
+              GltfMetadataConflictActions.AcceptBranch,
+            }
           : identity.Code == GltfDiagnosticCodes.AssetLineageMismatch
             ? new[]
             {
               GltfMetadataConflictActions.Abort,
               GltfMetadataConflictActions.AdoptAsNew,
-              GltfMetadataConflictActions.DiscardLineage
+              GltfMetadataConflictActions.DiscardLineage,
             }
-            : new[]
-            {
-              GltfMetadataConflictActions.Abort,
-              GltfMetadataConflictActions.MapScope,
-              GltfMetadataConflictActions.ForkScope,
-              GltfMetadataConflictActions.DiscardAffectedState
-            };
+          : new[]
+          {
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.MapScope,
+            GltfMetadataConflictActions.ForkScope,
+            GltfMetadataConflictActions.DiscardAffectedState,
+          };
         return MetadataDiagnostic(
           identity.Code,
           identity.EventId,
           identity.Path ?? path,
           identity.Message,
-          actions);
+          actions
+        );
       }
 
       if (exception is DynamicMetadataIdentityException dynamicIdentity)
@@ -6835,7 +8031,8 @@ namespace EarthTool.GLTF
           dynamicIdentity.Message,
           dynamicIdentity.IsLineage
             ? GltfMetadataConflictActions.AdoptAsNew
-            : GltfMetadataConflictActions.AcceptBranch);
+            : GltfMetadataConflictActions.AcceptBranch
+        );
       }
 
       if (exception is DynamicMetadataGraphException dynamicGraph)
@@ -6844,7 +8041,8 @@ namespace EarthTool.GLTF
           dynamicGraph.Code,
           dynamicGraph.EventId,
           dynamicGraph.Path,
-          dynamicGraph.Message);
+          dynamicGraph.Message
+        );
       }
 
       if (exception is DynamicPreviewException dynamicPreview)
@@ -6858,7 +8056,8 @@ namespace EarthTool.GLTF
           GltfDiagnosticCodes.MalformedMetadata,
           2003,
           staticLightMetadata.Path,
-          staticLightMetadata.Message);
+          staticLightMetadata.Message
+        );
       }
 
       if (exception is MissingMetadataException)
@@ -6870,7 +8069,8 @@ namespace EarthTool.GLTF
           exception.Message,
           GltfMetadataConflictActions.Abort,
           GltfMetadataConflictActions.RetryWithMetadata,
-          GltfMetadataConflictActions.DiscardLineage);
+          GltfMetadataConflictActions.DiscardLineage
+        );
       }
 
       if (exception is UnsupportedMetadataVersionException)
@@ -6882,7 +8082,8 @@ namespace EarthTool.GLTF
           exception.Message,
           GltfMetadataConflictActions.Abort,
           GltfMetadataConflictActions.RetryWithMetadata,
-          GltfMetadataConflictActions.DiscardLineage);
+          GltfMetadataConflictActions.DiscardLineage
+        );
       }
 
       if (exception is MalformedMetadataException)
@@ -6895,7 +8096,8 @@ namespace EarthTool.GLTF
           GltfMetadataConflictActions.Abort,
           GltfMetadataConflictActions.RetryWithMetadata,
           GltfMetadataConflictActions.DiscardAffectedState,
-          GltfMetadataConflictActions.DiscardLineage);
+          GltfMetadataConflictActions.DiscardLineage
+        );
       }
 
       if (exception is UnsupportedGltfDomainException unsupported)
@@ -6915,8 +8117,10 @@ namespace EarthTool.GLTF
           {
             ["domain"] = "TexResourceBinding",
             ["materialHandle"] = requiredBinding.MaterialHandle.Value.ToString(
-              System.Globalization.CultureInfo.InvariantCulture)
-          });
+              System.Globalization.CultureInfo.InvariantCulture
+            ),
+          }
+        );
       }
 
       if (exception is ResourceLimitException limit)
@@ -6926,7 +8130,12 @@ namespace EarthTool.GLTF
 
       if (exception is ModelException)
       {
-        return Diagnostic(GltfDiagnosticCodes.StrictValidationFailed, 1103, path, exception.Message);
+        return Diagnostic(
+          GltfDiagnosticCodes.StrictValidationFailed,
+          1103,
+          path,
+          exception.Message
+        );
       }
 
       if (exception is IOException || exception is UnauthorizedAccessException)
@@ -6962,7 +8171,11 @@ namespace EarthTool.GLTF
       return "metadata";
     }
 
-    private static void AddDiagnosticData(IDictionary<string, string> data, string key, string value)
+    private static void AddDiagnosticData(
+      IDictionary<string, string> data,
+      string key,
+      string value
+    )
     {
       if (!data.ContainsKey(key))
       {
@@ -6973,19 +8186,26 @@ namespace EarthTool.GLTF
     private static MetadataConflictResolutionResult ResolveMetadataConflicts(
       IReadOnlyList<MetadataConflictException> conflicts,
       InterchangeBaseline expectedBaseline,
-      GltfEditImportOptions options)
+      GltfEditImportOptions options
+    )
     {
-      var diagnostics = conflicts.Select(conflict =>
-        BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline)).ToArray();
+      var diagnostics = conflicts
+        .Select(conflict => BindConflictToBaseline(ToDiagnostic(conflict), expectedBaseline))
+        .ToArray();
       var byKey = diagnostics.ToDictionary(
         diagnostic => diagnostic.Data["conflictKey"],
-        StringComparer.Ordinal);
+        StringComparer.Ordinal
+      );
       var unmatched = options.ConflictResolutions.FirstOrDefault(resolution =>
-        !byKey.ContainsKey(resolution.ConflictKey));
+        !byKey.ContainsKey(resolution.ConflictKey)
+      );
       if (unmatched is not null)
       {
-        return MetadataConflictResolutionResult.Failed(InvalidConflictResolution(
-          "The conflict resolution is stale or does not match this input."));
+        return MetadataConflictResolutionResult.Failed(
+          InvalidConflictResolution(
+            "The conflict resolution is stale or does not match this input."
+          )
+        );
       }
 
       foreach (var resolution in options.ConflictResolutions)
@@ -6994,14 +8214,22 @@ namespace EarthTool.GLTF
         var actions = diagnostic.Data["actions"].Split(',');
         if (!actions.Contains(resolution.Action, StringComparer.Ordinal))
         {
-          return MetadataConflictResolutionResult.Failed(InvalidConflictResolution(
-            "The selected action is not allowed for the matching conflict."));
+          return MetadataConflictResolutionResult.Failed(
+            InvalidConflictResolution(
+              "The selected action is not allowed for the matching conflict."
+            )
+          );
         }
-        if (resolution.Action == GltfMetadataConflictActions.MapScope
-          && resolution.TargetNativePath != diagnostic.Data["nativePath"])
+        if (
+          resolution.Action == GltfMetadataConflictActions.MapScope
+          && resolution.TargetNativePath != diagnostic.Data["nativePath"]
+        )
         {
-          return MetadataConflictResolutionResult.Failed(InvalidConflictResolution(
-            "The scope mapping target does not match the conflicted native scope."));
+          return MetadataConflictResolutionResult.Failed(
+            InvalidConflictResolution(
+              "The scope mapping target does not match the conflicted native scope."
+            )
+          );
         }
       }
 
@@ -7010,7 +8238,8 @@ namespace EarthTool.GLTF
       foreach (var diagnostic in diagnostics)
       {
         var resolution = options.ConflictResolutions.SingleOrDefault(item =>
-          item.ConflictKey == diagnostic.Data["conflictKey"]);
+          item.ConflictKey == diagnostic.Data["conflictKey"]
+        );
         if (resolution is null || !ResolvesInProcess(resolution.Action))
         {
           unresolved.Add(diagnostic);
@@ -7031,11 +8260,13 @@ namespace EarthTool.GLTF
       InterchangeBaseline expectedBaseline,
       GltfEditImportOptions options,
       out GltfMetadataConflictResolution? resolution,
-      out OperationDiagnostic? failure)
+      out OperationDiagnostic? failure
+    )
     {
       resolution = options.ConflictResolutions.SingleOrDefault(item =>
         item.Action == GltfMetadataConflictActions.AdoptAsNew
-        || item.Action == GltfMetadataConflictActions.DiscardLineage);
+        || item.Action == GltfMetadataConflictActions.DiscardLineage
+      );
       failure = null;
       if (resolution is null)
       {
@@ -7043,14 +8274,17 @@ namespace EarthTool.GLTF
       }
 
       var diagnostic = BindConflictToBaseline(ToDiagnostic(exception), expectedBaseline);
-      if (options.ConflictResolutions.Count != 1
+      if (
+        options.ConflictResolutions.Count != 1
         || !diagnostic.Data.TryGetValue("conflictKey", out var conflictKey)
         || conflictKey != resolution.ConflictKey
         || !diagnostic.Data.TryGetValue("actions", out var actions)
-        || !actions.Split(',').Contains(resolution.Action, StringComparer.Ordinal))
+        || !actions.Split(',').Contains(resolution.Action, StringComparer.Ordinal)
+      )
       {
         failure = InvalidConflictResolution(
-          "The whole-lineage action is stale or is not allowed for the matching conflict.");
+          "The whole-lineage action is stale or is not allowed for the matching conflict."
+        );
       }
       return true;
     }
@@ -7060,12 +8294,14 @@ namespace EarthTool.GLTF
       InterchangeBaseline expectedBaseline,
       GltfEditImportOptions options,
       out ParseScopeResolution? result,
-      out OperationDiagnostic? failure)
+      out OperationDiagnostic? failure
+    )
     {
       var resolution = options.ConflictResolutions.FirstOrDefault(item =>
         item.Action == GltfMetadataConflictActions.MapScope
         || item.Action == GltfMetadataConflictActions.ForkScope
-        || item.Action == GltfMetadataConflictActions.DiscardAffectedState);
+        || item.Action == GltfMetadataConflictActions.DiscardAffectedState
+      );
       result = null;
       failure = null;
       if (resolution is null)
@@ -7073,13 +8309,16 @@ namespace EarthTool.GLTF
         return false;
       }
       var diagnostic = BindConflictToBaseline(ToDiagnostic(exception), expectedBaseline);
-      if (!diagnostic.Data.TryGetValue("conflictKey", out var conflictKey)
+      if (
+        !diagnostic.Data.TryGetValue("conflictKey", out var conflictKey)
         || conflictKey != resolution.ConflictKey
         || !diagnostic.Data.TryGetValue("actions", out var actions)
-        || !actions.Split(',').Contains(resolution.Action, StringComparer.Ordinal))
+        || !actions.Split(',').Contains(resolution.Action, StringComparer.Ordinal)
+      )
       {
         failure = InvalidConflictResolution(
-          "The scope action is stale or is not allowed for the matching parse conflict.");
+          "The scope action is stale or is not allowed for the matching parse conflict."
+        );
         return true;
       }
       result = new ParseScopeResolution(diagnostic, resolution);
@@ -7088,7 +8327,8 @@ namespace EarthTool.GLTF
 
     private static OperationDiagnostic BindConflictToBaseline(
       OperationDiagnostic diagnostic,
-      InterchangeBaseline expectedBaseline)
+      InterchangeBaseline expectedBaseline
+    )
     {
       if (!diagnostic.Data.ContainsKey("conflictKey"))
       {
@@ -7097,7 +8337,7 @@ namespace EarthTool.GLTF
       var data = new Dictionary<string, string>(diagnostic.Data, StringComparer.Ordinal)
       {
         ["expectedLineage"] = expectedBaseline.AssetLineageId.ToString("D"),
-        ["expectedDocument"] = expectedBaseline.DocumentId.ToString("D")
+        ["expectedDocument"] = expectedBaseline.DocumentId.ToString("D"),
       };
       data["conflictKey"] = CreateConflictKey(diagnostic.Code, diagnostic.Path, data);
       return new OperationDiagnostic(
@@ -7107,7 +8347,8 @@ namespace EarthTool.GLTF
         diagnostic.Path,
         diagnostic.Message,
         diagnostic.ByteOffset,
-        data);
+        data
+      );
     }
 
     private static byte[] RemoveGlbMetadata(byte[] glb)
@@ -7120,13 +8361,15 @@ namespace EarthTool.GLTF
     private static byte[] RewriteGlbMetadata(
       byte[] glb,
       OperationDiagnostic diagnostic,
-      GltfMetadataConflictResolution resolution)
+      GltfMetadataConflictResolution resolution
+    )
     {
       var jsonLength = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(12, 4)));
       var json = RewriteJsonScopeMetadata(
         glb.AsSpan(20, jsonLength).ToArray(),
         diagnostic,
-        resolution);
+        resolution
+      );
       return ReplaceGlbJson(glb, jsonLength, json);
     }
 
@@ -7149,13 +8392,17 @@ namespace EarthTool.GLTF
     private static byte[] RewriteJsonScopeMetadata(
       byte[] json,
       OperationDiagnostic diagnostic,
-      GltfMetadataConflictResolution resolution)
+      GltfMetadataConflictResolution resolution
+    )
     {
-      var root = JsonNode.Parse(Encoding.UTF8.GetString(json))?.AsObject()
+      var root =
+        JsonNode.Parse(Encoding.UTF8.GetString(json))?.AsObject()
         ?? throw new InvalidDataException("The glTF JSON document is empty.");
       var source = GetJsonCarrier(root, diagnostic.Data["nativePath"]);
-      if (source["extras"] is not JsonObject sourceExtras
-        || sourceExtras["earthtool"] is not JsonNode metadata)
+      if (
+        source["extras"] is not JsonObject sourceExtras
+        || sourceExtras["earthtool"] is not JsonNode metadata
+      )
       {
         throw new InvalidDataException("The conflicted metadata carrier no longer exists.");
       }
@@ -7165,7 +8412,9 @@ namespace EarthTool.GLTF
         var targetExtras = target["extras"] as JsonObject;
         if (targetExtras?["earthtool"] is not null)
         {
-          throw new InvalidDataException("The scope mapping target already owns EarthTool metadata.");
+          throw new InvalidDataException(
+            "The scope mapping target already owns EarthTool metadata."
+          );
         }
         if (targetExtras is null)
         {
@@ -7205,12 +8454,15 @@ namespace EarthTool.GLTF
       {
         return root["scenes"]![0]!.AsObject();
       }
-      throw new InvalidDataException("The metadata conflict does not identify a supported carrier.");
+      throw new InvalidDataException(
+        "The metadata conflict does not identify a supported carrier."
+      );
     }
 
     private static byte[] RemoveJsonMetadata(byte[] json)
     {
-      var root = JsonNode.Parse(Encoding.UTF8.GetString(json))
+      var root =
+        JsonNode.Parse(Encoding.UTF8.GetString(json))
         ?? throw new InvalidDataException("The glTF JSON document is empty.");
       RemoveMetadata(root);
       return Encoding.UTF8.GetBytes(root.ToJsonString());
@@ -7228,7 +8480,9 @@ namespace EarthTool.GLTF
             value.Remove("extras");
           }
         }
-        foreach (var child in value.Select(item => item.Value).Where(child => child is not null).ToArray())
+        foreach (
+          var child in value.Select(item => item.Value).Where(child => child is not null).ToArray()
+        )
         {
           RemoveMetadata(child!);
         }
@@ -7258,30 +8512,38 @@ namespace EarthTool.GLTF
         2003,
         DiagnosticSeverity.Error,
         "metadata.actions",
-        message);
+        message
+      );
     }
 
     private static string CreateConflictKey(
       string code,
       string path,
-      IReadOnlyDictionary<string, string> data)
+      IReadOnlyDictionary<string, string> data
+    )
     {
       var canonical = new StringBuilder(code).Append('\n').Append(path);
-      foreach (var item in data.Where(item => item.Key is not ("conflictKey" or "actions"))
-        .OrderBy(item => item.Key, StringComparer.Ordinal))
+      foreach (
+        var item in data.Where(item => item.Key is not ("conflictKey" or "actions"))
+          .OrderBy(item => item.Key, StringComparer.Ordinal)
+      )
       {
         canonical.Append('\n').Append(item.Key).Append('=').Append(item.Value);
       }
       using var sha256 = SHA256.Create();
       var digest = sha256.ComputeHash(Encoding.UTF8.GetBytes(canonical.ToString()));
-      return "v1:" + Convert.ToBase64String(digest).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+      return "v1:"
+        + Convert.ToBase64String(digest).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 
     private static string GetMetadataCarrierPath(string path)
     {
       var payload = path.IndexOf(".payload", StringComparison.Ordinal);
       var guards = path.IndexOf(".guards", StringComparison.Ordinal);
-      var separator = payload < 0 ? guards : guards < 0 ? payload : Math.Min(payload, guards);
+      var separator =
+        payload < 0 ? guards
+        : guards < 0 ? payload
+        : Math.Min(payload, guards);
       return separator < 0 ? path : path.Substring(0, separator);
     }
 
@@ -7296,8 +8558,9 @@ namespace EarthTool.GLTF
         data: new Dictionary<string, string>
         {
           ["actual"] = actual.ToString(System.Globalization.CultureInfo.InvariantCulture),
-          ["maximum"] = maximum.ToString(System.Globalization.CultureInfo.InvariantCulture)
-        });
+          ["maximum"] = maximum.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        }
+      );
     }
 
     private static OperationDiagnostic Unsupported(string domain, string path = "$")
@@ -7308,7 +8571,8 @@ namespace EarthTool.GLTF
         DiagnosticSeverity.Error,
         path,
         $"The {domain} domain is outside the one-triangle walking-skeleton profile.",
-        data: new Dictionary<string, string> { ["domain"] = domain });
+        data: new Dictionary<string, string> { ["domain"] = domain }
+      );
     }
 
     private static OperationDiagnostic InvalidGeometry(string path, string message)
@@ -7323,71 +8587,89 @@ namespace EarthTool.GLTF
         1109,
         DiagnosticSeverity.Warning,
         "$",
-        "Decoded TEX previews were omitted to keep the package within the output limit.");
+        "Decoded TEX previews were omitted to keep the package within the output limit."
+      );
     }
 
     private static IReadOnlyList<OperationDiagnostic> CreateAnimationDiagnostics(
       StaticMeshAsset asset,
-      InterchangeBaseline baseline)
+      InterchangeBaseline baseline
+    )
     {
-      var sources = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
+      var sources = StaticSourceObjectTraversal
+        .Flatten(asset.RootSourceObject)
         .ToDictionary(source => source.Id.Value);
-      var indices = asset.StaticRenderObjectSequence
-        .Select((record, index) => new { record.Id, Index = index })
+      var indices = asset
+        .StaticRenderObjectSequence.Select((record, index) => new { record.Id, Index = index })
         .ToDictionary(item => item.Id, item => item.Index);
       var diagnostics = new List<OperationDiagnostic>();
-      foreach (var item in StaticAnimationProjection.Create(asset, baseline).Objects
-        .OrderBy(item => item.ClassIndex)
-        .ThenBy(item => item.SourceObjectLocalId))
+      foreach (
+        var item in StaticAnimationProjection
+          .Create(asset, baseline)
+          .Objects.OrderBy(item => item.ClassIndex)
+          .ThenBy(item => item.SourceObjectLocalId)
+      )
       {
         var recordIndex = indices[sources[item.SourceObjectLocalId].StaticRenderObjectIds[0]];
         var commonData = new Dictionary<string, string>
         {
           ["sourceObject"] = item.SourceObjectLocalId.ToString(
-            System.Globalization.CultureInfo.InvariantCulture),
+            System.Globalization.CultureInfo.InvariantCulture
+          ),
           ["animationClassValue"] = item.AnimationClassValue.ToString(
-            System.Globalization.CultureInfo.InvariantCulture),
-          ["class"] = ((char)('A' + item.ClassIndex)).ToString()
+            System.Globalization.CultureInfo.InvariantCulture
+          ),
+          ["class"] = ((char)('A' + item.ClassIndex)).ToString(),
         };
         if (item.AnimationClassValue > 3)
         {
-          diagnostics.Add(new OperationDiagnostic(
-            GltfDiagnosticCodes.AnimationClassUnrecognized,
-            1115,
-            DiagnosticSeverity.Warning,
-            $"StaticRenderObjectSequence[{recordIndex}].AnimationClassValue",
-            "An unrecognized animation-class value uses its modulo-four class for native projection.",
-            data: commonData));
+          diagnostics.Add(
+            new OperationDiagnostic(
+              GltfDiagnosticCodes.AnimationClassUnrecognized,
+              1115,
+              DiagnosticSeverity.Warning,
+              $"StaticRenderObjectSequence[{recordIndex}].AnimationClassValue",
+              "An unrecognized animation-class value uses its modulo-four class for native projection.",
+              data: commonData
+            )
+          );
         }
         if (item.FailureFrame.HasValue)
         {
           var metadataOnlyData = new Dictionary<string, string>(commonData)
           {
             ["frame"] = item.FailureFrame!.Value.ToString(
-              System.Globalization.CultureInfo.InvariantCulture)
+              System.Globalization.CultureInfo.InvariantCulture
+            ),
           };
-          diagnostics.Add(new OperationDiagnostic(
-            GltfDiagnosticCodes.AnimationMetadataOnly,
-            1114,
-            DiagnosticSeverity.Warning,
-            $"StaticRenderObjectSequence[{recordIndex}].AnimationTracks",
-            "The source animation cannot be represented exactly as native glTF TRS and remains metadata-only.",
-            data: metadataOnlyData));
+          diagnostics.Add(
+            new OperationDiagnostic(
+              GltfDiagnosticCodes.AnimationMetadataOnly,
+              1114,
+              DiagnosticSeverity.Warning,
+              $"StaticRenderObjectSequence[{recordIndex}].AnimationTracks",
+              "The source animation cannot be represented exactly as native glTF TRS and remains metadata-only.",
+              data: metadataOnlyData
+            )
+          );
         }
       }
       return diagnostics.AsReadOnly();
     }
 
     private static IReadOnlyList<OperationDiagnostic> CreateCannonRenderPositionDiagnostics(
-      StaticMeshAsset asset)
+      StaticMeshAsset asset
+    )
     {
       var records = asset.CommonBaseHeader.CannonRenderPositions.ToArray();
       var attachments = asset.CommonBaseHeader.AttachmentTable.ToArray();
       var diagnostics = new List<OperationDiagnostic>();
       for (var physicalNumber = 1; physicalNumber <= 4; physicalNumber++)
       {
-        if (BinaryPrimitives.ReadInt16LittleEndian(
-          attachments.AsSpan((physicalNumber - 1) * 8, 8)) == short.MinValue)
+        if (
+          BinaryPrimitives.ReadInt16LittleEndian(attachments.AsSpan((physicalNumber - 1) * 8, 8))
+          == short.MinValue
+        )
         {
           continue;
         }
@@ -7396,7 +8678,8 @@ namespace EarthTool.GLTF
         for (var component = 0; component < 3; component++)
         {
           var value = BitConverter.Int32BitsToSingle(
-            BinaryPrimitives.ReadInt32LittleEndian(record.Slice(component * 4, 4)));
+            BinaryPrimitives.ReadInt32LittleEndian(record.Slice(component * 4, 4))
+          );
           if (!float.IsFinite(value))
           {
             substituted.Add(component);
@@ -7406,24 +8689,29 @@ namespace EarthTool.GLTF
         {
           continue;
         }
-        diagnostics.Add(new OperationDiagnostic(
-          GltfDiagnosticCodes.CannonRenderPositionPreviewSubstituted,
-          1116,
-          DiagnosticSeverity.Warning,
-          $"CommonBaseHeader.CannonRenderPositions[{physicalNumber}]",
-          "Non-finite cannon render-position components use zero in the native preview.",
-          data: new Dictionary<string, string>
-          {
-            ["physicalNumber"] = physicalNumber.ToString(
-              System.Globalization.CultureInfo.InvariantCulture),
-            ["components"] = string.Join(",", substituted)
-          }));
+        diagnostics.Add(
+          new OperationDiagnostic(
+            GltfDiagnosticCodes.CannonRenderPositionPreviewSubstituted,
+            1116,
+            DiagnosticSeverity.Warning,
+            $"CommonBaseHeader.CannonRenderPositions[{physicalNumber}]",
+            "Non-finite cannon render-position components use zero in the native preview.",
+            data: new Dictionary<string, string>
+            {
+              ["physicalNumber"] = physicalNumber.ToString(
+                System.Globalization.CultureInfo.InvariantCulture
+              ),
+              ["components"] = string.Join(",", substituted),
+            }
+          )
+        );
       }
       return diagnostics.AsReadOnly();
     }
 
     private static IReadOnlyList<OperationDiagnostic> CreateStaticLightDiagnostics(
-      StaticMeshAsset asset)
+      StaticMeshAsset asset
+    )
     {
       var attachments = asset.CommonBaseHeader.AttachmentTable.ToArray();
       var spots = asset.CommonBaseHeader.StaticSpotLights.ToArray();
@@ -7436,26 +8724,31 @@ namespace EarthTool.GLTF
           "spot",
           physicalNumber,
           attachments.AsSpan((physicalNumber + 11) * 8, 8),
-          spots.AsSpan((physicalNumber - 1) * 0x30, 0x30));
+          spots.AsSpan((physicalNumber - 1) * 0x30, 0x30)
+        );
         AddStaticLightDiagnostic(
           diagnostics,
           "point",
           physicalNumber,
           attachments.AsSpan((physicalNumber + 15) * 8, 8),
-          omnis.AsSpan((physicalNumber - 1) * 0x1C, 0x1C));
+          omnis.AsSpan((physicalNumber - 1) * 0x1C, 0x1C)
+        );
       }
       return diagnostics.AsReadOnly();
     }
 
     private static IReadOnlyList<OperationDiagnostic> CreateEmitterHierarchyDiagnostics(
-      StaticMeshAsset asset)
+      StaticMeshAsset asset
+    )
     {
       var diagnostics = new List<OperationDiagnostic>();
       for (var number = 1; number <= 4; number++)
       {
         var emitterPhysicalNumber = number + 4;
-        var (emitterActive, markerRecordCount) =
-          GlbDocument.GetEmitterHierarchyState(asset, number);
+        var (emitterActive, markerRecordCount) = GlbDocument.GetEmitterHierarchyState(
+          asset,
+          number
+        );
         if (!emitterActive && markerRecordCount == 0)
         {
           continue;
@@ -7482,21 +8775,25 @@ namespace EarthTool.GLTF
           continue;
         }
 
-        diagnostics.Add(new OperationDiagnostic(
-          GltfDiagnosticCodes.EmitterHierarchyFallback,
-          1120,
-          DiagnosticSeverity.Warning,
-          $"CommonBaseHeader.AttachmentTable[{emitterPhysicalNumber}]",
-          emitterActive
-            ? "The emitter helper remains under the root because it has no unique marker-attachment source object."
-            : "A marker-attachment source object has no corresponding emitter helper.",
-          data: new Dictionary<string, string>
-          {
-            ["number"] = number.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["markerObjectCount"] = markerRecordCount.ToString(
-              System.Globalization.CultureInfo.InvariantCulture),
-            ["missing"] = string.Join(",", missing)
-          }));
+        diagnostics.Add(
+          new OperationDiagnostic(
+            GltfDiagnosticCodes.EmitterHierarchyFallback,
+            1120,
+            DiagnosticSeverity.Warning,
+            $"CommonBaseHeader.AttachmentTable[{emitterPhysicalNumber}]",
+            emitterActive
+              ? "The emitter helper remains under the root because it has no unique marker-attachment source object."
+              : "A marker-attachment source object has no corresponding emitter helper.",
+            data: new Dictionary<string, string>
+            {
+              ["number"] = number.ToString(System.Globalization.CultureInfo.InvariantCulture),
+              ["markerObjectCount"] = markerRecordCount.ToString(
+                System.Globalization.CultureInfo.InvariantCulture
+              ),
+              ["missing"] = string.Join(",", missing),
+            }
+          )
+        );
       }
       return diagnostics.AsReadOnly();
     }
@@ -7506,7 +8803,8 @@ namespace EarthTool.GLTF
       string type,
       int physicalNumber,
       ReadOnlySpan<byte> attachment,
-      ReadOnlySpan<byte> record)
+      ReadOnlySpan<byte> record
+    )
     {
       if (BinaryPrimitives.ReadInt16LittleEndian(attachment) == short.MinValue)
       {
@@ -7542,11 +8840,13 @@ namespace EarthTool.GLTF
         {
           substituted.Add("direction");
         }
-        if (!float.IsFinite(inner)
+        if (
+          !float.IsFinite(inner)
           || !float.IsFinite(outer)
           || inner < 0
           || outer < inner
-          || outer > MathF.PI / 2)
+          || outer > MathF.PI / 2
+        )
         {
           substituted.Add("cones");
         }
@@ -7556,39 +8856,52 @@ namespace EarthTool.GLTF
         return;
       }
       var collection = type == "spot" ? "StaticSpotLights" : "StaticOmniLights";
-      diagnostics.Add(new OperationDiagnostic(
-        GltfDiagnosticCodes.StaticLightPreviewSubstituted,
-        1117,
-        DiagnosticSeverity.Warning,
-        $"CommonBaseHeader.{collection}[{physicalNumber}]",
-        "Anomalous static-light fields use deterministic finite native preview values.",
-        data: new Dictionary<string, string>
-        {
-          ["physicalNumber"] = physicalNumber.ToString(
-            System.Globalization.CultureInfo.InvariantCulture),
-          ["type"] = type,
-          ["fields"] = string.Join(",", substituted)
-        }));
+      diagnostics.Add(
+        new OperationDiagnostic(
+          GltfDiagnosticCodes.StaticLightPreviewSubstituted,
+          1117,
+          DiagnosticSeverity.Warning,
+          $"CommonBaseHeader.{collection}[{physicalNumber}]",
+          "Anomalous static-light fields use deterministic finite native preview values.",
+          data: new Dictionary<string, string>
+          {
+            ["physicalNumber"] = physicalNumber.ToString(
+              System.Globalization.CultureInfo.InvariantCulture
+            ),
+            ["type"] = type,
+            ["fields"] = string.Join(",", substituted),
+          }
+        )
+      );
     }
 
     private static float ReadSingle(ReadOnlySpan<byte> source, int offset)
     {
       return BitConverter.Int32BitsToSingle(
-        BinaryPrimitives.ReadInt32LittleEndian(source.Slice(offset, sizeof(float))));
+        BinaryPrimitives.ReadInt32LittleEndian(source.Slice(offset, sizeof(float)))
+      );
     }
 
     private static IReadOnlyList<OperationDiagnostic> WithoutEmittedPreviewDiagnostics(
-      IEnumerable<OperationDiagnostic> diagnostics)
+      IEnumerable<OperationDiagnostic> diagnostics
+    )
     {
-      return diagnostics.Where(diagnostic =>
+      return diagnostics
+        .Where(diagnostic =>
           diagnostic.Code != GltfDiagnosticCodes.TextureDefaultPreviewUsed
           && diagnostic.Code != GltfDiagnosticCodes.TextureDiagnosticPreviewUsed
-          && diagnostic.Code != GltfDiagnosticCodes.TextureVariantsNotRepresented)
+          && diagnostic.Code != GltfDiagnosticCodes.TextureVariantsNotRepresented
+        )
         .Concat(new[] { PreviewOutputLimitWarning() })
         .ToArray();
     }
 
-    private static OperationDiagnostic Diagnostic(string code, int eventId, string path, string message)
+    private static OperationDiagnostic Diagnostic(
+      string code,
+      int eventId,
+      string path,
+      string message
+    )
     {
       return new OperationDiagnostic(code, eventId, DiagnosticSeverity.Error, path, message);
     }
@@ -7598,7 +8911,8 @@ namespace EarthTool.GLTF
       GltfImportPlanKind kind,
       GltfPackageKind packageKind,
       InterchangeBaseline? expectedBaseline,
-      GltfOperationProfile profile)
+      GltfOperationProfile profile
+    )
     {
       var limit = plan.ValidateProfile(profile);
       if (limit is not null)
@@ -7613,11 +8927,15 @@ namespace EarthTool.GLTF
       {
         return PlanMismatch("package");
       }
-      if (kind == GltfImportPlanKind.Edit
-        && (plan.ExpectedBaseline is null
+      if (
+        kind == GltfImportPlanKind.Edit
+        && (
+          plan.ExpectedBaseline is null
           || expectedBaseline is null
           || plan.ExpectedBaseline.AssetLineageId != expectedBaseline.AssetLineageId
-          || plan.ExpectedBaseline.DocumentId != expectedBaseline.DocumentId))
+          || plan.ExpectedBaseline.DocumentId != expectedBaseline.DocumentId
+        )
+      )
       {
         return PlanMismatch("expectedBaseline");
       }
@@ -7629,7 +8947,8 @@ namespace EarthTool.GLTF
       return string.Equals(
         GltfImportPlanSerializer.Hash(source),
         plan.SourceSha256,
-        StringComparison.Ordinal);
+        StringComparison.Ordinal
+      );
     }
 
     private static OperationDiagnostic PlanMismatch(string path)
@@ -7640,26 +8959,34 @@ namespace EarthTool.GLTF
         DiagnosticSeverity.Error,
         path,
         "The import plan does not match the selected import or source package.",
-        data: new Dictionary<string, string> { ["dimension"] = path });
+        data: new Dictionary<string, string> { ["dimension"] = path }
+      );
     }
 
     private static OperationResult<GltfEditImportResult> TranslateStalePlan(
       OperationResult<GltfEditImportResult> result,
-      GltfImportPlan plan)
+      GltfImportPlan plan
+    )
     {
-      if (plan.EditOptions!.ConflictResolutions.Count == 0
+      if (
+        plan.EditOptions!.ConflictResolutions.Count == 0
         || !result.Diagnostics.Any(diagnostic =>
           diagnostic.Code == GltfDiagnosticCodes.MalformedMetadata
-          && diagnostic.Path == "metadata.actions"))
+          && diagnostic.Path == "metadata.actions"
+        )
+      )
       {
         return result;
       }
-      return Failed<GltfEditImportResult>(new OperationDiagnostic(
-        GltfDiagnosticCodes.StaleImportPlan,
-        3003,
-        DiagnosticSeverity.Error,
-        "conflictActions",
-        "A planned conflict action is stale or does not match the current conflict inventory."));
+      return Failed<GltfEditImportResult>(
+        new OperationDiagnostic(
+          GltfDiagnosticCodes.StaleImportPlan,
+          3003,
+          DiagnosticSeverity.Error,
+          "conflictActions",
+          "A planned conflict action is stale or does not match the current conflict inventory."
+        )
+      );
     }
 
     private static OperationDiagnostic MetadataDiagnostic(
@@ -7667,7 +8994,8 @@ namespace EarthTool.GLTF
       int eventId,
       string path,
       string message,
-      params string[] actions)
+      params string[] actions
+    )
     {
       if (GltfMetadataConflictCatalog.ActionsByCode.TryGetValue(code, out var catalogActions))
       {
@@ -7680,7 +9008,7 @@ namespace EarthTool.GLTF
         ["carrierType"] = GetMetadataCarrierType(path),
         ["metadataPath"] = path,
         ["nativePath"] = GetMetadataCarrierPath(path),
-        ["affectedPayloadPaths"] = path
+        ["affectedPayloadPaths"] = path,
       };
       data["conflictKey"] = CreateConflictKey(code, path, data);
       return new OperationDiagnostic(
@@ -7689,7 +9017,8 @@ namespace EarthTool.GLTF
         DiagnosticSeverity.Error,
         path,
         message,
-        data: data);
+        data: data
+      );
     }
 
     private static OperationResult<T> Failed<T>(OperationDiagnostic diagnostic)
@@ -7707,7 +9036,10 @@ namespace EarthTool.GLTF
     private static OperationResult<T> Cancelled<T>()
       where T : class
     {
-      return new OperationResult<T>(OperationStatus.Cancelled, diagnostics: new[] { CancelledDiagnostic() });
+      return new OperationResult<T>(
+        OperationStatus.Cancelled,
+        diagnostics: new[] { CancelledDiagnostic() }
+      );
     }
 
     private static OperationResult Cancelled()
@@ -7717,7 +9049,12 @@ namespace EarthTool.GLTF
 
     private static OperationDiagnostic CancelledDiagnostic()
     {
-      return Diagnostic(GltfDiagnosticCodes.Cancelled, 1105, "$", "The glTF operation was cancelled.");
+      return Diagnostic(
+        GltfDiagnosticCodes.Cancelled,
+        1105,
+        "$",
+        "The glTF operation was cancelled."
+      );
     }
 
     private sealed class MetadataConflictResolutionResult
@@ -7728,14 +9065,16 @@ namespace EarthTool.GLTF
 
       private MetadataConflictResolutionResult(
         IReadOnlyList<GltfMetadataConflictResolution> applied,
-        IReadOnlyList<OperationDiagnostic> diagnostics)
+        IReadOnlyList<OperationDiagnostic> diagnostics
+      )
       {
         Applied = applied;
         Diagnostics = diagnostics;
       }
 
       internal static MetadataConflictResolutionResult Succeeded(
-        IReadOnlyList<GltfMetadataConflictResolution> applied)
+        IReadOnlyList<GltfMetadataConflictResolution> applied
+      )
       {
         return new MetadataConflictResolutionResult(applied, Array.Empty<OperationDiagnostic>());
       }
@@ -7746,11 +9085,13 @@ namespace EarthTool.GLTF
       }
 
       internal static MetadataConflictResolutionResult Failed(
-        IReadOnlyList<OperationDiagnostic> diagnostics)
+        IReadOnlyList<OperationDiagnostic> diagnostics
+      )
       {
         return new MetadataConflictResolutionResult(
           Array.Empty<GltfMetadataConflictResolution>(),
-          diagnostics);
+          diagnostics
+        );
       }
     }
 
@@ -7762,7 +9103,8 @@ namespace EarthTool.GLTF
 
       internal ParseScopeResolution(
         OperationDiagnostic diagnostic,
-        GltfMetadataConflictResolution resolution)
+        GltfMetadataConflictResolution resolution
+      )
       {
         Diagnostic = diagnostic;
         Resolution = resolution;
@@ -7778,7 +9120,12 @@ namespace EarthTool.GLTF
 
     internal string? Path { get; }
 
-    internal MetadataIdentityException(string code, int eventId, string message, string? path = null)
+    internal MetadataIdentityException(
+      string code,
+      int eventId,
+      string message,
+      string? path = null
+    )
       : base(message)
     {
       Code = code;
@@ -7815,17 +9162,13 @@ namespace EarthTool.GLTF
   internal sealed class StaleNativeProjectionException : Exception
   {
     internal StaleNativeProjectionException(string message)
-      : base(message)
-    {
-    }
+      : base(message) { }
   }
 
   internal sealed class AmbiguousPartitionCorrespondenceException : Exception
   {
     internal AmbiguousPartitionCorrespondenceException(string message)
-      : base(message)
-    {
-    }
+      : base(message) { }
   }
 
   internal sealed class RequiredTextureResourceBindingException : Exception
@@ -7836,7 +9179,8 @@ namespace EarthTool.GLTF
 
     internal RequiredTextureResourceBindingException(
       int materialIndex,
-      GltfMaterialHandle materialHandle)
+      GltfMaterialHandle materialHandle
+    )
       : base("A textured new-model material requires a typed canonical TEX resource binding.")
     {
       MaterialIndex = materialIndex;

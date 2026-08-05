@@ -14,8 +14,9 @@ namespace EarthTool.MSH.Assets
   {
     /// <summary>Static geometry payload.</summary>
     Static = 0,
+
     /// <summary>Dynamic effect payload.</summary>
-    Dynamic = 1
+    Dynamic = 1,
   }
 
   /// <summary>Identifies how an immutable mesh snapshot was constructed.</summary>
@@ -23,10 +24,12 @@ namespace EarthTool.MSH.Assets
   {
     /// <summary>Accepted from serialized MSH input.</summary>
     Loaded = 0,
+
     /// <summary>Created through a canonical semantic builder.</summary>
     Canonical = 1,
+
     /// <summary>Created through the exact serialized expert boundary.</summary>
-    Expert = 2
+    Expert = 2,
   }
 
   /// <summary>Scopes nonserialized object identities to one mesh lineage.</summary>
@@ -65,6 +68,7 @@ namespace EarthTool.MSH.Assets
   {
     /// <summary>Gets the owning lineage.</summary>
     public MeshAssetLineageId Lineage { get; }
+
     /// <summary>Gets the lineage-local value.</summary>
     public int Value { get; }
 
@@ -99,6 +103,7 @@ namespace EarthTool.MSH.Assets
   {
     /// <summary>Gets the owning lineage.</summary>
     public MeshAssetLineageId Lineage { get; }
+
     /// <summary>Gets the lineage-local value.</summary>
     public int Value { get; }
 
@@ -177,7 +182,8 @@ namespace EarthTool.MSH.Assets
       CommonMeshBaseHeader commonBaseHeader,
       byte[] rootTrailingBytes,
       MeshAssetOrigin origin,
-      byte[] serializedRepresentation)
+      byte[] serializedRepresentation
+    )
     {
       LineageId = lineageId;
       ArchiveFraming = archiveFraming;
@@ -190,10 +196,14 @@ namespace EarthTool.MSH.Assets
     /// <summary>Matches the closed asset branch without a concrete cast.</summary>
     public abstract TResult Match<TResult>(
       Func<StaticMeshAsset, TResult> onStatic,
-      Func<DynamicMeshAsset, TResult> onDynamic);
+      Func<DynamicMeshAsset, TResult> onDynamic
+    );
 
     /// <summary>Visits the closed asset branch without a concrete cast.</summary>
-    public abstract void Match(Action<StaticMeshAsset> onStatic, Action<DynamicMeshAsset> onDynamic);
+    public abstract void Match(
+      Action<StaticMeshAsset> onStatic,
+      Action<DynamicMeshAsset> onDynamic
+    );
 
     internal byte[] GetSerializedRepresentation()
     {
@@ -208,10 +218,13 @@ namespace EarthTool.MSH.Assets
   {
     /// <summary>Gets the class A byte.</summary>
     public byte A { get; }
+
     /// <summary>Gets the class B byte.</summary>
     public byte B { get; }
+
     /// <summary>Gets the class C byte.</summary>
     public byte C { get; }
+
     /// <summary>Gets the class D byte.</summary>
     public byte D { get; }
 
@@ -248,12 +261,15 @@ namespace EarthTool.MSH.Assets
   {
     /// <summary>Animation class A.</summary>
     A = 0,
+
     /// <summary>Animation class B.</summary>
     B = 1,
+
     /// <summary>Animation class C.</summary>
     C = 2,
+
     /// <summary>Animation class D.</summary>
-    D = 3
+    D = 3,
   }
 
   /// <summary>Represents an immutable static MSH asset.</summary>
@@ -293,17 +309,39 @@ namespace EarthTool.MSH.Assets
       uint storedTrailingHierarchyUnwindCount,
       uint expectedTrailingHierarchyUnwindCount,
       int? nextStaticRenderObjectLocalId,
-      int? nextSourceObjectLocalId)
-      : base(lineageId, archiveFraming, commonBaseHeader, rootTrailingBytes, origin, serializedRepresentation)
+      int? nextSourceObjectLocalId
+    )
+      : base(
+        lineageId,
+        archiveFraming,
+        commonBaseHeader,
+        rootTrailingBytes,
+        origin,
+        serializedRepresentation
+      )
     {
       StaticRenderObjectSequence = Array.AsReadOnly(
-        new List<StaticRenderObject>(staticRenderObjectSequence).ToArray());
-      RootSourceObject = rootSourceObject;
+        new List<StaticRenderObject>(staticRenderObjectSequence).ToArray()
+      );
+      var renderObjectsById = StaticRenderObjectSequence.ToDictionary(item => item.Id);
+      RootSourceObject = BindRenderObjects(rootSourceObject, renderObjectsById);
       RootSourceObjectId = rootSourceObject.Id;
       StoredTrailingHierarchyUnwindCount = storedTrailingHierarchyUnwindCount;
       ExpectedTrailingHierarchyUnwindCount = expectedTrailingHierarchyUnwindCount;
       NextStaticRenderObjectLocalId = nextStaticRenderObjectLocalId;
       NextSourceObjectLocalId = nextSourceObjectLocalId;
+    }
+
+    private static StaticSourceObject BindRenderObjects(
+      StaticSourceObject source,
+      IReadOnlyDictionary<StaticRenderObjectId, StaticRenderObject> renderObjects
+    )
+    {
+      return new StaticSourceObject(
+        source.Id,
+        source.StaticRenderObjectIds.Select(item => renderObjects[item]),
+        source.Children.Select(child => BindRenderObjects(child, renderObjects))
+      );
     }
 
     /// <summary>Starts a one-shot edit session for this snapshot.</summary>
@@ -315,7 +353,8 @@ namespace EarthTool.MSH.Assets
     /// <inheritdoc />
     public override TResult Match<TResult>(
       Func<StaticMeshAsset, TResult> onStatic,
-      Func<DynamicMeshAsset, TResult> onDynamic)
+      Func<DynamicMeshAsset, TResult> onDynamic
+    )
     {
       if (onStatic is null)
       {
@@ -353,22 +392,30 @@ namespace EarthTool.MSH.Assets
   {
     /// <summary>No recognized role.</summary>
     None = 0,
+
     /// <summary>Faces the active viewer.</summary>
     ViewerFaced = 0x00000100,
+
     /// <summary>Uses the barrel transform role.</summary>
     Barrel = 0x00000200,
+
     /// <summary>Uses the rotor transform role.</summary>
     Rotor = 0x00000400,
+
     /// <summary>Begins a nested source object after applying the hierarchy unwind.</summary>
     BeginsNestedSourceObject = 0x00000800,
+
     /// <summary>Uses marker attachment 1.</summary>
     MarkerAttachment1 = 0x00001000,
+
     /// <summary>Uses marker attachment 2.</summary>
     MarkerAttachment2 = 0x00002000,
+
     /// <summary>Uses marker attachment 3.</summary>
     MarkerAttachment3 = 0x00004000,
+
     /// <summary>Uses marker attachment 4.</summary>
-    MarkerAttachment4 = 0x00008000
+    MarkerAttachment4 = 0x00008000,
   }
 
   internal static class StaticRenderObjectFlagMasks
@@ -380,13 +427,16 @@ namespace EarthTool.MSH.Assets
       | StaticRenderObjectFlags.MarkerAttachment4;
   }
 
-  /// <summary>Groups render-object identities belonging to one reconstructed source object.</summary>
+  /// <summary>Groups render objects belonging to one reconstructed source object.</summary>
   public sealed class StaticSourceObject
   {
     /// <summary>Gets the lineage-scoped source-object identity.</summary>
     public SourceObjectId Id { get; }
 
     /// <summary>Gets render-object references in authoritative sequence order.</summary>
+    public IReadOnlyList<StaticRenderObject> StaticRenderObjects { get; }
+
+    /// <summary>Gets lineage-scoped render-object identities in authoritative sequence order.</summary>
     public IReadOnlyList<StaticRenderObjectId> StaticRenderObjectIds { get; }
 
     /// <summary>Gets nested source objects in first-seen sequence order.</summary>
@@ -395,10 +445,25 @@ namespace EarthTool.MSH.Assets
     internal StaticSourceObject(
       SourceObjectId id,
       IEnumerable<StaticRenderObjectId> staticRenderObjectIds,
-      IEnumerable<StaticSourceObject> children)
+      IEnumerable<StaticSourceObject> children
+    )
     {
       Id = id;
+      StaticRenderObjects = Array.Empty<StaticRenderObject>();
       StaticRenderObjectIds = Array.AsReadOnly(staticRenderObjectIds.ToArray());
+      Children = Array.AsReadOnly(children.ToArray());
+    }
+
+    internal StaticSourceObject(
+      SourceObjectId id,
+      IEnumerable<StaticRenderObject> staticRenderObjects,
+      IEnumerable<StaticSourceObject> children
+    )
+    {
+      Id = id;
+      var renderObjects = staticRenderObjects.ToArray();
+      StaticRenderObjects = Array.AsReadOnly(renderObjects);
+      StaticRenderObjectIds = Array.AsReadOnly(renderObjects.Select(item => item.Id).ToArray());
       Children = Array.AsReadOnly(children.ToArray());
     }
   }
@@ -418,7 +483,8 @@ namespace EarthTool.MSH.Assets
     internal StaticAnimationTracks(
       IEnumerable<Vector3> scaleFrames,
       IEnumerable<Vector3> translationFrames,
-      IEnumerable<Matrix4x4> matrices)
+      IEnumerable<Matrix4x4> matrices
+    )
     {
       ScaleFrames = Array.AsReadOnly(scaleFrames.ToArray());
       TranslationFrames = Array.AsReadOnly(translationFrames.ToArray());
@@ -475,9 +541,8 @@ namespace EarthTool.MSH.Assets
     public uint AnimationClassValue { get; }
 
     /// <summary>Gets the recognized animation class, or null for another exact value.</summary>
-    public StaticAnimationClass? KnownAnimationClass => AnimationClassValue <= 3
-      ? (StaticAnimationClass)AnimationClassValue
-      : null;
+    public StaticAnimationClass? KnownAnimationClass =>
+      AnimationClassValue <= 3 ? (StaticAnimationClass)AnimationClassValue : null;
 
     /// <summary>Gets the source-object pivot in MSH coordinates.</summary>
     public Vector3 Pivot { get; }
@@ -502,7 +567,8 @@ namespace EarthTool.MSH.Assets
       Vector3 pivot,
       byte barrelMaximumAngle,
       uint nextRecordMarker,
-      byte[] serializedRepresentation)
+      byte[] serializedRepresentation
+    )
     {
       Id = id;
       SourceObjectId = sourceObjectId;
@@ -531,34 +597,48 @@ namespace EarthTool.MSH.Assets
   {
     /// <summary>Child-container effect.</summary>
     Group = 0,
+
     /// <summary>Explosion effect.</summary>
     Explosion = 1,
+
     /// <summary>Track effect.</summary>
     Track = 2,
+
     /// <summary>Scalable-object effect.</summary>
     ScalableObject = 3,
+
     /// <summary>Mapped explosion effect.</summary>
     MappedExplosion = 4,
+
     /// <summary>Flat explosion effect.</summary>
     FlatExplosion = 5,
+
     /// <summary>Laser effect.</summary>
     Laser = 6,
+
     /// <summary>Laser-wall effect.</summary>
     LaserWall = 7,
+
     /// <summary>Shockwave effect.</summary>
     Shockwave = 8,
+
     /// <summary>Line effect.</summary>
     Line = 9,
+
     /// <summary>Sphere effect.</summary>
     Sphere = 10,
+
     /// <summary>Electrical-cannon effect.</summary>
     ElectricalCannon = 11,
+
     /// <summary>Lightning effect.</summary>
     Lightning = 12,
+
     /// <summary>Smoke effect.</summary>
     Smoke = 13,
+
     /// <summary>Keelwater effect.</summary>
-    Keelwater = 14
+    Keelwater = 14,
   }
 
   /// <summary>Names recognized dynamic terrain-light values.</summary>
@@ -566,12 +646,15 @@ namespace EarthTool.MSH.Assets
   {
     /// <summary>Constant intensity.</summary>
     Constant = 0,
+
     /// <summary>Pyramid intensity profile.</summary>
     Pyramid = 1,
+
     /// <summary>Trapezium intensity profile.</summary>
     Trapezium = 2,
+
     /// <summary>Random intensity profile.</summary>
-    Random = 3
+    Random = 3,
   }
 
   /// <summary>Names canonical alpha interpolation timing modes.</summary>
@@ -579,8 +662,9 @@ namespace EarthTool.MSH.Assets
   {
     /// <summary>Interpolate alpha with the selected frame phase.</summary>
     FramePhase = 0,
+
     /// <summary>Interpolate alpha with lifetime progress.</summary>
-    LifetimeProgress = 1
+    LifetimeProgress = 1,
   }
 
   /// <summary>Preserves one four-lane dynamic-effect rectangle.</summary>
@@ -588,18 +672,25 @@ namespace EarthTool.MSH.Assets
   {
     /// <summary>Gets the first X lane.</summary>
     public float X0 { get; }
+
     /// <summary>Gets the first Y lane.</summary>
     public float Y1 { get; }
+
     /// <summary>Gets the second X lane.</summary>
     public float X1 { get; }
+
     /// <summary>Gets the second Y lane.</summary>
     public float Y0 { get; }
+
     /// <summary>Gets the semantic left lane without sorting.</summary>
     public float Left => X0;
+
     /// <summary>Gets the semantic top lane without sorting.</summary>
     public float Top => Y1;
+
     /// <summary>Gets the semantic right lane without sorting.</summary>
     public float Right => X1;
+
     /// <summary>Gets the semantic bottom lane without sorting.</summary>
     public float Bottom => Y0;
 
@@ -639,91 +730,124 @@ namespace EarthTool.MSH.Assets
   {
     /// <summary>Gets the exact serialized effect value.</summary>
     public uint EffectType { get; }
+
     /// <summary>Gets the recognized effect view, or null for an unrecognized value.</summary>
     public DynamicEffectType? KnownEffectType { get; }
+
     /// <summary>Gets the exact serialized light value.</summary>
     public uint LightType { get; }
+
     /// <summary>Gets the recognized light view, or null for an unrecognized value.</summary>
     public DynamicLightType? KnownLightType { get; }
+
     /// <summary>Gets the first source frame.</summary>
     public int FirstSourceFrame { get; }
+
     /// <summary>Gets the exact signed frame-count representation.</summary>
     public int FrameCount { get; }
+
     /// <summary>Gets the sprite-sheet column count.</summary>
     public int SpriteSheetColumnCount { get; }
+
     /// <summary>Gets the sprite-sheet row count.</summary>
     public int SpriteSheetRowCount { get; }
+
     /// <summary>Gets the frame period in simulation ticks.</summary>
     public int FramePeriodTicks { get; }
+
     /// <summary>Gets the serialized reciprocal column count.</summary>
     public float ReciprocalColumnCount { get; }
+
     /// <summary>Gets the serialized reciprocal row count.</summary>
     public float ReciprocalRowCount { get; }
+
     /// <summary>Gets the start effect rectangle.</summary>
     public EffectRectangle StartEffectRectangle { get; }
+
     /// <summary>Gets the end effect rectangle.</summary>
     public EffectRectangle EndEffectRectangle { get; }
+
     /// <summary>Gets the effect depth offset.</summary>
     public float EffectDepthOffset { get; }
+
     /// <summary>Gets the signed ribbon half-width.</summary>
     public float RibbonHalfWidth { get; }
+
     /// <summary>Gets the preserved reserved dynamic word.</summary>
     public uint ReservedWord { get; }
+
     /// <summary>Gets the exact additive-flag representation.</summary>
     public int AdditiveFlag { get; }
+
     /// <summary>Gets whether the exact additive representation selects additive blending.</summary>
     public bool UsesAdditiveBlending => AdditiveFlag != 0;
+
     /// <summary>Gets the terrain-light RGB values.</summary>
     public Vector3 TerrainLightColor { get; }
+
     /// <summary>Gets the visible effect RGB values.</summary>
     public Vector3 VisibleEffectColor { get; }
+
     /// <summary>Gets the visible terrain-light gain.</summary>
     public float VisibleTerrainLightGain { get; }
+
     /// <summary>Gets the exact alpha timing mode.</summary>
     public int AlphaTimingMode { get; }
+
     /// <summary>Gets the canonical alpha timing value, or null for another exact nonzero representation.</summary>
     public DynamicAlphaTiming? KnownAlphaTiming { get; }
+
     /// <summary>Gets whether alpha interpolation uses lifetime progress.</summary>
     public bool UsesLifetimeProgressAlpha => AlphaTimingMode != 0;
+
     /// <summary>Gets the end alpha.</summary>
     public float EndAlpha { get; }
+
     /// <summary>Gets the start alpha.</summary>
     public float StartAlpha { get; }
+
     /// <summary>Gets the end model scale.</summary>
     public float EndModelScale { get; }
+
     /// <summary>Gets the start model scale.</summary>
     public float StartModelScale { get; }
+
     /// <summary>Gets the child start translation in MSH coordinates.</summary>
     public Vector3 ChildStartTranslation { get; }
+
     /// <summary>Gets the child end translation in MSH coordinates.</summary>
     public Vector3 ChildEndTranslation { get; }
+
     /// <summary>Gets the exact mesh-name bytes.</summary>
     public IReadOnlyList<byte> MeshNameBytes { get; }
+
     /// <summary>Gets the exact texture-path bytes.</summary>
     public IReadOnlyList<byte> TexturePathBytes { get; }
+
     /// <summary>Gets the exact fixed 0x9C-byte extension representation.</summary>
     public IReadOnlyList<byte> SerializedRepresentation { get; }
 
     internal DynamicEffectExtension(
       byte[] serializedRepresentation,
       byte[] meshNameBytes,
-      byte[] texturePathBytes)
+      byte[] texturePathBytes
+    )
     {
       if (serializedRepresentation.Length != 0x9C)
       {
-        throw new ArgumentException("A fixed dynamic extension must contain exactly 0x9C bytes.",
-          nameof(serializedRepresentation));
+        throw new ArgumentException(
+          "A fixed dynamic extension must contain exactly 0x9C bytes.",
+          nameof(serializedRepresentation)
+        );
       }
 
       var data = serializedRepresentation.AsSpan();
       EffectType = ReadUInt32(data, 0x00);
-      KnownEffectType = EffectType <= (uint)DynamicEffectType.Keelwater
-        ? (DynamicEffectType)EffectType
-        : null;
+      KnownEffectType =
+        EffectType <= (uint)DynamicEffectType.Keelwater ? (DynamicEffectType)EffectType : null;
       LightType = ReadUInt32(data, 0x04);
-      KnownLightType = LightType <= (uint)DynamicLightType.Random
-        ? (DynamicLightType)LightType
-        : null;
+      KnownLightType =
+        LightType <= (uint)DynamicLightType.Random ? (DynamicLightType)LightType : null;
       FirstSourceFrame = ReadInt32(data, 0x08);
       FrameCount = ReadInt32(data, 0x0C);
       SpriteSheetColumnCount = ReadInt32(data, 0x10);
@@ -741,11 +865,10 @@ namespace EarthTool.MSH.Assets
       VisibleEffectColor = ReadVector3(data, 0x60, invertY: false);
       VisibleTerrainLightGain = ReadSingle(data, 0x6C);
       AlphaTimingMode = ReadInt32(data, 0x70);
-      KnownAlphaTiming = AlphaTimingMode == 0
-        ? DynamicAlphaTiming.FramePhase
-        : AlphaTimingMode == 1
-          ? DynamicAlphaTiming.LifetimeProgress
-          : null;
+      KnownAlphaTiming =
+        AlphaTimingMode == 0 ? DynamicAlphaTiming.FramePhase
+        : AlphaTimingMode == 1 ? DynamicAlphaTiming.LifetimeProgress
+        : null;
       EndAlpha = ReadSingle(data, 0x74);
       StartAlpha = ReadSingle(data, 0x78);
       EndModelScale = ReadSingle(data, 0x7C);
@@ -763,7 +886,8 @@ namespace EarthTool.MSH.Assets
         ReadSingle(data, offset),
         ReadSingle(data, offset + 4),
         ReadSingle(data, offset + 8),
-        ReadSingle(data, offset + 12));
+        ReadSingle(data, offset + 12)
+      );
     }
 
     private static Vector3 ReadVector3(ReadOnlySpan<byte> data, int offset, bool invertY)
@@ -793,15 +917,18 @@ namespace EarthTool.MSH.Assets
   {
     /// <summary>Gets the exact inherited common base header.</summary>
     public CommonMeshBaseHeader CommonBaseHeader { get; }
+
     /// <summary>Gets the complete dynamic-effect extension.</summary>
     public DynamicEffectExtension Extension { get; }
+
     /// <summary>Gets the ordered child objects.</summary>
     public IReadOnlyList<DynamicObject> Children { get; }
 
     internal DynamicObject(
       CommonMeshBaseHeader commonBaseHeader,
       DynamicEffectExtension extension,
-      IEnumerable<DynamicObject> children)
+      IEnumerable<DynamicObject> children
+    )
     {
       CommonBaseHeader = commonBaseHeader;
       Extension = extension;
@@ -825,8 +952,16 @@ namespace EarthTool.MSH.Assets
       DynamicObject rootDynamicObject,
       byte[] rootTrailingBytes,
       byte[] serializedRepresentation,
-      MeshAssetOrigin origin)
-      : base(lineageId, archiveFraming, commonBaseHeader, rootTrailingBytes, origin, serializedRepresentation)
+      MeshAssetOrigin origin
+    )
+      : base(
+        lineageId,
+        archiveFraming,
+        commonBaseHeader,
+        rootTrailingBytes,
+        origin,
+        serializedRepresentation
+      )
     {
       RootDynamicObject = rootDynamicObject;
     }
@@ -834,7 +969,8 @@ namespace EarthTool.MSH.Assets
     /// <inheritdoc />
     public override TResult Match<TResult>(
       Func<StaticMeshAsset, TResult> onStatic,
-      Func<DynamicMeshAsset, TResult> onDynamic)
+      Func<DynamicMeshAsset, TResult> onDynamic
+    )
     {
       if (onDynamic is null)
       {
@@ -893,7 +1029,8 @@ namespace EarthTool.MSH.Assets
       Vector2 textureCoordinate,
       float textureCoordinateReserved = 0,
       ushort normalSharingIndex = ushort.MaxValue,
-      ushort positionSharingIndex = ushort.MaxValue)
+      ushort positionSharingIndex = ushort.MaxValue
+    )
     {
       Position = position;
       Normal = normal;
@@ -923,8 +1060,14 @@ namespace EarthTool.MSH.Assets
     /// <inheritdoc />
     public override int GetHashCode()
     {
-      return (Position, Normal, TextureCoordinate, ReservedTextureComponent,
-        NormalSharingIndex, PositionSharingIndex).GetHashCode();
+      return (
+        Position,
+        Normal,
+        TextureCoordinate,
+        ReservedTextureComponent,
+        NormalSharingIndex,
+        PositionSharingIndex
+      ).GetHashCode();
     }
   }
 
@@ -944,7 +1087,12 @@ namespace EarthTool.MSH.Assets
     public ushort TriangleRenderPassFlags { get; }
 
     /// <summary>Initializes a static triangle.</summary>
-    public StaticTriangle(ushort vertex0, ushort vertex1, ushort vertex2, ushort triangleRenderPassFlags)
+    public StaticTriangle(
+      ushort vertex0,
+      ushort vertex1,
+      ushort vertex2,
+      ushort triangleRenderPassFlags
+    )
     {
       Vertex0 = vertex0;
       Vertex1 = vertex1;

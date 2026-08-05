@@ -34,27 +34,24 @@ public class MetadataGraphValidationTests
   [Fact]
   public void PreservedUnknownMetadataRequiresAnAdditivePointerAndValidRawJson()
   {
-    var knownMember = () => new GltfExportOptions(
-      _lineageId,
-      _documentId,
-      preservedUnknownMetadata: new Dictionary<string, string>
-      {
-        ["manifest:0:/format"] = "1"
-      });
-    var invalidJson = () => new GltfExportOptions(
-      _lineageId,
-      _documentId,
-      preservedUnknownMetadata: new Dictionary<string, string>
-      {
-        ["manifest:0:/future"] = "{"
-      });
-    var noncanonicalScope = () => new GltfExportOptions(
-      _lineageId,
-      _documentId,
-      preservedUnknownMetadata: new Dictionary<string, string>
-      {
-        ["object:01:/future"] = "1"
-      });
+    var knownMember = () =>
+      new GltfExportOptions(
+        _lineageId,
+        _documentId,
+        preservedUnknownMetadata: new Dictionary<string, string> { ["manifest:0:/format"] = "1" }
+      );
+    var invalidJson = () =>
+      new GltfExportOptions(
+        _lineageId,
+        _documentId,
+        preservedUnknownMetadata: new Dictionary<string, string> { ["manifest:0:/future"] = "{" }
+      );
+    var noncanonicalScope = () =>
+      new GltfExportOptions(
+        _lineageId,
+        _documentId,
+        preservedUnknownMetadata: new Dictionary<string, string> { ["object:01:/future"] = "1" }
+      );
 
     knownMember.Should().Throw<ArgumentException>();
     invalidJson.Should().Throw<ArgumentException>();
@@ -64,15 +61,23 @@ public class MetadataGraphValidationTests
   [Fact]
   public void MetadataConflictCatalogMatchesSerializedApproval()
   {
-    var actual = JsonSerializer.Serialize(
-      GltfMetadataConflictCatalog.ActionsByCode,
-      new JsonSerializerOptions { WriteIndented = true }).ReplaceLineEndings("\n") + "\n";
+    var actual =
+      JsonSerializer
+        .Serialize(
+          GltfMetadataConflictCatalog.ActionsByCode,
+          new JsonSerializerOptions { WriteIndented = true }
+        )
+        .ReplaceLineEndings("\n") + "\n";
     var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../.."));
-    var approved = File.ReadAllText(Path.Combine(
-      root,
-      "EarthTool.MSH.Tests",
-      "Approvals",
-      "gltf-metadata-conflicts.approved.json")).ReplaceLineEndings("\n");
+    var approved = File.ReadAllText(
+        Path.Combine(
+          root,
+          "EarthTool.MSH.Tests",
+          "Approvals",
+          "gltf-metadata-conflicts.approved.json"
+        )
+      )
+      .ReplaceLineEndings("\n");
 
     actual.Should().Be(approved);
   }
@@ -80,13 +85,16 @@ public class MetadataGraphValidationTests
   [Fact]
   public void MetadataConflictCatalogCoversTheCompleteReservedRange()
   {
-    GltfMetadataConflictCatalog.ActionsByCode.Keys.Should().Equal(
-      Enumerable.Range(2000, 21).Select(eventId => $"ETG{eventId}"));
-    GltfMetadataConflictCatalog.ActionsByCode.Values.Should().AllSatisfy(actions =>
-    {
-      actions.Should().NotBeEmpty();
-      actions.Should().OnlyHaveUniqueItems();
-    });
+    GltfMetadataConflictCatalog
+      .ActionsByCode.Keys.Should()
+      .Equal(Enumerable.Range(2000, 21).Select(eventId => $"ETG{eventId}"));
+    GltfMetadataConflictCatalog
+      .ActionsByCode.Values.Should()
+      .AllSatisfy(actions =>
+      {
+        actions.Should().NotBeEmpty();
+        actions.Should().OnlyHaveUniqueItems();
+      });
   }
 
   [Fact]
@@ -94,22 +102,24 @@ public class MetadataGraphValidationTests
   {
     var (bytes, _) = await ExportFixtureAsync();
     var root = ReadJson(bytes);
-    var graph = new List<JsonObject>
-    {
-      DescribeEnvelope("scenes[0]", root["scenes"]![0]!)
-    };
+    var graph = new List<JsonObject> { DescribeEnvelope("scenes[0]", root["scenes"]![0]!) };
     AddEnvelopeDescriptions(graph, root, "nodes");
     AddEnvelopeDescriptions(graph, root, "meshes");
     AddEnvelopeDescriptions(graph, root, "materials");
-    var actual = JsonSerializer.Serialize(
-      graph,
-      new JsonSerializerOptions { WriteIndented = true }).ReplaceLineEndings("\n") + "\n";
+    var actual =
+      JsonSerializer
+        .Serialize(graph, new JsonSerializerOptions { WriteIndented = true })
+        .ReplaceLineEndings("\n") + "\n";
     var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../.."));
-    var approved = File.ReadAllText(Path.Combine(
-      repositoryRoot,
-      "EarthTool.MSH.Tests",
-      "Approvals",
-      "gltf-metadata-graph.approved.json")).ReplaceLineEndings("\n");
+    var approved = File.ReadAllText(
+        Path.Combine(
+          repositoryRoot,
+          "EarthTool.MSH.Tests",
+          "Approvals",
+          "gltf-metadata-graph.approved.json"
+        )
+      )
+      .ReplaceLineEndings("\n");
 
     actual.Should().Be(approved);
   }
@@ -130,7 +140,10 @@ public class MetadataGraphValidationTests
     manifest["guards"].Should().BeOfType<JsonObject>();
     manifest["payload"]!["origin"]!["kind"]!.GetValue<string>().Should().Be("mshExport");
     manifest["payload"]!["asset"].Should().BeOfType<JsonObject>();
-    manifest["payload"]!["asset"]!["sourceMsh"]!.GetValue<string>().Should().MatchRegex("^[A-Za-z0-9_-]+$");
+    manifest["payload"]!["asset"]!["sourceMsh"]!
+      .GetValue<string>()
+      .Should()
+      .MatchRegex("^[A-Za-z0-9_-]+$");
     manifest["payload"]!["inventory"]!["object"].Should().BeOfType<JsonArray>();
     manifest["payload"]!["inventory"]!["mesh"].Should().BeOfType<JsonArray>();
     manifest["payload"]!["inventory"]!["material"].Should().BeOfType<JsonArray>();
@@ -145,15 +158,19 @@ public class MetadataGraphValidationTests
     string member,
     string replacement,
     string expectedCode,
-    int expectedEventId)
+    int expectedEventId
+  )
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var metadata = ReadEnvelope(root["scenes"]![0]!);
-      metadata[member] = member == "id" ? int.Parse(replacement) : replacement;
-      WriteEnvelope(root["scenes"]![0]!, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var metadata = ReadEnvelope(root["scenes"]![0]!);
+        metadata[member] = member == "id" ? int.Parse(replacement) : replacement;
+        WriteEnvelope(root["scenes"]![0]!, metadata);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -164,8 +181,10 @@ public class MetadataGraphValidationTests
   public async Task NonStringReservedCarrierProducesCarrierConflict()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-      root["scenes"]![0]!["extras"]!["earthtool"] = new JsonObject());
+    var edited = RewriteJson(
+      bytes,
+      root => root["scenes"]![0]!["extras"]!["earthtool"] = new JsonObject()
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -177,17 +196,21 @@ public class MetadataGraphValidationTests
   public async Task DuplicateExtrasCarrierProducesCarrierConflict()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteRawJson(bytes, root =>
-    {
-      var scene = root["scenes"]![0]!;
-      var sceneJson = scene.ToJsonString();
-      var duplicateScene = sceneJson.Insert(
-        sceneJson.Length - 1,
-        ",\"extras\":" + scene["extras"]!.ToJsonString());
-      var json = root.ToJsonString();
-      var offset = json.IndexOf(sceneJson, StringComparison.Ordinal);
-      return json.Remove(offset, sceneJson.Length).Insert(offset, duplicateScene);
-    });
+    var edited = RewriteRawJson(
+      bytes,
+      root =>
+      {
+        var scene = root["scenes"]![0]!;
+        var sceneJson = scene.ToJsonString();
+        var duplicateScene = sceneJson.Insert(
+          sceneJson.Length - 1,
+          ",\"extras\":" + scene["extras"]!.ToJsonString()
+        );
+        var json = root.ToJsonString();
+        var offset = json.IndexOf(sceneJson, StringComparison.Ordinal);
+        return json.Remove(offset, sceneJson.Length).Insert(offset, duplicateScene);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -213,16 +236,21 @@ public class MetadataGraphValidationTests
     var conflict = await ImportAsync(edited, baseline);
     var resolution = new GltfMetadataConflictResolution(
       conflict.Diagnostics.Single().Data["conflictKey"],
-      GltfMetadataConflictActions.DiscardLineage);
+      GltfMetadataConflictActions.DiscardLineage
+    );
 
     var result = await ImportAsync(
       edited,
       baseline,
-      options: new GltfEditImportOptions(new[] { resolution }));
+      options: new GltfEditImportOptions(new[] { resolution })
+    );
 
-    result.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    result
+      .Status.Should()
+      .Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message))
+      );
     result.Value!.LineageDisposition.Should().Be(GltfMetadataLineageDisposition.Discarded);
     result.Value.NextBaseline.AssetLineageId.Should().NotBe(baseline.AssetLineageId);
   }
@@ -231,10 +259,10 @@ public class MetadataGraphValidationTests
   public async Task AdditionalSceneProducesTheAssignedSceneConflict()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root => root["scenes"]!.AsArray().Add(new JsonObject
-    {
-      ["nodes"] = new JsonArray()
-    }));
+    var edited = RewriteJson(
+      bytes,
+      root => root["scenes"]!.AsArray().Add(new JsonObject { ["nodes"] = new JsonArray() })
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -245,11 +273,14 @@ public class MetadataGraphValidationTests
   public async Task UnsupportedVersionRemainsOpaqueInsteadOfSalvagingIdentity()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var scene = root["scenes"]![0]!;
-      WriteEnvelope(scene, "{\"version\":2,\"future\":1,\"future\":2}");
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var scene = root["scenes"]![0]!;
+        WriteEnvelope(scene, "{\"version\":2,\"future\":1,\"future\":2}");
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -262,13 +293,16 @@ public class MetadataGraphValidationTests
   public async Task FractionalVersionIsMalformedRatherThanUnsupported()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var scene = root["scenes"]![0]!;
-      var metadata = ReadEnvelope(scene);
-      metadata["version"] = 1.5;
-      WriteEnvelope(scene, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var scene = root["scenes"]![0]!;
+        var metadata = ReadEnvelope(scene);
+        metadata["version"] = 1.5;
+        WriteEnvelope(scene, metadata);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -279,12 +313,15 @@ public class MetadataGraphValidationTests
   public async Task UnsupportedGuardDiagnosticIdentifiesItsCarrier()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var metadata = ReadEnvelope(root["meshes"]![0]!);
-      metadata["guards"]!["nativeProjection"]!["version"] = 0;
-      WriteEnvelope(root["meshes"]![0]!, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var metadata = ReadEnvelope(root["meshes"]![0]!);
+        metadata["guards"]!["nativeProjection"]!["version"] = 0;
+        WriteEnvelope(root["meshes"]![0]!, metadata);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -305,32 +342,48 @@ public class MetadataGraphValidationTests
 
     var resolution = new GltfMetadataConflictResolution(
       result.Diagnostics.Single().Data["conflictKey"],
-      GltfMetadataConflictActions.AcceptDeletion);
+      GltfMetadataConflictActions.AcceptDeletion
+    );
     var accepted = await ImportAsync(
       edited,
       baseline,
-      options: new GltfEditImportOptions(new[] { resolution }));
+      options: new GltfEditImportOptions(new[] { resolution })
+    );
 
-    accepted.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", accepted.Diagnostics.Select(diagnostic => diagnostic.Message)));
-    accepted.Value!.Asset.StaticRenderObjectSequence.Should().ContainSingle().Subject.LocalId
-      .Should().Be(1);
-    accepted.Value.RestoredSerializedRepresentationPaths.Should().NotContain(
-      "StaticRenderObjectSequence[0]");
-    accepted.Value.AppliedConflictResolutions.Should().ContainSingle().Which.Should().BeSameAs(resolution);
+    accepted
+      .Status.Should()
+      .Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", accepted.Diagnostics.Select(diagnostic => diagnostic.Message))
+      );
+    accepted
+      .Value!.Asset.StaticRenderObjectSequence.Should()
+      .ContainSingle()
+      .Subject.LocalId.Should()
+      .Be(1);
+    accepted
+      .Value.RestoredSerializedRepresentationPaths.Should()
+      .NotContain("StaticRenderObjectSequence[0]");
+    accepted
+      .Value.AppliedConflictResolutions.Should()
+      .ContainSingle()
+      .Which.Should()
+      .BeSameAs(resolution);
   }
 
   [Fact]
   public async Task PartitionReferenceToAnUnknownMaterialProducesTheAssignedConflict()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var metadata = ReadEnvelope(root["meshes"]![0]!);
-      metadata["payload"]!["partitions"]![0]!["localId"] = int.MaxValue;
-      WriteEnvelope(root["meshes"]![0]!, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var metadata = ReadEnvelope(root["meshes"]![0]!);
+        metadata["payload"]!["partitions"]![0]!["localId"] = int.MaxValue;
+        WriteEnvelope(root["meshes"]![0]!, metadata);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -342,28 +395,44 @@ public class MetadataGraphValidationTests
   public async Task MapScopeRebindsOnlyTheConflictedReference()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var metadata = ReadEnvelope(root["meshes"]![0]!);
-      metadata["payload"]!["partitions"]![0]!["localId"] = int.MaxValue;
-      WriteEnvelope(root["meshes"]![0]!, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var metadata = ReadEnvelope(root["meshes"]![0]!);
+        metadata["payload"]!["partitions"]![0]!["localId"] = int.MaxValue;
+        WriteEnvelope(root["meshes"]![0]!, metadata);
+      }
+    );
     var conflict = await ImportAsync(edited, baseline);
     var resolution = new GltfMetadataConflictResolution(
       conflict.Diagnostics.Single().Data["conflictKey"],
       GltfMetadataConflictActions.MapScope,
-      "materials[0]");
+      "materials[0]"
+    );
 
     var result = await ImportAsync(
       edited,
       baseline,
-      options: new GltfEditImportOptions(new[] { resolution }));
+      options: new GltfEditImportOptions(new[] { resolution })
+    );
 
-    result.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-    result.Value!.AppliedConflictResolutions.Should().ContainSingle().Which.Should().BeSameAs(resolution);
-    result.Value.Asset.StaticRenderObjectSequence.Should().ContainSingle().Subject.LocalId.Should().Be(1);
+    result
+      .Status.Should()
+      .Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message))
+      );
+    result
+      .Value!.AppliedConflictResolutions.Should()
+      .ContainSingle()
+      .Which.Should()
+      .BeSameAs(resolution);
+    result
+      .Value.Asset.StaticRenderObjectSequence.Should()
+      .ContainSingle()
+      .Subject.LocalId.Should()
+      .Be(1);
   }
 
   [Fact]
@@ -376,38 +445,54 @@ public class MetadataGraphValidationTests
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
-    result.Diagnostics.Select(diagnostic => (diagnostic.Code, diagnostic.Path)).Should().Equal(
-      (GltfDiagnosticCodes.MissingExpectedScope, "materials[0]"),
-      (GltfDiagnosticCodes.DanglingMetadataReference, "meshes[0].payload.partitions[0].localId"));
+    result
+      .Diagnostics.Select(diagnostic => (diagnostic.Code, diagnostic.Path))
+      .Should()
+      .Equal(
+        (GltfDiagnosticCodes.MissingExpectedScope, "materials[0]"),
+        (GltfDiagnosticCodes.DanglingMetadataReference, "meshes[0].payload.partitions[0].localId")
+      );
     result.Diagnostics[1].Data["nativePath"].Should().Be("materials");
 
     var resolution = new GltfMetadataConflictResolution(
       result.Diagnostics[0].Data["conflictKey"],
-      GltfMetadataConflictActions.AcceptDeletion);
+      GltfMetadataConflictActions.AcceptDeletion
+    );
     var accepted = await ImportAsync(
       edited,
       baseline,
-      options: new GltfEditImportOptions(new[] { resolution }));
+      options: new GltfEditImportOptions(new[] { resolution })
+    );
 
-    accepted.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", accepted.Diagnostics.Select(diagnostic => diagnostic.Message)));
-    accepted.Value!.AppliedConflictResolutions.Should().ContainSingle().Which.Should().BeSameAs(resolution);
+    accepted
+      .Status.Should()
+      .Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", accepted.Diagnostics.Select(diagnostic => diagnostic.Message))
+      );
+    accepted
+      .Value!.AppliedConflictResolutions.Should()
+      .ContainSingle()
+      .Which.Should()
+      .BeSameAs(resolution);
   }
 
   [Fact]
   public async Task ObjectAndMeshIdentityMismatchProducesAmbiguousCorrespondence()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var nodeMetadata = ReadEnvelope(root["nodes"]![0]!);
-      nodeMetadata["id"] = 2;
-      WriteEnvelope(root["nodes"]![0]!, nodeMetadata);
-      var manifest = ReadEnvelope(root["scenes"]![0]!);
-      manifest["payload"]!["inventory"]!["object"]![0] = 2;
-      WriteEnvelope(root["scenes"]![0]!, manifest);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var nodeMetadata = ReadEnvelope(root["nodes"]![0]!);
+        nodeMetadata["id"] = 2;
+        WriteEnvelope(root["nodes"]![0]!, nodeMetadata);
+        var manifest = ReadEnvelope(root["scenes"]![0]!);
+        manifest["payload"]!["inventory"]!["object"]![0] = 2;
+        WriteEnvelope(root["scenes"]![0]!, manifest);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -419,12 +504,15 @@ public class MetadataGraphValidationTests
   public async Task MissingRequiredNativeProjectionGuardProducesTheAssignedConflict()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var metadata = ReadEnvelope(root["meshes"]![0]!);
-      metadata["guards"]!.AsObject().Remove("nativeProjection");
-      WriteEnvelope(root["meshes"]![0]!, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var metadata = ReadEnvelope(root["meshes"]![0]!);
+        metadata["guards"]!.AsObject().Remove("nativeProjection");
+        WriteEnvelope(root["meshes"]![0]!, metadata);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -440,43 +528,59 @@ public class MetadataGraphValidationTests
     var conflict = await ImportAsync(edited, baseline);
     var resolution = new GltfMetadataConflictResolution(
       conflict.Diagnostics.Single().Data["conflictKey"],
-      GltfMetadataConflictActions.RegenerateDerivedState);
+      GltfMetadataConflictActions.RegenerateDerivedState
+    );
 
     var result = await ImportAsync(
       edited,
       baseline,
-      options: new GltfEditImportOptions(new[] { resolution }));
+      options: new GltfEditImportOptions(new[] { resolution })
+    );
 
-    result.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-    result.Value!.AppliedConflictResolutions.Should().ContainSingle().Which.Should().BeSameAs(resolution);
+    result
+      .Status.Should()
+      .Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message))
+      );
+    result
+      .Value!.AppliedConflictResolutions.Should()
+      .ContainSingle()
+      .Which.Should()
+      .BeSameAs(resolution);
     result.Value.LineageDisposition.Should().Be(GltfMetadataLineageDisposition.Retained);
     result.Value.NextBaseline.AssetLineageId.Should().Be(baseline.AssetLineageId);
     result.Value.NextBaseline.DocumentId.Should().NotBe(baseline.DocumentId);
-    result.Value.RestoredSerializedRepresentationPaths.Should().Contain(
-      "StaticRenderObjectSequence[0]");
+    result
+      .Value.RestoredSerializedRepresentationPaths.Should()
+      .Contain("StaticRenderObjectSequence[0]");
 
     await using var nextDocument = new MemoryStream();
     var nextExport = await new GltfInterchange().ExportGlbAsync(
       result.Value.Asset,
       nextDocument,
-      result.Value.NextExportOptions);
+      result.Value.NextExportOptions
+    );
     nextDocument.Position = 0;
     var nextImport = await new GltfInterchange().ImportEditGlbAsync(
       nextDocument,
-      nextExport.Value!.Baseline);
+      nextExport.Value!.Baseline
+    );
     nextImport.Status.Should().Be(OperationStatus.Succeeded);
 
     var replay = await ImportAsync(
       edited,
       result.Value.NextBaseline,
-      options: new GltfEditImportOptions(new[] { resolution }));
+      options: new GltfEditImportOptions(new[] { resolution })
+    );
     replay.Status.Should().Be(OperationStatus.Failed);
     replay.Value.Should().BeNull();
-    replay.Diagnostics.Should().ContainSingle(diagnostic =>
-      diagnostic.Code == GltfDiagnosticCodes.MalformedMetadata
-      && diagnostic.Path == "metadata.actions");
+    replay
+      .Diagnostics.Should()
+      .ContainSingle(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.MalformedMetadata
+        && diagnostic.Path == "metadata.actions"
+      );
   }
 
   [Fact]
@@ -491,32 +595,57 @@ public class MetadataGraphValidationTests
     var conflict = await ImportAsync(edited, baseline);
     var resolution = new GltfMetadataConflictResolution(
       conflict.Diagnostics.Single().Data["conflictKey"],
-      GltfMetadataConflictActions.DiscardAffectedState);
+      GltfMetadataConflictActions.DiscardAffectedState
+    );
 
     var result = await ImportAsync(
       edited,
       baseline,
-      options: new GltfEditImportOptions(new[] { resolution }));
+      options: new GltfEditImportOptions(new[] { resolution })
+    );
 
-    result.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-    result.Value!.AppliedConflictResolutions.Should().ContainSingle().Which.Should().BeSameAs(resolution);
+    result
+      .Status.Should()
+      .Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message))
+      );
+    result
+      .Value!.AppliedConflictResolutions.Should()
+      .ContainSingle()
+      .Which.Should()
+      .BeSameAs(resolution);
     result.Value.NextBaseline.AssetLineageId.Should().Be(baseline.AssetLineageId);
-    result.Value.RestoredSerializedRepresentationPaths.Should().NotContain(
-      "StaticRenderObjectSequence[0]");
-    result.Value.Preservation.Changes.Should().Contain(change =>
-      change.FieldPath.StartsWith("StaticRenderObjectSequence[0]", StringComparison.Ordinal)
-      && change.Disposition != PreservationDisposition.Retained);
-    result.Value.Preservation.Changes.Where(change =>
-      change.Disposition != PreservationDisposition.Retained
-      && !change.FieldPath.StartsWith("StaticRenderObjectSequence[0]", StringComparison.Ordinal)
-      && !change.FieldPath.StartsWith("StaticRenderObjectSequence[2]", StringComparison.Ordinal))
-      .Should().OnlyContain(change =>
-        change.FieldPath.StartsWith("StaticRenderObjectSequence[1].RenderVertices", StringComparison.Ordinal)
-        && (change.FieldPath.EndsWith(".NormalSharingIndex", StringComparison.Ordinal)
-          || change.FieldPath.EndsWith(".PositionSharingIndex", StringComparison.Ordinal)));
-    result.Value.Asset.StaticRenderObjectSequence[3].GetSerializedRepresentation().Should()
+    result
+      .Value.RestoredSerializedRepresentationPaths.Should()
+      .NotContain("StaticRenderObjectSequence[0]");
+    result
+      .Value.Preservation.Changes.Should()
+      .Contain(change =>
+        change.FieldPath.StartsWith("StaticRenderObjectSequence[0]", StringComparison.Ordinal)
+        && change.Disposition != PreservationDisposition.Retained
+      );
+    result
+      .Value.Preservation.Changes.Where(change =>
+        change.Disposition != PreservationDisposition.Retained
+        && !change.FieldPath.StartsWith("StaticRenderObjectSequence[0]", StringComparison.Ordinal)
+        && !change.FieldPath.StartsWith("StaticRenderObjectSequence[2]", StringComparison.Ordinal)
+      )
+      .Should()
+      .OnlyContain(change =>
+        change.FieldPath.StartsWith(
+          "StaticRenderObjectSequence[1].RenderVertices",
+          StringComparison.Ordinal
+        )
+        && (
+          change.FieldPath.EndsWith(".NormalSharingIndex", StringComparison.Ordinal)
+          || change.FieldPath.EndsWith(".PositionSharingIndex", StringComparison.Ordinal)
+        )
+      );
+    result
+      .Value.Asset.StaticRenderObjectSequence[3]
+      .GetSerializedRepresentation()
+      .Should()
       .Equal(original.StaticRenderObjectSequence[3].GetSerializedRepresentation());
   }
 
@@ -530,39 +659,51 @@ public class MetadataGraphValidationTests
     var conflict = await ImportAsync(edited, baseline);
     var resolution = new GltfMetadataConflictResolution(
       conflict.Diagnostics.Single().Data["conflictKey"],
-      action);
+      action
+    );
 
     var result = await ImportAsync(
       edited,
       baseline,
-      options: new GltfEditImportOptions(new[] { resolution }));
+      options: new GltfEditImportOptions(new[] { resolution })
+    );
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
-    result.Diagnostics.Should().ContainSingle().Which.Code.Should().Be(GltfDiagnosticCodes.MissingManifest);
+    result
+      .Diagnostics.Should()
+      .ContainSingle()
+      .Which.Code.Should()
+      .Be(GltfDiagnosticCodes.MissingManifest);
   }
 
   [Fact]
   public async Task RepairNativeExternallyDoesNotBypassInvalidNativeState()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root => root["scenes"]!.AsArray().Add(new JsonObject
-    {
-      ["nodes"] = new JsonArray()
-    }));
+    var edited = RewriteJson(
+      bytes,
+      root => root["scenes"]!.AsArray().Add(new JsonObject { ["nodes"] = new JsonArray() })
+    );
     var conflict = await ImportAsync(edited, baseline);
     var resolution = new GltfMetadataConflictResolution(
       conflict.Diagnostics.Single().Data["conflictKey"],
-      GltfMetadataConflictActions.RepairNativeExternally);
+      GltfMetadataConflictActions.RepairNativeExternally
+    );
 
     var result = await ImportAsync(
       edited,
       baseline,
-      options: new GltfEditImportOptions(new[] { resolution }));
+      options: new GltfEditImportOptions(new[] { resolution })
+    );
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
-    result.Diagnostics.Should().ContainSingle().Which.Code.Should().Be(GltfDiagnosticCodes.InvalidSceneContract);
+    result
+      .Diagnostics.Should()
+      .ContainSingle()
+      .Which.Code.Should()
+      .Be(GltfDiagnosticCodes.InvalidSceneContract);
   }
 
   [Fact]
@@ -573,24 +714,32 @@ public class MetadataGraphValidationTests
     var conflict = await ImportAsync(firstEdit, baseline);
     var staleResolution = new GltfMetadataConflictResolution(
       conflict.Diagnostics.Single().Data["conflictKey"],
-      GltfMetadataConflictActions.RegenerateDerivedState);
-    var secondEdit = RewriteJson(bytes, root =>
-    {
-      var metadata = ReadEnvelope(root["nodes"]![4]!);
-      metadata["guards"]!.AsObject().Remove("cannon.position");
-      WriteEnvelope(root["nodes"]![4]!, metadata);
-    });
+      GltfMetadataConflictActions.RegenerateDerivedState
+    );
+    var secondEdit = RewriteJson(
+      bytes,
+      root =>
+      {
+        var metadata = ReadEnvelope(root["nodes"]![4]!);
+        metadata["guards"]!.AsObject().Remove("cannon.position");
+        WriteEnvelope(root["nodes"]![4]!, metadata);
+      }
+    );
 
     var result = await ImportAsync(
       secondEdit,
       baseline,
-      options: new GltfEditImportOptions(new[] { staleResolution }));
+      options: new GltfEditImportOptions(new[] { staleResolution })
+    );
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
-    result.Diagnostics.Should().ContainSingle(diagnostic =>
-      diagnostic.Code == GltfDiagnosticCodes.MalformedMetadata
-      && diagnostic.Path == "metadata.actions");
+    result
+      .Diagnostics.Should()
+      .ContainSingle(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.MalformedMetadata
+        && diagnostic.Path == "metadata.actions"
+      );
   }
 
   [Fact]
@@ -598,41 +747,50 @@ public class MetadataGraphValidationTests
   {
     var fixture = StaticMeshSequenceFixture.CreateInterleaved();
     var (bytes, baseline) = await ExportAssetAsync(fixture.Data);
-    var edited = RewriteJson(bytes, root =>
-    {
-      foreach (var mesh in root["meshes"]!.AsArray().Take(2))
+    var edited = RewriteJson(
+      bytes,
+      root =>
       {
-        var metadata = ReadEnvelope(mesh!);
-        metadata["guards"]!.AsObject().Remove("nativeProjection");
-        WriteEnvelope(mesh!, metadata);
+        foreach (var mesh in root["meshes"]!.AsArray().Take(2))
+        {
+          var metadata = ReadEnvelope(mesh!);
+          metadata["guards"]!.AsObject().Remove("nativeProjection");
+          WriteEnvelope(mesh!, metadata);
+        }
       }
-    });
+    );
     var conflicts = await ImportAsync(edited, baseline);
     var oneResolution = new GltfMetadataConflictResolution(
       conflicts.Diagnostics[0].Data["conflictKey"],
-      GltfMetadataConflictActions.RegenerateDerivedState);
+      GltfMetadataConflictActions.RegenerateDerivedState
+    );
 
     var result = await ImportAsync(
       edited,
       baseline,
-      options: new GltfEditImportOptions(new[] { oneResolution }));
+      options: new GltfEditImportOptions(new[] { oneResolution })
+    );
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
-    result.Diagnostics.Should().ContainSingle(diagnostic =>
-      diagnostic.Path == conflicts.Diagnostics[1].Path);
+    result
+      .Diagnostics.Should()
+      .ContainSingle(diagnostic => diagnostic.Path == conflicts.Diagnostics[1].Path);
   }
 
   [Fact]
   public async Task WrongGuardProjectionProducesTheAssignedConflict()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var metadata = ReadEnvelope(root["meshes"]![0]!);
-      metadata["guards"]!["nativeProjection"]!["projection"] = "foreign-geometry";
-      WriteEnvelope(root["meshes"]![0]!, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var metadata = ReadEnvelope(root["meshes"]![0]!);
+        metadata["guards"]!["nativeProjection"]!["projection"] = "foreign-geometry";
+        WriteEnvelope(root["meshes"]![0]!, metadata);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -644,25 +802,33 @@ public class MetadataGraphValidationTests
   public async Task ParseStageScopeActionRevalidatesTheRewrittenGraph()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var metadata = ReadEnvelope(root["meshes"]![0]!);
-      metadata["kind"] = "object";
-      WriteEnvelope(root["meshes"]![0]!, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var metadata = ReadEnvelope(root["meshes"]![0]!);
+        metadata["kind"] = "object";
+        WriteEnvelope(root["meshes"]![0]!, metadata);
+      }
+    );
     var conflict = await ImportAsync(edited, baseline);
     var resolution = new GltfMetadataConflictResolution(
       conflict.Diagnostics.Single().Data["conflictKey"],
-      GltfMetadataConflictActions.DiscardAffectedState);
+      GltfMetadataConflictActions.DiscardAffectedState
+    );
 
     var result = await ImportAsync(
       edited,
       baseline,
-      options: new GltfEditImportOptions(new[] { resolution }));
+      options: new GltfEditImportOptions(new[] { resolution })
+    );
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
-    result.Diagnostics.Should().ContainSingle().Which.Code.Should()
+    result
+      .Diagnostics.Should()
+      .ContainSingle()
+      .Which.Code.Should()
       .Be(GltfDiagnosticCodes.MissingExpectedScope);
   }
 
@@ -670,13 +836,19 @@ public class MetadataGraphValidationTests
   public async Task StaleGuardWithUnchangedNativeProjectionProducesTheAssignedConflict()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var metadata = ReadEnvelope(root["meshes"]![0]!);
-      metadata["guards"]!["nativeProjection"]!["digest"] =
-        Convert.ToBase64String(new byte[32]).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-      WriteEnvelope(root["meshes"]![0]!, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var metadata = ReadEnvelope(root["meshes"]![0]!);
+        metadata["guards"]!["nativeProjection"]!["digest"] = Convert
+          .ToBase64String(new byte[32])
+          .TrimEnd('=')
+          .Replace('+', '-')
+          .Replace('/', '_');
+        WriteEnvelope(root["meshes"]![0]!, metadata);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -688,27 +860,33 @@ public class MetadataGraphValidationTests
   public async Task ArtistObjectGuardBindsTheEnvelopeScopeIdentity()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var cannonMetadata = ReadEnvelope(root["nodes"]![4]!);
-      cannonMetadata["id"] = 55;
-      WriteEnvelope(root["nodes"]![4]!, cannonMetadata);
-      var manifest = ReadEnvelope(root["scenes"]![0]!);
-      manifest["payload"]!["inventory"]!["object"]![4] = 55;
-      manifest["payload"]!["nextIds"]!["object"] = 56;
-      WriteEnvelope(root["scenes"]![0]!, manifest);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var cannonMetadata = ReadEnvelope(root["nodes"]![4]!);
+        cannonMetadata["id"] = 55;
+        WriteEnvelope(root["nodes"]![4]!, cannonMetadata);
+        var manifest = ReadEnvelope(root["scenes"]![0]!);
+        manifest["payload"]!["inventory"]!["object"]![4] = 55;
+        manifest["payload"]!["nextIds"]!["object"] = 56;
+        WriteEnvelope(root["scenes"]![0]!, manifest);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Diagnostics.Should().HaveCount(2);
-    result.Diagnostics.Should().OnlyContain(diagnostic =>
-      diagnostic.Code == GltfDiagnosticCodes.StaleNativeProjection
-      && diagnostic.EventId == 2016);
-    result.Diagnostics.Select(diagnostic => diagnostic.Path).Should().BeEquivalentTo(
-      "nodes[4].guards.cannon.position",
-      "nodes[4].guards.cannon.direction");
+    result
+      .Diagnostics.Should()
+      .OnlyContain(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.StaleNativeProjection && diagnostic.EventId == 2016
+      );
+    result
+      .Diagnostics.Select(diagnostic => diagnostic.Path)
+      .Should()
+      .BeEquivalentTo("nodes[4].guards.cannon.position", "nodes[4].guards.cannon.direction");
   }
 
   [Theory]
@@ -717,27 +895,43 @@ public class MetadataGraphValidationTests
   public async Task ArtistObjectGuardActionsReconcileOnlyTheAffectedHelper(string action)
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var metadata = ReadEnvelope(root["nodes"]![4]!);
-      metadata["guards"]!.AsObject().Remove("cannon.position");
-      WriteEnvelope(root["nodes"]![4]!, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var metadata = ReadEnvelope(root["nodes"]![4]!);
+        metadata["guards"]!.AsObject().Remove("cannon.position");
+        WriteEnvelope(root["nodes"]![4]!, metadata);
+      }
+    );
     var conflict = await ImportAsync(edited, baseline);
     var resolution = new GltfMetadataConflictResolution(
       conflict.Diagnostics.Single().Data["conflictKey"],
-      action);
+      action
+    );
 
     var result = await ImportAsync(
       edited,
       baseline,
-      options: new GltfEditImportOptions(new[] { resolution }));
+      options: new GltfEditImportOptions(new[] { resolution })
+    );
 
-    result.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-    result.Value!.AppliedConflictResolutions.Should().ContainSingle().Which.Should().BeSameAs(resolution);
-    result.Value.Asset.StaticRenderObjectSequence.Should().ContainSingle().Subject.LocalId.Should().Be(1);
+    result
+      .Status.Should()
+      .Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message))
+      );
+    result
+      .Value!.AppliedConflictResolutions.Should()
+      .ContainSingle()
+      .Which.Should()
+      .BeSameAs(resolution);
+    result
+      .Value.Asset.StaticRenderObjectSequence.Should()
+      .ContainSingle()
+      .Subject.LocalId.Should()
+      .Be(1);
   }
 
   [Theory]
@@ -748,32 +942,48 @@ public class MetadataGraphValidationTests
     var sourceBytes = StaticLightMshFixture.Create(
       omnis: new Dictionary<int, StaticLightMshFixture.OmniRecord>
       {
-        [1] = new(new Vector3(1, 2, 3), new Vector3(0.2f, 0.3f, 0.4f), 0.5f)
+        [1] = new(new Vector3(1, 2, 3), new Vector3(0.2f, 0.3f, 0.4f), 0.5f),
       },
-      activeOmnis: new[] { 1 });
+      activeOmnis: new[] { 1 }
+    );
     var (bytes, baseline) = await ExportAssetAsync(sourceBytes);
-    var edited = RewriteJson(bytes, root =>
-    {
-      var light = root["extensions"]!["KHR_lights_punctual"]!["lights"]![0]!;
-      var metadata = ReadEnvelope(light);
-      metadata["guards"]!["staticLight.color"]!["digest"] =
-        Convert.ToBase64String(new byte[32]).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-      WriteEnvelope(light, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var light = root["extensions"]!["KHR_lights_punctual"]!["lights"]![0]!;
+        var metadata = ReadEnvelope(light);
+        metadata["guards"]!["staticLight.color"]!["digest"] = Convert
+          .ToBase64String(new byte[32])
+          .TrimEnd('=')
+          .Replace('+', '-')
+          .Replace('/', '_');
+        WriteEnvelope(light, metadata);
+      }
+    );
     var conflict = await ImportAsync(edited, baseline);
     var resolution = new GltfMetadataConflictResolution(
       conflict.Diagnostics.Single().Data["conflictKey"],
-      action);
+      action
+    );
 
     var result = await ImportAsync(
       edited,
       baseline,
-      options: new GltfEditImportOptions(new[] { resolution }));
+      options: new GltfEditImportOptions(new[] { resolution })
+    );
 
-    result.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-    result.Value!.AppliedConflictResolutions.Should().ContainSingle().Which.Should().BeSameAs(resolution);
+    result
+      .Status.Should()
+      .Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message))
+      );
+    result
+      .Value!.AppliedConflictResolutions.Should()
+      .ContainSingle()
+      .Which.Should()
+      .BeSameAs(resolution);
   }
 
   [Fact]
@@ -782,28 +992,41 @@ public class MetadataGraphValidationTests
     var sourceBytes = StaticLightMshFixture.Create(
       omnis: new Dictionary<int, StaticLightMshFixture.OmniRecord>
       {
-        [1] = new(new Vector3(1, 2, 3), new Vector3(0.2f, 0.3f, 0.4f), 0.5f)
+        [1] = new(new Vector3(1, 2, 3), new Vector3(0.2f, 0.3f, 0.4f), 0.5f),
       },
-      activeOmnis: new[] { 1 });
+      activeOmnis: new[] { 1 }
+    );
     var (bytes, baseline) = await ExportAssetAsync(sourceBytes);
-    var edited = RewriteJson(bytes, root =>
-      root["extensions"]!["KHR_lights_punctual"]!["lights"]![0]!.AsObject().Remove("extras"));
+    var edited = RewriteJson(
+      bytes,
+      root => root["extensions"]!["KHR_lights_punctual"]!["lights"]![0]!.AsObject().Remove("extras")
+    );
     var conflict = await ImportAsync(edited, baseline);
     var deletion = conflict.Diagnostics.Single(diagnostic =>
-      diagnostic.Code == GltfDiagnosticCodes.MissingExpectedScope);
+      diagnostic.Code == GltfDiagnosticCodes.MissingExpectedScope
+    );
     var resolution = new GltfMetadataConflictResolution(
       deletion.Data["conflictKey"],
-      GltfMetadataConflictActions.AcceptDeletion);
+      GltfMetadataConflictActions.AcceptDeletion
+    );
 
     var result = await ImportAsync(
       edited,
       baseline,
-      options: new GltfEditImportOptions(new[] { resolution }));
+      options: new GltfEditImportOptions(new[] { resolution })
+    );
 
-    result.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-    result.Value!.AppliedConflictResolutions.Should().ContainSingle().Which.Should().BeSameAs(resolution);
+    result
+      .Status.Should()
+      .Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message))
+      );
+    result
+      .Value!.AppliedConflictResolutions.Should()
+      .ContainSingle()
+      .Which.Should()
+      .BeSameAs(resolution);
   }
 
   [Fact]
@@ -817,13 +1040,23 @@ public class MetadataGraphValidationTests
 
     var result = await ImportAsync(bytes, baseline);
 
-    result.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-    result.Value!.RestoredSerializedRepresentationPaths.Should().NotContain(
-      "StaticRenderObjectSequence[0]");
-    result.Value.Preservation.Changes.Should().Contain(change =>
-      change.FieldPath.StartsWith("StaticRenderObjectSequence[0].RenderVertices", StringComparison.Ordinal));
+    result
+      .Status.Should()
+      .Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message))
+      );
+    result
+      .Value!.RestoredSerializedRepresentationPaths.Should()
+      .NotContain("StaticRenderObjectSequence[0]");
+    result
+      .Value.Preservation.Changes.Should()
+      .Contain(change =>
+        change.FieldPath.StartsWith(
+          "StaticRenderObjectSequence[0].RenderVertices",
+          StringComparison.Ordinal
+        )
+      );
   }
 
   [Fact]
@@ -832,7 +1065,9 @@ public class MetadataGraphValidationTests
     var (bytes, baseline) = await ExportFixtureAsync();
     var root = ReadJson(bytes);
     var manifest = ReadEnvelope(root["scenes"]![0]!);
-    var sourceMsh = DecodeBase64Url(manifest["payload"]!["asset"]!["sourceMsh"]!.GetValue<string>());
+    var sourceMsh = DecodeBase64Url(
+      manifest["payload"]!["asset"]!["sourceMsh"]!.GetValue<string>()
+    );
     manifest["payload"]!["origin"]!["source"]!["byteLength"] = sourceMsh.Length + 1;
     WriteEnvelope(root["scenes"]![0]!, manifest);
 
@@ -847,23 +1082,30 @@ public class MetadataGraphValidationTests
   {
     var (bytes, _) = await ExportFixtureAsync();
     var manifest = ReadEnvelope(ReadJson(bytes)["scenes"]![0]!);
-    var sourceMsh = DecodeBase64Url(manifest["payload"]!["asset"]!["sourceMsh"]!.GetValue<string>());
+    var sourceMsh = DecodeBase64Url(
+      manifest["payload"]!["asset"]!["sourceMsh"]!.GetValue<string>()
+    );
     var source = manifest["payload"]!["origin"]!["source"]!;
 
     source["byteLength"]!.GetValue<int>().Should().Be(sourceMsh.Length);
-    DecodeBase64Url(source["sha256"]!.GetValue<string>()).Should().Equal(SHA256.HashData(sourceMsh));
+    DecodeBase64Url(source["sha256"]!.GetValue<string>())
+      .Should()
+      .Equal(SHA256.HashData(sourceMsh));
   }
 
   [Fact]
   public async Task UnknownRequiredScopeKindProducesTheAssignedConflict()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var metadata = ReadEnvelope(root["meshes"]![0]!);
-      metadata["kind"] = "futureRequiredScope";
-      WriteEnvelope(root["meshes"]![0]!, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var metadata = ReadEnvelope(root["meshes"]![0]!);
+        metadata["kind"] = "futureRequiredScope";
+        WriteEnvelope(root["meshes"]![0]!, metadata);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -875,46 +1117,66 @@ public class MetadataGraphValidationTests
   {
     var fixture = StaticMeshSequenceFixture.CreateInterleaved();
     var (bytes, baseline) = await ExportAssetAsync(fixture.Data);
-    var edited = RewriteJson(bytes, root =>
-    {
-      foreach (var mesh in root["meshes"]!.AsArray().Take(2))
+    var edited = RewriteJson(
+      bytes,
+      root =>
       {
-        var metadata = ReadEnvelope(mesh!);
-        metadata["guards"]!.AsObject().Remove("nativeProjection");
-        WriteEnvelope(mesh!, metadata);
+        foreach (var mesh in root["meshes"]!.AsArray().Take(2))
+        {
+          var metadata = ReadEnvelope(mesh!);
+          metadata["guards"]!.AsObject().Remove("nativeProjection");
+          WriteEnvelope(mesh!, metadata);
+        }
       }
-    });
+    );
 
     var result = await ImportAsync(edited, baseline);
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
-    result.Diagnostics.Select(diagnostic => (diagnostic.Code, diagnostic.Path)).Should().Equal(
-      (GltfDiagnosticCodes.MissingRequiredGuard, "meshes[0].guards.nativeProjection"),
-      (GltfDiagnosticCodes.MissingRequiredGuard, "meshes[1].guards.nativeProjection"));
-    result.Diagnostics.Should().AllSatisfy(diagnostic => diagnostic.Data["actions"].Should().Be(
-      string.Join(",", GltfMetadataConflictCatalog.ActionsByCode[diagnostic.Code])));
+    result
+      .Diagnostics.Select(diagnostic => (diagnostic.Code, diagnostic.Path))
+      .Should()
+      .Equal(
+        (GltfDiagnosticCodes.MissingRequiredGuard, "meshes[0].guards.nativeProjection"),
+        (GltfDiagnosticCodes.MissingRequiredGuard, "meshes[1].guards.nativeProjection")
+      );
+    result
+      .Diagnostics.Should()
+      .AllSatisfy(diagnostic =>
+        diagnostic
+          .Data["actions"]
+          .Should()
+          .Be(string.Join(",", GltfMetadataConflictCatalog.ActionsByCode[diagnostic.Code]))
+      );
   }
 
   [Fact]
   public async Task StructuralAndApplicabilityConflictsShareOneStableInventory()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var nodeMetadata = ReadEnvelope(root["nodes"]![0]!);
-      nodeMetadata["lineage"] = Guid.NewGuid().ToString();
-      WriteEnvelope(root["nodes"]![0]!, nodeMetadata);
-      RemoveFirstMeshGuard(root);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var nodeMetadata = ReadEnvelope(root["nodes"]![0]!);
+        nodeMetadata["lineage"] = Guid.NewGuid().ToString();
+        WriteEnvelope(root["nodes"]![0]!, nodeMetadata);
+        RemoveFirstMeshGuard(root);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
-    result.Diagnostics.Select(diagnostic => (diagnostic.Code, diagnostic.Path)).Should().Equal(
-      (GltfDiagnosticCodes.AssetLineageMismatch, "nodes[0]"),
-      (GltfDiagnosticCodes.MissingRequiredGuard, "meshes[0].guards.nativeProjection"));
+    result
+      .Diagnostics.Select(diagnostic => (diagnostic.Code, diagnostic.Path))
+      .Should()
+      .Equal(
+        (GltfDiagnosticCodes.AssetLineageMismatch, "nodes[0]"),
+        (GltfDiagnosticCodes.MissingRequiredGuard, "meshes[0].guards.nativeProjection")
+      );
   }
 
   [Fact]
@@ -922,23 +1184,30 @@ public class MetadataGraphValidationTests
   {
     var fixture = StaticMeshSequenceFixture.CreateInterleaved();
     var (bytes, baseline) = await ExportAssetAsync(fixture.Data);
-    var edited = RewriteJson(bytes, root =>
-    {
-      foreach (var mesh in root["meshes"]!.AsArray().Take(3))
+    var edited = RewriteJson(
+      bytes,
+      root =>
       {
-        var metadata = ReadEnvelope(mesh!);
-        metadata["guards"]!.AsObject().Remove("nativeProjection");
-        WriteEnvelope(mesh!, metadata);
+        foreach (var mesh in root["meshes"]!.AsArray().Take(3))
+        {
+          var metadata = ReadEnvelope(mesh!);
+          metadata["guards"]!.AsObject().Remove("nativeProjection");
+          WriteEnvelope(mesh!, metadata);
+        }
       }
-    });
+    );
 
     var result = await ImportAsync(edited, baseline, CreateProfile(maxMetadataConflicts: 2));
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
-    result.Diagnostics.Select(diagnostic => diagnostic.Code).Should().Equal(
-      GltfDiagnosticCodes.MissingRequiredGuard,
-      GltfDiagnosticCodes.TooManyMetadataConflicts);
+    result
+      .Diagnostics.Select(diagnostic => diagnostic.Code)
+      .Should()
+      .Equal(
+        GltfDiagnosticCodes.MissingRequiredGuard,
+        GltfDiagnosticCodes.TooManyMetadataConflicts
+      );
     result.Diagnostics[^1].Data["actions"].Should().Be("abort,retryWithMetadata");
   }
 
@@ -953,7 +1222,8 @@ public class MetadataGraphValidationTests
     var glbExport = await interchange.ExportGlbAsync(
       asset,
       glb,
-      new GltfExportOptions(_lineageId, _documentId));
+      new GltfExportOptions(_lineageId, _documentId)
+    );
     var editedGlb = RewriteJson(glb.ToArray(), RemoveFirstMeshGuard);
     var directory = Directory.CreateTempSubdirectory("earthtool-metadata-");
     try
@@ -962,7 +1232,8 @@ public class MetadataGraphValidationTests
       var separateExport = await interchange.ExportGltfFileAsync(
         asset,
         path,
-        new GltfExportOptions(_lineageId, _documentId));
+        new GltfExportOptions(_lineageId, _documentId)
+      );
       separateExport.Status.Should().Be(OperationStatus.Succeeded);
       var separateRoot = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
       RemoveFirstMeshGuard(separateRoot);
@@ -970,33 +1241,44 @@ public class MetadataGraphValidationTests
       await using var editedInput = new MemoryStream(editedGlb);
 
       var glbResult = await interchange.ImportEditGlbAsync(editedInput, glbExport.Value!.Baseline);
-      var separateResult = await interchange.ImportEditGltfFileAsync(path, separateExport.Value!.Baseline);
+      var separateResult = await interchange.ImportEditGltfFileAsync(
+        path,
+        separateExport.Value!.Baseline
+      );
 
       glbResult.Value.Should().BeNull();
       separateResult.Value.Should().BeNull();
-      separateResult.Diagnostics.Select(diagnostic => (diagnostic.Code, diagnostic.Path)).Should().Equal(
-        glbResult.Diagnostics.Select(diagnostic => (diagnostic.Code, diagnostic.Path)));
+      separateResult
+        .Diagnostics.Select(diagnostic => (diagnostic.Code, diagnostic.Path))
+        .Should()
+        .Equal(glbResult.Diagnostics.Select(diagnostic => (diagnostic.Code, diagnostic.Path)));
 
       await using var resolvedGlbInput = new MemoryStream(editedGlb);
       var glbResolution = new GltfMetadataConflictResolution(
         glbResult.Diagnostics.Single().Data["conflictKey"],
-        GltfMetadataConflictActions.DiscardAffectedState);
+        GltfMetadataConflictActions.DiscardAffectedState
+      );
       var separateResolution = new GltfMetadataConflictResolution(
         separateResult.Diagnostics.Single().Data["conflictKey"],
-        GltfMetadataConflictActions.DiscardAffectedState);
+        GltfMetadataConflictActions.DiscardAffectedState
+      );
       var resolvedGlb = await interchange.ImportEditGlbWithResolutionsAsync(
         resolvedGlbInput,
         glbExport.Value.Baseline,
-        options: new GltfEditImportOptions(new[] { glbResolution }));
+        options: new GltfEditImportOptions(new[] { glbResolution })
+      );
       var resolvedSeparate = await interchange.ImportEditGltfFileWithResolutionsAsync(
         path,
         separateExport.Value!.Baseline,
-        options: new GltfEditImportOptions(new[] { separateResolution }));
+        options: new GltfEditImportOptions(new[] { separateResolution })
+      );
 
       resolvedGlb.Status.Should().Be(OperationStatus.Succeeded);
       resolvedSeparate.Status.Should().Be(OperationStatus.Succeeded);
-      resolvedSeparate.Value!.Asset.GetSerializedRepresentation().Should().Equal(
-        resolvedGlb.Value!.Asset.GetSerializedRepresentation());
+      resolvedSeparate
+        .Value!.Asset.GetSerializedRepresentation()
+        .Should()
+        .Equal(resolvedGlb.Value!.Asset.GetSerializedRepresentation());
     }
     finally
     {
@@ -1018,23 +1300,29 @@ public class MetadataGraphValidationTests
       var export = await interchange.ExportGltfFileAsync(
         asset,
         path,
-        new GltfExportOptions(_lineageId, _documentId));
+        new GltfExportOptions(_lineageId, _documentId)
+      );
       var root = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
       root["scenes"]![0]!.AsObject().Remove("extras");
       await File.WriteAllTextAsync(path, root.ToJsonString());
       var conflict = await interchange.ImportEditGltfFileAsync(path, export.Value!.Baseline);
       var resolution = new GltfMetadataConflictResolution(
         conflict.Diagnostics.Single().Data["conflictKey"],
-        GltfMetadataConflictActions.DiscardLineage);
+        GltfMetadataConflictActions.DiscardLineage
+      );
 
       var result = await interchange.ImportEditGltfFileWithResolutionsAsync(
         path,
         export.Value.Baseline,
-        options: new GltfEditImportOptions(new[] { resolution }));
+        options: new GltfEditImportOptions(new[] { resolution })
+      );
 
-      result.Status.Should().Be(
-        OperationStatus.Succeeded,
-        string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+      result
+        .Status.Should()
+        .Be(
+          OperationStatus.Succeeded,
+          string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message))
+        );
       result.Value!.LineageDisposition.Should().Be(GltfMetadataLineageDisposition.Discarded);
       result.Value.NextBaseline.AssetLineageId.Should().NotBe(_lineageId);
     }
@@ -1048,13 +1336,16 @@ public class MetadataGraphValidationTests
   public async Task MetadataJsonDepthFailsBeforeEnvelopeMaterialization()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var scene = root["scenes"]![0]!;
-      var envelope = scene["extras"]!["earthtool"]!.GetValue<string>();
-      var deepValue = new string('[', 65) + "0" + new string(']', 65);
-      WriteEnvelope(scene, envelope.Insert(envelope.Length - 1, ",\"deep\":" + deepValue));
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var scene = root["scenes"]![0]!;
+        var envelope = scene["extras"]!["earthtool"]!.GetValue<string>();
+        var deepValue = new string('[', 65) + "0" + new string(']', 65);
+        WriteEnvelope(scene, envelope.Insert(envelope.Length - 1, ",\"deep\":" + deepValue));
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -1065,12 +1356,15 @@ public class MetadataGraphValidationTests
   public async Task ForeignLocalEnvelopeCannotClaimPreservationState()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var metadata = ReadEnvelope(root["nodes"]![0]!);
-      metadata["lineage"] = Guid.NewGuid().ToString();
-      WriteEnvelope(root["nodes"]![0]!, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var metadata = ReadEnvelope(root["nodes"]![0]!);
+        metadata["lineage"] = Guid.NewGuid().ToString();
+        WriteEnvelope(root["nodes"]![0]!, metadata);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -1081,12 +1375,15 @@ public class MetadataGraphValidationTests
   public async Task ForeignDocumentEnvelopeCannotClaimPreservationState()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var metadata = ReadEnvelope(root["nodes"]![0]!);
-      metadata["document"] = Guid.NewGuid().ToString();
-      WriteEnvelope(root["nodes"]![0]!, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var metadata = ReadEnvelope(root["nodes"]![0]!);
+        metadata["document"] = Guid.NewGuid().ToString();
+        WriteEnvelope(root["nodes"]![0]!, metadata);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -1099,12 +1396,14 @@ public class MetadataGraphValidationTests
   public async Task ExpectedBaselineAuthorizesEditImport(
     bool replaceLineage,
     string expectedCode,
-    int expectedEventId)
+    int expectedEventId
+  )
   {
     var (bytes, _) = await ExportFixtureAsync();
     var expected = new InterchangeBaseline(
       replaceLineage ? Guid.NewGuid() : _lineageId,
-      replaceLineage ? _documentId : Guid.NewGuid());
+      replaceLineage ? _documentId : Guid.NewGuid()
+    );
 
     var result = await ImportAsync(bytes, expected);
 
@@ -1119,16 +1418,21 @@ public class MetadataGraphValidationTests
     var conflict = await ImportAsync(bytes, expected);
     var resolution = new GltfMetadataConflictResolution(
       conflict.Diagnostics.Single().Data["conflictKey"],
-      GltfMetadataConflictActions.AcceptBranch);
+      GltfMetadataConflictActions.AcceptBranch
+    );
 
     var result = await ImportAsync(
       bytes,
       expected,
-      options: new GltfEditImportOptions(new[] { resolution }));
+      options: new GltfEditImportOptions(new[] { resolution })
+    );
 
-    result.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    result
+      .Status.Should()
+      .Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message))
+      );
     result.Value!.LineageDisposition.Should().Be(GltfMetadataLineageDisposition.BranchAccepted);
     result.Value.NextBaseline.AssetLineageId.Should().Be(_lineageId);
     result.Value.NextBaseline.DocumentId.Should().NotBe(_documentId);
@@ -1140,38 +1444,52 @@ public class MetadataGraphValidationTests
   [InlineData(GltfMetadataConflictActions.DiscardLineage, GltfMetadataLineageDisposition.Discarded)]
   public async Task WholeLineageActionsCanonicallyImportNativeState(
     string action,
-    GltfMetadataLineageDisposition expectedDisposition)
+    GltfMetadataLineageDisposition expectedDisposition
+  )
   {
     var (bytes, _) = await ExportFixtureAsync();
     var expected = new InterchangeBaseline(Guid.NewGuid(), _documentId);
     var conflict = await ImportAsync(bytes, expected);
     var resolution = new GltfMetadataConflictResolution(
       conflict.Diagnostics.Single().Data["conflictKey"],
-      action);
+      action
+    );
 
     var result = await ImportAsync(
       bytes,
       expected,
-      options: new GltfEditImportOptions(new[] { resolution }));
+      options: new GltfEditImportOptions(new[] { resolution })
+    );
 
-    result.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
+    result
+      .Status.Should()
+      .Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message))
+      );
     result.Value!.LineageDisposition.Should().Be(expectedDisposition);
     result.Value.NextBaseline.AssetLineageId.Should().NotBe(_lineageId);
     result.Value.NextBaseline.AssetLineageId.Should().NotBe(expected.AssetLineageId);
     result.Value.AppliedFingerprint.Should().BeNull();
-    result.Value.AppliedConflictResolutions.Should().ContainSingle().Which.Should().BeSameAs(resolution);
+    result
+      .Value.AppliedConflictResolutions.Should()
+      .ContainSingle()
+      .Which.Should()
+      .BeSameAs(resolution);
   }
 
   [Fact]
   public async Task ReservedEnvelopeOnUnsupportedCarrierIsOrphaned()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root => root["asset"]!["extras"] = new JsonObject
-    {
-      ["earthtool"] = root["scenes"]![0]!["extras"]!["earthtool"]!.GetValue<string>()
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+        root["asset"]!["extras"] = new JsonObject
+        {
+          ["earthtool"] = root["scenes"]![0]!["extras"]!["earthtool"]!.GetValue<string>(),
+        }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -1182,31 +1500,41 @@ public class MetadataGraphValidationTests
   public async Task DuplicateScopeIdentityIsRejectedBeforeReconciliation()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var nodes = root["nodes"]!.AsArray();
-      var duplicate = nodes[0]!.DeepClone();
-      nodes.Add(duplicate);
-      nodes[0]!["children"] = new JsonArray(nodes.Count - 1);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var nodes = root["nodes"]!.AsArray();
+        var duplicate = nodes[0]!.DeepClone();
+        nodes.Add(duplicate);
+        nodes[0]!["children"] = new JsonArray(nodes.Count - 1);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
     AssertConflict(result, GltfDiagnosticCodes.DuplicateScopeIdentity, 2009);
-    result.Diagnostics[0].Data["actions"].Should().Be("abort,mapScope,forkScope,discardAffectedState");
+    result
+      .Diagnostics[0]
+      .Data["actions"]
+      .Should()
+      .Be("abort,mapScope,forkScope,discardAffectedState");
   }
 
   [Fact]
   public async Task InvalidManifestInventoryCannotAuthorizeScopes()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var scene = root["scenes"]![0]!;
-      var metadata = ReadEnvelope(scene);
-      metadata["payload"]!["inventory"]!["object"] = new JsonArray(1, 1);
-      WriteEnvelope(scene, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var scene = root["scenes"]![0]!;
+        var metadata = ReadEnvelope(scene);
+        metadata["payload"]!["inventory"]!["object"] = new JsonArray(1, 1);
+        WriteEnvelope(scene, metadata);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
@@ -1217,13 +1545,16 @@ public class MetadataGraphValidationTests
   public async Task ManifestIdentityHighWaterMarksSurviveTheNextBaseline()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var scene = root["scenes"]![0]!;
-      var metadata = ReadEnvelope(scene);
-      metadata["payload"]!["nextIds"]!["light"] = 100;
-      WriteEnvelope(scene, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var scene = root["scenes"]![0]!;
+        var metadata = ReadEnvelope(scene);
+        metadata["payload"]!["nextIds"]!["light"] = 100;
+        WriteEnvelope(scene, metadata);
+      }
+    );
     var import = await ImportAsync(edited, baseline);
     import.Status.Should().Be(OperationStatus.Succeeded);
     await using var rewritten = new MemoryStream();
@@ -1231,7 +1562,8 @@ public class MetadataGraphValidationTests
     var export = await new GltfInterchange().ExportGlbAsync(
       import.Value!.Asset,
       rewritten,
-      import.Value.NextExportOptions);
+      import.Value.NextExportOptions
+    );
 
     export.Status.Should().Be(OperationStatus.Succeeded);
     var manifest = ReadEnvelope(ReadJson(rewritten.ToArray())["scenes"]![0]!);
@@ -1243,51 +1575,84 @@ public class MetadataGraphValidationTests
   {
     var (bytes, baseline) = await ExportFixtureAsync();
     const string raw = "{\"z\":[1,2],\"a\":1}";
-    var edited = RewriteJson(bytes, root =>
-    {
-      var scene = root["scenes"]![0]!;
-      var metadata = ReadEnvelope(scene);
-      metadata["futureMember"] = JsonNode.Parse(raw);
-      metadata["future.member/name"] = JsonNode.Parse(raw);
-      metadata["guards"]!["futureGuard"] = JsonNode.Parse(raw);
-      metadata["payload"]!["origin"]!["source"]!["futureSourceMember"] = JsonNode.Parse(raw);
-      metadata["payload"]!["asset"]!["futureAssetMember"] = JsonNode.Parse(raw);
-      metadata["payload"]!["inventory"]!["futureInventoryMember"] = JsonNode.Parse(raw);
-      WriteEnvelope(scene, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var scene = root["scenes"]![0]!;
+        var metadata = ReadEnvelope(scene);
+        metadata["futureMember"] = JsonNode.Parse(raw);
+        metadata["future.member/name"] = JsonNode.Parse(raw);
+        metadata["guards"]!["futureGuard"] = JsonNode.Parse(raw);
+        metadata["payload"]!["origin"]!["source"]!["futureSourceMember"] = JsonNode.Parse(raw);
+        metadata["payload"]!["asset"]!["futureAssetMember"] = JsonNode.Parse(raw);
+        metadata["payload"]!["inventory"]!["futureInventoryMember"] = JsonNode.Parse(raw);
+        WriteEnvelope(scene, metadata);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline);
 
-    result.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", result.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}")));
+    result
+      .Status.Should()
+      .Be(
+        OperationStatus.Succeeded,
+        string.Join(
+          "; ",
+          result.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}")
+        )
+      );
     result.Value!.PreservedUnknownMetadata["manifest:0:/futureMember"].Should().Be(raw);
     result.Value.PreservedUnknownMetadata["manifest:0:/future.member~1name"].Should().Be(raw);
     result.Value.PreservedUnknownMetadata["manifest:0:/guards/futureGuard"].Should().Be(raw);
-    result.Value.PreservedUnknownMetadata["manifest:0:/payload/origin/source/futureSourceMember"]
-      .Should().Be(raw);
-    result.Value.PreservedUnknownMetadata["manifest:0:/payload/asset/futureAssetMember"].Should().Be(raw);
-    result.Value.PreservedUnknownMetadata["manifest:0:/payload/inventory/futureInventoryMember"].Should().Be(raw);
+    result
+      .Value.PreservedUnknownMetadata["manifest:0:/payload/origin/source/futureSourceMember"]
+      .Should()
+      .Be(raw);
+    result
+      .Value.PreservedUnknownMetadata["manifest:0:/payload/asset/futureAssetMember"]
+      .Should()
+      .Be(raw);
+    result
+      .Value.PreservedUnknownMetadata["manifest:0:/payload/inventory/futureInventoryMember"]
+      .Should()
+      .Be(raw);
     await using var rewritten = new MemoryStream();
 
     var export = await new GltfInterchange().ExportGlbAsync(
       result.Value.Asset,
       rewritten,
-      result.Value.NextExportOptions);
+      result.Value.NextExportOptions
+    );
 
     export.Status.Should().Be(OperationStatus.Succeeded);
     var rewrittenRoot = ReadJson(rewritten.ToArray());
-    rewrittenRoot["scenes"]![0]!["extras"]!["earthtool"]!.GetValue<string>().Should()
+    rewrittenRoot["scenes"]![0]!["extras"]!["earthtool"]!
+      .GetValue<string>()
+      .Should()
       .Contain("\"futureMember\":" + raw);
     ReadEnvelope(rewrittenRoot["scenes"]![0]!)["payload"]!["asset"]!["futureAssetMember"]!
-      .ToJsonString().Should().Be(raw);
-    ReadEnvelope(rewrittenRoot["scenes"]![0]!)["future.member/name"]!.ToJsonString().Should().Be(raw);
+      .ToJsonString()
+      .Should()
+      .Be(raw);
+    ReadEnvelope(rewrittenRoot["scenes"]![0]!)["future.member/name"]!
+      .ToJsonString()
+      .Should()
+      .Be(raw);
     ReadEnvelope(rewrittenRoot["scenes"]![0]!)["guards"]!["futureGuard"]!
-      .ToJsonString().Should().Be(raw);
-    ReadEnvelope(rewrittenRoot["scenes"]![0]!)["payload"]!["origin"]!["source"]!["futureSourceMember"]!
-      .ToJsonString().Should().Be(raw);
+      .ToJsonString()
+      .Should()
+      .Be(raw);
+    ReadEnvelope(rewrittenRoot["scenes"]![0]!)["payload"]!["origin"]!["source"]![
+      "futureSourceMember"
+    ]!
+      .ToJsonString()
+      .Should()
+      .Be(raw);
     ReadEnvelope(rewrittenRoot["scenes"]![0]!)["payload"]!["inventory"]!["futureInventoryMember"]!
-      .ToJsonString().Should().Be(raw);
+      .ToJsonString()
+      .Should()
+      .Be(raw);
   }
 
   [Fact]
@@ -1307,9 +1672,10 @@ public class MetadataGraphValidationTests
   public async Task StructuralMetadataBudgetsFailBeforeReconciliation(string budget)
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var profile = budget == "envelopes"
-      ? CreateProfile(maxMetadataEnvelopes: 1)
-      : CreateProfile(maxMetadataElements: 1);
+    var profile =
+      budget == "envelopes"
+        ? CreateProfile(maxMetadataEnvelopes: 1)
+        : CreateProfile(maxMetadataElements: 1);
 
     var result = await ImportAsync(bytes, baseline, profile);
 
@@ -1320,13 +1686,16 @@ public class MetadataGraphValidationTests
   public async Task UnknownMemberBudgetFailsBeforeRetainingAllTokens()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var metadata = ReadEnvelope(root["scenes"]![0]!);
-      metadata["futureOne"] = 1;
-      metadata["futureTwo"] = 2;
-      WriteEnvelope(root["scenes"]![0]!, metadata);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var metadata = ReadEnvelope(root["scenes"]![0]!);
+        metadata["futureOne"] = 1;
+        metadata["futureTwo"] = 2;
+        WriteEnvelope(root["scenes"]![0]!, metadata);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline, CreateProfile(maxUnknownMetadataMembers: 1));
 
@@ -1348,14 +1717,17 @@ public class MetadataGraphValidationTests
   public async Task GuardBudgetFailsBeforeReconciliation()
   {
     var (bytes, baseline) = await ExportFixtureAsync();
-    var edited = RewriteJson(bytes, root =>
-    {
-      var manifest = ReadEnvelope(root["scenes"]![0]!);
-      var guard = ReadEnvelope(root["meshes"]![0]!)["guards"]!["nativeProjection"]!.DeepClone();
-      manifest["guards"]!["futureOne"] = guard;
-      manifest["guards"]!["futureTwo"] = guard.DeepClone();
-      WriteEnvelope(root["scenes"]![0]!, manifest);
-    });
+    var edited = RewriteJson(
+      bytes,
+      root =>
+      {
+        var manifest = ReadEnvelope(root["scenes"]![0]!);
+        var guard = ReadEnvelope(root["meshes"]![0]!)["guards"]!["nativeProjection"]!.DeepClone();
+        manifest["guards"]!["futureOne"] = guard;
+        manifest["guards"]!["futureTwo"] = guard.DeepClone();
+        WriteEnvelope(root["scenes"]![0]!, manifest);
+      }
+    );
 
     var result = await ImportAsync(edited, baseline, CreateProfile(maxMetadataGuards: 1));
 
@@ -1365,7 +1737,8 @@ public class MetadataGraphValidationTests
   private static void AssertConflict(
     OperationResult<GltfEditImportResult> result,
     string code,
-    int eventId)
+    int eventId
+  )
   {
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
@@ -1379,25 +1752,35 @@ public class MetadataGraphValidationTests
     diagnostic.Data["metadataPath"].Should().Be(diagnostic.Path);
     diagnostic.Data.Should().ContainKey("nativePath");
     diagnostic.Data.Should().ContainKey("affectedPayloadPaths");
-    diagnostic.Data["actions"].Should().Be(string.Join(
-      ",",
-      GltfMetadataConflictCatalog.ActionsByCode[code]));
+    diagnostic
+      .Data["actions"]
+      .Should()
+      .Be(string.Join(",", GltfMetadataConflictCatalog.ActionsByCode[code]));
   }
 
   private static async Task<(byte[] Bytes, InterchangeBaseline Baseline)> ExportFixtureAsync()
   {
-    return await ExportAssetAsync(AttachmentAndCannonMshFixture.Create(
-      Enumerable.Range(1, 4).ToDictionary(
-        number => number,
-        number => new AttachmentAndCannonMshFixture.AttachmentRecord(
-          checked((short)number),
-          checked((short)-number),
-          checked((short)(number * 2)),
-          unchecked((byte)(number * 32)),
-          0x80))));
+    return await ExportAssetAsync(
+      AttachmentAndCannonMshFixture.Create(
+        Enumerable
+          .Range(1, 4)
+          .ToDictionary(
+            number => number,
+            number => new AttachmentAndCannonMshFixture.AttachmentRecord(
+              checked((short)number),
+              checked((short)-number),
+              checked((short)(number * 2)),
+              unchecked((byte)(number * 32)),
+              0x80
+            )
+          )
+      )
+    );
   }
 
-  private static async Task<(byte[] Bytes, InterchangeBaseline Baseline)> ExportAssetAsync(byte[] sourceBytes)
+  private static async Task<(byte[] Bytes, InterchangeBaseline Baseline)> ExportAssetAsync(
+    byte[] sourceBytes
+  )
   {
     await using var source = new MemoryStream(sourceBytes);
     var read = await new MshReader().ReadAsync(source);
@@ -1406,7 +1789,8 @@ public class MetadataGraphValidationTests
     var export = await new GltfInterchange().ExportGlbAsync(
       asset,
       destination,
-      new GltfExportOptions(_lineageId, _documentId));
+      new GltfExportOptions(_lineageId, _documentId)
+    );
     export.Status.Should().Be(OperationStatus.Succeeded);
     return (destination.ToArray(), export.Value!.Baseline);
   }
@@ -1415,14 +1799,16 @@ public class MetadataGraphValidationTests
     byte[] bytes,
     InterchangeBaseline baseline,
     GltfOperationProfile? profile = null,
-    GltfEditImportOptions? options = null)
+    GltfEditImportOptions? options = null
+  )
   {
     await using var source = new MemoryStream(bytes);
     return await new GltfInterchange().ImportEditGlbWithResolutionsAsync(
       source,
       baseline,
       options: options ?? new GltfEditImportOptions(),
-      profile: profile);
+      profile: profile
+    );
   }
 
   private static GltfOperationProfile CreateProfile(
@@ -1431,7 +1817,8 @@ public class MetadataGraphValidationTests
     int maxMetadataElements = 4194304,
     int maxUnknownMetadataMembers = 262144,
     int maxMetadataGuards = 64,
-    int maxMetadataConflicts = 1024)
+    int maxMetadataConflicts = 1024
+  )
   {
     return new GltfOperationProfile(
       maxInputBytes: 32 * 1024 * 1024,
@@ -1450,13 +1837,15 @@ public class MetadataGraphValidationTests
       maxMetadataElements,
       maxUnknownMetadataMembers,
       maxMetadataGuards,
-      maxMetadataConflicts);
+      maxMetadataConflicts
+    );
   }
 
   private static byte[] DecodeBase64Url(string value)
   {
-    return Convert.FromBase64String(value.Replace('-', '+').Replace('_', '/') +
-      new string('=', (4 - value.Length % 4) % 4));
+    return Convert.FromBase64String(
+      value.Replace('-', '+').Replace('_', '/') + new string('=', (4 - value.Length % 4) % 4)
+    );
   }
 
   private static void RemoveFirstMeshGuard(JsonObject root)
@@ -1469,15 +1858,19 @@ public class MetadataGraphValidationTests
   private static void CorruptFirstMeshGuard(JsonObject root)
   {
     var metadata = ReadEnvelope(root["meshes"]![0]!);
-    metadata["guards"]!["nativeProjection"]!["digest"] =
-      Convert.ToBase64String(new byte[32]).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    metadata["guards"]!["nativeProjection"]!["digest"] = Convert
+      .ToBase64String(new byte[32])
+      .TrimEnd('=')
+      .Replace('+', '-')
+      .Replace('/', '_');
     WriteEnvelope(root["meshes"]![0]!, metadata);
   }
 
   private static void AddEnvelopeDescriptions(
     ICollection<JsonObject> graph,
     JsonObject root,
-    string collectionName)
+    string collectionName
+  )
   {
     if (root[collectionName] is not JsonArray collection)
     {
@@ -1501,14 +1894,20 @@ public class MetadataGraphValidationTests
       ["path"] = path,
       ["kind"] = envelope["kind"]!.GetValue<string>(),
       ["id"] = envelope["id"]!.GetValue<int>(),
-      ["guards"] = new JsonArray(envelope["guards"]!.AsObject().Select(guard => new JsonObject
-      {
-        ["name"] = guard.Key,
-        ["projection"] = guard.Value!["projection"]!.GetValue<string>(),
-        ["version"] = guard.Value["version"]!.GetValue<int>()
-      }).ToArray()),
-      ["payload"] = new JsonArray(envelope["payload"]!.AsObject().Select(member =>
-        JsonValue.Create(member.Key)).ToArray())
+      ["guards"] = new JsonArray(
+        envelope["guards"]!
+          .AsObject()
+          .Select(guard => new JsonObject
+          {
+            ["name"] = guard.Key,
+            ["projection"] = guard.Value!["projection"]!.GetValue<string>(),
+            ["version"] = guard.Value["version"]!.GetValue<int>(),
+          })
+          .ToArray()
+      ),
+      ["payload"] = new JsonArray(
+        envelope["payload"]!.AsObject().Select(member => JsonValue.Create(member.Key)).ToArray()
+      ),
     };
     if (envelope["kind"]!.GetValue<string>() == "manifest")
     {
@@ -1517,13 +1916,18 @@ public class MetadataGraphValidationTests
     }
     else if (envelope["kind"]!.GetValue<string>() == "mesh")
     {
-      description["references"] = new JsonArray(envelope["payload"]!["partitions"]!.AsArray()
-        .Select(partition => JsonValue.Create(partition!["localId"]!.GetValue<int>())).ToArray());
+      description["references"] = new JsonArray(
+        envelope["payload"]!["partitions"]!
+          .AsArray()
+          .Select(partition => JsonValue.Create(partition!["localId"]!.GetValue<int>()))
+          .ToArray()
+      );
     }
     else if (envelope["payload"]!["staticLightInstance"] is JsonNode staticLightInstance)
     {
       description["references"] = new JsonArray(
-        staticLightInstance["definitionLocalId"]!.GetValue<int>());
+        staticLightInstance["definitionLocalId"]!.GetValue<int>()
+      );
     }
     return description;
   }
@@ -1576,7 +1980,10 @@ public class MetadataGraphValidationTests
     json.CopyTo(result.AsSpan(20));
     result.AsSpan(20 + json.Length, paddedJsonLength - json.Length).Fill(0x20);
     var resultBinaryHeader = 20 + paddedJsonLength;
-    BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(resultBinaryHeader), checked((uint)binaryLength));
+    BinaryPrimitives.WriteUInt32LittleEndian(
+      result.AsSpan(resultBinaryHeader),
+      checked((uint)binaryLength)
+    );
     BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(resultBinaryHeader + 4), 0x004E4942);
     glb.AsSpan(binaryHeader + 8, binaryLength).CopyTo(result.AsSpan(resultBinaryHeader + 8));
     return result;

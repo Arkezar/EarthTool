@@ -17,7 +17,8 @@ namespace EarthTool.MSH.Internal
       MshDecodeContext context,
       MeshArchiveFraming framing,
       int baseOffset,
-      MeshAssetLineageId lineageId)
+      MeshAssetLineageId lineageId
+    )
     {
       var objectCount = 0;
       var stringBytes = 0;
@@ -28,7 +29,8 @@ namespace EarthTool.MSH.Internal
         "RootDynamicObject",
         ref objectCount,
         ref stringBytes,
-        out var payloadEnd);
+        out var payloadEnd
+      );
       var trailingLength = context.Data.Length - payloadEnd;
       if (trailingLength > context.Profile.MaxRootTrailingBytes)
       {
@@ -36,7 +38,8 @@ namespace EarthTool.MSH.Internal
           "RootTrailingBytes",
           payloadEnd,
           trailingLength,
-          context.Profile.MaxRootTrailingBytes);
+          context.Profile.MaxRootTrailingBytes
+        );
       }
 
       var rootTrailingBytes = context.Data.Slice(payloadEnd, trailingLength).ToArray();
@@ -49,8 +52,10 @@ namespace EarthTool.MSH.Internal
             "Opaque bytes after the complete root payload were preserved.",
             new Dictionary<string, string>
             {
-              ["length"] = trailingLength.ToString(CultureInfo.InvariantCulture)
-            }));
+              ["length"] = trailingLength.ToString(CultureInfo.InvariantCulture),
+            }
+          )
+        );
       }
 
       var asset = new DynamicMeshAsset(
@@ -60,7 +65,8 @@ namespace EarthTool.MSH.Internal
         rootDynamicObject,
         rootTrailingBytes,
         context.Source,
-        MeshAssetOrigin.Loaded);
+        MeshAssetOrigin.Loaded
+      );
       return context.Complete(asset);
     }
 
@@ -71,7 +77,8 @@ namespace EarthTool.MSH.Internal
       string path,
       ref int objectCount,
       ref int stringBytes,
-      out int payloadEnd)
+      out int payloadEnd
+    )
     {
       context.ThrowIfCancellationRequested();
       var profile = context.Profile;
@@ -91,7 +98,10 @@ namespace EarthTool.MSH.Internal
       {
         var headerPath = path + ".CommonBaseHeader";
         context.Ensure(objectOffset, CommonMeshBaseHeader.SerializedSize, headerPath);
-        if (!data.Slice(objectOffset, 4).SequenceEqual(new byte[] { (byte)'M', (byte)'E', (byte)'S', (byte)'H' }))
+        if (
+          !data.Slice(objectOffset, 4)
+            .SequenceEqual(new byte[] { (byte)'M', (byte)'E', (byte)'S', (byte)'H' })
+        )
         {
           throw context.Structural(headerPath + ".Magic", objectOffset, "Expected MESH.");
         }
@@ -102,7 +112,8 @@ namespace EarthTool.MSH.Internal
           throw context.Structural(
             headerPath + ".Version",
             objectOffset + 4,
-            "A dynamic child must use MSH version 1.");
+            "A dynamic child must use MSH version 1."
+          );
         }
 
         var meshKind = context.ReadUInt32(objectOffset + 8);
@@ -111,35 +122,39 @@ namespace EarthTool.MSH.Internal
           throw context.Structural(
             headerPath + ".MeshKind",
             objectOffset + 8,
-            "A declared dynamic child must have dynamic mesh kind.");
+            "A declared dynamic child must have dynamic mesh kind."
+          );
         }
       }
 
       context.Ensure(objectOffset, DynamicFixedSize, path + ".Extension");
-      var fixedExtension = data.Slice(
-        objectOffset + CommonMeshBaseHeader.SerializedSize,
-        0x9C).ToArray();
+      var fixedExtension = data.Slice(objectOffset + CommonMeshBaseHeader.SerializedSize, 0x9C)
+        .ToArray();
       var cursor = objectOffset + DynamicFixedSize;
       var meshName = ReadBytes(
         context,
         ref cursor,
         path + ".Extension.MeshNameBytes",
-        ref stringBytes);
+        ref stringBytes
+      );
       var texturePath = ReadBytes(
         context,
         ref cursor,
         path + ".Extension.TexturePathBytes",
-        ref stringBytes);
+        ref stringBytes
+      );
       var extension = new DynamicEffectExtension(fixedExtension, meshName, texturePath);
       var commonBaseHeader = new CommonMeshBaseHeader(
-        data.Slice(objectOffset, CommonMeshBaseHeader.SerializedSize).ToArray());
+        data.Slice(objectOffset, CommonMeshBaseHeader.SerializedSize).ToArray()
+      );
       AddCompatibilityDiagnostics(
         context,
         commonBaseHeader,
         extension,
         path,
         objectOffset,
-        depth == 1);
+        depth == 1
+      );
 
       var childrenPath = path + ".Children";
       context.Ensure(cursor, sizeof(uint), childrenPath);
@@ -152,7 +167,8 @@ namespace EarthTool.MSH.Internal
           childrenPath,
           childCountOffset,
           childCount,
-          profile.MaxDynamicChildrenPerObject);
+          profile.MaxDynamicChildrenPerObject
+        );
       }
 
       var remainingObjectCount = profile.MaxDynamicObjects - objectCount;
@@ -162,7 +178,8 @@ namespace EarthTool.MSH.Internal
           childrenPath,
           childCountOffset,
           (long)objectCount + childCount,
-          profile.MaxDynamicObjects);
+          profile.MaxDynamicObjects
+        );
       }
 
       var minimumChildBytes = (long)childCount * MinimumDynamicRecordSize;
@@ -171,7 +188,8 @@ namespace EarthTool.MSH.Internal
         throw context.Structural(
           childCount == 0 ? childrenPath : childrenPath + "[0]",
           cursor,
-          "The declared dynamic children do not fit in the serialized representation.");
+          "The declared dynamic children do not fit in the serialized representation."
+        );
       }
 
       var children = new DynamicObject[(int)childCount];
@@ -185,7 +203,8 @@ namespace EarthTool.MSH.Internal
           childPath,
           ref objectCount,
           ref stringBytes,
-          out cursor);
+          out cursor
+        );
       }
 
       payloadEnd = cursor;
@@ -198,7 +217,8 @@ namespace EarthTool.MSH.Internal
       DynamicEffectExtension extension,
       string path,
       int objectOffset,
-      bool isRoot)
+      bool isRoot
+    )
     {
       var extensionOffset = objectOffset + CommonMeshBaseHeader.SerializedSize;
       if (!commonHeader.IsCanonicalDynamic)
@@ -208,16 +228,20 @@ namespace EarthTool.MSH.Internal
             path + ".CommonBaseHeader",
             objectOffset,
             "A noncanonical inherited dynamic base header was preserved.",
-            new Dictionary<string, string>()));
+            new Dictionary<string, string>()
+          )
+        );
       }
 
       var behaviorFindings = DynamicEffectBehavior.Diagnose(
         extension,
-        isRoot ? DynamicObjectPlacement.Root : DynamicObjectPlacement.Child);
+        isRoot ? DynamicObjectPlacement.Root : DynamicObjectPlacement.Child
+      );
       foreach (var finding in behaviorFindings.TakeWhile(IsEffectIdentityFinding))
       {
         context.AddDiagnosticBounded(
-          finding.At(path, extensionOffset + GetDynamicBehaviorOffset(finding.Field)));
+          finding.At(path, extensionOffset + GetDynamicBehaviorOffset(finding.Field))
+        );
       }
 
       if (extension.ReservedWord != 0)
@@ -230,14 +254,17 @@ namespace EarthTool.MSH.Internal
             new Dictionary<string, string>
             {
               ["actual"] = $"0x{extension.ReservedWord:X8}",
-              ["expected"] = "0x00000000"
-            }));
+              ["expected"] = "0x00000000",
+            }
+          )
+        );
       }
 
       foreach (var finding in behaviorFindings.SkipWhile(IsEffectIdentityFinding))
       {
         context.AddDiagnosticBounded(
-          finding.At(path, extensionOffset + GetDynamicBehaviorOffset(finding.Field)));
+          finding.At(path, extensionOffset + GetDynamicBehaviorOffset(finding.Field))
+        );
       }
     }
 
@@ -256,7 +283,7 @@ namespace EarthTool.MSH.Internal
         DynamicBehaviorField.AdditiveFlag => 0x50,
         DynamicBehaviorField.AlphaTimingMode => 0x70,
         DynamicBehaviorField.ChildTranslation => 0x84,
-        _ => 0
+        _ => 0,
       };
     }
 
@@ -264,7 +291,8 @@ namespace EarthTool.MSH.Internal
       MshDecodeContext context,
       ref int cursor,
       string path,
-      ref int stringBytes)
+      ref int stringBytes
+    )
     {
       context.Ensure(cursor, sizeof(uint), path);
       var lengthOffset = cursor;
@@ -277,7 +305,8 @@ namespace EarthTool.MSH.Internal
           path,
           lengthOffset,
           (long)stringBytes + length,
-          context.Profile.MaxDynamicStringBytes);
+          context.Profile.MaxDynamicStringBytes
+        );
       }
 
       if (length > int.MaxValue)
@@ -286,7 +315,8 @@ namespace EarthTool.MSH.Internal
           path,
           lengthOffset,
           length,
-          context.Profile.MaxDynamicStringBytes);
+          context.Profile.MaxDynamicStringBytes
+        );
       }
 
       context.Ensure(cursor, (int)length, path);

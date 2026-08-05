@@ -15,14 +15,16 @@ public class CanonicalMeshAuthoringTests
 {
   private static readonly Guid CreationGuid = new("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
   private static readonly MeshAssetLineageId LineageId = new(
-    new Guid("11111111-2222-3333-4444-555555555555"));
+    new Guid("11111111-2222-3333-4444-555555555555")
+  );
 
   [Fact]
   public async Task CanonicalStaticBuilderProducesCoherentDeterministicAsset()
   {
     var vertices = CreateVertices();
     var triangles = CreateTriangles();
-    var build = StaticMeshBuilder.Create(CreationGuid, LineageId)
+    var build = StaticMeshBuilder
+      .Create(CreationGuid, LineageId)
       .SetAnimationLengths(2, 0, 0, 0)
       .SetRenderObject(vertices, triangles)
       .Build();
@@ -37,17 +39,33 @@ public class CanonicalMeshAuthoringTests
     asset.ArchiveFraming.CreationGuid.Should().Be(CreationGuid);
     asset.CommonBaseHeader.AnimationLengths.Should().Be(new AnimationClassBytes(2, 0, 0, 0));
     asset.CommonBaseHeader.BoxPresenceMask.Should().Be(0x00008000);
-    BinaryPrimitives.ReadUInt16LittleEndian(asset.CommonBaseHeader.BoxTopElevations.Take(2).ToArray())
-      .Should().Be(256);
-    asset.CommonBaseHeader.RotatedOccupancyDescriptors.Should().Equal(
-      ToBytes(0x3A000008u, 0x00008000u, 0xCA001000u, 0xFF000001u));
-    asset.CommonBaseHeader.RotatedCornerPassageMaps.Should().Equal(
-      ToBytes(0xFFFFFFFFFFFF0FFFul, 0x0FFFFFFFFFFFFFFFul,
-        0xFFF0FFFFFFFFFFFFul, 0xFFFFFFFFFFFFFFF0ul));
-    asset.CommonBaseHeader.AttachmentTable.Chunk(8).Should()
+    BinaryPrimitives
+      .ReadUInt16LittleEndian(asset.CommonBaseHeader.BoxTopElevations.Take(2).ToArray())
+      .Should()
+      .Be(256);
+    asset
+      .CommonBaseHeader.RotatedOccupancyDescriptors.Should()
+      .Equal(ToBytes(0x3A000008u, 0x00008000u, 0xCA001000u, 0xFF000001u));
+    asset
+      .CommonBaseHeader.RotatedCornerPassageMaps.Should()
+      .Equal(
+        ToBytes(
+          0xFFFFFFFFFFFF0FFFul,
+          0x0FFFFFFFFFFFFFFFul,
+          0xFFF0FFFFFFFFFFFFul,
+          0xFFFFFFFFFFFFFFF0ul
+        )
+      );
+    asset
+      .CommonBaseHeader.AttachmentTable.Chunk(8)
+      .Should()
       .OnlyContain(record => IsCanonicalAbsentAttachment(record));
     asset.RootSourceObjectId.Lineage.Should().Be(LineageId);
-    asset.StaticRenderObjectSequence.Should().ContainSingle().Subject.Id.Lineage.Should().Be(LineageId);
+    asset
+      .StaticRenderObjectSequence.Should()
+      .ContainSingle()
+      .Subject.Id.Lineage.Should()
+      .Be(LineageId);
 
     var first = await WriteAsync(asset);
     var second = await WriteAsync(asset);
@@ -69,16 +87,22 @@ public class CanonicalMeshAuthoringTests
     cornerPassage[15] = 2;
     var source = new CanonicalStaticSourceObject(
       [new CanonicalStaticRenderObject(CreateVertices(), CreateTriangles())],
-      [new CanonicalStaticSourceObject(
-        [new CanonicalStaticRenderObject(CreateVertices(), CreateTriangles())],
-        role: new CanonicalStaticObjectRole(StaticRenderObjectFlags.Rotor))],
+      [
+        new CanonicalStaticSourceObject(
+          [new CanonicalStaticRenderObject(CreateVertices(), CreateTriangles())],
+          role: new CanonicalStaticObjectRole(StaticRenderObjectFlags.Rotor)
+        ),
+      ],
       role: new CanonicalStaticObjectRole(
         StaticRenderObjectFlags.ViewerFaced
           | StaticRenderObjectFlags.Barrel
           | StaticRenderObjectFlags.MarkerAttachment2,
-        barrelMaximumAngle: 37));
+        barrelMaximumAngle: 37
+      )
+    );
 
-    var build = StaticMeshBuilder.Create(CreationGuid, LineageId)
+    var build = StaticMeshBuilder
+      .Create(CreationGuid, LineageId)
       .SetRootSourceObject(source)
       .SetFootprint(new CanonicalStaticFootprint(0xC000, elevations, cornerPassage))
       .SetHorizontalExtents(new CanonicalHorizontalExtents(1.25f, 2.5f, 3.75f, 4.5f))
@@ -86,30 +110,48 @@ public class CanonicalMeshAuthoringTests
 
     build.TryGetValue(out var asset).Should().BeTrue();
     asset!.CommonBaseHeader.BoxPresenceMask.Should().Be(0xC000);
-    Enumerable.Range(0, 16).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(
-      asset.CommonBaseHeader.BoxTopElevations.Skip(index * 2).Take(2).ToArray()))
-      .Should().Equal(elevations.Reverse().Select(value => (ushort)(value * 256)));
+    Enumerable
+      .Range(0, 16)
+      .Select(index =>
+        BinaryPrimitives.ReadUInt16LittleEndian(
+          asset.CommonBaseHeader.BoxTopElevations.Skip(index * 2).Take(2).ToArray()
+        )
+      )
+      .Should()
+      .Equal(elevations.Reverse().Select(value => (ushort)(value * 256)));
     asset.CommonBaseHeader.BoxCornerPassageFlags.Should().Equal(cornerPassage.Reverse());
-    asset.CommonBaseHeader.RotatedOccupancyDescriptors.Should().Equal(
-      ToBytes(0x3A000088u, 0x0400C000u, 0xCB001100u, 0xFF000003u));
-    asset.CommonBaseHeader.RotatedCornerPassageMaps.Should().Equal(
-      ToBytes(
-        0xFFFFFFFF2FFF1FFFul,
-        0x81FFFFFFFFFFFFFFul,
-        0xFFF4FFF8FFFFFFFFul,
-        0xFFFFFFFFFFFFFF42ul));
-    asset.CommonBaseHeader.HorizontalExtents.Should().Equal(
-      ToBytes((ushort)320, (ushort)640, (ushort)960, (ushort)1152));
-    asset.StaticRenderObjectSequence[0].KnownFlags.Should().Be(
-      StaticRenderObjectFlags.ViewerFaced
-        | StaticRenderObjectFlags.Barrel
-        | StaticRenderObjectFlags.MarkerAttachment2);
+    asset
+      .CommonBaseHeader.RotatedOccupancyDescriptors.Should()
+      .Equal(ToBytes(0x3A000088u, 0x0400C000u, 0xCB001100u, 0xFF000003u));
+    asset
+      .CommonBaseHeader.RotatedCornerPassageMaps.Should()
+      .Equal(
+        ToBytes(
+          0xFFFFFFFF2FFF1FFFul,
+          0x81FFFFFFFFFFFFFFul,
+          0xFFF4FFF8FFFFFFFFul,
+          0xFFFFFFFFFFFFFF42ul
+        )
+      );
+    asset
+      .CommonBaseHeader.HorizontalExtents.Should()
+      .Equal(ToBytes((ushort)320, (ushort)640, (ushort)960, (ushort)1152));
+    asset
+      .StaticRenderObjectSequence[0]
+      .KnownFlags.Should()
+      .Be(
+        StaticRenderObjectFlags.ViewerFaced
+          | StaticRenderObjectFlags.Barrel
+          | StaticRenderObjectFlags.MarkerAttachment2
+      );
     asset.StaticRenderObjectSequence[0].BarrelMaximumAngle.Should().Be(37);
-    asset.StaticRenderObjectSequence[1].KnownFlags.Should().Be(
-      StaticRenderObjectFlags.Rotor | StaticRenderObjectFlags.BeginsNestedSourceObject);
+    asset
+      .StaticRenderObjectSequence[1]
+      .KnownFlags.Should()
+      .Be(StaticRenderObjectFlags.Rotor | StaticRenderObjectFlags.BeginsNestedSourceObject);
 
-    Action reservedRole = () => new CanonicalStaticObjectRole(
-      StaticRenderObjectFlags.BeginsNestedSourceObject);
+    Action reservedRole = () =>
+      new CanonicalStaticObjectRole(StaticRenderObjectFlags.BeginsNestedSourceObject);
     reservedRole.Should().Throw<ArgumentOutOfRangeException>();
   }
 
@@ -118,7 +160,8 @@ public class CanonicalMeshAuthoringTests
   {
     var vertices = CreateVertices().ToList();
     var triangles = CreateTriangles().ToList();
-    var builder = StaticMeshBuilder.Create(CreationGuid, LineageId)
+    var builder = StaticMeshBuilder
+      .Create(CreationGuid, LineageId)
       .SetRenderObject(vertices, triangles);
 
     vertices[0] = new CanonicalStaticVertex(new Vector3(99), Vector3.UnitZ, Vector2.Zero);
@@ -127,15 +170,17 @@ public class CanonicalMeshAuthoringTests
     copied.TryGetValue(out var copiedAsset).Should().BeTrue();
     copiedAsset!.StaticRenderObjectSequence[0].RenderVertices[0].Position.Should().Be(Vector3.Zero);
 
-    var invalid = StaticMeshBuilder.Create(CreationGuid, LineageId)
+    var invalid = StaticMeshBuilder
+      .Create(CreationGuid, LineageId)
       .SetRenderObject(
         new[]
         {
           new CanonicalStaticVertex(new Vector3(float.NaN, 0, 0), Vector3.UnitZ, Vector2.Zero),
           CreateVertices()[1],
-          CreateVertices()[2]
+          CreateVertices()[2],
         },
-        CreateTriangles())
+        CreateTriangles()
+      )
       .Build();
 
     invalid.TryGetValue(out _).Should().BeFalse();
@@ -148,40 +193,59 @@ public class CanonicalMeshAuthoringTests
   [Fact]
   public void CanonicalStaticAuthoringAndEditControlsEnforceSafeTexResourceKeys()
   {
-    var build = StaticMeshBuilder.Create(CreationGuid, LineageId)
-      .SetRootSourceObject(new CanonicalStaticSourceObject(
-      [
-        new CanonicalStaticRenderObject(
-          CreateVertices(),
-          CreateTriangles(),
-          "Textures\\authored\\hull.tex")
-      ]))
+    var build = StaticMeshBuilder
+      .Create(CreationGuid, LineageId)
+      .SetRootSourceObject(
+        new CanonicalStaticSourceObject([
+          new CanonicalStaticRenderObject(
+            CreateVertices(),
+            CreateTriangles(),
+            "Textures\\authored\\hull.tex"
+          ),
+        ])
+      )
       .Build();
 
     build.TryGetValue(out var asset).Should().BeTrue();
-    asset!.StaticRenderObjectSequence.Should().ContainSingle().Subject.TexturePathBytes.Should()
+    asset!
+      .StaticRenderObjectSequence.Should()
+      .ContainSingle()
+      .Subject.TexturePathBytes.Should()
       .Equal("Textures\\authored\\hull.tex"u8.ToArray());
-    var edit = asset.Edit()
+    var edit = asset
+      .Edit()
       .SetTextureResourceBinding(
         asset.StaticRenderObjectSequence[0].Id,
-        "Textures\\authored\\replacement.tex")
+        "Textures\\authored\\replacement.tex"
+      )
       .Commit();
     edit.TryGetValue(out var edited).Should().BeTrue();
-    edited!.StaticRenderObjectSequence[0].TexturePathBytes.Should()
+    edited!
+      .StaticRenderObjectSequence[0]
+      .TexturePathBytes.Should()
       .Equal("Textures\\authored\\replacement.tex"u8.ToArray());
 
-    var unsafeBuild = StaticMeshBuilder.Create(CreationGuid, LineageId)
-      .SetRootSourceObject(new CanonicalStaticSourceObject(
-      [
-        new CanonicalStaticRenderObject(CreateVertices(), CreateTriangles(), "..\\outside.tex")
-      ]))
+    var unsafeBuild = StaticMeshBuilder
+      .Create(CreationGuid, LineageId)
+      .SetRootSourceObject(
+        new CanonicalStaticSourceObject([
+          new CanonicalStaticRenderObject(CreateVertices(), CreateTriangles(), "..\\outside.tex"),
+        ])
+      )
       .Build();
     unsafeBuild.TryGetValue(out _).Should().BeFalse();
-    unsafeBuild.Diagnostics.Should().ContainSingle().Subject.Code.Should()
+    unsafeBuild
+      .Diagnostics.Should()
+      .ContainSingle()
+      .Subject.Code.Should()
       .Be(MshDiagnosticCodes.InvalidAuthoringInput);
-    Action unsafeEdit = () => asset.Edit().SetTextureResourceBinding(
-      asset.StaticRenderObjectSequence[0].Id,
-      "Textures\\..\\outside.tex");
+    Action unsafeEdit = () =>
+      asset
+        .Edit()
+        .SetTextureResourceBinding(
+          asset.StaticRenderObjectSequence[0].Id,
+          "Textures\\..\\outside.tex"
+        );
     unsafeEdit.Should().Throw<ArgumentException>();
   }
 
@@ -197,9 +261,14 @@ public class CanonicalMeshAuthoringTests
     asset.ArchiveFraming.Declaration.Should().Be(0x30D0A1FF);
     asset.ArchiveFraming.ArchiveType.Should().Be(1);
     asset.CommonBaseHeader.MeshKind.Should().Be(1);
-    asset.CommonBaseHeader.SerializedRepresentation.Skip(0x0C).Take(0x1CC)
-      .Should().OnlyContain(value => value == 0);
-    asset.CommonBaseHeader.AttachmentTable.Chunk(8).Should()
+    asset
+      .CommonBaseHeader.SerializedRepresentation.Skip(0x0C)
+      .Take(0x1CC)
+      .Should()
+      .OnlyContain(value => value == 0);
+    asset
+      .CommonBaseHeader.AttachmentTable.Chunk(8)
+      .Should()
       .OnlyContain(record => IsCanonicalAbsentAttachment(record));
     asset.RootDynamicObject.Children.Should().BeEmpty();
 
@@ -211,6 +280,33 @@ public class CanonicalMeshAuthoringTests
     var read = await new MshReader().ReadAsync(source);
     read.Status.Should().Be(OperationStatus.Succeeded);
     read.Value.Should().BeOfType<DynamicMeshAsset>();
+  }
+
+  [Fact]
+  public async Task IdentityFreeCanonicalAndExactCreationGenerateLineages()
+  {
+    var staticBuild = StaticMeshBuilder
+      .Create(CreationGuid)
+      .SetRenderObject(CreateVertices(), CreateTriangles())
+      .Build();
+    var dynamicBuild = DynamicMeshBuilder.Create(CreationGuid).Build();
+
+    staticBuild.TryGetValue(out var staticAsset).Should().BeTrue();
+    dynamicBuild.TryGetValue(out var dynamicAsset).Should().BeTrue();
+    staticAsset!.LineageId.Value.Should().NotBe(Guid.Empty);
+    dynamicAsset!.LineageId.Value.Should().NotBe(Guid.Empty);
+    staticAsset.ArchiveFraming.CreationGuid.Should().Be(CreationGuid);
+    dynamicAsset.ArchiveFraming.CreationGuid.Should().Be(CreationGuid);
+
+    var exactStatic = MshExpert.CreateStatic(await WriteAsync(staticAsset));
+    var exactDynamic = MshExpert.CreateDynamic(await WriteAsync(dynamicAsset));
+
+    exactStatic.TryGetValue(out var exactStaticAsset).Should().BeTrue();
+    exactDynamic.TryGetValue(out var exactDynamicAsset).Should().BeTrue();
+    exactStaticAsset!.Origin.Should().Be(MeshAssetOrigin.Expert);
+    exactDynamicAsset!.Origin.Should().Be(MeshAssetOrigin.Expert);
+    exactStaticAsset.LineageId.Value.Should().NotBe(Guid.Empty);
+    exactDynamicAsset.LineageId.Value.Should().NotBe(Guid.Empty);
   }
 
   [Fact]
@@ -239,13 +335,18 @@ public class CanonicalMeshAuthoringTests
     var build = MshExpert.CreateDynamic(bytes, LineageId);
 
     build.TryGetValue(out _).Should().BeFalse();
-    build.Diagnostics.Should().ContainSingle().Subject.Code.Should().Be(MshDiagnosticCodes.StructuralHazard);
+    build
+      .Diagnostics.Should()
+      .ContainSingle()
+      .Subject.Code.Should()
+      .Be(MshDiagnosticCodes.StructuralHazard);
   }
 
   [Fact]
   public void BuildersAndExpertConstructionEnforceResourceLimitsBeforeAcceptance()
   {
-    var staticBuild = StaticMeshBuilder.Create(CreationGuid, LineageId)
+    var staticBuild = StaticMeshBuilder
+      .Create(CreationGuid, LineageId)
       .SetRenderObject(CreateVertices(), CreateTriangles())
       .Build(new MshOperationProfile(maxOutputBytes: 1));
     var oversized = new CountingByteEnumerable(100);
@@ -253,14 +354,21 @@ public class CanonicalMeshAuthoringTests
     var expertBuild = MshExpert.CreateStatic(
       oversized,
       LineageId,
-      new MshOperationProfile(maxInputBytes: 4));
+      new MshOperationProfile(maxInputBytes: 4)
+    );
 
     staticBuild.TryGetValue(out _).Should().BeFalse();
-    staticBuild.Diagnostics.Should().ContainSingle().Subject.Code
-      .Should().Be(MshDiagnosticCodes.ResourceLimitExceeded);
+    staticBuild
+      .Diagnostics.Should()
+      .ContainSingle()
+      .Subject.Code.Should()
+      .Be(MshDiagnosticCodes.ResourceLimitExceeded);
     expertBuild.TryGetValue(out _).Should().BeFalse();
-    expertBuild.Diagnostics.Should().ContainSingle().Subject.Code
-      .Should().Be(MshDiagnosticCodes.ResourceLimitExceeded);
+    expertBuild
+      .Diagnostics.Should()
+      .ContainSingle()
+      .Subject.Code.Should()
+      .Be(MshDiagnosticCodes.ResourceLimitExceeded);
     oversized.ValuesProduced.Should().Be(5);
   }
 
@@ -270,11 +378,13 @@ public class CanonicalMeshAuthoringTests
     var source = BuildStatic();
     var id = source.StaticRenderObjectSequence[0].Id;
     var changedVertices = CreateVertices().ToArray();
-    changedVertices[1] = new CanonicalStaticVertex(new Vector3(2, 0, 0), Vector3.UnitZ, Vector2.UnitX);
+    changedVertices[1] = new CanonicalStaticVertex(
+      new Vector3(2, 0, 0),
+      Vector3.UnitZ,
+      Vector2.UnitX
+    );
 
-    var edit = source.Edit()
-      .ReplaceGeometry(id, changedVertices, CreateTriangles())
-      .Commit();
+    var edit = source.Edit().ReplaceGeometry(id, changedVertices, CreateTriangles()).Commit();
 
     edit.TryGetValue(out var edited).Should().BeTrue();
     edited.Should().NotBeSameAs(source);
@@ -282,17 +392,24 @@ public class CanonicalMeshAuthoringTests
     edited.RootSourceObjectId.Should().Be(source.RootSourceObjectId);
     edited.StaticRenderObjectSequence[0].Id.Should().Be(id);
     source.StaticRenderObjectSequence[0].RenderVertices[1].Position.Should().Be(Vector3.UnitX);
-    edited.StaticRenderObjectSequence[0].RenderVertices[1].Position.Should().Be(new Vector3(2, 0, 0));
-    edit.Preservation.Changes.Select(change => (change.FieldPath, change.Disposition)).Should().Equal(
-      ("ArchiveFraming", PreservationDisposition.Retained),
-      ("CommonBaseHeader", PreservationDisposition.Retained),
-      ("RootSourceObjectId", PreservationDisposition.Retained),
-      ("StaticRenderObjectSequence[0].Id", PreservationDisposition.Retained),
-      ("StaticRenderObjectSequence[0].RenderVertices", PreservationDisposition.Regenerated),
-      ("StaticRenderObjectSequence[0].Triangles", PreservationDisposition.Regenerated),
-      ("StaticRenderObjectSequence[0].VertexBlockPadding", PreservationDisposition.Canonicalized),
-      ("StaticRenderObjectSequence[0].TexturePathBytes", PreservationDisposition.Retained),
-      ("RootTrailingBytes", PreservationDisposition.Retained));
+    edited
+      .StaticRenderObjectSequence[0]
+      .RenderVertices[1]
+      .Position.Should()
+      .Be(new Vector3(2, 0, 0));
+    edit.Preservation.Changes.Select(change => (change.FieldPath, change.Disposition))
+      .Should()
+      .Equal(
+        ("ArchiveFraming", PreservationDisposition.Retained),
+        ("CommonBaseHeader", PreservationDisposition.Retained),
+        ("RootSourceObjectId", PreservationDisposition.Retained),
+        ("StaticRenderObjectSequence[0].Id", PreservationDisposition.Retained),
+        ("StaticRenderObjectSequence[0].RenderVertices", PreservationDisposition.Regenerated),
+        ("StaticRenderObjectSequence[0].Triangles", PreservationDisposition.Regenerated),
+        ("StaticRenderObjectSequence[0].VertexBlockPadding", PreservationDisposition.Canonicalized),
+        ("StaticRenderObjectSequence[0].TexturePathBytes", PreservationDisposition.Retained),
+        ("RootTrailingBytes", PreservationDisposition.Retained)
+      );
 
     var output = await WriteAsync(edited);
     await using var roundTripSource = new MemoryStream(output);
@@ -315,12 +432,16 @@ public class CanonicalMeshAuthoringTests
     newId.Lineage.Should().Be(source.LineageId);
     newId.Value.Should().BeGreaterThan(oldId.Value);
     edited!.StaticRenderObjectSequence.Should().ContainSingle().Subject.Id.Should().Be(newId);
-    edit.Preservation.Changes.Should().Contain(change =>
-      change.FieldPath == "StaticRenderObjectSequence[0]"
-      && change.Disposition == PreservationDisposition.Invalidated);
-    edit.Preservation.Changes.Should().Contain(change =>
-      change.FieldPath == "StaticRenderObjectSequence[0]"
-      && change.Disposition == PreservationDisposition.Canonicalized);
+    edit.Preservation.Changes.Should()
+      .Contain(change =>
+        change.FieldPath == "StaticRenderObjectSequence[0]"
+        && change.Disposition == PreservationDisposition.Invalidated
+      );
+    edit.Preservation.Changes.Should()
+      .Contain(change =>
+        change.FieldPath == "StaticRenderObjectSequence[0]"
+        && change.Disposition == PreservationDisposition.Canonicalized
+      );
     Action secondCommit = () => session.Commit();
     secondCommit.Should().Throw<InvalidOperationException>();
   }
@@ -338,7 +459,10 @@ public class CanonicalMeshAuthoringTests
 
     secondId.Value.Should().Be(firstId.Value + 1);
     edit.TryGetValue(out _).Should().BeFalse();
-    edit.Diagnostics.Should().ContainSingle().Subject.Code.Should().Be(MshDiagnosticCodes.InvalidEdit);
+    edit.Diagnostics.Should()
+      .ContainSingle()
+      .Subject.Code.Should()
+      .Be(MshDiagnosticCodes.InvalidEdit);
     source.StaticRenderObjectSequence.Should().ContainSingle().Subject.Id.Value.Should().Be(1);
   }
 
@@ -355,7 +479,8 @@ public class CanonicalMeshAuthoringTests
 
   private static StaticMeshAsset BuildStatic()
   {
-    var build = StaticMeshBuilder.Create(CreationGuid, LineageId)
+    var build = StaticMeshBuilder
+      .Create(CreationGuid, LineageId)
       .SetRenderObject(CreateVertices(), CreateTriangles())
       .Build();
     build.TryGetValue(out var asset).Should().BeTrue();
@@ -368,7 +493,7 @@ public class CanonicalMeshAuthoringTests
     [
       new CanonicalStaticVertex(Vector3.Zero, Vector3.UnitZ, Vector2.Zero),
       new CanonicalStaticVertex(Vector3.UnitX, Vector3.UnitZ, Vector2.UnitX),
-      new CanonicalStaticVertex(new Vector3(0, 1, 1), Vector3.UnitZ, Vector2.UnitY)
+      new CanonicalStaticVertex(new Vector3(0, 1, 1), Vector3.UnitZ, Vector2.UnitY),
     ];
   }
 
@@ -389,8 +514,18 @@ public class CanonicalMeshAuthoringTests
   {
     var actual = Convert.ToHexString(SHA256.HashData(bytes));
     var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../.."));
-    var approvedPath = Path.Combine(root, "EarthTool.MSH.Tests", "Approvals", $"{name}.approved.sha256.txt");
-    var receivedPath = Path.Combine(root, "EarthTool.MSH.Tests", "Approvals", $"{name}.received.sha256.txt");
+    var approvedPath = Path.Combine(
+      root,
+      "EarthTool.MSH.Tests",
+      "Approvals",
+      $"{name}.approved.sha256.txt"
+    );
+    var receivedPath = Path.Combine(
+      root,
+      "EarthTool.MSH.Tests",
+      "Approvals",
+      $"{name}.received.sha256.txt"
+    );
     var approved = File.ReadAllText(approvedPath).Trim();
     if (actual != approved)
     {

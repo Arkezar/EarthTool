@@ -78,9 +78,9 @@ namespace EarthTool.MSH.Internal
       {
         context.AddDiagnostic(
           context.Compatibility(
-          "ArchiveFraming.Declaration",
-          0,
-          "Unknown archive declaration bits were preserved.",
+            "ArchiveFraming.Declaration",
+            0,
+            "Unknown archive declaration bits were preserved.",
             new Dictionary<string, string> { ["unknownBits"] = $"0x{unknownDeclarationBits:X8}" }
           )
         );
@@ -145,16 +145,16 @@ namespace EarthTool.MSH.Internal
       {
         context.AddDiagnostic(
           context.Compatibility(
-          "ArchiveFraming.ArchiveType",
-          sizeof(uint),
-          "Archive type and root mesh kind select different payload shapes.",
-          new Dictionary<string, string>
-          {
-            ["archiveType"] = archiveType
+            "ArchiveFraming.ArchiveType",
+            sizeof(uint),
+            "Archive type and root mesh kind select different payload shapes.",
+            new Dictionary<string, string>
+            {
+              ["archiveType"] = archiveType
                 .GetValueOrDefault()
                 .ToString(CultureInfo.InvariantCulture),
-            ["meshKind"] = meshKind.ToString(CultureInfo.InvariantCulture),
-          }
+              ["meshKind"] = meshKind.ToString(CultureInfo.InvariantCulture),
+            }
           )
         );
       }
@@ -168,6 +168,5 @@ namespace EarthTool.MSH.Internal
 
       return StaticMeshDecoder.Decode(context, framing, baseOffset, assetLineageId);
     }
-
   }
 }

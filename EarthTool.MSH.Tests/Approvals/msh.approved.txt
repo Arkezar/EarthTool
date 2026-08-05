@@ -272,6 +272,7 @@ public sealed class EarthTool.MSH.Assets.StaticSourceObject
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Assets.StaticSourceObject> Children { get; }
   property EarthTool.MSH.Assets.SourceObjectId Id { get; }
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Assets.StaticRenderObjectId> StaticRenderObjectIds { get; }
+  property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Assets.StaticRenderObject> StaticRenderObjects { get; }
 public struct EarthTool.MSH.Assets.StaticTriangle : System.IEquatable<EarthTool.MSH.Assets.StaticTriangle>
   constructor StaticTriangle(System.UInt16 vertex0, System.UInt16 vertex1, System.UInt16 vertex2, System.UInt16 triangleRenderPassFlags)
   property System.UInt16 TriangleRenderPassFlags { get; }
@@ -367,6 +368,7 @@ public static class EarthTool.MSH.Authoring.DynamicEffectRecipes
 public sealed class EarthTool.MSH.Authoring.DynamicMeshBuilder
   method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.DynamicMeshAsset> Build(EarthTool.MSH.Operations.MshOperationProfile? profile = null)
   method EarthTool.MSH.Authoring.DynamicMeshBuilder Create()
+  method EarthTool.MSH.Authoring.DynamicMeshBuilder Create(System.Guid creationGuid)
   method EarthTool.MSH.Authoring.DynamicMeshBuilder Create(System.Guid creationGuid, EarthTool.MSH.Assets.MeshAssetLineageId lineageId)
   method EarthTool.MSH.Authoring.DynamicMeshBuilder SetRoot(EarthTool.MSH.Authoring.CanonicalDynamicObject root)
 public sealed class EarthTool.MSH.Authoring.MshBuildResult<T> where T : class
@@ -393,6 +395,7 @@ public sealed class EarthTool.MSH.Authoring.PreservationReport
 public sealed class EarthTool.MSH.Authoring.StaticMeshBuilder
   method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.StaticMeshAsset> Build(EarthTool.MSH.Operations.MshOperationProfile? profile = null)
   method EarthTool.MSH.Authoring.StaticMeshBuilder Create()
+  method EarthTool.MSH.Authoring.StaticMeshBuilder Create(System.Guid creationGuid)
   method EarthTool.MSH.Authoring.StaticMeshBuilder Create(System.Guid creationGuid, EarthTool.MSH.Assets.MeshAssetLineageId lineageId)
   method EarthTool.MSH.Authoring.StaticMeshBuilder SetAnimationLengths(System.Byte a, System.Byte b, System.Byte c, System.Byte d)
   method EarthTool.MSH.Authoring.StaticMeshBuilder SetFootprint(EarthTool.MSH.Authoring.CanonicalStaticFootprint footprint)
@@ -408,7 +411,9 @@ public sealed class EarthTool.MSH.Authoring.StaticMeshEditSession
   method EarthTool.MSH.Authoring.StaticMeshEditSession SetTextureResourceBinding(EarthTool.MSH.Assets.StaticRenderObjectId renderObject, System.String? textureResourceKey)
 public static class EarthTool.MSH.Expert.MshExpert
   method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.DynamicMeshAsset> CreateDynamic(System.Collections.Generic.IEnumerable<System.Byte> serializedRepresentation, EarthTool.MSH.Assets.MeshAssetLineageId lineageId, EarthTool.MSH.Operations.MshOperationProfile? profile = null)
+  method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.DynamicMeshAsset> CreateDynamic(System.Collections.Generic.IEnumerable<System.Byte> serializedRepresentation, EarthTool.MSH.Operations.MshOperationProfile? profile = null)
   method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.StaticMeshAsset> CreateStatic(System.Collections.Generic.IEnumerable<System.Byte> serializedRepresentation, EarthTool.MSH.Assets.MeshAssetLineageId lineageId, EarthTool.MSH.Operations.MshOperationProfile? profile = null)
+  method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.StaticMeshAsset> CreateStatic(System.Collections.Generic.IEnumerable<System.Byte> serializedRepresentation, EarthTool.MSH.Operations.MshOperationProfile? profile = null)
 public interface EarthTool.MSH.Operations.IMshReader
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.MSH.Assets.MeshAsset>> ReadAsync(System.IO.Stream source, EarthTool.MSH.Operations.MshOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.MSH.Assets.MeshAsset>> ReadFileAsync(System.String path, EarthTool.MSH.Operations.MshOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)

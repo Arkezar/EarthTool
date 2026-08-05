@@ -20,8 +20,10 @@ namespace EarthTool.MSH.Authoring
   {
     /// <summary>Gets the low-16 logical occupied-cell mask.</summary>
     public ushort PresenceMask { get; }
+
     /// <summary>Gets 16 logical unsigned top elevations in world units.</summary>
     public IReadOnlyList<float> TopElevations { get; }
+
     /// <summary>Gets 16 logical four-bit corner-passage values.</summary>
     public IReadOnlyList<byte> CornerPassageFlags { get; }
 
@@ -29,17 +31,25 @@ namespace EarthTool.MSH.Authoring
     public CanonicalStaticFootprint(
       ushort presenceMask,
       IEnumerable<float> topElevations,
-      IEnumerable<byte> cornerPassageFlags)
+      IEnumerable<byte> cornerPassageFlags
+    )
     {
       PresenceMask = presenceMask;
-      var elevations = (topElevations ?? throw new ArgumentNullException(nameof(topElevations))).ToArray();
-      var flags = (cornerPassageFlags
-        ?? throw new ArgumentNullException(nameof(cornerPassageFlags))).ToArray();
+      var elevations = (
+        topElevations ?? throw new ArgumentNullException(nameof(topElevations))
+      ).ToArray();
+      var flags = (
+        cornerPassageFlags ?? throw new ArgumentNullException(nameof(cornerPassageFlags))
+      ).ToArray();
       if (elevations.Length != 16 || flags.Length != 16)
       {
         throw new ArgumentException("A canonical footprint requires exactly 16 logical cells.");
       }
-      if (elevations.Any(value => !float.IsFinite(value) || value < 0 || value * 256d > ushort.MaxValue))
+      if (
+        elevations.Any(value =>
+          !float.IsFinite(value) || value < 0 || value * 256d > ushort.MaxValue
+        )
+      )
       {
         throw new ArgumentOutOfRangeException(nameof(topElevations));
       }
@@ -58,15 +68,23 @@ namespace EarthTool.MSH.Authoring
   {
     /// <summary>Gets the positive-Y extent.</summary>
     public float PositiveY { get; }
+
     /// <summary>Gets the negative-Y extent magnitude.</summary>
     public float NegativeY { get; }
+
     /// <summary>Gets the positive-X extent.</summary>
     public float PositiveX { get; }
+
     /// <summary>Gets the negative-X extent magnitude.</summary>
     public float NegativeX { get; }
 
     /// <summary>Initializes canonical semantic horizontal extents.</summary>
-    public CanonicalHorizontalExtents(float positiveY, float negativeY, float positiveX, float negativeX)
+    public CanonicalHorizontalExtents(
+      float positiveY,
+      float negativeY,
+      float positiveX,
+      float negativeX
+    )
     {
       ValidateExtent(positiveY, nameof(positiveY));
       ValidateExtent(negativeY, nameof(negativeY));
@@ -102,13 +120,12 @@ namespace EarthTool.MSH.Authoring
 
     /// <summary>Gets the recognized semantic role flags.</summary>
     public StaticRenderObjectFlags Flags { get; }
+
     /// <summary>Gets the canonical barrel maximum raise-angle byte.</summary>
     public byte BarrelMaximumAngle { get; }
 
     /// <summary>Initializes supported semantic source-object roles.</summary>
-    public CanonicalStaticObjectRole(
-      StaticRenderObjectFlags flags,
-      byte barrelMaximumAngle = 0)
+    public CanonicalStaticObjectRole(StaticRenderObjectFlags flags, byte barrelMaximumAngle = 0)
     {
       if ((flags & ~AllowedFlags) != 0)
       {
@@ -128,8 +145,10 @@ namespace EarthTool.MSH.Authoring
   {
     /// <summary>Gets the MSH-space position.</summary>
     public Vector3 Position { get; }
+
     /// <summary>Gets the MSH-space normal.</summary>
     public Vector3 Normal { get; }
+
     /// <summary>Gets the native texture coordinate.</summary>
     public Vector2 TextureCoordinate { get; }
 
@@ -147,8 +166,10 @@ namespace EarthTool.MSH.Authoring
   {
     /// <summary>Gets the first vertex index.</summary>
     public ushort Vertex0 { get; }
+
     /// <summary>Gets the second vertex index.</summary>
     public ushort Vertex1 { get; }
+
     /// <summary>Gets the third vertex index.</summary>
     public ushort Vertex2 { get; }
 
@@ -195,12 +216,15 @@ namespace EarthTool.MSH.Authoring
     public CanonicalStaticRenderObject(
       IEnumerable<CanonicalStaticVertex> renderVertices,
       IEnumerable<CanonicalTriangle> triangles,
-      string? textureResourceKey = null)
+      string? textureResourceKey = null
+    )
     {
       RenderVertices = Array.AsReadOnly(
-        (renderVertices ?? throw new ArgumentNullException(nameof(renderVertices))).ToArray());
+        (renderVertices ?? throw new ArgumentNullException(nameof(renderVertices))).ToArray()
+      );
       Triangles = Array.AsReadOnly(
-        (triangles ?? throw new ArgumentNullException(nameof(triangles))).ToArray());
+        (triangles ?? throw new ArgumentNullException(nameof(triangles))).ToArray()
+      );
       TextureResourceKey = textureResourceKey;
     }
   }
@@ -221,11 +245,15 @@ namespace EarthTool.MSH.Authoring
     public CanonicalStaticSourceObject(
       IEnumerable<CanonicalStaticRenderObject> renderObjects,
       IEnumerable<CanonicalStaticSourceObject>? children = null,
-      CanonicalStaticObjectRole? role = null)
+      CanonicalStaticObjectRole? role = null
+    )
     {
       RenderObjects = Array.AsReadOnly(
-        (renderObjects ?? throw new ArgumentNullException(nameof(renderObjects))).ToArray());
-      Children = Array.AsReadOnly((children ?? Array.Empty<CanonicalStaticSourceObject>()).ToArray());
+        (renderObjects ?? throw new ArgumentNullException(nameof(renderObjects))).ToArray()
+      );
+      Children = Array.AsReadOnly(
+        (children ?? Array.Empty<CanonicalStaticSourceObject>()).ToArray()
+      );
       Role = role;
       if (RenderObjects.Any(item => item is null) || Children.Any(item => item is null))
       {
@@ -235,16 +263,22 @@ namespace EarthTool.MSH.Authoring
   }
 
   /// <summary>Returns a canonical or expert value without a partial value on expected failure.</summary>
-  public sealed class MshBuildResult<T> where T : class
+  public sealed class MshBuildResult<T>
+    where T : class
   {
     private readonly T? _value;
 
     /// <summary>Gets whether construction succeeded.</summary>
     public bool IsSuccess { get; }
+
     /// <summary>Gets operation-scoped diagnostics.</summary>
     public IReadOnlyList<OperationDiagnostic> Diagnostics { get; }
 
-    internal MshBuildResult(bool isSuccess, T? value, IEnumerable<OperationDiagnostic>? diagnostics = null)
+    internal MshBuildResult(
+      bool isSuccess,
+      T? value,
+      IEnumerable<OperationDiagnostic>? diagnostics = null
+    )
     {
       IsSuccess = isSuccess;
       _value = value;
@@ -278,7 +312,13 @@ namespace EarthTool.MSH.Authoring
     /// <summary>Creates a builder with stable generated creation and lineage identities.</summary>
     public static StaticMeshBuilder Create()
     {
-      return new StaticMeshBuilder(Guid.NewGuid(), new MeshAssetLineageId(Guid.NewGuid()));
+      return Create(Guid.NewGuid());
+    }
+
+    /// <summary>Creates a builder with an explicit creation identity and generated lineage.</summary>
+    public static StaticMeshBuilder Create(Guid creationGuid)
+    {
+      return new StaticMeshBuilder(creationGuid, new MeshAssetLineageId(Guid.NewGuid()));
     }
 
     /// <summary>Creates a builder with explicit stable identities.</summary>
@@ -297,7 +337,8 @@ namespace EarthTool.MSH.Authoring
     /// <summary>Sets a single root material partition.</summary>
     public StaticMeshBuilder SetRenderObject(
       IEnumerable<CanonicalStaticVertex> vertices,
-      IEnumerable<CanonicalTriangle> triangles)
+      IEnumerable<CanonicalTriangle> triangles
+    )
     {
       if (vertices is null)
       {
@@ -310,14 +351,16 @@ namespace EarthTool.MSH.Authoring
       }
 
       _rootSourceObject = new CanonicalStaticSourceObject(
-        new[] { new CanonicalStaticRenderObject(vertices, triangles) });
+        new[] { new CanonicalStaticRenderObject(vertices, triangles) }
+      );
       return this;
     }
 
     /// <summary>Sets the complete canonical source-object tree.</summary>
     public StaticMeshBuilder SetRootSourceObject(CanonicalStaticSourceObject rootSourceObject)
     {
-      _rootSourceObject = rootSourceObject ?? throw new ArgumentNullException(nameof(rootSourceObject));
+      _rootSourceObject =
+        rootSourceObject ?? throw new ArgumentNullException(nameof(rootSourceObject));
       return this;
     }
 
@@ -331,7 +374,8 @@ namespace EarthTool.MSH.Authoring
     /// <summary>Sets explicit semantic horizontal extents instead of deriving them from root geometry.</summary>
     public StaticMeshBuilder SetHorizontalExtents(CanonicalHorizontalExtents horizontalExtents)
     {
-      _horizontalExtents = horizontalExtents ?? throw new ArgumentNullException(nameof(horizontalExtents));
+      _horizontalExtents =
+        horizontalExtents ?? throw new ArgumentNullException(nameof(horizontalExtents));
       return this;
     }
 
@@ -348,7 +392,8 @@ namespace EarthTool.MSH.Authoring
       failure = AuthoringValidation.ValidateStaticHeader(
         _rootSourceObject!,
         _footprint,
-        _horizontalExtents);
+        _horizontalExtents
+      );
       if (failure is not null)
       {
         return new MshBuildResult<StaticMeshAsset>(false, null, new[] { failure });
@@ -361,11 +406,15 @@ namespace EarthTool.MSH.Authoring
           _animationLengths,
           _rootSourceObject!,
           _footprint,
-          _horizontalExtents);
+          _horizontalExtents
+        );
         if (bytes.Length > profile.MaxOutputBytes)
         {
-          return new MshBuildResult<StaticMeshAsset>(false, null,
-            new[] { AuthoringValidation.ResourceLimit(bytes.Length, profile.MaxOutputBytes) });
+          return new MshBuildResult<StaticMeshAsset>(
+            false,
+            null,
+            new[] { AuthoringValidation.ResourceLimit(bytes.Length, profile.MaxOutputBytes) }
+          );
         }
 
         var decoded = MshV1Decoder.Decode(bytes, profile, CancellationToken.None);
@@ -373,13 +422,23 @@ namespace EarthTool.MSH.Authoring
         var asset = MeshAssetRebinder.RebindStatic(
           decodedAsset,
           MeshAssetOrigin.Canonical,
-          StaticMeshIdentityState.ForLineage(decodedAsset, _lineageId));
+          StaticMeshIdentityState.ForLineage(decodedAsset, _lineageId)
+        );
         return new MshBuildResult<StaticMeshAsset>(true, asset, decoded.Diagnostics);
       }
       catch (OverflowException)
       {
-        return new MshBuildResult<StaticMeshAsset>(false, null,
-          new[] { AuthoringValidation.Invalid("CommonBaseHeader", "A derived fixed-point value is out of range.") });
+        return new MshBuildResult<StaticMeshAsset>(
+          false,
+          null,
+          new[]
+          {
+            AuthoringValidation.Invalid(
+              "CommonBaseHeader",
+              "A derived fixed-point value is out of range."
+            ),
+          }
+        );
       }
       catch (MshContentException ex)
       {
@@ -403,14 +462,18 @@ namespace EarthTool.MSH.Authoring
 
     internal CanonicalDynamicObject(
       CanonicalDynamicRecipe recipe,
-      IEnumerable<CanonicalDynamicObject>? children)
+      IEnumerable<CanonicalDynamicObject>? children
+    )
     {
       Recipe = recipe ?? throw new ArgumentNullException(nameof(recipe));
       EffectType = recipe.EffectType;
       _children = children?.ToList() ?? new List<CanonicalDynamicObject>();
       if (_children.Any(child => child is null))
       {
-        throw new ArgumentException("Dynamic child collections cannot contain null values.", nameof(children));
+        throw new ArgumentException(
+          "Dynamic child collections cannot contain null values.",
+          nameof(children)
+        );
       }
     }
 
@@ -424,7 +487,8 @@ namespace EarthTool.MSH.Authoring
     /// <summary>Authors the translation applied by this object's parent phase.</summary>
     public CanonicalDynamicObject SetChildTranslation(
       Vector3 startTranslation,
-      Vector3 endTranslation)
+      Vector3 endTranslation
+    )
     {
       Recipe.ChildStartTranslation = startTranslation;
       Recipe.ChildEndTranslation = endTranslation;
@@ -448,7 +512,13 @@ namespace EarthTool.MSH.Authoring
     /// <summary>Creates a builder with stable generated creation and lineage identities.</summary>
     public static DynamicMeshBuilder Create()
     {
-      return new DynamicMeshBuilder(Guid.NewGuid(), new MeshAssetLineageId(Guid.NewGuid()));
+      return Create(Guid.NewGuid());
+    }
+
+    /// <summary>Creates a builder with an explicit creation identity and generated lineage.</summary>
+    public static DynamicMeshBuilder Create(Guid creationGuid)
+    {
+      return new DynamicMeshBuilder(creationGuid, new MeshAssetLineageId(Guid.NewGuid()));
     }
 
     /// <summary>Creates a builder with explicit stable identities.</summary>
@@ -471,13 +541,15 @@ namespace EarthTool.MSH.Authoring
       var failure = AuthoringValidation.ValidateDynamic(
         _root,
         profile,
-        out var validationDiagnostics);
+        out var validationDiagnostics
+      );
       if (failure is not null)
       {
         return new MshBuildResult<DynamicMeshAsset>(
           false,
           null,
-          validationDiagnostics.Concat(new[] { failure }));
+          validationDiagnostics.Concat(new[] { failure })
+        );
       }
 
       int dynamicLength;
@@ -489,14 +561,20 @@ namespace EarthTool.MSH.Authoring
       }
       catch (OverflowException)
       {
-        return new MshBuildResult<DynamicMeshAsset>(false, null,
-          new[] { AuthoringValidation.ResourceLimit(long.MaxValue, profile.MaxOutputBytes) });
+        return new MshBuildResult<DynamicMeshAsset>(
+          false,
+          null,
+          new[] { AuthoringValidation.ResourceLimit(long.MaxValue, profile.MaxOutputBytes) }
+        );
       }
 
       if (outputLength > profile.MaxOutputBytes)
       {
-        return new MshBuildResult<DynamicMeshAsset>(false, null,
-          new[] { AuthoringValidation.ResourceLimit(outputLength, profile.MaxOutputBytes) });
+        return new MshBuildResult<DynamicMeshAsset>(
+          false,
+          null,
+          new[] { AuthoringValidation.ResourceLimit(outputLength, profile.MaxOutputBytes) }
+        );
       }
 
       var bytes = MshCanonicalSerializer.CreateDynamic(_creationGuid, _root, dynamicLength);
@@ -504,11 +582,13 @@ namespace EarthTool.MSH.Authoring
       var asset = MeshAssetRebinder.RebindDynamic(
         (DynamicMeshAsset)decoded.Asset,
         MeshAssetOrigin.Canonical,
-        _lineageId);
+        _lineageId
+      );
       return new MshBuildResult<DynamicMeshAsset>(
         true,
         asset,
-        validationDiagnostics.Concat(decoded.Diagnostics));
+        validationDiagnostics.Concat(decoded.Diagnostics)
+      );
     }
   }
 
@@ -517,12 +597,15 @@ namespace EarthTool.MSH.Authoring
   {
     /// <summary>The source representation was retained exactly.</summary>
     Retained = 0,
+
     /// <summary>The representation was regenerated from edited semantic input.</summary>
     Regenerated = 1,
+
     /// <summary>The source representation was deliberately removed.</summary>
     Invalidated = 2,
+
     /// <summary>The representation was replaced with its canonical authored form.</summary>
-    Canonicalized = 3
+    Canonicalized = 3,
   }
 
   /// <summary>Describes one preservation effect.</summary>
@@ -530,8 +613,10 @@ namespace EarthTool.MSH.Authoring
   {
     /// <summary>Gets the affected field path.</summary>
     public string FieldPath { get; }
+
     /// <summary>Gets the preservation disposition.</summary>
     public PreservationDisposition Disposition { get; }
+
     /// <summary>Gets the stable reason category.</summary>
     public string Reason { get; }
 
@@ -557,14 +642,17 @@ namespace EarthTool.MSH.Authoring
   }
 
   /// <summary>Returns an edited snapshot, diagnostics, and preservation effects.</summary>
-  public sealed class MshEditResult<T> where T : class
+  public sealed class MshEditResult<T>
+    where T : class
   {
     private readonly T? _value;
 
     /// <summary>Gets whether the edit committed successfully.</summary>
     public bool IsSuccess { get; }
+
     /// <summary>Gets operation-scoped diagnostics.</summary>
     public IReadOnlyList<OperationDiagnostic> Diagnostics { get; }
+
     /// <summary>Gets exact preservation effects.</summary>
     public PreservationReport Preservation { get; }
 
@@ -572,7 +660,8 @@ namespace EarthTool.MSH.Authoring
       bool isSuccess,
       T? value,
       PreservationReport preservation,
-      IEnumerable<OperationDiagnostic>? diagnostics = null)
+      IEnumerable<OperationDiagnostic>? diagnostics = null
+    )
     {
       IsSuccess = isSuccess;
       _value = value;
@@ -605,7 +694,8 @@ namespace EarthTool.MSH.Authoring
       StaticRenderObjectId id,
       SourceObjectId sourceObjectId,
       IReadOnlyList<CanonicalStaticVertex> vertices,
-      IReadOnlyList<CanonicalTriangle> triangles)
+      IReadOnlyList<CanonicalTriangle> triangles
+    )
     {
       Id = id;
       SourceObjectId = sourceObjectId;
@@ -636,27 +726,37 @@ namespace EarthTool.MSH.Authoring
   internal enum StaticLightRecordKind
   {
     Spot,
-    Omni
+    Omni,
   }
 
   /// <summary>Accumulates one atomic set of static edits and commits at most once.</summary>
   public sealed class StaticMeshEditSession
   {
     private readonly StaticMeshAsset _source;
-    private readonly Dictionary<StaticRenderObjectId, CanonicalTriangle[]> _replacementTriangles = new();
-    private readonly Dictionary<StaticRenderObjectId, CanonicalStaticVertex[]> _replacementVertices = new();
+    private readonly Dictionary<StaticRenderObjectId, CanonicalTriangle[]> _replacementTriangles =
+      new();
+    private readonly Dictionary<
+      StaticRenderObjectId,
+      CanonicalStaticVertex[]
+    > _replacementVertices = new();
     private readonly Dictionary<StaticRenderObjectId, Vector3> _replacementPivots = new();
     private readonly Dictionary<StaticRenderObjectId, byte[]> _replacementTexturePathBytes = new();
-    private readonly Dictionary<StaticRenderObjectId, StaticAnimationReplacement>
-      _replacementAnimations = new();
-    private readonly Dictionary<StaticRenderObjectId, StaticRenderObjectFlags>
-      _replacementMarkerFlags = new();
+    private readonly Dictionary<
+      StaticRenderObjectId,
+      StaticAnimationReplacement
+    > _replacementAnimations = new();
+    private readonly Dictionary<
+      StaticRenderObjectId,
+      StaticRenderObjectFlags
+    > _replacementMarkerFlags = new();
     private readonly Dictionary<int, byte[]> _replacementAttachmentRecords = new();
     private readonly Dictionary<int, byte[]> _replacementCannonRenderPositions = new();
     private readonly Dictionary<int, byte[]> _replacementStaticSpotLights = new();
     private readonly Dictionary<int, byte[]> _replacementStaticOmniLights = new();
-    private readonly Dictionary<(StaticLightRecordKind Kind, int Number), HashSet<string>>
-      _staticLightFieldChanges = new();
+    private readonly Dictionary<
+      (StaticLightRecordKind Kind, int Number),
+      HashSet<string>
+    > _staticLightFieldChanges = new();
     private readonly HashSet<StaticRenderObjectId> _removedRenderObjects = new();
     private readonly HashSet<SourceObjectId> _allocatedSourceObjects = new();
     private readonly List<StaticRenderObjectAddition> _additions = new();
@@ -687,7 +787,8 @@ namespace EarthTool.MSH.Authoring
     public StaticMeshEditSession ReplaceGeometry(
       StaticRenderObjectId renderObject,
       IEnumerable<CanonicalStaticVertex> vertices,
-      IEnumerable<CanonicalTriangle> triangles)
+      IEnumerable<CanonicalTriangle> triangles
+    )
     {
       EnsureOpen();
       EnsureSourceId(renderObject);
@@ -696,10 +797,10 @@ namespace EarthTool.MSH.Authoring
         _invalidSequence = true;
       }
 
-      _replacementVertices[renderObject] = vertices?.ToArray()
-        ?? throw new ArgumentNullException(nameof(vertices));
-      _replacementTriangles[renderObject] = triangles?.ToArray()
-        ?? throw new ArgumentNullException(nameof(triangles));
+      _replacementVertices[renderObject] =
+        vertices?.ToArray() ?? throw new ArgumentNullException(nameof(vertices));
+      _replacementTriangles[renderObject] =
+        triangles?.ToArray() ?? throw new ArgumentNullException(nameof(triangles));
       return this;
     }
 
@@ -722,7 +823,8 @@ namespace EarthTool.MSH.Authoring
     /// <summary>Adds a new render object and allocates a fresh lineage-local identity.</summary>
     public StaticRenderObjectId AddRenderObject(
       IEnumerable<CanonicalStaticVertex> vertices,
-      IEnumerable<CanonicalTriangle> triangles)
+      IEnumerable<CanonicalTriangle> triangles
+    )
     {
       EnsureOpen();
       if (!_removed || _replacementAdded)
@@ -741,22 +843,30 @@ namespace EarthTool.MSH.Authoring
     public StaticRenderObjectId AddRenderObject(
       SourceObjectId sourceObject,
       IEnumerable<CanonicalStaticVertex> vertices,
-      IEnumerable<CanonicalTriangle> triangles)
+      IEnumerable<CanonicalTriangle> triangles
+    )
     {
       EnsureOpen();
-      if (!GetSourceObjects(_source.RootSourceObject).Any(source => source.Id.Equals(sourceObject))
-        && !_allocatedSourceObjects.Contains(sourceObject))
+      if (
+        !GetSourceObjects(_source.RootSourceObject).Any(source => source.Id.Equals(sourceObject))
+        && !_allocatedSourceObjects.Contains(sourceObject)
+      )
       {
-        throw new ArgumentException("The source-object identity does not belong to this source snapshot.",
-          nameof(sourceObject));
+        throw new ArgumentException(
+          "The source-object identity does not belong to this source snapshot.",
+          nameof(sourceObject)
+        );
       }
 
       var id = AllocateRenderObjectId();
-      _additions.Add(new StaticRenderObjectAddition(
-        id,
-        sourceObject,
-        vertices?.ToArray() ?? throw new ArgumentNullException(nameof(vertices)),
-        triangles?.ToArray() ?? throw new ArgumentNullException(nameof(triangles))));
+      _additions.Add(
+        new StaticRenderObjectAddition(
+          id,
+          sourceObject,
+          vertices?.ToArray() ?? throw new ArgumentNullException(nameof(vertices)),
+          triangles?.ToArray() ?? throw new ArgumentNullException(nameof(triangles))
+        )
+      );
       return id;
     }
 
@@ -765,7 +875,9 @@ namespace EarthTool.MSH.Authoring
       EnsureOpen();
       if (!_nextSourceObjectLocalId.HasValue)
       {
-        throw new InvalidOperationException("No lineage-local source-object identity remains available.");
+        throw new InvalidOperationException(
+          "No lineage-local source-object identity remains available."
+        );
       }
 
       var value = _nextSourceObjectLocalId.Value;
@@ -778,11 +890,15 @@ namespace EarthTool.MSH.Authoring
     internal StaticMeshEditSession ReplacePivot(StaticRenderObjectId renderObject, Vector3 pivot)
     {
       EnsureOpen();
-      if (!_source.StaticRenderObjectSequence.Any(item => item.Id.Equals(renderObject))
-        && !_additions.Any(item => item.Id.Equals(renderObject)))
+      if (
+        !_source.StaticRenderObjectSequence.Any(item => item.Id.Equals(renderObject))
+        && !_additions.Any(item => item.Id.Equals(renderObject))
+      )
       {
-        throw new ArgumentException("The render-object identity does not belong to this edit session.",
-          nameof(renderObject));
+        throw new ArgumentException(
+          "The render-object identity does not belong to this edit session.",
+          nameof(renderObject)
+        );
       }
       if (!IsFinite(pivot))
       {
@@ -795,11 +911,12 @@ namespace EarthTool.MSH.Authoring
 
     internal StaticMeshEditSession ReplaceTexturePathBytes(
       StaticRenderObjectId renderObject,
-      IEnumerable<byte> texturePathBytes)
+      IEnumerable<byte> texturePathBytes
+    )
     {
       EnsureOpen();
-      var bytes = texturePathBytes?.ToArray()
-        ?? throw new ArgumentNullException(nameof(texturePathBytes));
+      var bytes =
+        texturePathBytes?.ToArray() ?? throw new ArgumentNullException(nameof(texturePathBytes));
       if (_replacementAdded && renderObject.Equals(_resultId))
       {
         _replacementTexturePathBytes[_source.StaticRenderObjectSequence[0].Id] = bytes;
@@ -810,10 +927,12 @@ namespace EarthTool.MSH.Authoring
         _replacementTexturePathBytes[renderObject] = bytes;
         return this;
       }
-      var addition = _additions.SingleOrDefault(item => item.Id.Equals(renderObject))
+      var addition =
+        _additions.SingleOrDefault(item => item.Id.Equals(renderObject))
         ?? throw new ArgumentException(
           "The render-object identity does not belong to this edit session.",
-          nameof(renderObject));
+          nameof(renderObject)
+        );
       addition.SetTexturePathBytes(bytes);
       return this;
     }
@@ -823,13 +942,15 @@ namespace EarthTool.MSH.Authoring
       IEnumerable<Vector3> scaleFrames,
       IEnumerable<Vector3> translationFrames,
       IEnumerable<Matrix4x4> matrices,
-      uint animationClassValue)
+      uint animationClassValue
+    )
     {
       EnsureOpen();
       EnsureSourceId(renderObject);
       _replacementAnimations[renderObject] = new StaticAnimationReplacement(
         new StaticAnimationTracks(scaleFrames, translationFrames, matrices),
-        animationClassValue);
+        animationClassValue
+      );
       return this;
     }
 
@@ -840,29 +961,36 @@ namespace EarthTool.MSH.Authoring
       return this;
     }
 
-    internal StaticMeshEditSession ReplaceAnimationFrameIndices(AnimationClassBytes animationFrameIndices)
+    internal StaticMeshEditSession ReplaceAnimationFrameIndices(
+      AnimationClassBytes animationFrameIndices
+    )
     {
       EnsureOpen();
       _replacementAnimationFrameIndices = animationFrameIndices;
       return this;
     }
 
-    internal StaticMeshEditSession ReplaceHorizontalExtents(CanonicalHorizontalExtents horizontalExtents)
+    internal StaticMeshEditSession ReplaceHorizontalExtents(
+      CanonicalHorizontalExtents horizontalExtents
+    )
     {
       EnsureOpen();
-      _replacementHorizontalExtents = horizontalExtents
-        ?? throw new ArgumentNullException(nameof(horizontalExtents));
+      _replacementHorizontalExtents =
+        horizontalExtents ?? throw new ArgumentNullException(nameof(horizontalExtents));
       return this;
     }
 
     internal StaticMeshEditSession ReplaceMarkerAttachmentFlags(
       StaticRenderObjectId renderObject,
-      StaticRenderObjectFlags markerFlags)
+      StaticRenderObjectFlags markerFlags
+    )
     {
       EnsureOpen();
-      if ((markerFlags & ~StaticRenderObjectFlagMasks.MarkerAttachments) != 0
+      if (
+        (markerFlags & ~StaticRenderObjectFlagMasks.MarkerAttachments) != 0
         || !_source.StaticRenderObjectSequence.Any(item => item.Id.Equals(renderObject))
-          && !_additions.Any(item => item.Id.Equals(renderObject)))
+          && !_additions.Any(item => item.Id.Equals(renderObject))
+      )
       {
         throw new ArgumentOutOfRangeException(nameof(markerFlags));
       }
@@ -873,7 +1001,8 @@ namespace EarthTool.MSH.Authoring
 
     internal StaticMeshEditSession ReplaceAttachmentRecord(
       int physicalNumber,
-      IEnumerable<byte> record)
+      IEnumerable<byte> record
+    )
     {
       EnsureOpen();
       if (physicalNumber is < 1 or > 49)
@@ -883,7 +1012,10 @@ namespace EarthTool.MSH.Authoring
       var bytes = record?.ToArray() ?? throw new ArgumentNullException(nameof(record));
       if (bytes.Length != 8)
       {
-        throw new ArgumentException("An attachment record must contain exactly 8 bytes.", nameof(record));
+        throw new ArgumentException(
+          "An attachment record must contain exactly 8 bytes.",
+          nameof(record)
+        );
       }
 
       _replacementAttachmentRecords[physicalNumber] = bytes;
@@ -892,7 +1024,8 @@ namespace EarthTool.MSH.Authoring
 
     internal StaticMeshEditSession ReplaceCannonRenderPosition(
       int physicalNumber,
-      IEnumerable<byte> record)
+      IEnumerable<byte> record
+    )
     {
       EnsureOpen();
       if (physicalNumber is < 1 or > 4)
@@ -904,7 +1037,8 @@ namespace EarthTool.MSH.Authoring
       {
         throw new ArgumentException(
           "A cannon render-position record must contain exactly 12 bytes.",
-          nameof(record));
+          nameof(record)
+        );
       }
 
       _replacementCannonRenderPositions[physicalNumber] = bytes;
@@ -915,7 +1049,8 @@ namespace EarthTool.MSH.Authoring
       StaticLightRecordKind kind,
       int physicalNumber,
       IEnumerable<byte> record,
-      IEnumerable<string> changedFields)
+      IEnumerable<string> changedFields
+    )
     {
       EnsureOpen();
       if (physicalNumber is < 1 or > 4)
@@ -928,41 +1063,46 @@ namespace EarthTool.MSH.Authoring
       {
         throw new ArgumentException(
           $"A static {kind} light record must contain exactly {expectedLength} bytes.",
-          nameof(record));
+          nameof(record)
+        );
       }
 
-      (kind == StaticLightRecordKind.Spot
-        ? _replacementStaticSpotLights
-        : _replacementStaticOmniLights)
-        [physicalNumber] = bytes;
+      (
+        kind == StaticLightRecordKind.Spot
+          ? _replacementStaticSpotLights
+          : _replacementStaticOmniLights
+      )[physicalNumber] = bytes;
       _staticLightFieldChanges[(kind, physicalNumber)] = new HashSet<string>(
         changedFields ?? throw new ArgumentNullException(nameof(changedFields)),
-        StringComparer.Ordinal);
+        StringComparer.Ordinal
+      );
       return this;
     }
 
     /// <summary>Sets or explicitly clears one game-authoritative TEX resource binding.</summary>
     public StaticMeshEditSession SetTextureResourceBinding(
       StaticRenderObjectId renderObject,
-      string? textureResourceKey)
+      string? textureResourceKey
+    )
     {
       var bytes = textureResourceKey is null
         ? Array.Empty<byte>()
         : AuthoringValidation.EncodeCanonicalTextureResourceKey(
           textureResourceKey,
-          nameof(textureResourceKey));
+          nameof(textureResourceKey)
+        );
       return ReplaceTexturePathBytes(renderObject, bytes);
     }
 
     internal StaticMeshEditSession ApplyHierarchy(
       StaticSourceObject rootSourceObject,
-      IReadOnlyList<StaticRenderObjectId> sequence)
+      IReadOnlyList<StaticRenderObjectId> sequence
+    )
     {
       EnsureOpen();
-      _editedRootSourceObject = rootSourceObject
-        ?? throw new ArgumentNullException(nameof(rootSourceObject));
-      _editedSequence = sequence?.ToArray()
-        ?? throw new ArgumentNullException(nameof(sequence));
+      _editedRootSourceObject =
+        rootSourceObject ?? throw new ArgumentNullException(nameof(rootSourceObject));
+      _editedSequence = sequence?.ToArray() ?? throw new ArgumentNullException(nameof(sequence));
       return this;
     }
 
@@ -975,14 +1115,18 @@ namespace EarthTool.MSH.Authoring
 
       if (_invalidSequence || _replacementAdded && !_removed)
       {
-        return FailedEdit("StaticRenderObjectSequence",
-          "The current safe edit slice requires exactly one final render object.");
+        return FailedEdit(
+          "StaticRenderObjectSequence",
+          "The current safe edit slice requires exactly one final render object."
+        );
       }
 
       if (_replacementAdded && _source.StaticRenderObjectSequence.Count != 1)
       {
-        return FailedEdit("StaticRenderObjectSequence",
-          "Removing static render objects requires explicit source-hierarchy authoring.");
+        return FailedEdit(
+          "StaticRenderObjectSequence",
+          "Removing static render objects requires explicit source-hierarchy authoring."
+        );
       }
 
       if (_replacementAdded)
@@ -993,41 +1137,53 @@ namespace EarthTool.MSH.Authoring
 
       foreach (var replacement in _replacementVertices)
       {
-        var recordIndex = _source.StaticRenderObjectSequence
-          .Select((item, index) => (item, index))
-          .Single(item => item.item.Id.Equals(replacement.Key)).index;
+        var recordIndex = _source
+          .StaticRenderObjectSequence.Select((item, index) => (item, index))
+          .Single(item => item.item.Id.Equals(replacement.Key))
+          .index;
         var failure = AuthoringValidation.ValidateStaticForProfile(
           replacement.Value,
           _replacementTriangles[replacement.Key],
           profile,
-          $"StaticRenderObjectSequence[{recordIndex}]");
+          $"StaticRenderObjectSequence[{recordIndex}]"
+        );
         if (failure is not null)
         {
           return new MshEditResult<StaticMeshAsset>(
             false,
             null,
             new PreservationReport(Array.Empty<PreservationChange>()),
-            new[] { failure });
+            new[] { failure }
+          );
         }
       }
 
-      if (_removedRenderObjects.Count == _source.StaticRenderObjectSequence.Count
+      if (
+        _removedRenderObjects.Count == _source.StaticRenderObjectSequence.Count
         && !_replacementAdded
-        && _additions.Count == 0)
+        && _additions.Count == 0
+      )
       {
-        return FailedEdit("StaticRenderObjectSequence",
-          "At least one static render object must remain.");
+        return FailedEdit(
+          "StaticRenderObjectSequence",
+          "At least one static render object must remain."
+        );
       }
 
-      foreach (var sourceObject in GetSourceObjects(
-        _editedRootSourceObject ?? _source.RootSourceObject))
+      foreach (
+        var sourceObject in GetSourceObjects(_editedRootSourceObject ?? _source.RootSourceObject)
+      )
       {
-        if (sourceObject.StaticRenderObjectIds.Count == 0
+        if (
+          sourceObject.StaticRenderObjectIds.Count == 0
           || sourceObject.StaticRenderObjectIds.All(id => _removedRenderObjects.Contains(id))
-            && !_replacementAdded)
+            && !_replacementAdded
+        )
         {
-          return FailedEdit("StaticRenderObjectSequence",
-            "A retained source object must contain at least one static render object.");
+          return FailedEdit(
+            "StaticRenderObjectSequence",
+            "A retained source object must contain at least one static render object."
+          );
         }
       }
 
@@ -1037,14 +1193,16 @@ namespace EarthTool.MSH.Authoring
           addition.Vertices,
           addition.Triangles,
           profile,
-          $"StaticRenderObjectSequence[{addition.Id.Value}]");
+          $"StaticRenderObjectSequence[{addition.Id.Value}]"
+        );
         if (failure is not null)
         {
           return new MshEditResult<StaticMeshAsset>(
             false,
             null,
             new PreservationReport(Array.Empty<PreservationChange>()),
-            new[] { failure });
+            new[] { failure }
+          );
         }
         if (addition.TexturePathBytes.Count > profile.MaxStaticTexturePathBytes)
         {
@@ -1052,24 +1210,34 @@ namespace EarthTool.MSH.Authoring
             false,
             null,
             new PreservationReport(Array.Empty<PreservationChange>()),
-            new[] { AuthoringValidation.ResourceLimit(
-              addition.TexturePathBytes.Count,
-              profile.MaxStaticTexturePathBytes) });
+            new[]
+            {
+              AuthoringValidation.ResourceLimit(
+                addition.TexturePathBytes.Count,
+                profile.MaxStaticTexturePathBytes
+              ),
+            }
+          );
         }
       }
 
-      if (_replacementTexturePathBytes.Values.Any(bytes =>
-        bytes.Length > profile.MaxStaticTexturePathBytes))
+      if (
+        _replacementTexturePathBytes.Values.Any(bytes =>
+          bytes.Length > profile.MaxStaticTexturePathBytes
+        )
+      )
       {
         var actual = _replacementTexturePathBytes.Values.Max(bytes => bytes.Length);
         return new MshEditResult<StaticMeshAsset>(
           false,
           null,
           new PreservationReport(Array.Empty<PreservationChange>()),
-          new[] { AuthoringValidation.ResourceLimit(actual, profile.MaxStaticTexturePathBytes) });
+          new[] { AuthoringValidation.ResourceLimit(actual, profile.MaxStaticTexturePathBytes) }
+        );
       }
 
-      var bytes = _replacementVertices.Count == 0
+      var bytes =
+        _replacementVertices.Count == 0
         && _replacementPivots.Count == 0
         && _replacementTexturePathBytes.Count == 0
         && _replacementAnimations.Count == 0
@@ -1084,38 +1252,42 @@ namespace EarthTool.MSH.Authoring
         && _removedRenderObjects.Count == 0
         && _additions.Count == 0
         && _editedRootSourceObject is null
-        ? _source.GetSerializedRepresentation()
-        : MshCanonicalSerializer.RewriteStatic(
-          _source,
-          _replacementVertices.ToDictionary(
-            item => item.Key,
-            item => (IReadOnlyList<CanonicalStaticVertex>)item.Value),
-          _replacementTriangles.ToDictionary(
-            item => item.Key,
-            item => (IReadOnlyList<CanonicalTriangle>)item.Value),
-          _replacementAdded ? Array.Empty<StaticRenderObjectId>() : _removedRenderObjects,
-          _additions,
-          _editedRootSourceObject,
-          _editedSequence,
-          _replacementPivots,
-          _replacementTexturePathBytes,
-          _editedRootSourceObject is not null,
-          _replacementMarkerFlags,
-          _replacementAnimations,
-          _replacementAnimationLengths,
-          _replacementAnimationFrameIndices,
-          _replacementAttachmentRecords,
-          _replacementCannonRenderPositions,
-          _replacementStaticSpotLights,
-          _replacementStaticOmniLights,
-          _replacementHorizontalExtents);
+          ? _source.GetSerializedRepresentation()
+          : MshCanonicalSerializer.RewriteStatic(
+            _source,
+            _replacementVertices.ToDictionary(
+              item => item.Key,
+              item => (IReadOnlyList<CanonicalStaticVertex>)item.Value
+            ),
+            _replacementTriangles.ToDictionary(
+              item => item.Key,
+              item => (IReadOnlyList<CanonicalTriangle>)item.Value
+            ),
+            _replacementAdded ? Array.Empty<StaticRenderObjectId>() : _removedRenderObjects,
+            _additions,
+            _editedRootSourceObject,
+            _editedSequence,
+            _replacementPivots,
+            _replacementTexturePathBytes,
+            _editedRootSourceObject is not null,
+            _replacementMarkerFlags,
+            _replacementAnimations,
+            _replacementAnimationLengths,
+            _replacementAnimationFrameIndices,
+            _replacementAttachmentRecords,
+            _replacementCannonRenderPositions,
+            _replacementStaticSpotLights,
+            _replacementStaticOmniLights,
+            _replacementHorizontalExtents
+          );
       if (bytes.Length > profile.MaxOutputBytes)
       {
         return new MshEditResult<StaticMeshAsset>(
           false,
           null,
           new PreservationReport(Array.Empty<PreservationChange>()),
-          new[] { AuthoringValidation.ResourceLimit(bytes.Length, profile.MaxOutputBytes) });
+          new[] { AuthoringValidation.ResourceLimit(bytes.Length, profile.MaxOutputBytes) }
+        );
       }
 
       var renderObjectLocalIds = GetResultRenderObjectIds().Select(id => id.Value).ToArray();
@@ -1135,7 +1307,8 @@ namespace EarthTool.MSH.Authoring
           false,
           null,
           new PreservationReport(Array.Empty<PreservationChange>()),
-          new[] { ex.Diagnostic });
+          new[] { ex.Diagnostic }
+        );
       }
 
       var decodedAsset = (StaticMeshAsset)decoded.Asset;
@@ -1147,12 +1320,15 @@ namespace EarthTool.MSH.Authoring
           renderObjectLocalIds.Select(item => new StaticRenderObjectId(_source.LineageId, item)),
           GetSourceObjectIds(_editedRootSourceObject ?? _source.RootSourceObject),
           _nextLocalId,
-          _nextSourceObjectLocalId));
+          _nextSourceObjectLocalId
+        )
+      );
       return new MshEditResult<StaticMeshAsset>(
         true,
         edited,
         CreatePreservationReport(edited),
-        decoded.Diagnostics);
+        decoded.Diagnostics
+      );
     }
 
     private PreservationReport CreatePreservationReport(StaticMeshAsset edited)
@@ -1161,86 +1337,137 @@ namespace EarthTool.MSH.Authoring
       {
         Change("ArchiveFraming", PreservationDisposition.Retained, "Unedited"),
         Change("CommonBaseHeader", PreservationDisposition.Retained, "IndependentRepresentation"),
-        Change("RootSourceObjectId", PreservationDisposition.Retained, "RetainedSourceObject")
+        Change("RootSourceObjectId", PreservationDisposition.Retained, "RetainedSourceObject"),
       };
       if (_replacementAnimationLengths.HasValue)
       {
-        changes.Add(Change("CommonBaseHeader.AnimationLengths",
-          PreservationDisposition.Regenerated, "AnimationEdit"));
+        changes.Add(
+          Change(
+            "CommonBaseHeader.AnimationLengths",
+            PreservationDisposition.Regenerated,
+            "AnimationEdit"
+          )
+        );
       }
       if (_replacementAnimationFrameIndices.HasValue)
       {
-        changes.Add(Change("CommonBaseHeader.AnimationFrameIndices",
-          PreservationDisposition.Regenerated, "AnimationEdit"));
+        changes.Add(
+          Change(
+            "CommonBaseHeader.AnimationFrameIndices",
+            PreservationDisposition.Regenerated,
+            "AnimationEdit"
+          )
+        );
       }
       if (_replacementHorizontalExtents is not null)
       {
-        changes.Add(Change("CommonBaseHeader.HorizontalExtents",
-          PreservationDisposition.Regenerated, "EffectivePositionEdit"));
+        changes.Add(
+          Change(
+            "CommonBaseHeader.HorizontalExtents",
+            PreservationDisposition.Regenerated,
+            "EffectivePositionEdit"
+          )
+        );
       }
       foreach (var physicalNumber in _replacementAttachmentRecords.Keys.OrderBy(value => value))
       {
-        var sourceRecord = _source.CommonBaseHeader.AttachmentTable
-          .Skip((physicalNumber - 1) * 8).Take(8).ToArray();
+        var sourceRecord = _source
+          .CommonBaseHeader.AttachmentTable.Skip((physicalNumber - 1) * 8)
+          .Take(8)
+          .ToArray();
         var replacement = _replacementAttachmentRecords[physicalNumber];
         var sourceActive = BinaryPrimitives.ReadInt16LittleEndian(sourceRecord) != short.MinValue;
-        var replacementActive = BinaryPrimitives.ReadInt16LittleEndian(replacement) != short.MinValue;
-        changes.Add(Change(
-          $"CommonBaseHeader.AttachmentTable[{physicalNumber}]",
-          sourceActive == replacementActive
-            ? PreservationDisposition.Regenerated
-            : PreservationDisposition.Canonicalized,
-          sourceActive == replacementActive
-            ? "AttachmentEdit"
-            : replacementActive ? "AttachmentAddition" : "AttachmentDeletion"));
+        var replacementActive =
+          BinaryPrimitives.ReadInt16LittleEndian(replacement) != short.MinValue;
+        changes.Add(
+          Change(
+            $"CommonBaseHeader.AttachmentTable[{physicalNumber}]",
+            sourceActive == replacementActive
+              ? PreservationDisposition.Regenerated
+              : PreservationDisposition.Canonicalized,
+            sourceActive == replacementActive ? "AttachmentEdit"
+              : replacementActive ? "AttachmentAddition"
+              : "AttachmentDeletion"
+          )
+        );
       }
       foreach (var physicalNumber in _replacementCannonRenderPositions.Keys.OrderBy(value => value))
       {
-        changes.Add(Change(
-          $"CommonBaseHeader.CannonRenderPositions[{physicalNumber}]",
-          PreservationDisposition.Regenerated,
-          "CannonRenderPositionEdit"));
+        changes.Add(
+          Change(
+            $"CommonBaseHeader.CannonRenderPositions[{physicalNumber}]",
+            PreservationDisposition.Regenerated,
+            "CannonRenderPositionEdit"
+          )
+        );
       }
-      foreach (var replacement in _staticLightFieldChanges.OrderBy(item => item.Key.Kind)
-        .ThenBy(item => item.Key.Number))
+      foreach (
+        var replacement in _staticLightFieldChanges
+          .OrderBy(item => item.Key.Kind)
+          .ThenBy(item => item.Key.Number)
+      )
       {
-        var collection = replacement.Key.Kind == StaticLightRecordKind.Spot
-          ? "StaticSpotLights"
-          : "StaticOmniLights";
+        var collection =
+          replacement.Key.Kind == StaticLightRecordKind.Spot
+            ? "StaticSpotLights"
+            : "StaticOmniLights";
         foreach (var field in replacement.Value.OrderBy(value => value, StringComparer.Ordinal))
         {
-          changes.Add(Change(
-            $"CommonBaseHeader.{collection}[{replacement.Key.Number}].{field}",
-            PreservationDisposition.Regenerated,
-            "StaticLightEdit"));
+          changes.Add(
+            Change(
+              $"CommonBaseHeader.{collection}[{replacement.Key.Number}].{field}",
+              PreservationDisposition.Regenerated,
+              "StaticLightEdit"
+            )
+          );
         }
       }
       if (_editedRootSourceObject is not null)
       {
-        changes.Add(Change("StaticRenderObjectSequence", PreservationDisposition.Regenerated,
-          "HierarchyEdit"));
-        changes.Add(Change("RootSourceObject", PreservationDisposition.Regenerated,
-          "HierarchyEdit"));
+        changes.Add(
+          Change("StaticRenderObjectSequence", PreservationDisposition.Regenerated, "HierarchyEdit")
+        );
+        changes.Add(
+          Change("RootSourceObject", PreservationDisposition.Regenerated, "HierarchyEdit")
+        );
       }
       foreach (var replacement in _replacementMarkerFlags)
       {
         var index = GetResultRenderObjectIds().ToList().IndexOf(replacement.Key);
         if (index >= 0)
         {
-          changes.Add(Change(
-            $"StaticRenderObjectSequence[{index}].ObjectFlags",
-            PreservationDisposition.Regenerated,
-            "EmitterMarkerOwnership"));
+          changes.Add(
+            Change(
+              $"StaticRenderObjectSequence[{index}].ObjectFlags",
+              PreservationDisposition.Regenerated,
+              "EmitterMarkerOwnership"
+            )
+          );
         }
       }
       if (_replacementAdded)
       {
-        changes.Add(Change("StaticRenderObjectSequence[0]", PreservationDisposition.Invalidated,
-          "RemovedRenderObject"));
-        changes.Add(Change("StaticRenderObjectSequence[0]",
-          PreservationDisposition.Canonicalized, "NewRenderObject"));
-        changes.Add(Change("StaticRenderObjectSequence[0].TexturePathBytes",
-          PreservationDisposition.Canonicalized, "NewMaterialBinding"));
+        changes.Add(
+          Change(
+            "StaticRenderObjectSequence[0]",
+            PreservationDisposition.Invalidated,
+            "RemovedRenderObject"
+          )
+        );
+        changes.Add(
+          Change(
+            "StaticRenderObjectSequence[0]",
+            PreservationDisposition.Canonicalized,
+            "NewRenderObject"
+          )
+        );
+        changes.Add(
+          Change(
+            "StaticRenderObjectSequence[0].TexturePathBytes",
+            PreservationDisposition.Canonicalized,
+            "NewMaterialBinding"
+          )
+        );
       }
       else
       {
@@ -1249,79 +1476,161 @@ namespace EarthTool.MSH.Authoring
           var record = _source.StaticRenderObjectSequence[index];
           if (_removedRenderObjects.Contains(record.Id))
           {
-            changes.Add(Change($"StaticRenderObjectSequence[{index}]",
-              PreservationDisposition.Invalidated, "RemovedRenderObject"));
+            changes.Add(
+              Change(
+                $"StaticRenderObjectSequence[{index}]",
+                PreservationDisposition.Invalidated,
+                "RemovedRenderObject"
+              )
+            );
             continue;
           }
-          changes.Add(Change($"StaticRenderObjectSequence[{index}].Id",
-            PreservationDisposition.Retained, "RetainedRenderObject"));
+          changes.Add(
+            Change(
+              $"StaticRenderObjectSequence[{index}].Id",
+              PreservationDisposition.Retained,
+              "RetainedRenderObject"
+            )
+          );
           if (_replacementVertices.ContainsKey(record.Id))
           {
-            changes.Add(Change($"StaticRenderObjectSequence[{index}].RenderVertices",
-              PreservationDisposition.Regenerated, "GeometryEdit"));
-            changes.Add(Change($"StaticRenderObjectSequence[{index}].Triangles",
-              PreservationDisposition.Regenerated, "GeometryEdit"));
-            changes.Add(Change($"StaticRenderObjectSequence[{index}].VertexBlockPadding",
-              PreservationDisposition.Canonicalized, "GeometryPacking"));
+            changes.Add(
+              Change(
+                $"StaticRenderObjectSequence[{index}].RenderVertices",
+                PreservationDisposition.Regenerated,
+                "GeometryEdit"
+              )
+            );
+            changes.Add(
+              Change(
+                $"StaticRenderObjectSequence[{index}].Triangles",
+                PreservationDisposition.Regenerated,
+                "GeometryEdit"
+              )
+            );
+            changes.Add(
+              Change(
+                $"StaticRenderObjectSequence[{index}].VertexBlockPadding",
+                PreservationDisposition.Canonicalized,
+                "GeometryPacking"
+              )
+            );
           }
           if (_replacementPivots.ContainsKey(record.Id))
           {
-            changes.Add(Change($"StaticRenderObjectSequence[{index}].Pivot",
-              PreservationDisposition.Regenerated, "TransformEdit"));
+            changes.Add(
+              Change(
+                $"StaticRenderObjectSequence[{index}].Pivot",
+                PreservationDisposition.Regenerated,
+                "TransformEdit"
+              )
+            );
           }
           if (_replacementTexturePathBytes.ContainsKey(record.Id))
           {
-            changes.Add(Change($"StaticRenderObjectSequence[{index}].TexturePathBytes",
-              PreservationDisposition.Regenerated, "MaterialBindingEdit"));
+            changes.Add(
+              Change(
+                $"StaticRenderObjectSequence[{index}].TexturePathBytes",
+                PreservationDisposition.Regenerated,
+                "MaterialBindingEdit"
+              )
+            );
           }
           else
           {
-            changes.Add(Change($"StaticRenderObjectSequence[{index}].TexturePathBytes",
-              PreservationDisposition.Retained, "MaterialBindingReaffirmed"));
+            changes.Add(
+              Change(
+                $"StaticRenderObjectSequence[{index}].TexturePathBytes",
+                PreservationDisposition.Retained,
+                "MaterialBindingReaffirmed"
+              )
+            );
           }
           if (_replacementAnimations.ContainsKey(record.Id))
           {
-            changes.Add(Change($"StaticRenderObjectSequence[{index}].AnimationTracks.ScaleFrames",
-              PreservationDisposition.Regenerated, "AnimationEdit"));
-            changes.Add(Change($"StaticRenderObjectSequence[{index}].AnimationTracks.TranslationFrames",
-              PreservationDisposition.Regenerated, "AnimationEdit"));
-            changes.Add(Change($"StaticRenderObjectSequence[{index}].AnimationTracks.Matrices",
-              PreservationDisposition.Regenerated, "AnimationEdit"));
+            changes.Add(
+              Change(
+                $"StaticRenderObjectSequence[{index}].AnimationTracks.ScaleFrames",
+                PreservationDisposition.Regenerated,
+                "AnimationEdit"
+              )
+            );
+            changes.Add(
+              Change(
+                $"StaticRenderObjectSequence[{index}].AnimationTracks.TranslationFrames",
+                PreservationDisposition.Regenerated,
+                "AnimationEdit"
+              )
+            );
+            changes.Add(
+              Change(
+                $"StaticRenderObjectSequence[{index}].AnimationTracks.Matrices",
+                PreservationDisposition.Regenerated,
+                "AnimationEdit"
+              )
+            );
           }
         }
 
         foreach (var addition in _additions)
         {
           var resultIndex = GetResultRenderObjectIds().ToList().IndexOf(addition.Id);
-          changes.Add(Change($"StaticRenderObjectSequence[{resultIndex}]",
-            PreservationDisposition.Canonicalized, "NewRenderObject"));
-          changes.Add(Change($"StaticRenderObjectSequence[{resultIndex}].TexturePathBytes",
-            PreservationDisposition.Canonicalized, "NewMaterialBinding"));
+          changes.Add(
+            Change(
+              $"StaticRenderObjectSequence[{resultIndex}]",
+              PreservationDisposition.Canonicalized,
+              "NewRenderObject"
+            )
+          );
+          changes.Add(
+            Change(
+              $"StaticRenderObjectSequence[{resultIndex}].TexturePathBytes",
+              PreservationDisposition.Canonicalized,
+              "NewMaterialBinding"
+            )
+          );
         }
 
-        for (var resultIndex = 0;
+        for (
+          var resultIndex = 0;
           resultIndex < edited.StaticRenderObjectSequence.Count;
-          resultIndex++)
+          resultIndex++
+        )
         {
           var resultRecord = edited.StaticRenderObjectSequence[resultIndex];
           var sourceRecord = _source.StaticRenderObjectSequence.FirstOrDefault(record =>
-            record.Id.Equals(resultRecord.Id));
+            record.Id.Equals(resultRecord.Id)
+          );
           if (sourceRecord is not null && sourceRecord.ObjectFlags != resultRecord.ObjectFlags)
           {
-            changes.Add(Change($"StaticRenderObjectSequence[{resultIndex}].ObjectFlags",
-              PreservationDisposition.Regenerated, "SequenceEdit"));
+            changes.Add(
+              Change(
+                $"StaticRenderObjectSequence[{resultIndex}].ObjectFlags",
+                PreservationDisposition.Regenerated,
+                "SequenceEdit"
+              )
+            );
           }
-          if (sourceRecord is not null
-            && sourceRecord.NextRecordMarker != resultRecord.NextRecordMarker)
+          if (
+            sourceRecord is not null
+            && sourceRecord.NextRecordMarker != resultRecord.NextRecordMarker
+          )
           {
-            changes.Add(Change($"StaticRenderObjectSequence[{resultIndex}].NextRecordMarker",
-              PreservationDisposition.Regenerated, "SequenceEdit"));
+            changes.Add(
+              Change(
+                $"StaticRenderObjectSequence[{resultIndex}].NextRecordMarker",
+                PreservationDisposition.Regenerated,
+                "SequenceEdit"
+              )
+            );
           }
           if (sourceRecord is not null && !_replacementVertices.ContainsKey(sourceRecord.Id))
           {
-            for (var vertexIndex = 0;
+            for (
+              var vertexIndex = 0;
               vertexIndex < sourceRecord.RenderVertices.Count;
-              vertexIndex++)
+              vertexIndex++
+            )
             {
               AddSharingChange(
                 changes,
@@ -1329,26 +1638,34 @@ namespace EarthTool.MSH.Authoring
                 vertexIndex,
                 "NormalSharingIndex",
                 sourceRecord.RenderVertices[vertexIndex].NormalSharingIndex,
-                resultRecord.RenderVertices[vertexIndex].NormalSharingIndex);
+                resultRecord.RenderVertices[vertexIndex].NormalSharingIndex
+              );
               AddSharingChange(
                 changes,
                 resultIndex,
                 vertexIndex,
                 "PositionSharingIndex",
                 sourceRecord.RenderVertices[vertexIndex].PositionSharingIndex,
-                resultRecord.RenderVertices[vertexIndex].PositionSharingIndex);
+                resultRecord.RenderVertices[vertexIndex].PositionSharingIndex
+              );
             }
           }
         }
         if (_source.StoredTrailingHierarchyUnwindCount != edited.StoredTrailingHierarchyUnwindCount)
         {
-          changes.Add(Change("StoredTrailingHierarchyUnwindCount",
-            PreservationDisposition.Regenerated, "SequenceEdit"));
+          changes.Add(
+            Change(
+              "StoredTrailingHierarchyUnwindCount",
+              PreservationDisposition.Regenerated,
+              "SequenceEdit"
+            )
+          );
         }
       }
 
-      changes.Add(Change("RootTrailingBytes", PreservationDisposition.Retained,
-        "IndependentRepresentation"));
+      changes.Add(
+        Change("RootTrailingBytes", PreservationDisposition.Retained, "IndependentRepresentation")
+      );
       return new PreservationReport(changes);
     }
 
@@ -1358,19 +1675,23 @@ namespace EarthTool.MSH.Authoring
       int vertexIndex,
       string field,
       ushort sourceValue,
-      ushort resultValue)
+      ushort resultValue
+    )
     {
       if (sourceValue == resultValue)
       {
         return;
       }
 
-      changes.Add(Change(
-        $"StaticRenderObjectSequence[{recordIndex}].RenderVertices[{vertexIndex}].{field}",
-        resultValue == ushort.MaxValue
-          ? PreservationDisposition.Canonicalized
-          : PreservationDisposition.Regenerated,
-        "GeometryDependency"));
+      changes.Add(
+        Change(
+          $"StaticRenderObjectSequence[{recordIndex}].RenderVertices[{vertexIndex}].{field}",
+          resultValue == ushort.MaxValue
+            ? PreservationDisposition.Canonicalized
+            : PreservationDisposition.Regenerated,
+          "GeometryDependency"
+        )
+      );
     }
 
     private MshEditResult<StaticMeshAsset> FailedEdit(string path, string message)
@@ -1379,13 +1700,15 @@ namespace EarthTool.MSH.Authoring
         false,
         null,
         new PreservationReport(Array.Empty<PreservationChange>()),
-        new[] { AuthoringValidation.InvalidEdit(path, message) });
+        new[] { AuthoringValidation.InvalidEdit(path, message) }
+      );
     }
 
     private static PreservationChange Change(
       string path,
       PreservationDisposition disposition,
-      string reason)
+      string reason
+    )
     {
       return new PreservationChange(path, disposition, reason);
     }
@@ -1394,7 +1717,10 @@ namespace EarthTool.MSH.Authoring
     {
       if (!_source.StaticRenderObjectSequence.Any(item => item.Id.Equals(id)))
       {
-        throw new ArgumentException("The render-object identity does not belong to this source snapshot.", nameof(id));
+        throw new ArgumentException(
+          "The render-object identity does not belong to this source snapshot.",
+          nameof(id)
+        );
       }
     }
 
@@ -1427,10 +1753,13 @@ namespace EarthTool.MSH.Authoring
         yield break;
       }
 
-      foreach (var id in MshCanonicalSerializer.PlanStaticRenderObjectIds(
-        _source,
-        _removedRenderObjects,
-        _additions))
+      foreach (
+        var id in MshCanonicalSerializer.PlanStaticRenderObjectIds(
+          _source,
+          _removedRenderObjects,
+          _additions
+        )
+      )
       {
         yield return id;
       }
@@ -1452,7 +1781,9 @@ namespace EarthTool.MSH.Authoring
     {
       if (!_nextLocalId.HasValue)
       {
-        throw new InvalidOperationException("No lineage-local static render-object identity remains available.");
+        throw new InvalidOperationException(
+          "No lineage-local static render-object identity remains available."
+        );
       }
 
       var value = _nextLocalId.Value;
@@ -1478,7 +1809,8 @@ namespace EarthTool.MSH.Authoring
   {
     internal static OperationDiagnostic? ValidateStaticTree(
       CanonicalStaticSourceObject? root,
-      MshOperationProfile profile)
+      MshOperationProfile profile
+    )
     {
       if (root is null)
       {
@@ -1486,13 +1818,20 @@ namespace EarthTool.MSH.Authoring
       }
 
       var renderObjectCount = 0;
-      return ValidateStaticSourceObject(root, "RootSourceObject", 1, profile, ref renderObjectCount);
+      return ValidateStaticSourceObject(
+        root,
+        "RootSourceObject",
+        1,
+        profile,
+        ref renderObjectCount
+      );
     }
 
     internal static OperationDiagnostic? ValidateDynamic(
       CanonicalDynamicObject root,
       MshOperationProfile profile,
-      out IReadOnlyList<OperationDiagnostic> diagnostics)
+      out IReadOnlyList<OperationDiagnostic> diagnostics
+    )
     {
       var ancestors = new HashSet<CanonicalDynamicObject>();
       var seen = new HashSet<CanonicalDynamicObject>();
@@ -1508,16 +1847,23 @@ namespace EarthTool.MSH.Authoring
         seen,
         warnings,
         ref objectCount,
-        ref stringBytes);
+        ref stringBytes
+      );
       if (warnings.Count > profile.MaxDiagnostics)
       {
-        warnings.RemoveRange(profile.MaxDiagnostics - 1, warnings.Count - profile.MaxDiagnostics + 1);
-        warnings.Add(new OperationDiagnostic(
-          MshDiagnosticCodes.DiagnosticsTruncated,
-          1010,
-          DiagnosticSeverity.Warning,
-          "$",
-          "Additional diagnostics were suppressed by the operation profile."));
+        warnings.RemoveRange(
+          profile.MaxDiagnostics - 1,
+          warnings.Count - profile.MaxDiagnostics + 1
+        );
+        warnings.Add(
+          new OperationDiagnostic(
+            MshDiagnosticCodes.DiagnosticsTruncated,
+            1010,
+            DiagnosticSeverity.Warning,
+            "$",
+            "Additional diagnostics were suppressed by the operation profile."
+          )
+        );
       }
 
       diagnostics = warnings.AsReadOnly();
@@ -1526,7 +1872,8 @@ namespace EarthTool.MSH.Authoring
 
     internal static OperationDiagnostic? ValidateStatic(
       IReadOnlyList<CanonicalStaticVertex>? vertices,
-      IReadOnlyList<CanonicalTriangle>? triangles)
+      IReadOnlyList<CanonicalTriangle>? triangles
+    )
     {
       if (vertices is null || triangles is null)
       {
@@ -1535,7 +1882,10 @@ namespace EarthTool.MSH.Authoring
 
       if (vertices.Count == 0 || vertices.Count > 65536 || triangles.Count == 0)
       {
-        return Invalid("StaticRenderObject", "Canonical static geometry counts are outside the supported format range.");
+        return Invalid(
+          "StaticRenderObject",
+          "Canonical static geometry counts are outside the supported format range."
+        );
       }
 
       for (var index = 0; index < vertices.Count; index++)
@@ -1543,31 +1893,42 @@ namespace EarthTool.MSH.Authoring
         var vertex = vertices[index];
         if (!IsFinite(vertex.Position))
         {
-          return Invalid($"StaticRenderObject.RenderVertices[{index}].Position", "Position must be finite.");
+          return Invalid(
+            $"StaticRenderObject.RenderVertices[{index}].Position",
+            "Position must be finite."
+          );
         }
 
         if (!IsFinite(vertex.Normal))
         {
-          return Invalid($"StaticRenderObject.RenderVertices[{index}].Normal", "Normal must be finite.");
+          return Invalid(
+            $"StaticRenderObject.RenderVertices[{index}].Normal",
+            "Normal must be finite."
+          );
         }
 
         if (!IsFinite(vertex.TextureCoordinate))
         {
-          return Invalid($"StaticRenderObject.RenderVertices[{index}].TextureCoordinate",
-            "Texture coordinate must be finite.");
+          return Invalid(
+            $"StaticRenderObject.RenderVertices[{index}].TextureCoordinate",
+            "Texture coordinate must be finite."
+          );
         }
       }
 
       for (var index = 0; index < triangles.Count; index++)
       {
         var triangle = triangles[index];
-        if (triangle.Vertex0 >= vertices.Count
+        if (
+          triangle.Vertex0 >= vertices.Count
           || triangle.Vertex1 >= vertices.Count
-          || triangle.Vertex2 >= vertices.Count)
+          || triangle.Vertex2 >= vertices.Count
+        )
         {
           return Invalid(
             $"StaticRenderObject.Triangles[{index}]",
-            "Triangle indices must reference active vertices.");
+            "Triangle indices must reference active vertices."
+          );
         }
       }
 
@@ -1577,7 +1938,8 @@ namespace EarthTool.MSH.Authoring
     internal static OperationDiagnostic? ValidateStaticHeader(
       CanonicalStaticSourceObject root,
       CanonicalStaticFootprint? footprint,
-      CanonicalHorizontalExtents? horizontalExtents)
+      CanonicalHorizontalExtents? horizontalExtents
+    )
     {
       var vertices = root.RenderObjects.SelectMany(item => item.RenderVertices).ToArray();
       if (footprint is null)
@@ -1585,21 +1947,31 @@ namespace EarthTool.MSH.Authoring
         var maximumZ = vertices.Max(vertex => vertex.Position.Z);
         if (maximumZ < 0 || maximumZ * 256d > ushort.MaxValue)
         {
-          return Invalid("CommonBaseHeader.Footprint", "The derived footprint height is out of range.");
+          return Invalid(
+            "CommonBaseHeader.Footprint",
+            "The derived footprint height is out of range."
+          );
         }
       }
       if (horizontalExtents is null)
       {
-        var extent = vertices.SelectMany(vertex => new[]
-        {
-          Math.Max(0, vertex.Position.X),
-          Math.Max(0, -vertex.Position.X),
-          Math.Max(0, vertex.Position.Y),
-          Math.Max(0, -vertex.Position.Y)
-        }).Max();
+        var extent = vertices
+          .SelectMany(vertex =>
+            new[]
+            {
+              Math.Max(0, vertex.Position.X),
+              Math.Max(0, -vertex.Position.X),
+              Math.Max(0, vertex.Position.Y),
+              Math.Max(0, -vertex.Position.Y),
+            }
+          )
+          .Max();
         if (extent * 256d > ushort.MaxValue)
         {
-          return Invalid("CommonBaseHeader.HorizontalExtents", "The derived horizontal extents are out of range.");
+          return Invalid(
+            "CommonBaseHeader.HorizontalExtents",
+            "The derived horizontal extents are out of range."
+          );
         }
       }
       return null;
@@ -1609,7 +1981,8 @@ namespace EarthTool.MSH.Authoring
       IReadOnlyList<CanonicalStaticVertex>? vertices,
       IReadOnlyList<CanonicalTriangle>? triangles,
       MshOperationProfile profile,
-      string path)
+      string path
+    )
     {
       var failure = ValidateStatic(vertices, triangles);
       if (failure is not null || vertices is null || triangles is null)
@@ -1619,13 +1992,21 @@ namespace EarthTool.MSH.Authoring
 
       if (vertices.Count > profile.MaxStaticVerticesPerObject)
       {
-        return ResourceLimit(vertices.Count, profile.MaxStaticVerticesPerObject, path + ".RenderVertices");
+        return ResourceLimit(
+          vertices.Count,
+          profile.MaxStaticVerticesPerObject,
+          path + ".RenderVertices"
+        );
       }
 
       var blockCount = (vertices.Count + 3) / 4;
       if (blockCount > profile.MaxStaticVertexBlocksPerObject)
       {
-        return ResourceLimit(blockCount, profile.MaxStaticVertexBlocksPerObject, path + ".VertexBlockCount");
+        return ResourceLimit(
+          blockCount,
+          profile.MaxStaticVertexBlocksPerObject,
+          path + ".VertexBlockCount"
+        );
       }
 
       return triangles.Count > profile.MaxStaticTrianglesPerObject
@@ -1638,7 +2019,8 @@ namespace EarthTool.MSH.Authoring
       string path,
       int depth,
       MshOperationProfile profile,
-      ref int renderObjectCount)
+      ref int renderObjectCount
+    )
     {
       if (depth > profile.MaxStaticHierarchyDepth)
       {
@@ -1647,7 +2029,10 @@ namespace EarthTool.MSH.Authoring
 
       if (source.RenderObjects.Count == 0)
       {
-        return Invalid(path + ".RenderObjects", "Every canonical source object requires a material partition.");
+        return Invalid(
+          path + ".RenderObjects",
+          "Every canonical source object requires a material partition."
+        );
       }
 
       foreach (var renderObject in source.RenderObjects)
@@ -1655,14 +2040,19 @@ namespace EarthTool.MSH.Authoring
         renderObjectCount++;
         if (renderObjectCount > profile.MaxStaticRenderObjects)
         {
-          return ResourceLimit(renderObjectCount, profile.MaxStaticRenderObjects, "StaticRenderObjectSequence");
+          return ResourceLimit(
+            renderObjectCount,
+            profile.MaxStaticRenderObjects,
+            "StaticRenderObjectSequence"
+          );
         }
 
         var failure = ValidateStaticForProfile(
           renderObject.RenderVertices,
           renderObject.Triangles,
           profile,
-          path + ".RenderObjects");
+          path + ".RenderObjects"
+        );
         if (failure is not null)
         {
           return failure;
@@ -1673,7 +2063,8 @@ namespace EarthTool.MSH.Authoring
           {
             return Invalid(
               path + ".RenderObjects.TextureResourceKey",
-              "TEX resource keys must use safe Textures\\...\\*.tex spelling.");
+              "TEX resource keys must use safe Textures\\...\\*.tex spelling."
+            );
           }
           var byteCount = Encoding.ASCII.GetByteCount(renderObject.TextureResourceKey);
           if (byteCount > profile.MaxStaticTexturePathBytes)
@@ -1681,7 +2072,8 @@ namespace EarthTool.MSH.Authoring
             return ResourceLimit(
               byteCount,
               profile.MaxStaticTexturePathBytes,
-              path + ".RenderObjects.TextureResourceKey");
+              path + ".RenderObjects.TextureResourceKey"
+            );
           }
         }
       }
@@ -1690,10 +2082,14 @@ namespace EarthTool.MSH.Authoring
       {
         var failure = ValidateStaticSourceObject(
           source.Children[index],
-          path + ".Children[" + index.ToString(System.Globalization.CultureInfo.InvariantCulture) + "]",
+          path
+            + ".Children["
+            + index.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            + "]",
           depth + 1,
           profile,
-          ref renderObjectCount);
+          ref renderObjectCount
+        );
         if (failure is not null)
         {
           return failure;
@@ -1709,7 +2105,8 @@ namespace EarthTool.MSH.Authoring
       {
         throw new ArgumentException(
           "TEX resource keys must use safe Textures\\...\\*.tex spelling.",
-          parameterName);
+          parameterName
+        );
       }
       return Encoding.ASCII.GetBytes(value);
     }
@@ -1721,7 +2118,8 @@ namespace EarthTool.MSH.Authoring
         1011,
         DiagnosticSeverity.Error,
         path,
-        message);
+        message
+      );
     }
 
     internal static OperationDiagnostic InvalidEdit(string path, string message)
@@ -1731,7 +2129,8 @@ namespace EarthTool.MSH.Authoring
         1012,
         DiagnosticSeverity.Error,
         path,
-        message);
+        message
+      );
     }
 
     internal static OperationDiagnostic ResourceLimit(long actual, int maximum)
@@ -1740,7 +2139,8 @@ namespace EarthTool.MSH.Authoring
         "$",
         "The serialized representation exceeds the configured operation profile.",
         actual,
-        maximum);
+        maximum
+      );
     }
 
     private static OperationDiagnostic? ValidateDynamicObject(
@@ -1752,7 +2152,8 @@ namespace EarthTool.MSH.Authoring
       HashSet<CanonicalDynamicObject> seen,
       List<OperationDiagnostic> diagnostics,
       ref int objectCount,
-      ref int stringBytes)
+      ref int stringBytes
+    )
     {
       if (!ancestors.Add(current))
       {
@@ -1761,17 +2162,21 @@ namespace EarthTool.MSH.Authoring
 
       if (!seen.Add(current))
       {
-        diagnostics.Add(new OperationDiagnostic(
-          MshDiagnosticCodes.CompatibilityAnomaly,
-          1009,
-          DiagnosticSeverity.Warning,
-          path,
-          "A reused draft instance will be serialized as an independent dynamic object."));
+        diagnostics.Add(
+          new OperationDiagnostic(
+            MshDiagnosticCodes.CompatibilityAnomaly,
+            1009,
+            DiagnosticSeverity.Warning,
+            path,
+            "A reused draft instance will be serialized as an independent dynamic object."
+          )
+        );
       }
 
       var behaviorFailure = DynamicEffectBehavior.ValidateAuthoring(
         current.Recipe,
-        depth == 1 ? DynamicObjectPlacement.Root : DynamicObjectPlacement.Child);
+        depth == 1 ? DynamicObjectPlacement.Root : DynamicObjectPlacement.Child
+      );
       if (behaviorFailure?.Field == DynamicBehaviorField.EffectType)
       {
         return behaviorFailure.At(path);
@@ -1793,7 +2198,8 @@ namespace EarthTool.MSH.Authoring
         return ResourceLimit(
           current.Children.Count,
           profile.MaxDynamicChildrenPerObject,
-          path + ".Children");
+          path + ".Children"
+        );
       }
 
       var recipeFailure = ValidateDynamicRecipe(
@@ -1801,7 +2207,8 @@ namespace EarthTool.MSH.Authoring
         path,
         profile,
         behaviorFailure,
-        ref stringBytes);
+        ref stringBytes
+      );
       if (recipeFailure is not null)
       {
         return recipeFailure;
@@ -1811,14 +2218,18 @@ namespace EarthTool.MSH.Authoring
       {
         var failure = ValidateDynamicObject(
           current.Children[index],
-          path + ".Children[" + index.ToString(System.Globalization.CultureInfo.InvariantCulture) + "]",
+          path
+            + ".Children["
+            + index.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            + "]",
           depth + 1,
           profile,
           ancestors,
           seen,
           diagnostics,
           ref objectCount,
-          ref stringBytes);
+          ref stringBytes
+        );
         if (failure is not null)
         {
           return failure;
@@ -1834,7 +2245,8 @@ namespace EarthTool.MSH.Authoring
       string path,
       MshOperationProfile profile,
       DynamicBehaviorFinding? behaviorFailure,
-      ref int stringBytes)
+      ref int stringBytes
+    )
     {
       var recipe = current.Recipe;
       if (behaviorFailure is not null)
@@ -1842,21 +2254,31 @@ namespace EarthTool.MSH.Authoring
         return behaviorFailure.At(path);
       }
 
-      if (!string.IsNullOrEmpty(recipe.TextureResourceKey)
-        && !IsCanonicalTextureResourceKey(recipe.TextureResourceKey))
+      if (
+        !string.IsNullOrEmpty(recipe.TextureResourceKey)
+        && !IsCanonicalTextureResourceKey(recipe.TextureResourceKey)
+      )
       {
-        return Invalid(path + ".Extension.TexturePathBytes", "Texture resource keys must use safe Textures\\...\\*.tex spelling.");
+        return Invalid(
+          path + ".Extension.TexturePathBytes",
+          "Texture resource keys must use safe Textures\\...\\*.tex spelling."
+        );
       }
 
       try
       {
         var meshBytes = MshCanonicalSerializer.EncodeDynamicString(recipe.MeshResourceKey).Length;
-        var textureBytes = MshCanonicalSerializer.EncodeDynamicString(recipe.TextureResourceKey).Length;
+        var textureBytes = MshCanonicalSerializer
+          .EncodeDynamicString(recipe.TextureResourceKey)
+          .Length;
         stringBytes = checked(stringBytes + meshBytes + textureBytes);
       }
       catch (EncoderFallbackException)
       {
-        return Invalid(path + ".Extension", "Dynamic resource keys must be representable as ISO-8859-2 bytes.");
+        return Invalid(
+          path + ".Extension",
+          "Dynamic resource keys must be representable as ISO-8859-2 bytes."
+        );
       }
       catch (OverflowException)
       {
@@ -1870,15 +2292,19 @@ namespace EarthTool.MSH.Authoring
 
     internal static bool IsCanonicalTextureResourceKey(string value)
     {
-      if (!value.StartsWith("Textures\\", StringComparison.OrdinalIgnoreCase)
+      if (
+        !value.StartsWith("Textures\\", StringComparison.OrdinalIgnoreCase)
         || !value.EndsWith(".tex", StringComparison.OrdinalIgnoreCase)
         || value.Contains('/')
         || value.Contains(':')
         || value.Contains('?')
         || value.Contains('#')
-        || value.Any(character => character > 0x7F
+        || value.Any(character =>
+          character > 0x7F
           || char.IsControl(character)
-          || character is '*' or '"' or '<' or '>' or '|'))
+          || character is '*' or '"' or '<' or '>' or '|'
+        )
+      )
       {
         return false;
       }
@@ -1886,10 +2312,12 @@ namespace EarthTool.MSH.Authoring
       var segments = value.Split('\\');
       return segments.Length >= 2
         && segments[^1].Length > 4
-        && segments.All(segment => segment.Length > 0
+        && segments.All(segment =>
+          segment.Length > 0
           && segment is not "." and not ".."
           && !segment.EndsWith(" ", StringComparison.Ordinal)
-          && !segment.EndsWith(".", StringComparison.Ordinal));
+          && !segment.EndsWith(".", StringComparison.Ordinal)
+        );
     }
 
     private static OperationDiagnostic ResourceLimit(long actual, int maximum, string path)
@@ -1898,14 +2326,16 @@ namespace EarthTool.MSH.Authoring
         path,
         "The canonical dynamic tree exceeds the configured operation profile.",
         actual,
-        maximum);
+        maximum
+      );
     }
 
     private static OperationDiagnostic CreateResourceLimit(
       string path,
       string message,
       long actual,
-      int maximum)
+      int maximum
+    )
     {
       return new OperationDiagnostic(
         MshDiagnosticCodes.ResourceLimitExceeded,
@@ -1916,8 +2346,9 @@ namespace EarthTool.MSH.Authoring
         data: new Dictionary<string, string>
         {
           ["actual"] = actual.ToString(System.Globalization.CultureInfo.InvariantCulture),
-          ["maximum"] = maximum.ToString(System.Globalization.CultureInfo.InvariantCulture)
-        });
+          ["maximum"] = maximum.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        }
+      );
     }
 
     private static bool IsFinite(Vector3 value)

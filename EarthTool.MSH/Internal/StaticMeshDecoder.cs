@@ -10,12 +10,12 @@ namespace EarthTool.MSH.Internal
 {
   internal static class StaticMeshDecoder
   {
-
     internal static MshDecodeResult Decode(
       MshDecodeContext context,
       MeshArchiveFraming framing,
       int baseOffset,
-      MeshAssetLineageId assetLineageId)
+      MeshAssetLineageId assetLineageId
+    )
     {
       var data = context.Data;
       var profile = context.Profile;
@@ -71,28 +71,27 @@ namespace EarthTool.MSH.Internal
         .Select(
           (record, index) =>
             new StaticRenderObject(
-        new StaticRenderObjectId(assetLineageId, checked(index + 1)),
-        hierarchy.RecordSourceIds[index],
-        record.RenderVertices,
-        record.Triangles,
-        record.VertexBlockCount,
-        record.VertexBlockPadding,
-        record.ObjectFlags,
-        record.TexturePathBytes,
-        record.AnimationTracks,
-        record.AnimationClassValue,
-        record.Pivot,
-        record.BarrelMaximumAngle,
-        record.NextRecordMarker,
+              new StaticRenderObjectId(assetLineageId, checked(index + 1)),
+              hierarchy.RecordSourceIds[index],
+              record.RenderVertices,
+              record.Triangles,
+              record.VertexBlockCount,
+              record.VertexBlockPadding,
+              record.ObjectFlags,
+              record.TexturePathBytes,
+              record.AnimationTracks,
+              record.AnimationClassValue,
+              record.Pivot,
+              record.BarrelMaximumAngle,
+              record.NextRecordMarker,
               record.SerializedRepresentation
             )
         )
         .ToArray();
       hierarchy.AssignRenderObjectIds(renderObjects);
       var rootSourceObject = hierarchy.BuildRoot();
-      var nextRenderObjectId = renderObjects.Length == int.MaxValue
-        ? (int?)null
-        : renderObjects.Length + 1;
+      var nextRenderObjectId =
+        renderObjects.Length == int.MaxValue ? (int?)null : renderObjects.Length + 1;
       var sourceObjectCount = hierarchy.SourceObjectCount;
       var nextSourceId = sourceObjectCount == int.MaxValue ? (int?)null : sourceObjectCount + 1;
       var payloadEnd = cursor;
@@ -112,13 +111,13 @@ namespace EarthTool.MSH.Internal
       {
         context.AddDiagnostic(
           context.Compatibility(
-          "RootTrailingBytes",
-          payloadEnd,
-          "Opaque bytes after the complete root payload were preserved.",
-          new Dictionary<string, string>
-          {
-            ["length"] = trailingLength.ToString(CultureInfo.InvariantCulture),
-          }
+            "RootTrailingBytes",
+            payloadEnd,
+            "Opaque bytes after the complete root payload were preserved.",
+            new Dictionary<string, string>
+            {
+              ["length"] = trailingLength.ToString(CultureInfo.InvariantCulture),
+            }
           )
         );
       }
@@ -190,9 +189,9 @@ namespace EarthTool.MSH.Internal
       {
         context.AddDiagnosticBounded(
           context.Compatibility(
-          path + ".VertexBlockCount",
-          recordOffset + 4,
-          "Excess physical vertex blocks were preserved as padding.",
+            path + ".VertexBlockCount",
+            recordOffset + 4,
+            "Excess physical vertex blocks were preserved as padding.",
             new Dictionary<string, string>()
           )
         );
@@ -272,9 +271,9 @@ namespace EarthTool.MSH.Internal
       {
         context.AddDiagnosticBounded(
           context.Compatibility(
-          path + ".UnclassifiedObjectFlagsHighWord",
-          cursor + 2,
-          "Unclassified object-flag bits were preserved.",
+            path + ".UnclassifiedObjectFlagsHighWord",
+            cursor + 2,
+            "Unclassified object-flag bits were preserved.",
             new Dictionary<string, string> { ["actual"] = $"0x{unclassifiedFlags:X8}" }
           )
         );
@@ -401,7 +400,12 @@ namespace EarthTool.MSH.Internal
       cursor += 4;
       if (count > profile.MaxStaticAnimationFramesPerTrack)
       {
-        throw context.ResourceLimit(path, countOffset, count, profile.MaxStaticAnimationFramesPerTrack);
+        throw context.ResourceLimit(
+          path,
+          countOffset,
+          count,
+          profile.MaxStaticAnimationFramesPerTrack
+        );
       }
 
       context.EnsureCounted(cursor, count, 12, path);
@@ -428,7 +432,12 @@ namespace EarthTool.MSH.Internal
       cursor += 4;
       if (count > profile.MaxStaticAnimationFramesPerTrack)
       {
-        throw context.ResourceLimit(path, countOffset, count, profile.MaxStaticAnimationFramesPerTrack);
+        throw context.ResourceLimit(
+          path,
+          countOffset,
+          count,
+          profile.MaxStaticAnimationFramesPerTrack
+        );
       }
 
       context.EnsureCounted(cursor, count, 64, path);
@@ -463,7 +472,11 @@ namespace EarthTool.MSH.Internal
     private static Vector3 ReadVector3(MshDecodeContext context, int offset, bool invertY)
     {
       var y = context.ReadSingle(offset + 4);
-      return new Vector3(context.ReadSingle(offset), invertY ? -y : y, context.ReadSingle(offset + 8));
+      return new Vector3(
+        context.ReadSingle(offset),
+        invertY ? -y : y,
+        context.ReadSingle(offset + 8)
+      );
     }
 
     private static void ValidateTrackLengths(
@@ -489,22 +502,22 @@ namespace EarthTool.MSH.Internal
       {
         context.AddDiagnosticBounded(
           context.Compatibility(
-          path + ".AnimationClassValue",
-          recordOffset,
-          "An unrecognized animation class was preserved.",
-          new Dictionary<string, string>
-          {
-            ["actual"] = animationClassValue.ToString(CultureInfo.InvariantCulture),
-          }
+            path + ".AnimationClassValue",
+            recordOffset,
+            "An unrecognized animation class was preserved.",
+            new Dictionary<string, string>
+            {
+              ["actual"] = animationClassValue.ToString(CultureInfo.InvariantCulture),
+            }
           )
         );
       }
 
       foreach (
         var track in new[]
-      {
-        (Name: "ScaleFrames", Count: scaleCount),
-        (Name: "TranslationFrames", Count: translationCount),
+        {
+          (Name: "ScaleFrames", Count: scaleCount),
+          (Name: "TranslationFrames", Count: translationCount),
           (Name: "Matrices", Count: matrixCount),
         }
       )
@@ -522,14 +535,14 @@ namespace EarthTool.MSH.Internal
         {
           context.AddDiagnosticBounded(
             context.Compatibility(
-            path + ".AnimationTracks." + track.Name,
-            recordOffset,
-            "An animation track longer than its selected declaration was preserved.",
-            new Dictionary<string, string>
-            {
-              ["actual"] = track.Count.ToString(CultureInfo.InvariantCulture),
-              ["expected"] = expected.ToString(CultureInfo.InvariantCulture),
-            }
+              path + ".AnimationTracks." + track.Name,
+              recordOffset,
+              "An animation track longer than its selected declaration was preserved.",
+              new Dictionary<string, string>
+              {
+                ["actual"] = track.Count.ToString(CultureInfo.InvariantCulture),
+                ["expected"] = expected.ToString(CultureInfo.InvariantCulture),
+              }
             )
           );
         }
@@ -573,11 +586,7 @@ namespace EarthTool.MSH.Internal
       }
 
       var sourceIndex = 0;
-      var root = new StaticSourceBuilder(
-        new SourceObjectId(lineageId, ++sourceIndex),
-        null,
-        0
-      );
+      var root = new StaticSourceBuilder(new SourceObjectId(lineageId, ++sourceIndex), null, 0);
       var current = root;
       var recordSources = new SourceObjectId[records.Count];
       for (var index = 0; index < records.Count; index++)
@@ -754,6 +763,5 @@ namespace EarthTool.MSH.Internal
         }
       }
     }
-
   }
 }

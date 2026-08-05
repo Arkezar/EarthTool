@@ -20,21 +20,26 @@ namespace EarthTool.MSH.Internal
       IEnumerable<StaticRenderObjectId> staticRenderObjectIds,
       IEnumerable<SourceObjectId> sourceObjectIds,
       int? nextStaticRenderObjectLocalId,
-      int? nextSourceObjectLocalId)
+      int? nextSourceObjectLocalId
+    )
     {
       LineageId = lineageId;
       StaticRenderObjectIds = Array.AsReadOnly(
-        (staticRenderObjectIds ?? throw new ArgumentNullException(nameof(staticRenderObjectIds)))
-          .ToArray());
+        (
+          staticRenderObjectIds ?? throw new ArgumentNullException(nameof(staticRenderObjectIds))
+        ).ToArray()
+      );
       SourceObjectIds = Array.AsReadOnly(
-        (sourceObjectIds ?? throw new ArgumentNullException(nameof(sourceObjectIds))).ToArray());
+        (sourceObjectIds ?? throw new ArgumentNullException(nameof(sourceObjectIds))).ToArray()
+      );
       NextStaticRenderObjectLocalId = nextStaticRenderObjectLocalId;
       NextSourceObjectLocalId = nextSourceObjectLocalId;
     }
 
     internal static StaticMeshIdentityState ForLineage(
       StaticMeshAsset asset,
-      MeshAssetLineageId lineageId)
+      MeshAssetLineageId lineageId
+    )
     {
       if (asset is null)
       {
@@ -43,12 +48,16 @@ namespace EarthTool.MSH.Internal
 
       return new StaticMeshIdentityState(
         lineageId,
-        asset.StaticRenderObjectSequence.Select(item =>
-          new StaticRenderObjectId(lineageId, item.LocalId)),
-        MeshAssetRebinder.EnumerateSourceObjects(asset.RootSourceObject).Select(item =>
-          new SourceObjectId(lineageId, item.Id.Value)),
+        asset.StaticRenderObjectSequence.Select(item => new StaticRenderObjectId(
+          lineageId,
+          item.LocalId
+        )),
+        MeshAssetRebinder
+          .EnumerateSourceObjects(asset.RootSourceObject)
+          .Select(item => new SourceObjectId(lineageId, item.Id.Value)),
         asset.NextStaticRenderObjectLocalId,
-        asset.NextSourceObjectLocalId);
+        asset.NextSourceObjectLocalId
+      );
     }
   }
 
@@ -57,7 +66,8 @@ namespace EarthTool.MSH.Internal
     internal static StaticMeshAsset RebindStatic(
       StaticMeshAsset asset,
       MeshAssetOrigin origin,
-      StaticMeshIdentityState identityState)
+      StaticMeshIdentityState identityState
+    )
     {
       if (asset is null)
       {
@@ -72,14 +82,16 @@ namespace EarthTool.MSH.Internal
       ValidateDecodedCorrespondence(asset, sourceObjects);
       ValidateIdentityState(asset, sourceObjects, identityState);
 
-      var renderObjectIds = asset.StaticRenderObjectSequence
-        .Select((item, index) => (item.Id, identityState.StaticRenderObjectIds[index]))
+      var renderObjectIds = asset
+        .StaticRenderObjectSequence.Select(
+          (item, index) => (item.Id, identityState.StaticRenderObjectIds[index])
+        )
         .ToDictionary(item => item.Id, item => item.Item2);
       var sourceObjectIds = sourceObjects
         .Select((item, index) => (item.Id, identityState.SourceObjectIds[index]))
         .ToDictionary(item => item.Id, item => item.Item2);
-      var renderObjects = asset.StaticRenderObjectSequence.Select(item =>
-        new StaticRenderObject(
+      var renderObjects = asset
+        .StaticRenderObjectSequence.Select(item => new StaticRenderObject(
           renderObjectIds[item.Id],
           sourceObjectIds[item.SourceObjectId],
           item.RenderVertices,
@@ -93,11 +105,14 @@ namespace EarthTool.MSH.Internal
           item.Pivot,
           item.BarrelMaximumAngle,
           item.NextRecordMarker,
-          item.GetSerializedRepresentation())).ToArray();
+          item.GetSerializedRepresentation()
+        ))
+        .ToArray();
       var rootSourceObject = RebindSourceObject(
         asset.RootSourceObject,
         sourceObjectIds,
-        renderObjectIds);
+        renderObjectIds
+      );
 
       return new StaticMeshAsset(
         identityState.LineageId,
@@ -111,13 +126,15 @@ namespace EarthTool.MSH.Internal
         asset.StoredTrailingHierarchyUnwindCount,
         asset.ExpectedTrailingHierarchyUnwindCount,
         identityState.NextStaticRenderObjectLocalId,
-        identityState.NextSourceObjectLocalId);
+        identityState.NextSourceObjectLocalId
+      );
     }
 
     internal static DynamicMeshAsset RebindDynamic(
       DynamicMeshAsset asset,
       MeshAssetOrigin origin,
-      MeshAssetLineageId lineageId)
+      MeshAssetLineageId lineageId
+    )
     {
       if (asset is null)
       {
@@ -131,31 +148,36 @@ namespace EarthTool.MSH.Internal
         asset.RootDynamicObject,
         asset.RootTrailingBytes.ToArray(),
         asset.GetSerializedRepresentation(),
-        origin);
+        origin
+      );
     }
 
     private static void ValidateDecodedCorrespondence(
       StaticMeshAsset asset,
-      IReadOnlyList<StaticSourceObject> sourceObjects)
+      IReadOnlyList<StaticSourceObject> sourceObjects
+    )
     {
       var sequenceById = UniqueById(
         asset.StaticRenderObjectSequence,
         item => item.Id,
-        "The decoded static render-object sequence contains duplicate identities.");
+        "The decoded static render-object sequence contains duplicate identities."
+      );
       var sourceById = UniqueById(
         sourceObjects,
         item => item.Id,
-        "The decoded source-object tree contains duplicate identities.");
-      var sequenceIndexes = asset.StaticRenderObjectSequence
-        .Select((item, index) => (item.Id, Index: index))
+        "The decoded source-object tree contains duplicate identities."
+      );
+      var sequenceIndexes = asset
+        .StaticRenderObjectSequence.Select((item, index) => (item.Id, Index: index))
         .ToDictionary(item => item.Id, item => item.Index);
-      var firstSeenSourceIds = asset.StaticRenderObjectSequence
-        .Select(item => item.SourceObjectId)
+      var firstSeenSourceIds = asset
+        .StaticRenderObjectSequence.Select(item => item.SourceObjectId)
         .Distinct();
       if (!sourceObjects.Select(item => item.Id).SequenceEqual(firstSeenSourceIds))
       {
         throw InvalidState(
-          "The decoded source-object tree does not correspond to serialized source-object order.");
+          "The decoded source-object tree does not correspond to serialized source-object order."
+        );
       }
 
       var referencedRenderObjects = new HashSet<StaticRenderObjectId>();
@@ -169,14 +191,17 @@ namespace EarthTool.MSH.Internal
         var previousSequenceIndex = -1;
         foreach (var renderObjectId in sourceObject.StaticRenderObjectIds)
         {
-          if (!sequenceById.TryGetValue(renderObjectId, out var renderObject)
+          if (
+            !sequenceById.TryGetValue(renderObjectId, out var renderObject)
             || !sequenceIndexes.TryGetValue(renderObjectId, out var sequenceIndex)
             || sequenceIndex <= previousSequenceIndex
             || !renderObject.SourceObjectId.Equals(sourceObject.Id)
-            || !referencedRenderObjects.Add(renderObjectId))
+            || !referencedRenderObjects.Add(renderObjectId)
+          )
           {
             throw InvalidState(
-              "The decoded source-object tree does not correspond to serialized render-object order.");
+              "The decoded source-object tree does not correspond to serialized render-object order."
+            );
           }
           previousSequenceIndex = sequenceIndex;
         }
@@ -184,9 +209,11 @@ namespace EarthTool.MSH.Internal
 
       foreach (var renderObject in asset.StaticRenderObjectSequence)
       {
-        if (!renderObject.Id.Lineage.Equals(asset.LineageId)
+        if (
+          !renderObject.Id.Lineage.Equals(asset.LineageId)
           || !renderObject.SourceObjectId.Lineage.Equals(asset.LineageId)
-          || !sourceById.ContainsKey(renderObject.SourceObjectId))
+          || !sourceById.ContainsKey(renderObject.SourceObjectId)
+        )
         {
           throw InvalidState("The decoded static render-object lineage is inconsistent.");
         }
@@ -195,19 +222,22 @@ namespace EarthTool.MSH.Internal
       if (referencedRenderObjects.Count != asset.StaticRenderObjectSequence.Count)
       {
         throw InvalidState(
-          "The decoded source-object tree does not correspond to serialized render-object order.");
+          "The decoded source-object tree does not correspond to serialized render-object order."
+        );
       }
     }
 
     private static void ValidateIdentityState(
       StaticMeshAsset asset,
       IReadOnlyList<StaticSourceObject> sourceObjects,
-      StaticMeshIdentityState identityState)
+      StaticMeshIdentityState identityState
+    )
     {
       if (identityState.StaticRenderObjectIds.Count != asset.StaticRenderObjectSequence.Count)
       {
         throw InvalidState(
-          "Static render-object identities must match the decoded sequence count.");
+          "Static render-object identities must match the decoded sequence count."
+        );
       }
       if (identityState.SourceObjectIds.Count != sourceObjects.Count)
       {
@@ -219,21 +249,25 @@ namespace EarthTool.MSH.Internal
         item => item.Lineage,
         item => item.Value,
         identityState.LineageId,
-        "static render-object");
+        "static render-object"
+      );
       ValidateIds(
         identityState.SourceObjectIds,
         item => item.Lineage,
         item => item.Value,
         identityState.LineageId,
-        "source-object");
+        "source-object"
+      );
       ValidateNextId(
         identityState.StaticRenderObjectIds.Max(item => item.Value),
         identityState.NextStaticRenderObjectLocalId,
-        "static render-object");
+        "static render-object"
+      );
       ValidateNextId(
         identityState.SourceObjectIds.Max(item => item.Value),
         identityState.NextSourceObjectLocalId,
-        "source-object");
+        "source-object"
+      );
     }
 
     private static void ValidateIds<T>(
@@ -241,7 +275,8 @@ namespace EarthTool.MSH.Internal
       Func<T, MeshAssetLineageId> lineage,
       Func<T, int> value,
       MeshAssetLineageId expectedLineage,
-      string name)
+      string name
+    )
     {
       var localIds = new HashSet<int>();
       foreach (var id in ids)
@@ -267,8 +302,7 @@ namespace EarthTool.MSH.Internal
       {
         if (next.Value <= maximum)
         {
-          throw InvalidState(
-            $"The next {name} identity must exceed every allocated identity.");
+          throw InvalidState($"The next {name} identity must exceed every allocated identity.");
         }
         return;
       }
@@ -276,25 +310,29 @@ namespace EarthTool.MSH.Internal
       if (maximum != int.MaxValue)
       {
         throw InvalidState(
-          $"The next {name} identity can be exhausted only after allocating Int32.MaxValue.");
+          $"The next {name} identity can be exhausted only after allocating Int32.MaxValue."
+        );
       }
     }
 
     private static StaticSourceObject RebindSourceObject(
       StaticSourceObject source,
       IReadOnlyDictionary<SourceObjectId, SourceObjectId> sourceObjectIds,
-      IReadOnlyDictionary<StaticRenderObjectId, StaticRenderObjectId> renderObjectIds)
+      IReadOnlyDictionary<StaticRenderObjectId, StaticRenderObjectId> renderObjectIds
+    )
     {
       return new StaticSourceObject(
         sourceObjectIds[source.Id],
         source.StaticRenderObjectIds.Select(item => renderObjectIds[item]),
-        source.Children.Select(child => RebindSourceObject(child, sourceObjectIds, renderObjectIds)));
+        source.Children.Select(child => RebindSourceObject(child, sourceObjectIds, renderObjectIds))
+      );
     }
 
     private static Dictionary<TId, T> UniqueById<T, TId>(
       IEnumerable<T> values,
       Func<T, TId> id,
-      string message)
+      string message
+    )
       where TId : notnull
     {
       var result = new Dictionary<TId, T>();
@@ -308,7 +346,9 @@ namespace EarthTool.MSH.Internal
       return result;
     }
 
-    internal static IEnumerable<StaticSourceObject> EnumerateSourceObjects(StaticSourceObject source)
+    internal static IEnumerable<StaticSourceObject> EnumerateSourceObjects(
+      StaticSourceObject source
+    )
     {
       yield return source;
       foreach (var child in source.Children)
