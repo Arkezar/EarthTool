@@ -798,13 +798,7 @@ namespace EarthTool.GLTF
       {
         var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
           .ConfigureAwait(false);
-        return await CreateMeshCoreAsync(
-            package.Json,
-            package,
-            options,
-            profile,
-            cancellationToken
-          )
+        return await CreateMeshCoreAsync(package.Json, package, options, profile, cancellationToken)
           .ConfigureAwait(false);
       }
       catch (OperationCanceledException)
@@ -832,9 +826,10 @@ namespace EarthTool.GLTF
           source.Length >= 20
             ? checked((int)BinaryPrimitives.ReadUInt32LittleEndian(source.AsSpan(12, sizeof(uint))))
             : 0;
-        json = jsonLength > 0 && 20 + jsonLength <= source.Length
-          ? source.AsMemory(20, jsonLength)
-          : ReadOnlyMemory<byte>.Empty;
+        json =
+          jsonLength > 0 && 20 + jsonLength <= source.Length
+            ? source.AsMemory(20, jsonLength)
+            : ReadOnlyMemory<byte>.Empty;
       }
       else
       {
@@ -847,26 +842,37 @@ namespace EarthTool.GLTF
         json = separatePackage.Json;
       }
 
-      if (
-        !json.IsEmpty
-        && DynamicGltfDocument.HasDynamicManifest(json, profile.MaxJsonDepth)
-      )
+      if (!json.IsEmpty && DynamicGltfDocument.HasDynamicManifest(json, profile.MaxJsonDepth))
       {
-        var imported = separatePackage is null
-          ? DynamicGltfDocument.ImportGlb(source, profile, cancellationToken)
-          : DynamicGltfDocument.ImportSeparate(
-            separatePackage.Json,
-            separatePackage.Binary,
-            separatePackage.BufferUri,
-            separatePackage.Images,
-            profile,
-            cancellationToken
+        try
+        {
+          var imported = separatePackage is null
+            ? DynamicGltfDocument.ImportGlb(source, profile, cancellationToken)
+            : DynamicGltfDocument.ImportSeparate(
+              separatePackage.Json,
+              separatePackage.Binary,
+              separatePackage.BufferUri,
+              separatePackage.Images,
+              profile,
+              cancellationToken
+            );
+          return new OperationResult<GltfMeshCreationResult>(
+            OperationStatus.Succeeded,
+            new GltfMeshCreationResult(imported.Asset, imported.Preservation),
+            CreateDynamicPlacementDiagnostics(imported)
           );
-        return new OperationResult<GltfMeshCreationResult>(
-          OperationStatus.Succeeded,
-          new GltfMeshCreationResult(imported.Asset, imported.Preservation),
-          CreateDynamicPlacementDiagnostics(imported)
-        );
+        }
+        catch (Exception ex) when (IsMetadataFailure(ex))
+        {
+          return CreateCanonicalFallback(
+            source,
+            separatePackage,
+            options,
+            profile,
+            cancellationToken,
+            new[] { ToDiagnostic(ex) }
+          );
+        }
       }
 
       ParsedGlb parsed;
@@ -874,21 +880,66 @@ namespace EarthTool.GLTF
       {
         parsed = separatePackage is null
           ? GlbDocument.Parse(source, profile)
-          : GlbDocument.ParseSeparate(
-            separatePackage.Json,
-            separatePackage.Binary,
-            profile
-          );
+          : GlbDocument.ParseSeparate(separatePackage.Json, separatePackage.Binary, profile);
       }
       catch (Exception ex)
-        when (ex is MissingMetadataException
-          || ex is MetadataConflictException conflict
-          && conflict.Code == GltfDiagnosticCodes.MissingManifest)
+        when (IsMetadataFailure(ex))
       {
-        parsed = separatePackage is null
-          ? GlbDocument.ParseNewModel(source, profile)
+        return CreateCanonicalFallback(
+          source,
+          separatePackage,
+          options,
+          profile,
+          cancellationToken,
+          new[] { ToDiagnostic(ex) }
+        );
+      }
+
+      ValidateGeometryProfile(parsed, profile);
+      var manifest = GlbDocument.ParseMetadata(parsed.ManifestMetadata!, profile);
+      var baseline = new InterchangeBaseline(manifest.AssetLineageId, manifest.DocumentId);
+      var metadataBacked = await ImportParsedAsync(
+            parsed,
+            baseline,
+            new GltfEditImportOptions(),
+            profile,
+            cancellationToken
+          )
+          .ConfigureAwait(false);
+      if (!metadataBacked.Succeeded && metadataBacked.Diagnostics.Any(IsMetadataDiagnostic))
+      {
+        return CreateCanonicalFallback(
+          source,
+          separatePackage,
+          options,
+          profile,
+          cancellationToken,
+          metadataBacked.Diagnostics.Where(IsMetadataDiagnostic)
+        );
+      }
+      return ToCreationResult(
+        metadataBacked,
+        value => value.Asset,
+        value => value.Preservation
+      );
+    }
+
+    private static OperationResult<GltfMeshCreationResult> CreateCanonicalFallback(
+      byte[] source,
+      SeparateGltfPackage? separatePackage,
+      GltfNewModelImportOptions options,
+      GltfOperationProfile profile,
+      CancellationToken cancellationToken,
+      IEnumerable<OperationDiagnostic> metadataDiagnostics
+    )
+    {
+      var warnings = metadataDiagnostics.Select(MetadataFallbackWarning).ToArray();
+      try
+      {
+        var parsed = separatePackage is null
+          ? GlbDocument.ParseNewModel(RemoveGlbMetadata(source), profile)
           : GlbDocument.ParseSeparateNewModel(
-            separatePackage.Json,
+            RemoveJsonMetadata(separatePackage.Json),
             separatePackage.Binary,
             profile
           );
@@ -897,60 +948,62 @@ namespace EarthTool.GLTF
           ImportNewModelParsed(parsed, profile, cancellationToken, options),
           value => value.Asset,
           value => value.Preservation,
-          MissingMetadataCreationWarning()
+          warnings
         );
       }
-
-      ValidateGeometryProfile(parsed, profile);
-      var manifest = GlbDocument.ParseMetadata(parsed.ManifestMetadata!, profile);
-      var baseline = new InterchangeBaseline(manifest.AssetLineageId, manifest.DocumentId);
-      return ToCreationResult(
-        await ImportParsedAsync(
-            parsed,
-            baseline,
-            new GltfEditImportOptions(),
-            profile,
-            cancellationToken
-          )
-          .ConfigureAwait(false),
-        value => value.Asset,
-        value => value.Preservation
-      );
+      catch (OperationCanceledException)
+      {
+        throw;
+      }
+      catch (Exception ex)
+      {
+        return new OperationResult<GltfMeshCreationResult>(
+          OperationStatus.Failed,
+          diagnostics: warnings.Concat(new[] { ToDiagnostic(ex) })
+        );
+      }
     }
 
     private static OperationResult<GltfMeshCreationResult> ToCreationResult<T>(
       OperationResult<T> result,
       Func<T, MeshAsset> getAsset,
       Func<T, PreservationReport> getPreservation,
-      OperationDiagnostic? firstDiagnostic = null
-    ) where T : class
+      IEnumerable<OperationDiagnostic>? leadingDiagnostics = null
+    )
+      where T : class
     {
-      var diagnostics = firstDiagnostic is null
+      var diagnostics = leadingDiagnostics is null
         ? result.Diagnostics
-        : new[] { firstDiagnostic }.Concat(result.Diagnostics);
+        : leadingDiagnostics.Concat(result.Diagnostics);
       return result.Succeeded
         ? new OperationResult<GltfMeshCreationResult>(
           OperationStatus.Succeeded,
-          new GltfMeshCreationResult(
-            getAsset(result.Value!),
-            getPreservation(result.Value!)
-          ),
+          new GltfMeshCreationResult(getAsset(result.Value!), getPreservation(result.Value!)),
           diagnostics
         )
-        : new OperationResult<GltfMeshCreationResult>(
-          result.Status,
-          diagnostics: diagnostics
-        );
+        : new OperationResult<GltfMeshCreationResult>(result.Status, diagnostics: diagnostics);
     }
 
-    private static OperationDiagnostic MissingMetadataCreationWarning()
+    private static bool IsMetadataFailure(Exception exception)
+    {
+      return IsMetadataDiagnostic(ToDiagnostic(exception));
+    }
+
+    private static bool IsMetadataDiagnostic(OperationDiagnostic diagnostic)
+    {
+      return GltfMetadataConflictCatalog.ActionsByCode.ContainsKey(diagnostic.Code);
+    }
+
+    private static OperationDiagnostic MetadataFallbackWarning(OperationDiagnostic diagnostic)
     {
       return new OperationDiagnostic(
-        GltfDiagnosticCodes.MissingManifest,
-        2000,
+        diagnostic.Code,
+        diagnostic.EventId,
         DiagnosticSeverity.Warning,
-        "$",
-        "EarthTool metadata is missing; canonical static mesh asset creation was attempted."
+        diagnostic.Path,
+        diagnostic.Code == GltfDiagnosticCodes.MissingManifest
+          ? "EarthTool metadata is missing; canonical static mesh asset creation was attempted."
+          : "EarthTool metadata is unusable and was discarded; canonical static mesh asset creation was attempted."
       );
     }
 

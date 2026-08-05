@@ -397,12 +397,7 @@ namespace EarthTool.GLTF.Internal
       ValidateMetadataBudgets(root, manifestText, profile, layout.ObjectNodeIndices);
       using var manifest = ParseMetadata(manifestText, profile);
       var manifestRoot = manifest.RootElement;
-      expectedBaseline = ValidateMetadataHeader(
-        manifestRoot,
-        "manifest",
-        0,
-        expectedBaseline
-      );
+      expectedBaseline = ValidateMetadataHeader(manifestRoot, "manifest", 0, expectedBaseline);
       var payload = manifestRoot.GetProperty("payload");
       if (payload.GetProperty("assetKind").GetString() != "dynamic")
       {
@@ -410,7 +405,7 @@ namespace EarthTool.GLTF.Internal
       }
       var sourceText =
         payload.GetProperty("sourceMsh").GetString()
-        ?? throw new InvalidDataException("Dynamic source MSH metadata is null.");
+        ?? throw MalformedManifest("Dynamic source MSH metadata is null.");
       var sourceBytes = GlbDocument.DecodeBase64Url(sourceText, profile.MaxInputBytes).ToArray();
       var source = MshExpert.CreateDynamic(
         sourceBytes,
@@ -419,7 +414,7 @@ namespace EarthTool.GLTF.Internal
       );
       if (!source.TryGetValue(out var sourceAsset))
       {
-        throw new InvalidDataException("Dynamic source MSH metadata is invalid.");
+        throw MalformedManifest("Dynamic source MSH metadata is invalid.");
       }
       var objects = Flatten(
         sourceAsset!.RootDynamicObject,
@@ -453,14 +448,19 @@ namespace EarthTool.GLTF.Internal
       var fingerprintElement = payload.GetProperty("nativeProjection");
       var fingerprint = new NativeProjectionFingerprint(
         fingerprintElement.GetProperty("name").GetString()
-          ?? throw new InvalidDataException("Dynamic projection name is null."),
+          ?? throw MalformedManifest("Dynamic projection name is null."),
         fingerprintElement.GetProperty("version").GetInt32(),
         fingerprintElement.GetProperty("sha256").GetString()
-          ?? throw new InvalidDataException("Dynamic projection digest is null.")
+          ?? throw MalformedManifest("Dynamic projection digest is null.")
       );
       if (fingerprint.Name != ProjectionName || fingerprint.Version != ProjectionVersion)
       {
-        throw new UnsupportedGltfDomainException("DynamicProjection");
+        throw new DynamicMetadataGraphException(
+          GltfDiagnosticCodes.UnsupportedGuard,
+          2015,
+          "scenes[0].extras.earthtool.payload.nativeProjection",
+          "The dynamic native projection guard is unsupported."
+        );
       }
       var actualFingerprint = CreateFingerprint(objects, effectPreviews);
       if (!string.Equals(fingerprint.Sha256, actualFingerprint.Sha256, StringComparison.Ordinal))
@@ -483,6 +483,16 @@ namespace EarthTool.GLTF.Internal
         effectPreviews,
         layout.PlacementDataIgnored,
         layout.PlacementRootIndex
+      );
+    }
+
+    private static DynamicMetadataGraphException MalformedManifest(string message)
+    {
+      return new DynamicMetadataGraphException(
+        GltfDiagnosticCodes.MalformedMetadata,
+        2003,
+        "scenes[0].extras.earthtool",
+        message
       );
     }
 
