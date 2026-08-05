@@ -40,9 +40,29 @@ _Avoid_: Corruption, normalization target
 The common `0x368`-byte `MESH` record shared by static meshes and dynamic effects. It excludes the static trailing hierarchy unwind count and dynamic effect extension.
 _Avoid_: Static descriptor, subtype header
 
+**Canonical dynamic base header**:
+The exact canonical authored base-header representation for a dynamic object: supported version 1, dynamic mesh kind, zero-valued inherited shared regions, and 49 canonical absent attachments. A loaded dynamic base header need not be canonical and remains authoritative; a departure is a compatibility anomaly.
+_Avoid_: Valid dynamic base header, normalized dynamic header
+
 **Mesh asset**:
 A top-level framed MSH and its parsed static or dynamic payload.
 _Avoid_: Earth mesh, model file
+
+**Mesh asset origin**:
+A nonserialized classification of how an immutable mesh asset was constructed: loaded from accepted bytes, canonically authored, or created from an expert-supplied exact representation. It does not change serialized authority.
+_Avoid_: Source provenance, file origin
+
+**Mesh asset identity state**:
+The nonserialized asset lineage and lineage-local identities assigned to a mesh asset. A static mesh asset includes identities for its static render-object sequence and source object tree plus the next allocatable identities; a dynamic mesh asset carries only its lineage. Identity state is not inferred from serialized representations and does not affect serialization.
+_Avoid_: Serialized identity, glTF index identity, reconstruction metadata
+
+**Static mesh asset**:
+A mesh asset whose mesh kind is `Static` and whose payload is an authoritative static render-object sequence plus its reconstructed source object tree.
+_Avoid_: Static payload, static model
+
+**Dynamic mesh asset**:
+A mesh asset whose mesh kind is `Dynamic` and whose payload is a root dynamic object.
+_Avoid_: Dynamic payload, dynamic model
 
 **Static render object**:
 One serialized static geometry/material record. Multiple static render objects can be material partitions of one source object.
