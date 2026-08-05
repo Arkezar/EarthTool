@@ -301,11 +301,19 @@ public class StaticMeshAssetTests
     var decoded = MshV1Decoder.Decode(
       StaticMeshSequenceFixture.CreateSingle().Data,
       MshOperationProfile.Default,
-      CancellationToken.None,
-      new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555")),
-      staticRenderObjectLocalIds: [int.MaxValue],
-      sourceObjectLocalIds: [1]);
-    var source = (StaticMeshAsset)decoded.Asset;
+      CancellationToken.None);
+    var decodedAsset = (StaticMeshAsset)decoded.Asset;
+    var lineage = new MeshAssetLineageId(
+      new Guid("11111111-2222-3333-4444-555555555555"));
+    var source = MeshAssetRebinder.RebindStatic(
+      decodedAsset,
+      MeshAssetOrigin.Loaded,
+      new StaticMeshIdentityState(
+        lineage,
+        [new StaticRenderObjectId(lineage, int.MaxValue)],
+        [new SourceObjectId(lineage, 1)],
+        null,
+        2));
     var session = source.Edit();
 
     Action add = () => session.AddRenderObject(

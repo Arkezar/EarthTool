@@ -18,8 +18,7 @@ namespace EarthTool.MSH.Internal
       MshDecodeContext context,
       MeshArchiveFraming framing,
       int baseOffset,
-      MeshAssetLineageId lineageId,
-      MeshAssetOrigin origin)
+      MeshAssetLineageId lineageId)
     {
       var objectCount = 0;
       var stringBytes = 0;
@@ -62,7 +61,7 @@ namespace EarthTool.MSH.Internal
         rootDynamicObject,
         rootTrailingBytes,
         context.Source,
-        origin);
+        MeshAssetOrigin.Loaded);
       return context.Complete(asset);
     }
 

@@ -45,15 +45,7 @@ namespace EarthTool.MSH.Internal
     internal static MshDecodeResult Decode(
       byte[] source,
       MshOperationProfile profile,
-      CancellationToken cancellationToken,
-      MeshAssetLineageId? lineageId = null,
-      MeshAssetOrigin origin = MeshAssetOrigin.Loaded,
-      int staticRenderObjectLocalId = 1,
-      int rootSourceObjectLocalId = 1,
-      IReadOnlyList<int>? staticRenderObjectLocalIds = null,
-      IReadOnlyList<int>? sourceObjectLocalIds = null,
-      int? nextStaticRenderObjectLocalId = null,
-      int? nextSourceObjectLocalId = null
+      CancellationToken cancellationToken
     )
     {
       var context = new MshDecodeContext(source, profile, cancellationToken);
@@ -168,31 +160,14 @@ namespace EarthTool.MSH.Internal
         );
       }
 
-      var assetLineageId = lineageId ?? new MeshAssetLineageId(Guid.NewGuid());
+      var assetLineageId = new MeshAssetLineageId(Guid.NewGuid());
       var framing = new MeshArchiveFraming(declaration, archiveType, creationGuid);
       if (meshKindIsDynamic)
       {
-        return DynamicMeshDecoder.Decode(
-          context,
-          framing,
-          baseOffset,
-          assetLineageId,
-          origin
-        );
+        return DynamicMeshDecoder.Decode(context, framing, baseOffset, assetLineageId);
       }
 
-      return StaticMeshDecoder.Decode(
-        context,
-        framing,
-        baseOffset,
-        assetLineageId,
-        origin,
-        staticRenderObjectLocalId,
-        rootSourceObjectLocalId,
-        staticRenderObjectLocalIds,
-        sourceObjectLocalIds,
-        nextStaticRenderObjectLocalId,
-        nextSourceObjectLocalId);
+      return StaticMeshDecoder.Decode(context, framing, baseOffset, assetLineageId);
     }
 
   }

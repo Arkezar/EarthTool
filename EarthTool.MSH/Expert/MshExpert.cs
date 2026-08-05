@@ -52,12 +52,7 @@ namespace EarthTool.MSH.Expert
 
       try
       {
-        var decoded = MshV1Decoder.Decode(
-          bytes,
-          profile,
-          CancellationToken.None,
-          lineageId,
-          MeshAssetOrigin.Expert);
+        var decoded = MshV1Decoder.Decode(bytes, profile, CancellationToken.None);
         if (decoded.Asset is not T asset)
         {
           return new MshBuildResult<T>(false, null,
@@ -72,7 +67,16 @@ namespace EarthTool.MSH.Expert
             });
         }
 
-        return new MshBuildResult<T>(true, asset, decoded.Diagnostics);
+        var rebound = asset.Match<MeshAsset>(
+          staticAsset => MeshAssetRebinder.RebindStatic(
+            staticAsset,
+            MeshAssetOrigin.Expert,
+            StaticMeshIdentityState.ForLineage(staticAsset, lineageId)),
+          dynamicAsset => MeshAssetRebinder.RebindDynamic(
+            dynamicAsset,
+            MeshAssetOrigin.Expert,
+            lineageId));
+        return new MshBuildResult<T>(true, (T)rebound, decoded.Diagnostics);
       }
       catch (MshContentException ex)
       {

@@ -368,16 +368,13 @@ namespace EarthTool.MSH.Authoring
             new[] { AuthoringValidation.ResourceLimit(bytes.Length, profile.MaxOutputBytes) });
         }
 
-        var decoded = MshV1Decoder.Decode(
-          bytes,
-          profile,
-          CancellationToken.None,
-          _lineageId,
-          MeshAssetOrigin.Canonical);
-        return new MshBuildResult<StaticMeshAsset>(
-          true,
-          (StaticMeshAsset)decoded.Asset,
-          decoded.Diagnostics);
+        var decoded = MshV1Decoder.Decode(bytes, profile, CancellationToken.None);
+        var decodedAsset = (StaticMeshAsset)decoded.Asset;
+        var asset = MeshAssetRebinder.RebindStatic(
+          decodedAsset,
+          MeshAssetOrigin.Canonical,
+          StaticMeshIdentityState.ForLineage(decodedAsset, _lineageId));
+        return new MshBuildResult<StaticMeshAsset>(true, asset, decoded.Diagnostics);
       }
       catch (OverflowException)
       {
@@ -503,15 +500,14 @@ namespace EarthTool.MSH.Authoring
       }
 
       var bytes = MshCanonicalSerializer.CreateDynamic(_creationGuid, _root, dynamicLength);
-      var decoded = MshV1Decoder.Decode(
-        bytes,
-        profile,
-        CancellationToken.None,
-        _lineageId,
-        MeshAssetOrigin.Canonical);
+      var decoded = MshV1Decoder.Decode(bytes, profile, CancellationToken.None);
+      var asset = MeshAssetRebinder.RebindDynamic(
+        (DynamicMeshAsset)decoded.Asset,
+        MeshAssetOrigin.Canonical,
+        _lineageId);
       return new MshBuildResult<DynamicMeshAsset>(
         true,
-        (DynamicMeshAsset)decoded.Asset,
+        asset,
         validationDiagnostics.Concat(decoded.Diagnostics));
     }
   }
@@ -1131,18 +1127,7 @@ namespace EarthTool.MSH.Authoring
       MshDecodeResult decoded;
       try
       {
-        decoded = MshV1Decoder.Decode(
-          bytes,
-          profile,
-          CancellationToken.None,
-          _source.LineageId,
-          _source.Origin,
-          rootSourceObjectLocalId: (_editedRootSourceObject ?? _source.RootSourceObject).Id.Value,
-          staticRenderObjectLocalIds: renderObjectLocalIds,
-          sourceObjectLocalIds: GetSourceObjectIds(
-            _editedRootSourceObject ?? _source.RootSourceObject).Select(item => item.Value).ToArray(),
-          nextStaticRenderObjectLocalId: _nextLocalId,
-          nextSourceObjectLocalId: _nextSourceObjectLocalId);
+        decoded = MshV1Decoder.Decode(bytes, profile, CancellationToken.None);
       }
       catch (MshContentException ex)
       {
@@ -1153,10 +1138,20 @@ namespace EarthTool.MSH.Authoring
           new[] { ex.Diagnostic });
       }
 
+      var decodedAsset = (StaticMeshAsset)decoded.Asset;
+      var edited = MeshAssetRebinder.RebindStatic(
+        decodedAsset,
+        _source.Origin,
+        new StaticMeshIdentityState(
+          _source.LineageId,
+          renderObjectLocalIds.Select(item => new StaticRenderObjectId(_source.LineageId, item)),
+          GetSourceObjectIds(_editedRootSourceObject ?? _source.RootSourceObject),
+          _nextLocalId,
+          _nextSourceObjectLocalId));
       return new MshEditResult<StaticMeshAsset>(
         true,
-        (StaticMeshAsset)decoded.Asset,
-        CreatePreservationReport((StaticMeshAsset)decoded.Asset),
+        edited,
+        CreatePreservationReport(edited),
         decoded.Diagnostics);
     }
 

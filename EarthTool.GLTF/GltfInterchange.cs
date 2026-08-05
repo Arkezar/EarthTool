@@ -2866,16 +2866,22 @@ namespace EarthTool.GLTF
         var decoded = EarthTool.MSH.Internal.MshV1Decoder.Decode(
           sourceMsh,
           MshOperationProfile.Default,
-          cancellationToken,
-          new MeshAssetLineageId(manifest.AssetLineageId),
+          cancellationToken);
+        if (decoded.Asset is not StaticMeshAsset decodedAsset)
+        {
+          throw new InvalidDataException("Preserved MSH state is not static.");
+        }
+        var lineageId = new MeshAssetLineageId(manifest.AssetLineageId);
+        asset = EarthTool.MSH.Internal.MeshAssetRebinder.RebindStatic(
+          decodedAsset,
           MeshAssetOrigin.Loaded,
-          rootSourceObjectLocalId: manifest.SourceObjectLocalIds[0],
-          staticRenderObjectLocalIds: manifest.StaticRenderObjectLocalIds,
-          sourceObjectLocalIds: manifest.SourceObjectLocalIds,
-          nextStaticRenderObjectLocalId: manifest.NextStaticRenderObjectLocalId,
-          nextSourceObjectLocalId: manifest.NextSourceObjectLocalId);
-        asset = decoded.Asset as StaticMeshAsset
-          ?? throw new InvalidDataException("Preserved MSH state is not static.");
+          new EarthTool.MSH.Internal.StaticMeshIdentityState(
+            lineageId,
+            manifest.StaticRenderObjectLocalIds.Select(id =>
+              new StaticRenderObjectId(lineageId, id)),
+            manifest.SourceObjectLocalIds.Select(id => new SourceObjectId(lineageId, id)),
+            manifest.NextStaticRenderObjectLocalId,
+            manifest.NextSourceObjectLocalId));
       }
       catch (Exception ex) when (ex is EarthTool.MSH.Internal.MshContentException
         || ex is ArgumentException

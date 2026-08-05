@@ -1,7 +1,6 @@
 ﻿#nullable enable
 
 using EarthTool.MSH.Assets;
-using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -17,14 +16,7 @@ namespace EarthTool.MSH.Internal
       MshDecodeContext context,
       MeshArchiveFraming framing,
       int baseOffset,
-      MeshAssetLineageId assetLineageId,
-      MeshAssetOrigin origin,
-      int staticRenderObjectLocalId,
-      int rootSourceObjectLocalId,
-      IReadOnlyList<int>? staticRenderObjectLocalIds,
-      IReadOnlyList<int>? sourceObjectLocalIds,
-      int? nextStaticRenderObjectLocalId,
-      int? nextSourceObjectLocalId)
+      MeshAssetLineageId assetLineageId)
     {
       var data = context.Data;
       var profile = context.Profile;
@@ -65,13 +57,7 @@ namespace EarthTool.MSH.Internal
         }
       }
 
-      var hierarchy = ReconstructHierarchy(
-        decodedRecords,
-        assetLineageId,
-        rootSourceObjectLocalId,
-        sourceObjectLocalIds,
-        context
-      );
+      var hierarchy = ReconstructHierarchy(decodedRecords, assetLineageId, context);
       var expectedTrailingUnwind = checked((uint)hierarchy.FinalDepth + 1);
       if (storedTrailingUnwind != expectedTrailingUnwind)
       {
@@ -82,25 +68,11 @@ namespace EarthTool.MSH.Internal
         );
       }
 
-      if (
-        staticRenderObjectLocalIds is not null
-        && staticRenderObjectLocalIds.Count != decodedRecords.Count
-      )
-      {
-        throw new ArgumentException(
-          "Static render-object identities must match the decoded sequence.",
-          nameof(staticRenderObjectLocalIds)
-        );
-      }
-
       var renderObjects = decodedRecords
         .Select(
           (record, index) =>
             new StaticRenderObject(
-        new StaticRenderObjectId(
-          assetLineageId,
-                staticRenderObjectLocalIds?[index] ?? checked(staticRenderObjectLocalId + index)
-              ),
+        new StaticRenderObjectId(assetLineageId, checked(index + 1)),
         hierarchy.RecordSourceIds[index],
         record.RenderVertices,
         record.Triangles,
@@ -118,16 +90,12 @@ namespace EarthTool.MSH.Internal
         )
         .ToArray();
       hierarchy.AssignRenderObjectIds(renderObjects);
-      var nextRenderObjectId = ResolveNextLocalId(
-        renderObjects.Select(record => record.LocalId),
-        nextStaticRenderObjectLocalId,
-        nameof(nextStaticRenderObjectLocalId)
-      );
-      var nextSourceId = ResolveNextLocalId(
-        GetSourceObjectLocalIds(hierarchy.BuildRoot()),
-        nextSourceObjectLocalId,
-        nameof(nextSourceObjectLocalId)
-      );
+      var rootSourceObject = hierarchy.BuildRoot();
+      var nextRenderObjectId = renderObjects.Length == int.MaxValue
+        ? (int?)null
+        : renderObjects.Length + 1;
+      var sourceObjectCount = hierarchy.SourceObjectCount;
+      var nextSourceId = sourceObjectCount == int.MaxValue ? (int?)null : sourceObjectCount + 1;
       var payloadEnd = cursor;
       var trailingLength = data.Length - payloadEnd;
       if (trailingLength > profile.MaxRootTrailingBytes)
@@ -163,43 +131,14 @@ namespace EarthTool.MSH.Internal
         rootTrailingBytes,
         renderObjects,
         context.Source,
-        origin,
-        hierarchy.BuildRoot(),
+        MeshAssetOrigin.Loaded,
+        rootSourceObject,
         storedTrailingUnwind,
         expectedTrailingUnwind,
         nextRenderObjectId,
         nextSourceId
       );
       return context.Complete(asset);
-    }
-
-    private static int? ResolveNextLocalId(
-      IEnumerable<int> localIds,
-      int? requested,
-      string parameterName
-    )
-    {
-      var maximum = localIds.Max();
-      if (requested.HasValue && requested.Value <= maximum)
-      {
-        throw new ArgumentOutOfRangeException(
-          parameterName,
-          "The next lineage-local identity must exceed every allocated identity."
-        );
-      }
-      return requested ?? (maximum == int.MaxValue ? null : maximum + 1);
-    }
-
-    private static IEnumerable<int> GetSourceObjectLocalIds(StaticSourceObject source)
-    {
-      yield return source.Id.Value;
-      foreach (var child in source.Children)
-      {
-        foreach (var id in GetSourceObjectLocalIds(child))
-        {
-          yield return id;
-        }
-      }
     }
 
     private static DecodedStaticRecord DecodeRenderObject(
@@ -621,8 +560,6 @@ namespace EarthTool.MSH.Internal
     private static StaticHierarchy ReconstructHierarchy(
       IReadOnlyList<DecodedStaticRecord> records,
       MeshAssetLineageId lineageId,
-      int rootSourceObjectLocalId,
-      IReadOnlyList<int>? sourceObjectLocalIds,
       MshDecodeContext context
     )
     {
@@ -638,7 +575,7 @@ namespace EarthTool.MSH.Internal
 
       var sourceIndex = 0;
       var root = new StaticSourceBuilder(
-        SourceId(lineageId, rootSourceObjectLocalId, sourceObjectLocalIds, sourceIndex++),
+        new SourceObjectId(lineageId, ++sourceIndex),
         null,
         0
       );
@@ -687,7 +624,7 @@ namespace EarthTool.MSH.Internal
           }
 
           var child = new StaticSourceBuilder(
-            SourceId(lineageId, rootSourceObjectLocalId, sourceObjectLocalIds, sourceIndex++),
+            new SourceObjectId(lineageId, ++sourceIndex),
             current,
             depth
           );
@@ -699,33 +636,7 @@ namespace EarthTool.MSH.Internal
         recordSources[index] = current.Id;
       }
 
-      if (sourceObjectLocalIds is not null && sourceObjectLocalIds.Count != sourceIndex)
-      {
-        throw new ArgumentException(
-          "Source-object identities must match the reconstructed hierarchy.",
-          nameof(sourceObjectLocalIds)
-        );
-      }
-
-      return new StaticHierarchy(root, recordSources, current.Depth);
-    }
-
-    private static SourceObjectId SourceId(
-      MeshAssetLineageId lineageId,
-      int firstLocalId,
-      IReadOnlyList<int>? sourceObjectLocalIds,
-      int index
-    )
-    {
-      return new SourceObjectId(
-        lineageId,
-        sourceObjectLocalIds is null ? checked(firstLocalId + index)
-          : index < sourceObjectLocalIds.Count ? sourceObjectLocalIds[index]
-            : throw new ArgumentException(
-              "Source-object identities must match the reconstructed hierarchy.",
-            nameof(sourceObjectLocalIds)
-          )
-      );
+      return new StaticHierarchy(root, recordSources, current.Depth, sourceIndex);
     }
 
     private sealed class DecodedStaticRecord
@@ -805,16 +716,19 @@ namespace EarthTool.MSH.Internal
 
       internal IReadOnlyList<SourceObjectId> RecordSourceIds { get; }
       internal int FinalDepth { get; }
+      internal int SourceObjectCount { get; }
 
       internal StaticHierarchy(
         StaticSourceBuilder root,
         IReadOnlyList<SourceObjectId> recordSourceIds,
-        int finalDepth
+        int finalDepth,
+        int sourceObjectCount
       )
       {
         _root = root;
         RecordSourceIds = recordSourceIds;
         FinalDepth = finalDepth;
+        SourceObjectCount = sourceObjectCount;
       }
 
       internal void AssignRenderObjectIds(IReadOnlyList<StaticRenderObject> renderObjects)
