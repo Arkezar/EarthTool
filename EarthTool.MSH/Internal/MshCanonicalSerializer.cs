@@ -11,6 +11,26 @@ using System.Text;
 
 namespace EarthTool.MSH.Internal
 {
+  internal sealed class StaticSourceObjectSerializationPlan
+  {
+    internal int SourceObjectLocalId { get; }
+
+    internal IReadOnlyList<int> RenderObjectLocalIds { get; }
+
+    internal IReadOnlyList<StaticSourceObjectSerializationPlan> Children { get; }
+
+    internal StaticSourceObjectSerializationPlan(
+      int sourceObjectLocalId,
+      IEnumerable<int> renderObjectLocalIds,
+      IEnumerable<StaticSourceObjectSerializationPlan> children
+    )
+    {
+      SourceObjectLocalId = sourceObjectLocalId;
+      RenderObjectLocalIds = Array.AsReadOnly(renderObjectLocalIds.ToArray());
+      Children = Array.AsReadOnly(children.ToArray());
+    }
+  }
+
   internal static class MshCanonicalSerializer
   {
     internal const int StaticRecordSize = 0xDD;
@@ -23,7 +43,14 @@ namespace EarthTool.MSH.Internal
       AnimationClassBytes animationLengths,
       CanonicalStaticSourceObject rootSourceObject,
       CanonicalStaticFootprint? footprint = null,
-      CanonicalHorizontalExtents? horizontalExtents = null
+      CanonicalHorizontalExtents? horizontalExtents = null,
+      IReadOnlyDictionary<int, Vector3>? pivots = null,
+      IReadOnlyDictionary<int, StaticAnimationReplacement>? animations = null,
+      AnimationClassBytes? animationFrameIndices = null,
+      IReadOnlyDictionary<int, byte[]>? attachmentRecords = null,
+      IReadOnlyDictionary<int, byte[]>? cannonRenderPositions = null,
+      IReadOnlyDictionary<int, byte[]>? staticSpotLights = null,
+      IReadOnlyDictionary<int, byte[]>? staticOmniLights = null
     )
     {
       var framing = new MeshArchiveFraming(0x20D0A1FF, null, creationGuid);
@@ -35,7 +62,25 @@ namespace EarthTool.MSH.Internal
         .CreateCanonicalStatic(animationLengths)
         .SerializedRepresentation.ToArray();
       WriteCanonicalStaticHeaderRegions(commonHeader, vertices, footprint, horizontalExtents);
-      return CreateStatic(framing, commonHeader, records, Array.Empty<byte>());
+      if (animationFrameIndices.HasValue)
+      {
+        WriteAnimationClassBytes(commonHeader, 0x14, animationFrameIndices.Value);
+      }
+      WriteStaticHeaderRecords(
+        commonHeader,
+        attachmentRecords,
+        cannonRenderPositions,
+        staticSpotLights,
+        staticOmniLights
+      );
+      return CreateStatic(
+        framing,
+        commonHeader,
+        records,
+        Array.Empty<byte>(),
+        pivots,
+        animations
+      );
     }
 
     internal static long GetCanonicalStaticSerializedLength(
@@ -51,19 +96,45 @@ namespace EarthTool.MSH.Internal
       return length;
     }
 
+    private static void WriteStaticHeaderRecords(
+      byte[] commonHeader,
+      IReadOnlyDictionary<int, byte[]>? attachmentRecords,
+      IReadOnlyDictionary<int, byte[]>? cannonRenderPositions,
+      IReadOnlyDictionary<int, byte[]>? staticSpotLights,
+      IReadOnlyDictionary<int, byte[]>? staticOmniLights
+    )
+    {
+      foreach (var replacement in attachmentRecords ?? new Dictionary<int, byte[]>())
+      {
+        replacement.Value.CopyTo(commonHeader, 0x1D8 + ((replacement.Key - 1) * 8));
+      }
+      foreach (var replacement in cannonRenderPositions ?? new Dictionary<int, byte[]>())
+      {
+        replacement.Value.CopyTo(commonHeader, 0x018 + ((replacement.Key - 1) * 12));
+      }
+      foreach (var replacement in staticSpotLights ?? new Dictionary<int, byte[]>())
+      {
+        replacement.Value.CopyTo(commonHeader, 0x048 + ((replacement.Key - 1) * 0x30));
+      }
+      foreach (var replacement in staticOmniLights ?? new Dictionary<int, byte[]>())
+      {
+        replacement.Value.CopyTo(commonHeader, 0x108 + ((replacement.Key - 1) * 0x1C));
+      }
+    }
+
     internal static byte[] RewriteStatic(
       StaticMeshAsset source,
-      IReadOnlyDictionary<StaticRenderObjectId, IReadOnlyList<CanonicalStaticVertex>> vertices,
-      IReadOnlyDictionary<StaticRenderObjectId, IReadOnlyList<CanonicalTriangle>> triangles,
-      IEnumerable<StaticRenderObjectId>? removedRenderObjects = null,
+      IReadOnlyDictionary<int, IReadOnlyList<CanonicalStaticVertex>> vertices,
+      IReadOnlyDictionary<int, IReadOnlyList<CanonicalTriangle>> triangles,
+      IEnumerable<int>? removedRenderObjects = null,
       IReadOnlyList<StaticRenderObjectAddition>? additions = null,
-      StaticSourceObject? rootSourceObject = null,
-      IReadOnlyList<StaticRenderObjectId>? explicitSequence = null,
-      IReadOnlyDictionary<StaticRenderObjectId, Vector3>? pivots = null,
-      IReadOnlyDictionary<StaticRenderObjectId, byte[]>? texturePathBytes = null,
+      StaticSourceObjectSerializationPlan? rootSourceObject = null,
+      IReadOnlyList<int>? explicitSequence = null,
+      IReadOnlyDictionary<int, Vector3>? pivots = null,
+      IReadOnlyDictionary<int, byte[]>? texturePathBytes = null,
       bool canonicalizeNextRecordMarkers = false,
-      IReadOnlyDictionary<StaticRenderObjectId, StaticRenderObjectFlags>? markerFlags = null,
-      IReadOnlyDictionary<StaticRenderObjectId, StaticAnimationReplacement>? animations = null,
+      IReadOnlyDictionary<int, StaticRenderObjectFlags>? markerFlags = null,
+      IReadOnlyDictionary<int, StaticAnimationReplacement>? animations = null,
       AnimationClassBytes? animationLengths = null,
       AnimationClassBytes? animationFrameIndices = null,
       IReadOnlyDictionary<int, byte[]>? attachmentRecords = null,
@@ -74,47 +145,45 @@ namespace EarthTool.MSH.Internal
     )
     {
       var archiveHeader = CreateArchiveHeader(source.ArchiveFraming);
-      var removed = new HashSet<StaticRenderObjectId>(
-        removedRenderObjects ?? Array.Empty<StaticRenderObjectId>()
-      );
+      var removed = new HashSet<int>(removedRenderObjects ?? Array.Empty<int>());
       additions ??= Array.Empty<StaticRenderObjectAddition>();
-      rootSourceObject ??= source.RootSourceObject;
-      pivots ??= new Dictionary<StaticRenderObjectId, Vector3>();
-      texturePathBytes ??= new Dictionary<StaticRenderObjectId, byte[]>();
-      markerFlags ??= new Dictionary<StaticRenderObjectId, StaticRenderObjectFlags>();
-      animations ??= new Dictionary<StaticRenderObjectId, StaticAnimationReplacement>();
+      rootSourceObject ??= CreateOutputIdentityAssembly(source.RootSourceObject);
+      pivots ??= new Dictionary<int, Vector3>();
+      texturePathBytes ??= new Dictionary<int, byte[]>();
+      markerFlags ??= new Dictionary<int, StaticRenderObjectFlags>();
+      animations ??= new Dictionary<int, StaticAnimationReplacement>();
       attachmentRecords ??= new Dictionary<int, byte[]>();
       cannonRenderPositions ??= new Dictionary<int, byte[]>();
       staticSpotLights ??= new Dictionary<int, byte[]>();
       staticOmniLights ??= new Dictionary<int, byte[]>();
-      var sourceRecords = source.StaticRenderObjectSequence.ToDictionary(record => record.Id);
-      var addedRecords = additions.ToDictionary(addition => addition.Id);
-      var finalRecordSources = new Dictionary<StaticRenderObjectId, SourceObjectId>();
+      var sourceRecords = source.StaticRenderObjectSequence.ToDictionary(record => record.LocalId);
+      var addedRecords = additions.ToDictionary(addition => addition.LocalId);
+      var finalRecordSources = new Dictionary<int, int>();
       AddRecordSources(rootSourceObject, finalRecordSources);
       var recordList = new List<RewrittenStaticRecord>();
-      var plan = explicitSequence ?? PlanStaticRenderObjectIds(source, removed, additions);
+      var plan = explicitSequence ?? PlanStaticRenderObjectLocalIds(source, removed, additions);
       foreach (var id in plan)
       {
         if (sourceRecords.TryGetValue(id, out var record))
         {
-          var pivot = pivots.TryGetValue(record.Id, out var replacementPivot)
+          var pivot = pivots.TryGetValue(record.LocalId, out var replacementPivot)
             ? replacementPivot
             : record.Pivot;
           var hasReplacementTexturePath = texturePathBytes.TryGetValue(
-            record.Id,
+            record.LocalId,
             out var replacementTexturePath
           );
           var hasReplacementAnimation = animations.TryGetValue(
-            record.Id,
+            record.LocalId,
             out var replacementAnimation
           );
           recordList.Add(
             new RewrittenStaticRecord(
-              vertices.TryGetValue(record.Id, out var replacementVertices)
+              vertices.TryGetValue(record.LocalId, out var replacementVertices)
                 ? RewriteStaticRecord(
                   record,
                   replacementVertices,
-                  triangles[record.Id],
+                  triangles[record.LocalId],
                   pivot,
                   hasReplacementTexturePath ? replacementTexturePath : record.TexturePathBytes,
                   hasReplacementAnimation ? replacementAnimation!.Tracks : record.AnimationTracks,
@@ -125,7 +194,7 @@ namespace EarthTool.MSH.Internal
                 : RewriteStaticRecordRepresentations(
                   record,
                   pivot,
-                  pivots.ContainsKey(record.Id),
+                  pivots.ContainsKey(record.LocalId),
                   hasReplacementTexturePath ? replacementTexturePath : null,
                   hasReplacementAnimation ? replacementAnimation : null
                 ),
@@ -142,9 +211,11 @@ namespace EarthTool.MSH.Internal
               addition.Vertices,
               addition.Triangles,
               addition.TexturePathBytes,
-              pivots.TryGetValue(addition.Id, out var additionPivot) ? additionPivot : Vector3.Zero
+              pivots.TryGetValue(addition.LocalId, out var additionPivot)
+                ? additionPivot
+                : Vector3.Zero
             ),
-            addition.SourceObjectId
+            addition.SourceObjectLocalId
           )
         );
       }
@@ -232,13 +303,13 @@ namespace EarthTool.MSH.Internal
     }
 
     private static void AddRecordSources(
-      StaticSourceObject source,
-      IDictionary<StaticRenderObjectId, SourceObjectId> recordSources
+      StaticSourceObjectSerializationPlan source,
+      IDictionary<int, int> recordSources
     )
     {
-      foreach (var id in source.StaticRenderObjectIds)
+      foreach (var id in source.RenderObjectLocalIds)
       {
-        recordSources.Add(id, source.Id);
+        recordSources.Add(id, source.SourceObjectLocalId);
       }
       foreach (var child in source.Children)
       {
@@ -246,26 +317,37 @@ namespace EarthTool.MSH.Internal
       }
     }
 
+    private static StaticSourceObjectSerializationPlan CreateOutputIdentityAssembly(
+      StaticSourceObject source
+    )
+    {
+      return new StaticSourceObjectSerializationPlan(
+        source.Id.Value,
+        source.StaticRenderObjects.Select(renderObject => renderObject.LocalId),
+        source.Children.Select(CreateOutputIdentityAssembly)
+      );
+    }
+
     private static void RewriteSharingLinks(
       StaticMeshAsset source,
       IReadOnlyList<RewrittenStaticRecord> records,
-      IReadOnlyList<StaticRenderObjectId> plan,
-      IReadOnlyDictionary<StaticRenderObjectId, IReadOnlyList<CanonicalStaticVertex>> replacements,
-      ISet<StaticRenderObjectId> removed,
+      IReadOnlyList<int> plan,
+      IReadOnlyDictionary<int, IReadOnlyList<CanonicalStaticVertex>> replacements,
+      ISet<int> removed,
       IReadOnlyList<StaticRenderObjectAddition> additions
     )
     {
-      var oldStarts = new Dictionary<StaticRenderObjectId, int>();
+      var oldStarts = new Dictionary<int, int>();
       var oldCursor = 0;
       foreach (var record in source.StaticRenderObjectSequence)
       {
-        oldStarts.Add(record.Id, oldCursor);
+        oldStarts.Add(record.LocalId, oldCursor);
         oldCursor = checked(oldCursor + record.RenderVertices.Count);
       }
 
-      var sourceRecords = source.StaticRenderObjectSequence.ToDictionary(record => record.Id);
-      var addedRecords = additions.ToDictionary(addition => addition.Id);
-      var newStarts = new Dictionary<StaticRenderObjectId, int>();
+      var sourceRecords = source.StaticRenderObjectSequence.ToDictionary(record => record.LocalId);
+      var addedRecords = additions.ToDictionary(addition => addition.LocalId);
+      var newStarts = new Dictionary<int, int>();
       var newCursor = 0;
       foreach (var id in plan)
       {
@@ -282,12 +364,12 @@ namespace EarthTool.MSH.Internal
       foreach (var sourceRecord in source.StaticRenderObjectSequence)
       {
         var invalidated =
-          removed.Contains(sourceRecord.Id) || replacements.ContainsKey(sourceRecord.Id);
+          removed.Contains(sourceRecord.LocalId) || replacements.ContainsKey(sourceRecord.LocalId);
         for (var localIndex = 0; localIndex < sourceRecord.RenderVertices.Count; localIndex++)
         {
           targetMap.Add(
-            oldStarts[sourceRecord.Id] + localIndex,
-            invalidated ? null : newStarts[sourceRecord.Id] + localIndex
+            oldStarts[sourceRecord.LocalId] + localIndex,
+            invalidated ? null : newStarts[sourceRecord.LocalId] + localIndex
           );
         }
       }
@@ -340,35 +422,35 @@ namespace EarthTool.MSH.Internal
       );
     }
 
-    internal static IReadOnlyList<StaticRenderObjectId> PlanStaticRenderObjectIds(
+    internal static IReadOnlyList<int> PlanStaticRenderObjectLocalIds(
       StaticMeshAsset source,
-      IEnumerable<StaticRenderObjectId> removedRenderObjects,
+      IEnumerable<int> removedRenderObjects,
       IReadOnlyList<StaticRenderObjectAddition> additions
     )
     {
-      var removed = new HashSet<StaticRenderObjectId>(removedRenderObjects);
+      var removed = new HashSet<int>(removedRenderObjects);
       var additionsBySource = additions
-        .GroupBy(item => item.SourceObjectId)
+        .GroupBy(item => item.SourceObjectLocalId)
         .ToDictionary(group => group.Key, group => group.ToArray());
       var lastRetainedBySource = source
-        .StaticRenderObjectSequence.Where(record => !removed.Contains(record.Id))
-        .GroupBy(record => record.SourceObjectId)
-        .ToDictionary(group => group.Key, group => group.Last().Id);
-      var result = new List<StaticRenderObjectId>();
+        .StaticRenderObjectSequence.Where(record => !removed.Contains(record.LocalId))
+        .GroupBy(record => record.SourceObjectId.Value)
+        .ToDictionary(group => group.Key, group => group.Last().LocalId);
+      var result = new List<int>();
       foreach (var record in source.StaticRenderObjectSequence)
       {
-        if (removed.Contains(record.Id))
+        if (removed.Contains(record.LocalId))
         {
           continue;
         }
 
-        result.Add(record.Id);
+        result.Add(record.LocalId);
         if (
-          lastRetainedBySource[record.SourceObjectId].Equals(record.Id)
-          && additionsBySource.TryGetValue(record.SourceObjectId, out var sourceAdditions)
+          lastRetainedBySource[record.SourceObjectId.Value] == record.LocalId
+          && additionsBySource.TryGetValue(record.SourceObjectId.Value, out var sourceAdditions)
         )
         {
-          result.AddRange(sourceAdditions.Select(addition => addition.Id));
+          result.AddRange(sourceAdditions.Select(addition => addition.LocalId));
         }
       }
 
@@ -376,38 +458,38 @@ namespace EarthTool.MSH.Internal
     }
 
     private static uint RewriteHierarchyFlags(
-      StaticSourceObject root,
+      StaticSourceObjectSerializationPlan root,
       IReadOnlyList<RewrittenStaticRecord> records
     )
     {
-      var parents = new Dictionary<SourceObjectId, SourceObjectId?>();
-      var depths = new Dictionary<SourceObjectId, int>();
+      var parents = new Dictionary<int, int?>();
+      var depths = new Dictionary<int, int>();
       AddSourceHierarchy(root, null, 0, parents, depths);
-      var established = new HashSet<SourceObjectId> { root.Id };
-      var current = root.Id;
+      var established = new HashSet<int> { root.SourceObjectLocalId };
+      var current = root.SourceObjectLocalId;
       for (var index = 0; index < records.Count; index++)
       {
-        var target = records[index].SourceObjectId;
+        var target = records[index].SourceObjectLocalId;
         var unwind = 0;
         var beginsNested = false;
         if (index == 0)
         {
-          if (!target.Equals(root.Id))
+          if (target != root.SourceObjectLocalId)
           {
             throw new InvalidOperationException(
               "The first retained partition must belong to the root source object."
             );
           }
         }
-        else if (!target.Equals(current))
+        else if (target != current)
         {
           var ancestor = current;
           while (
-            !target.Equals(ancestor)
+            target != ancestor
             && (
               !parents.TryGetValue(target, out var targetParent)
               || targetParent is null
-              || !targetParent.Value.Equals(ancestor)
+              || targetParent.Value != ancestor
             )
           )
           {
@@ -419,7 +501,7 @@ namespace EarthTool.MSH.Internal
             unwind++;
           }
 
-          if (target.Equals(ancestor))
+          if (target == ancestor)
           {
             current = target;
           }
@@ -458,18 +540,18 @@ namespace EarthTool.MSH.Internal
     }
 
     private static void AddSourceHierarchy(
-      StaticSourceObject source,
-      SourceObjectId? parent,
+      StaticSourceObjectSerializationPlan source,
+      int? parent,
       int depth,
-      IDictionary<SourceObjectId, SourceObjectId?> parents,
-      IDictionary<SourceObjectId, int> depths
+      IDictionary<int, int?> parents,
+      IDictionary<int, int> depths
     )
     {
-      parents.Add(source.Id, parent);
-      depths.Add(source.Id, depth);
+      parents.Add(source.SourceObjectLocalId, parent);
+      depths.Add(source.SourceObjectLocalId, depth);
       foreach (var child in source.Children)
       {
-        AddSourceHierarchy(child, source.Id, depth + 1, parents, depths);
+        AddSourceHierarchy(child, source.SourceObjectLocalId, depth + 1, parents, depths);
       }
     }
 
@@ -799,11 +881,20 @@ namespace EarthTool.MSH.Internal
       MeshArchiveFraming framing,
       IReadOnlyList<byte> commonHeader,
       IReadOnlyList<CanonicalStaticRecord> records,
-      IReadOnlyList<byte> rootTrailingBytes
+      IReadOnlyList<byte> rootTrailingBytes,
+      IReadOnlyDictionary<int, Vector3>? pivots,
+      IReadOnlyDictionary<int, StaticAnimationReplacement>? animations
     )
     {
       var archiveHeader = CreateArchiveHeader(framing);
-      var recordLength = records.Sum(GetStaticRecordLength);
+      pivots ??= new Dictionary<int, Vector3>();
+      animations ??= new Dictionary<int, StaticAnimationReplacement>();
+      var recordLength = records.Select(
+        (record, ordinal) => GetStaticRecordLength(
+          record,
+          animations.TryGetValue(ordinal, out var animation) ? animation : null
+        )
+      ).Sum();
       var result = new byte[
         archiveHeader.Length
           + CommonMeshBaseHeader.SerializedSize
@@ -831,7 +922,9 @@ namespace EarthTool.MSH.Internal
           ReferenceEquals(record.RenderObject, record.Source.RenderObjects[0])
             ? record.Source.Role?.BarrelMaximumAngle ?? 0
             : (byte)0,
-          index == records.Count - 1 ? 0u : 1u
+          index == records.Count - 1 ? 0u : 1u,
+          pivots.TryGetValue(index, out var pivot) ? pivot : Vector3.Zero,
+          animations.TryGetValue(index, out var animation) ? animation : null
         );
       }
 
@@ -892,14 +985,23 @@ namespace EarthTool.MSH.Internal
       );
     }
 
-    private static int GetStaticRecordLength(CanonicalStaticRecord record)
+    private static int GetStaticRecordLength(
+      CanonicalStaticRecord record,
+      StaticAnimationReplacement? animation
+    )
     {
       var blocks = (record.RenderObject.RenderVertices.Count + 3) / 4;
       var texturePathLength = record.RenderObject.TextureResourceKey is null
         ? 0
         : Encoding.ASCII.GetByteCount(record.RenderObject.TextureResourceKey);
       return checked(
-        53 + blocks * 0xA0 + texturePathLength + record.RenderObject.Triangles.Count * 8
+        53
+        + blocks * 0xA0
+        + texturePathLength
+        + record.RenderObject.Triangles.Count * 8
+        + (animation?.Tracks.ScaleFrames.Count ?? 0) * 12
+        + (animation?.Tracks.TranslationFrames.Count ?? 0) * 12
+        + (animation?.Tracks.Matrices.Count ?? 0) * 64
       );
     }
 
@@ -1051,7 +1153,9 @@ namespace EarthTool.MSH.Internal
       IReadOnlyList<byte> texturePathBytes,
       uint objectFlags,
       byte barrelMaximumAngle,
-      uint nextRecordMarker
+      uint nextRecordMarker,
+      Vector3 pivot = default,
+      StaticAnimationReplacement? animation = null
     )
     {
       var recordOffset = cursor;
@@ -1094,10 +1198,19 @@ namespace EarthTool.MSH.Internal
         cursor += 8;
       }
 
-      cursor += 12;
-      cursor += sizeof(uint) + 12;
-      data[cursor++] = barrelMaximumAngle;
-      WriteUInt32(data, cursor, nextRecordMarker);
+      WriteStaticAnimationTail(
+        data,
+        ref cursor,
+        animation?.Tracks ?? new StaticAnimationTracks(
+          Array.Empty<Vector3>(),
+          Array.Empty<Vector3>(),
+          Array.Empty<Matrix4x4>()
+        ),
+        animation?.ClassValue ?? 0,
+        pivot,
+        barrelMaximumAngle,
+        nextRecordMarker
+      );
       cursor += sizeof(uint);
     }
 
@@ -1140,12 +1253,12 @@ namespace EarthTool.MSH.Internal
     {
       internal byte[] Bytes { get; }
 
-      internal SourceObjectId SourceObjectId { get; }
+      internal int SourceObjectLocalId { get; }
 
-      internal RewrittenStaticRecord(byte[] bytes, SourceObjectId sourceObjectId)
+      internal RewrittenStaticRecord(byte[] bytes, int sourceObjectLocalId)
       {
         Bytes = bytes;
-        SourceObjectId = sourceObjectId;
+        SourceObjectLocalId = sourceObjectLocalId;
       }
     }
 

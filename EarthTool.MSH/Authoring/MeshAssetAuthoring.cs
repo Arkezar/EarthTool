@@ -680,9 +680,13 @@ namespace EarthTool.MSH.Authoring
   /// <summary>Describes one source-scoped canonical partition addition.</summary>
   internal sealed class StaticRenderObjectAddition
   {
-    internal StaticRenderObjectId Id { get; }
+    internal int Ordinal { get; }
 
-    internal SourceObjectId SourceObjectId { get; }
+    internal int SourceObjectOrdinal { get; }
+
+    internal int LocalId { get; }
+
+    internal int SourceObjectLocalId { get; }
 
     internal IReadOnlyList<CanonicalStaticVertex> Vertices { get; }
 
@@ -691,14 +695,18 @@ namespace EarthTool.MSH.Authoring
     internal IReadOnlyList<byte> TexturePathBytes { get; private set; }
 
     internal StaticRenderObjectAddition(
-      StaticRenderObjectId id,
-      SourceObjectId sourceObjectId,
+      int ordinal,
+      int sourceObjectOrdinal,
+      int localId,
+      int sourceObjectLocalId,
       IReadOnlyList<CanonicalStaticVertex> vertices,
       IReadOnlyList<CanonicalTriangle> triangles
     )
     {
-      Id = id;
-      SourceObjectId = sourceObjectId;
+      Ordinal = ordinal;
+      SourceObjectOrdinal = sourceObjectOrdinal;
+      LocalId = localId;
+      SourceObjectLocalId = sourceObjectLocalId;
       Vertices = vertices;
       Triangles = triangles;
       TexturePathBytes = Array.Empty<byte>();
@@ -708,6 +716,40 @@ namespace EarthTool.MSH.Authoring
     {
       TexturePathBytes = Array.AsReadOnly(texturePathBytes.ToArray());
     }
+  }
+
+  internal sealed class StaticSourceObjectAssembly
+  {
+    internal int Ordinal { get; }
+
+    internal IReadOnlyList<int> StaticRenderObjectOrdinals { get; }
+
+    internal IReadOnlyList<StaticSourceObjectAssembly> Children { get; }
+
+    internal StaticSourceObjectAssembly(
+      int ordinal,
+      IEnumerable<int> staticRenderObjectOrdinals,
+      IEnumerable<StaticSourceObjectAssembly> children
+    )
+    {
+      Ordinal = ordinal;
+      StaticRenderObjectOrdinals = Array.AsReadOnly(staticRenderObjectOrdinals.ToArray());
+      Children = Array.AsReadOnly(children.ToArray());
+    }
+
+    internal static StaticSourceObjectAssembly FromSource(
+      StaticSourceObject source,
+      IReadOnlyDictionary<StaticSourceObject, int> sourceOrdinals,
+      IReadOnlyDictionary<StaticRenderObject, int> renderObjectOrdinals
+    )
+    {
+      return new StaticSourceObjectAssembly(
+        sourceOrdinals[source],
+        source.StaticRenderObjects.Select(renderObject => renderObjectOrdinals[renderObject]),
+        source.Children.Select(child => FromSource(child, sourceOrdinals, renderObjectOrdinals))
+      );
+    }
+
   }
 
   internal sealed class StaticAnimationReplacement
@@ -729,26 +771,98 @@ namespace EarthTool.MSH.Authoring
     Omni,
   }
 
-  /// <summary>Accumulates one atomic set of static edits and commits at most once.</summary>
-  public sealed class StaticMeshEditSession
+  internal enum StaticMeshAssemblyChangeKind
   {
-    private readonly StaticMeshAsset _source;
-    private readonly Dictionary<StaticRenderObjectId, CanonicalTriangle[]> _replacementTriangles =
-      new();
-    private readonly Dictionary<
-      StaticRenderObjectId,
-      CanonicalStaticVertex[]
-    > _replacementVertices = new();
-    private readonly Dictionary<StaticRenderObjectId, Vector3> _replacementPivots = new();
-    private readonly Dictionary<StaticRenderObjectId, byte[]> _replacementTexturePathBytes = new();
-    private readonly Dictionary<
-      StaticRenderObjectId,
-      StaticAnimationReplacement
-    > _replacementAnimations = new();
-    private readonly Dictionary<
-      StaticRenderObjectId,
-      StaticRenderObjectFlags
-    > _replacementMarkerFlags = new();
+    Geometry,
+    Pivot,
+    TexturePath,
+    Animation,
+    MarkerFlags,
+    Attachment,
+    CannonRenderPosition,
+    StaticLight,
+    AnimationLengths,
+    AnimationFrameIndices,
+    HorizontalExtents,
+    RemovedRenderObject,
+    AddedRenderObject,
+    Hierarchy,
+  }
+
+  internal sealed class StaticMeshAssemblyChange
+  {
+    internal StaticMeshAssemblyChangeKind Kind { get; }
+
+    internal int? LocalId { get; }
+
+    internal int? PhysicalNumber { get; }
+
+    internal StaticLightRecordKind? LightKind { get; }
+
+    internal IReadOnlyList<string> ChangedFields { get; }
+
+    internal StaticMeshAssemblyChange(
+      StaticMeshAssemblyChangeKind kind,
+      int? localId = null,
+      int? physicalNumber = null,
+      StaticLightRecordKind? lightKind = null,
+      IEnumerable<string>? changedFields = null
+    )
+    {
+      Kind = kind;
+      LocalId = localId;
+      PhysicalNumber = physicalNumber;
+      LightKind = lightKind;
+      ChangedFields = Array.AsReadOnly((changedFields ?? Array.Empty<string>()).ToArray());
+    }
+  }
+
+  internal sealed class StaticMeshAssemblyTrace
+  {
+    internal IReadOnlyList<StaticMeshAssemblyChange> Changes { get; }
+
+    internal IReadOnlyList<int> ResultRenderObjectLocalIds { get; }
+
+    internal bool ReplacedSingleRenderObject { get; }
+
+    internal StaticMeshAssemblyTrace(
+      IEnumerable<StaticMeshAssemblyChange> changes,
+      IEnumerable<int> resultRenderObjectLocalIds,
+      bool replacedSingleRenderObject
+    )
+    {
+      Changes = Array.AsReadOnly(changes.ToArray());
+      ResultRenderObjectLocalIds = Array.AsReadOnly(resultRenderObjectLocalIds.ToArray());
+      ReplacedSingleRenderObject = replacedSingleRenderObject;
+    }
+  }
+
+  /// <summary>Accumulates one atomic static assembly and emits one immutable snapshot.</summary>
+  internal sealed class StaticMeshAssembler
+  {
+    private readonly StaticMeshAsset? _source;
+    private readonly CanonicalStaticSourceObject? _canonicalRoot;
+    private readonly Guid? _canonicalCreationGuid;
+    private readonly CanonicalStaticFootprint? _canonicalFootprint;
+    private readonly CanonicalHorizontalExtents? _canonicalHorizontalExtents;
+    private readonly MeshAssetLineageId _lineageId;
+    private readonly MeshAssetOrigin _origin;
+    private readonly IReadOnlyList<StaticRenderObject> _sourceRenderObjects;
+    private readonly IReadOnlyList<StaticSourceObject> _sourceObjects;
+    private readonly IReadOnlyList<CanonicalStaticRenderObject> _canonicalRenderObjects;
+    private readonly IReadOnlyList<CanonicalStaticSourceObject> _canonicalSourceObjects;
+    private readonly Dictionary<StaticRenderObject, int> _sourceRenderObjectOrdinals;
+    private readonly Dictionary<StaticSourceObject, int> _sourceObjectOrdinals;
+    private readonly Dictionary<CanonicalStaticRenderObject, int> _canonicalRenderObjectOrdinals;
+    private readonly IReadOnlyList<int> _renderObjectSourceLocalIds;
+    private readonly List<int> _renderObjectOutputLocalIds;
+    private readonly List<int> _sourceObjectOutputLocalIds;
+    private readonly Dictionary<int, CanonicalTriangle[]> _replacementTriangles = new();
+    private readonly Dictionary<int, CanonicalStaticVertex[]> _replacementVertices = new();
+    private readonly Dictionary<int, Vector3> _replacementPivots = new();
+    private readonly Dictionary<int, byte[]> _replacementTexturePathBytes = new();
+    private readonly Dictionary<int, StaticAnimationReplacement> _replacementAnimations = new();
+    private readonly Dictionary<int, StaticRenderObjectFlags> _replacementMarkerFlags = new();
     private readonly Dictionary<int, byte[]> _replacementAttachmentRecords = new();
     private readonly Dictionary<int, byte[]> _replacementCannonRenderPositions = new();
     private readonly Dictionary<int, byte[]> _replacementStaticSpotLights = new();
@@ -757,12 +871,12 @@ namespace EarthTool.MSH.Authoring
       (StaticLightRecordKind Kind, int Number),
       HashSet<string>
     > _staticLightFieldChanges = new();
-    private readonly HashSet<StaticRenderObjectId> _removedRenderObjects = new();
-    private readonly HashSet<SourceObjectId> _allocatedSourceObjects = new();
+    private readonly HashSet<int> _removedRenderObjects = new();
+    private readonly HashSet<int> _allocatedSourceObjects = new();
     private readonly List<StaticRenderObjectAddition> _additions = new();
-    private StaticSourceObject? _editedRootSourceObject;
-    private IReadOnlyList<StaticRenderObjectId>? _editedSequence;
-    private StaticRenderObjectId _resultId;
+    private StaticSourceObjectAssembly? _editedRootSourceObject;
+    private IReadOnlyList<int>? _editedSequence;
+    private int _resultLocalId;
     private CanonicalTriangle[]? _triangles;
     private CanonicalStaticVertex[]? _vertices;
     private bool _committed;
@@ -775,41 +889,185 @@ namespace EarthTool.MSH.Authoring
     private AnimationClassBytes? _replacementAnimationFrameIndices;
     private CanonicalHorizontalExtents? _replacementHorizontalExtents;
 
-    internal StaticMeshEditSession(StaticMeshAsset source)
+    internal StaticMeshAssembler(StaticMeshAsset source)
     {
       _source = source;
-      _resultId = source.StaticRenderObjectSequence[0].Id;
+      _lineageId = source.LineageId;
+      _origin = source.Origin;
+      _sourceRenderObjects = source.StaticRenderObjectSequence;
+      _sourceObjects = FlattenSourceObjects(source.RootSourceObject).ToArray();
+      _canonicalRenderObjects = Array.Empty<CanonicalStaticRenderObject>();
+      _canonicalSourceObjects = Array.Empty<CanonicalStaticSourceObject>();
+      _sourceRenderObjectOrdinals = _sourceRenderObjects
+        .Select((renderObject, ordinal) => (renderObject, ordinal))
+        .ToDictionary(item => item.renderObject, item => item.ordinal);
+      _sourceObjectOrdinals = _sourceObjects
+        .Select((sourceObject, ordinal) => (sourceObject, ordinal))
+        .ToDictionary(item => item.sourceObject, item => item.ordinal);
+      _canonicalRenderObjectOrdinals = new Dictionary<CanonicalStaticRenderObject, int>();
+      _renderObjectSourceLocalIds = _sourceRenderObjects.Select(item => item.LocalId).ToArray();
+      _renderObjectOutputLocalIds = _renderObjectSourceLocalIds.ToList();
+      _sourceObjectOutputLocalIds = _sourceObjects.Select(item => item.Id.Value).ToList();
+      _resultLocalId = _renderObjectOutputLocalIds[0];
       _nextLocalId = source.NextStaticRenderObjectLocalId;
       _nextSourceObjectLocalId = source.NextSourceObjectLocalId;
     }
 
+    private StaticMeshAssembler(
+      Guid creationGuid,
+      MeshAssetLineageId lineageId,
+      CanonicalStaticSourceObject rootSourceObject,
+      CanonicalStaticFootprint footprint,
+      CanonicalHorizontalExtents horizontalExtents
+    )
+    {
+      _canonicalRoot = rootSourceObject;
+      _canonicalCreationGuid = creationGuid;
+      _canonicalFootprint = footprint;
+      _canonicalHorizontalExtents = horizontalExtents;
+      _lineageId = lineageId;
+      _origin = MeshAssetOrigin.Canonical;
+      _sourceRenderObjects = Array.Empty<StaticRenderObject>();
+      _sourceObjects = Array.Empty<StaticSourceObject>();
+      _canonicalSourceObjects = FlattenCanonicalSourceObjects(rootSourceObject).ToArray();
+      _canonicalRenderObjects = FlattenCanonicalRenderObjects(rootSourceObject).ToArray();
+      _sourceRenderObjectOrdinals = new Dictionary<StaticRenderObject, int>();
+      _sourceObjectOrdinals = new Dictionary<StaticSourceObject, int>();
+      _canonicalRenderObjectOrdinals = _canonicalRenderObjects
+        .Select((renderObject, ordinal) => (renderObject, ordinal))
+        .ToDictionary(item => item.renderObject, item => item.ordinal);
+      _renderObjectOutputLocalIds = Enumerable
+        .Range(1, _canonicalRenderObjects.Count)
+        .ToList();
+      _renderObjectSourceLocalIds = _renderObjectOutputLocalIds.ToArray();
+      _sourceObjectOutputLocalIds = Enumerable.Range(1, _canonicalSourceObjects.Count).ToList();
+      _resultLocalId = _renderObjectOutputLocalIds[0];
+      _nextLocalId = _renderObjectOutputLocalIds.Count + 1;
+      _nextSourceObjectLocalId = _sourceObjectOutputLocalIds.Count + 1;
+    }
+
+    internal static StaticMeshAssembler CreateCanonical(
+      Guid creationGuid,
+      MeshAssetLineageId lineageId,
+      CanonicalStaticSourceObject rootSourceObject,
+      CanonicalStaticFootprint footprint,
+      CanonicalHorizontalExtents horizontalExtents
+    )
+    {
+      return new StaticMeshAssembler(
+        creationGuid,
+        lineageId,
+        rootSourceObject,
+        footprint,
+        horizontalExtents
+      );
+    }
+
+    internal int GetRenderObjectOrdinal(StaticRenderObject renderObject)
+    {
+      return _sourceRenderObjectOrdinals.TryGetValue(renderObject, out var ordinal)
+        ? ordinal
+        : throw new ArgumentException(
+          "The render object does not belong to this assembly.",
+          nameof(renderObject)
+        );
+    }
+
+    internal int GetRenderObjectOrdinal(CanonicalStaticRenderObject renderObject)
+    {
+      return _canonicalRenderObjectOrdinals.TryGetValue(renderObject, out var ordinal)
+        ? ordinal
+        : throw new ArgumentException(
+          "The canonical render object does not belong to this assembly.",
+          nameof(renderObject)
+        );
+    }
+
+    internal int GetSourceObjectOrdinal(StaticSourceObject sourceObject)
+    {
+      return _sourceObjectOrdinals.TryGetValue(sourceObject, out var ordinal)
+        ? ordinal
+        : throw new ArgumentException(
+          "The source object does not belong to this assembly.",
+          nameof(sourceObject)
+        );
+    }
+
+    internal int GetRenderObjectOrdinalByOutputLocalId(int localId)
+    {
+      var ordinal = _renderObjectOutputLocalIds.IndexOf(localId);
+      return ordinal >= 0
+        ? ordinal
+        : throw new ArgumentException(
+          "The render-object local ID does not belong to this assembly.",
+          nameof(localId)
+        );
+    }
+
+    internal int GetSourceObjectOrdinalByOutputLocalId(int localId)
+    {
+      var ordinal = _sourceObjectOutputLocalIds.IndexOf(localId);
+      return ordinal >= 0
+        ? ordinal
+        : throw new ArgumentException(
+          "The source-object local ID does not belong to this assembly.",
+          nameof(localId)
+        );
+    }
+
+    internal StaticSourceObjectAssembly CreateSourceObjectAssembly(
+      StaticSourceObject sourceObject
+    )
+    {
+      return StaticSourceObjectAssembly.FromSource(
+        sourceObject,
+        _sourceObjectOrdinals,
+        _sourceRenderObjectOrdinals
+      );
+    }
+
+    internal int GetOutputRenderObjectLocalId(int ordinal)
+    {
+      return _renderObjectOutputLocalIds[ordinal];
+    }
+
+    internal int GetOutputSourceObjectLocalId(int ordinal)
+    {
+      return _sourceObjectOutputLocalIds[ordinal];
+    }
+
+    private int InitialRenderObjectCount => _source is null
+      ? _canonicalRenderObjects.Count
+      : _sourceRenderObjects.Count;
+
+    internal StaticMeshAssemblyTrace Trace => CreateAssemblyTrace();
+
     /// <summary>Replaces geometry while retaining the render-object identity.</summary>
-    public StaticMeshEditSession ReplaceGeometry(
-      StaticRenderObjectId renderObject,
+    internal void ReplaceGeometry(
+      int renderObjectOrdinal,
       IEnumerable<CanonicalStaticVertex> vertices,
       IEnumerable<CanonicalTriangle> triangles
     )
     {
       EnsureOpen();
-      EnsureSourceId(renderObject);
+      EnsureSourceOrdinal(renderObjectOrdinal);
       if (_removed || _replacementAdded)
       {
         _invalidSequence = true;
       }
 
-      _replacementVertices[renderObject] =
+      _replacementVertices[renderObjectOrdinal] =
         vertices?.ToArray() ?? throw new ArgumentNullException(nameof(vertices));
-      _replacementTriangles[renderObject] =
+      _replacementTriangles[renderObjectOrdinal] =
         triangles?.ToArray() ?? throw new ArgumentNullException(nameof(triangles));
-      return this;
     }
 
     /// <summary>Removes the current render object before a replacement object is added.</summary>
-    public StaticMeshEditSession RemoveRenderObject(StaticRenderObjectId renderObject)
+    internal void RemoveRenderObject(int renderObjectOrdinal)
     {
       EnsureOpen();
-      EnsureSourceId(renderObject);
-      if (_replacementAdded || !_removedRenderObjects.Add(renderObject))
+      EnsureSourceOrdinal(renderObjectOrdinal);
+      if (_replacementAdded || !_removedRenderObjects.Add(renderObjectOrdinal))
       {
         _invalidSequence = true;
       }
@@ -817,11 +1075,10 @@ namespace EarthTool.MSH.Authoring
       _removed = true;
       _vertices = null;
       _triangles = null;
-      return this;
     }
 
     /// <summary>Adds a new render object and allocates a fresh lineage-local identity.</summary>
-    public StaticRenderObjectId AddRenderObject(
+    internal int AddRenderObject(
       IEnumerable<CanonicalStaticVertex> vertices,
       IEnumerable<CanonicalTriangle> triangles
     )
@@ -834,43 +1091,45 @@ namespace EarthTool.MSH.Authoring
 
       _vertices = vertices?.ToArray() ?? throw new ArgumentNullException(nameof(vertices));
       _triangles = triangles?.ToArray() ?? throw new ArgumentNullException(nameof(triangles));
-      _resultId = AllocateRenderObjectId();
+      _resultLocalId = AllocateOutputRenderObjectLocalId();
+      _renderObjectOutputLocalIds[0] = _resultLocalId;
       _replacementAdded = true;
-      return _resultId;
+      return 0;
     }
 
     /// <summary>Adds a canonical material partition to an existing source object.</summary>
-    public StaticRenderObjectId AddRenderObject(
-      SourceObjectId sourceObject,
+    internal int AddRenderObject(
+      int sourceObjectOrdinal,
       IEnumerable<CanonicalStaticVertex> vertices,
       IEnumerable<CanonicalTriangle> triangles
     )
     {
       EnsureOpen();
-      if (
-        !GetSourceObjects(_source.RootSourceObject).Any(source => source.Id.Equals(sourceObject))
-        && !_allocatedSourceObjects.Contains(sourceObject)
-      )
+      if (sourceObjectOrdinal < 0 || sourceObjectOrdinal >= _sourceObjectOutputLocalIds.Count)
       {
         throw new ArgumentException(
-          "The source-object identity does not belong to this source snapshot.",
-          nameof(sourceObject)
+          "The source-object ordinal does not belong to this assembly.",
+          nameof(sourceObjectOrdinal)
         );
       }
 
-      var id = AllocateRenderObjectId();
+      var ordinal = _renderObjectOutputLocalIds.Count;
+      var localId = AllocateOutputRenderObjectLocalId();
+      _renderObjectOutputLocalIds.Add(localId);
       _additions.Add(
         new StaticRenderObjectAddition(
-          id,
-          sourceObject,
+          ordinal,
+          sourceObjectOrdinal,
+          localId,
+          _sourceObjectOutputLocalIds[sourceObjectOrdinal],
           vertices?.ToArray() ?? throw new ArgumentNullException(nameof(vertices)),
           triangles?.ToArray() ?? throw new ArgumentNullException(nameof(triangles))
         )
       );
-      return id;
+      return ordinal;
     }
 
-    internal SourceObjectId AllocateSourceObjectId()
+    internal int AllocateSourceObjectOrdinal()
     {
       EnsureOpen();
       if (!_nextSourceObjectLocalId.HasValue)
@@ -882,22 +1141,20 @@ namespace EarthTool.MSH.Authoring
 
       var value = _nextSourceObjectLocalId.Value;
       _nextSourceObjectLocalId = value == int.MaxValue ? null : value + 1;
-      var id = new SourceObjectId(_source.LineageId, value);
-      _allocatedSourceObjects.Add(id);
-      return id;
+      var ordinal = _sourceObjectOutputLocalIds.Count;
+      _sourceObjectOutputLocalIds.Add(value);
+      _allocatedSourceObjects.Add(ordinal);
+      return ordinal;
     }
 
-    internal StaticMeshEditSession ReplacePivot(StaticRenderObjectId renderObject, Vector3 pivot)
+    internal void ReplacePivot(int renderObjectOrdinal, Vector3 pivot)
     {
       EnsureOpen();
-      if (
-        !_source.StaticRenderObjectSequence.Any(item => item.Id.Equals(renderObject))
-        && !_additions.Any(item => item.Id.Equals(renderObject))
-      )
+      if (renderObjectOrdinal < 0 || renderObjectOrdinal >= _renderObjectOutputLocalIds.Count)
       {
         throw new ArgumentException(
           "The render-object identity does not belong to this edit session.",
-          nameof(renderObject)
+          nameof(renderObjectOrdinal)
         );
       }
       if (!IsFinite(pivot))
@@ -905,40 +1162,38 @@ namespace EarthTool.MSH.Authoring
         throw new ArgumentException("The source-object pivot must be finite.", nameof(pivot));
       }
 
-      _replacementPivots[renderObject] = pivot;
-      return this;
+      _replacementPivots[renderObjectOrdinal] = pivot;
     }
 
-    internal StaticMeshEditSession ReplaceTexturePathBytes(
-      StaticRenderObjectId renderObject,
+    internal void ReplaceTexturePathBytes(
+      int renderObjectOrdinal,
       IEnumerable<byte> texturePathBytes
     )
     {
       EnsureOpen();
       var bytes =
         texturePathBytes?.ToArray() ?? throw new ArgumentNullException(nameof(texturePathBytes));
-      if (_replacementAdded && renderObject.Equals(_resultId))
+      if (_replacementAdded && renderObjectOrdinal == 0)
       {
-        _replacementTexturePathBytes[_source.StaticRenderObjectSequence[0].Id] = bytes;
-        return this;
+        _replacementTexturePathBytes[0] = bytes;
+        return;
       }
-      if (_source.StaticRenderObjectSequence.Any(item => item.Id.Equals(renderObject)))
+      if (renderObjectOrdinal >= 0 && renderObjectOrdinal < InitialRenderObjectCount)
       {
-        _replacementTexturePathBytes[renderObject] = bytes;
-        return this;
+        _replacementTexturePathBytes[renderObjectOrdinal] = bytes;
+        return;
       }
       var addition =
-        _additions.SingleOrDefault(item => item.Id.Equals(renderObject))
+        _additions.SingleOrDefault(item => item.Ordinal == renderObjectOrdinal)
         ?? throw new ArgumentException(
           "The render-object identity does not belong to this edit session.",
-          nameof(renderObject)
+          nameof(renderObjectOrdinal)
         );
       addition.SetTexturePathBytes(bytes);
-      return this;
     }
 
-    internal StaticMeshEditSession ReplaceAnimation(
-      StaticRenderObjectId renderObject,
+    internal void ReplaceAnimation(
+      int renderObjectOrdinal,
       IEnumerable<Vector3> scaleFrames,
       IEnumerable<Vector3> translationFrames,
       IEnumerable<Matrix4x4> matrices,
@@ -946,60 +1201,55 @@ namespace EarthTool.MSH.Authoring
     )
     {
       EnsureOpen();
-      EnsureSourceId(renderObject);
-      _replacementAnimations[renderObject] = new StaticAnimationReplacement(
+      EnsureSourceOrdinal(renderObjectOrdinal);
+      _replacementAnimations[renderObjectOrdinal] = new StaticAnimationReplacement(
         new StaticAnimationTracks(scaleFrames, translationFrames, matrices),
         animationClassValue
       );
-      return this;
     }
 
-    internal StaticMeshEditSession ReplaceAnimationLengths(AnimationClassBytes animationLengths)
+    internal void ReplaceAnimationLengths(AnimationClassBytes animationLengths)
     {
       EnsureOpen();
       _replacementAnimationLengths = animationLengths;
-      return this;
     }
 
-    internal StaticMeshEditSession ReplaceAnimationFrameIndices(
+    internal void ReplaceAnimationFrameIndices(
       AnimationClassBytes animationFrameIndices
     )
     {
       EnsureOpen();
       _replacementAnimationFrameIndices = animationFrameIndices;
-      return this;
     }
 
-    internal StaticMeshEditSession ReplaceHorizontalExtents(
+    internal void ReplaceHorizontalExtents(
       CanonicalHorizontalExtents horizontalExtents
     )
     {
       EnsureOpen();
       _replacementHorizontalExtents =
         horizontalExtents ?? throw new ArgumentNullException(nameof(horizontalExtents));
-      return this;
     }
 
-    internal StaticMeshEditSession ReplaceMarkerAttachmentFlags(
-      StaticRenderObjectId renderObject,
+    internal void ReplaceMarkerAttachmentFlags(
+      int renderObjectOrdinal,
       StaticRenderObjectFlags markerFlags
     )
     {
       EnsureOpen();
       if (
         (markerFlags & ~StaticRenderObjectFlagMasks.MarkerAttachments) != 0
-        || !_source.StaticRenderObjectSequence.Any(item => item.Id.Equals(renderObject))
-          && !_additions.Any(item => item.Id.Equals(renderObject))
+        || renderObjectOrdinal < 0
+        || renderObjectOrdinal >= _renderObjectOutputLocalIds.Count
       )
       {
         throw new ArgumentOutOfRangeException(nameof(markerFlags));
       }
 
-      _replacementMarkerFlags[renderObject] = markerFlags;
-      return this;
+      _replacementMarkerFlags[renderObjectOrdinal] = markerFlags;
     }
 
-    internal StaticMeshEditSession ReplaceAttachmentRecord(
+    internal void ReplaceAttachmentRecord(
       int physicalNumber,
       IEnumerable<byte> record
     )
@@ -1019,10 +1269,9 @@ namespace EarthTool.MSH.Authoring
       }
 
       _replacementAttachmentRecords[physicalNumber] = bytes;
-      return this;
     }
 
-    internal StaticMeshEditSession ReplaceCannonRenderPosition(
+    internal void ReplaceCannonRenderPosition(
       int physicalNumber,
       IEnumerable<byte> record
     )
@@ -1042,10 +1291,9 @@ namespace EarthTool.MSH.Authoring
       }
 
       _replacementCannonRenderPositions[physicalNumber] = bytes;
-      return this;
     }
 
-    internal StaticMeshEditSession ReplaceStaticLightRecord(
+    internal void ReplaceStaticLightRecord(
       StaticLightRecordKind kind,
       int physicalNumber,
       IEnumerable<byte> record,
@@ -1076,12 +1324,11 @@ namespace EarthTool.MSH.Authoring
         changedFields ?? throw new ArgumentNullException(nameof(changedFields)),
         StringComparer.Ordinal
       );
-      return this;
     }
 
     /// <summary>Sets or explicitly clears one game-authoritative TEX resource binding.</summary>
-    public StaticMeshEditSession SetTextureResourceBinding(
-      StaticRenderObjectId renderObject,
+    internal StaticMeshAssembler SetTextureResourceBinding(
+      int renderObjectOrdinal,
       string? textureResourceKey
     )
     {
@@ -1091,19 +1338,30 @@ namespace EarthTool.MSH.Authoring
           textureResourceKey,
           nameof(textureResourceKey)
         );
-      return ReplaceTexturePathBytes(renderObject, bytes);
+      ReplaceTexturePathBytes(renderObjectOrdinal, bytes);
+      return this;
     }
 
-    internal StaticMeshEditSession ApplyHierarchy(
-      StaticSourceObject rootSourceObject,
-      IReadOnlyList<StaticRenderObjectId> sequence
+    internal void ApplyHierarchy(
+      StaticSourceObjectAssembly rootSourceObject,
+      IReadOnlyList<int> sequence
     )
     {
       EnsureOpen();
       _editedRootSourceObject =
         rootSourceObject ?? throw new ArgumentNullException(nameof(rootSourceObject));
-      _editedSequence = sequence?.ToArray() ?? throw new ArgumentNullException(nameof(sequence));
-      return this;
+      if (sequence is null)
+      {
+        throw new ArgumentNullException(nameof(sequence));
+      }
+      if (sequence.Any(ordinal => ordinal < 0 || ordinal >= _renderObjectOutputLocalIds.Count))
+      {
+        throw new ArgumentException(
+          "The hierarchy sequence contains a render-object ordinal outside this assembly.",
+          nameof(sequence)
+        );
+      }
+      _editedSequence = Array.AsReadOnly(sequence.ToArray());
     }
 
     /// <summary>Commits this session once and returns a new immutable snapshot.</summary>
@@ -1112,6 +1370,10 @@ namespace EarthTool.MSH.Authoring
       EnsureOpen();
       _committed = true;
       profile ??= MshOperationProfile.Default;
+      if (_source is null)
+      {
+        return CommitCanonical(profile);
+      }
 
       if (_invalidSequence || _replacementAdded && !_removed)
       {
@@ -1121,7 +1383,7 @@ namespace EarthTool.MSH.Authoring
         );
       }
 
-      if (_replacementAdded && _source.StaticRenderObjectSequence.Count != 1)
+      if (_replacementAdded && _sourceRenderObjects.Count != 1)
       {
         return FailedEdit(
           "StaticRenderObjectSequence",
@@ -1131,16 +1393,22 @@ namespace EarthTool.MSH.Authoring
 
       if (_replacementAdded)
       {
-        _replacementVertices[_source.StaticRenderObjectSequence[0].Id] = _vertices!;
-        _replacementTriangles[_source.StaticRenderObjectSequence[0].Id] = _triangles!;
+        _replacementVertices[0] = _vertices!;
+        _replacementTriangles[0] = _triangles!;
       }
+
+      var finalRootSourceObject = CreateFinalSourceObjectAssembly(
+        _editedRootSourceObject
+          ?? StaticSourceObjectAssembly.FromSource(
+            _source.RootSourceObject,
+            _sourceObjectOrdinals,
+            _sourceRenderObjectOrdinals
+          )
+      );
 
       foreach (var replacement in _replacementVertices)
       {
-        var recordIndex = _source
-          .StaticRenderObjectSequence.Select((item, index) => (item, index))
-          .Single(item => item.item.Id.Equals(replacement.Key))
-          .index;
+        var recordIndex = replacement.Key;
         var failure = AuthoringValidation.ValidateStaticForProfile(
           replacement.Value,
           _replacementTriangles[replacement.Key],
@@ -1159,7 +1427,7 @@ namespace EarthTool.MSH.Authoring
       }
 
       if (
-        _removedRenderObjects.Count == _source.StaticRenderObjectSequence.Count
+        _removedRenderObjects.Count == _sourceRenderObjects.Count
         && !_replacementAdded
         && _additions.Count == 0
       )
@@ -1171,12 +1439,12 @@ namespace EarthTool.MSH.Authoring
       }
 
       foreach (
-        var sourceObject in GetSourceObjects(_editedRootSourceObject ?? _source.RootSourceObject)
+        var sourceObject in GetSourceAssemblies(finalRootSourceObject)
       )
       {
         if (
-          sourceObject.StaticRenderObjectIds.Count == 0
-          || sourceObject.StaticRenderObjectIds.All(id => _removedRenderObjects.Contains(id))
+          sourceObject.StaticRenderObjectOrdinals.Count == 0
+          || sourceObject.StaticRenderObjectOrdinals.All(id => _removedRenderObjects.Contains(id))
             && !_replacementAdded
         )
         {
@@ -1186,6 +1454,14 @@ namespace EarthTool.MSH.Authoring
           );
         }
       }
+      if (!EditedSequenceMatchesFinalMembership(finalRootSourceObject))
+      {
+        return FailedEdit(
+          "StaticRenderObjectSequence",
+          "The authoritative hierarchy sequence must contain each final render-object ordinal exactly once."
+        );
+      }
+      var finalSequence = CreateFinalSequenceForCommit(finalRootSourceObject).ToArray();
 
       foreach (var addition in _additions)
       {
@@ -1193,7 +1469,7 @@ namespace EarthTool.MSH.Authoring
           addition.Vertices,
           addition.Triangles,
           profile,
-          $"StaticRenderObjectSequence[{addition.Id.Value}]"
+          $"StaticRenderObjectSequence[{addition.LocalId}]"
         );
         if (failure is not null)
         {
@@ -1256,22 +1532,24 @@ namespace EarthTool.MSH.Authoring
           : MshCanonicalSerializer.RewriteStatic(
             _source,
             _replacementVertices.ToDictionary(
-              item => item.Key,
+              item => GetSerializationRenderObjectLocalId(item.Key),
               item => (IReadOnlyList<CanonicalStaticVertex>)item.Value
             ),
             _replacementTriangles.ToDictionary(
-              item => item.Key,
+              item => GetSerializationRenderObjectLocalId(item.Key),
               item => (IReadOnlyList<CanonicalTriangle>)item.Value
             ),
-            _replacementAdded ? Array.Empty<StaticRenderObjectId>() : _removedRenderObjects,
+            _replacementAdded
+              ? Array.Empty<int>()
+              : _removedRenderObjects.Select(GetSerializationRenderObjectLocalId),
             _additions,
-            _editedRootSourceObject,
-            _editedSequence,
-            _replacementPivots,
-            _replacementTexturePathBytes,
+            CreateSerializationPlan(finalRootSourceObject),
+            finalSequence.Select(GetSerializationRenderObjectLocalId).ToArray(),
+            ToSerializationIdentityDictionary(_replacementPivots),
+            ToSerializationIdentityDictionary(_replacementTexturePathBytes),
             _editedRootSourceObject is not null,
-            _replacementMarkerFlags,
-            _replacementAnimations,
+            ToSerializationIdentityDictionary(_replacementMarkerFlags),
+            ToSerializationIdentityDictionary(_replacementAnimations),
             _replacementAnimationLengths,
             _replacementAnimationFrameIndices,
             _replacementAttachmentRecords,
@@ -1290,10 +1568,10 @@ namespace EarthTool.MSH.Authoring
         );
       }
 
-      var renderObjectLocalIds = GetResultRenderObjectIds().Select(id => id.Value).ToArray();
+      var renderObjectLocalIds = GetResultRenderObjectLocalIds().ToArray();
       if (_replacementAdded)
       {
-        renderObjectLocalIds[0] = _resultId.Value;
+        renderObjectLocalIds[0] = _resultLocalId;
       }
 
       MshDecodeResult decoded;
@@ -1314,11 +1592,13 @@ namespace EarthTool.MSH.Authoring
       var decodedAsset = (StaticMeshAsset)decoded.Asset;
       var edited = MeshAssetRebinder.RebindStatic(
         decodedAsset,
-        _source.Origin,
-        new StaticMeshIdentityState(
-          _source.LineageId,
-          renderObjectLocalIds.Select(item => new StaticRenderObjectId(_source.LineageId, item)),
-          GetSourceObjectIds(_editedRootSourceObject ?? _source.RootSourceObject),
+          _origin,
+          StaticMeshIdentityState.FromLocalIds(
+          _lineageId,
+          renderObjectLocalIds,
+          GetSourceObjectLocalIds(
+            finalRootSourceObject
+          ),
           _nextLocalId,
           _nextSourceObjectLocalId
         )
@@ -1327,6 +1607,104 @@ namespace EarthTool.MSH.Authoring
         true,
         edited,
         CreatePreservationReport(edited),
+        decoded.Diagnostics
+      );
+    }
+
+    private MshEditResult<StaticMeshAsset> CommitCanonical(MshOperationProfile profile)
+    {
+      var treeFailure = AuthoringValidation.ValidateStaticTree(_canonicalRoot, profile);
+      if (treeFailure is not null)
+      {
+        return new MshEditResult<StaticMeshAsset>(
+          false,
+          null,
+          new PreservationReport(Array.Empty<PreservationChange>()),
+          new[] { treeFailure }
+        );
+      }
+      var headerFailure = AuthoringValidation.ValidateStaticHeader(
+        _canonicalRoot!,
+        _canonicalFootprint,
+        _canonicalHorizontalExtents
+      );
+      if (headerFailure is not null)
+      {
+        return new MshEditResult<StaticMeshAsset>(
+          false,
+          null,
+          new PreservationReport(Array.Empty<PreservationChange>()),
+          new[] { headerFailure }
+        );
+      }
+      if (
+        _replacementVertices.Count != 0
+        || _removedRenderObjects.Count != 0
+        || _additions.Count != 0
+        || _editedRootSourceObject is not null
+        || _replacementTexturePathBytes.Count != 0
+        || _replacementMarkerFlags.Count != 0
+      )
+      {
+        return FailedEdit(
+          "StaticRenderObjectSequence",
+          "Canonical assembly accepts final source geometry and representation overrides only."
+        );
+      }
+
+      var bytes = MshCanonicalSerializer.CreateStatic(
+        _canonicalCreationGuid!.Value,
+        _replacementAnimationLengths ?? default,
+        _canonicalRoot!,
+        _canonicalFootprint,
+        _replacementHorizontalExtents ?? _canonicalHorizontalExtents,
+        _replacementPivots,
+        _replacementAnimations,
+        _replacementAnimationFrameIndices,
+        _replacementAttachmentRecords,
+        _replacementCannonRenderPositions,
+        _replacementStaticSpotLights,
+        _replacementStaticOmniLights
+      );
+      if (bytes.Length > profile.MaxOutputBytes)
+      {
+        return new MshEditResult<StaticMeshAsset>(
+          false,
+          null,
+          new PreservationReport(Array.Empty<PreservationChange>()),
+          new[] { AuthoringValidation.ResourceLimit(bytes.Length, profile.MaxOutputBytes) }
+        );
+      }
+
+      MshDecodeResult decoded;
+      try
+      {
+        decoded = MshV1Decoder.Decode(bytes, profile, CancellationToken.None);
+      }
+      catch (MshContentException ex)
+      {
+        return new MshEditResult<StaticMeshAsset>(
+          false,
+          null,
+          new PreservationReport(Array.Empty<PreservationChange>()),
+          new[] { ex.Diagnostic }
+        );
+      }
+      var authored = MeshAssetRebinder.RebindStatic(
+        (StaticMeshAsset)decoded.Asset,
+        _origin,
+        StaticMeshIdentityState.FromLocalIds(
+          _lineageId,
+          _renderObjectOutputLocalIds,
+          _sourceObjectOutputLocalIds,
+          _nextLocalId,
+          _nextSourceObjectLocalId
+        )
+      );
+      return new MshEditResult<StaticMeshAsset>(
+        true,
+        authored,
+        new PreservationReport(Array.Empty<PreservationChange>()),
         decoded.Diagnostics
       );
     }
@@ -1371,7 +1749,7 @@ namespace EarthTool.MSH.Authoring
       }
       foreach (var physicalNumber in _replacementAttachmentRecords.Keys.OrderBy(value => value))
       {
-        var sourceRecord = _source
+        var sourceRecord = _source!
           .CommonBaseHeader.AttachmentTable.Skip((physicalNumber - 1) * 8)
           .Take(8)
           .ToArray();
@@ -1433,7 +1811,9 @@ namespace EarthTool.MSH.Authoring
       }
       foreach (var replacement in _replacementMarkerFlags)
       {
-        var index = GetResultRenderObjectIds().ToList().IndexOf(replacement.Key);
+        var index = GetResultRenderObjectLocalIds()
+          .ToList()
+          .IndexOf(_renderObjectOutputLocalIds[replacement.Key]);
         if (index >= 0)
         {
           changes.Add(
@@ -1471,10 +1851,10 @@ namespace EarthTool.MSH.Authoring
       }
       else
       {
-        for (var index = 0; index < _source.StaticRenderObjectSequence.Count; index++)
+        for (var index = 0; index < _source!.StaticRenderObjectSequence.Count; index++)
         {
           var record = _source.StaticRenderObjectSequence[index];
-          if (_removedRenderObjects.Contains(record.Id))
+          if (_removedRenderObjects.Contains(index))
           {
             changes.Add(
               Change(
@@ -1492,7 +1872,7 @@ namespace EarthTool.MSH.Authoring
               "RetainedRenderObject"
             )
           );
-          if (_replacementVertices.ContainsKey(record.Id))
+          if (_replacementVertices.ContainsKey(index))
           {
             changes.Add(
               Change(
@@ -1516,7 +1896,7 @@ namespace EarthTool.MSH.Authoring
               )
             );
           }
-          if (_replacementPivots.ContainsKey(record.Id))
+          if (_replacementPivots.ContainsKey(index))
           {
             changes.Add(
               Change(
@@ -1526,7 +1906,7 @@ namespace EarthTool.MSH.Authoring
               )
             );
           }
-          if (_replacementTexturePathBytes.ContainsKey(record.Id))
+          if (_replacementTexturePathBytes.ContainsKey(index))
           {
             changes.Add(
               Change(
@@ -1546,7 +1926,7 @@ namespace EarthTool.MSH.Authoring
               )
             );
           }
-          if (_replacementAnimations.ContainsKey(record.Id))
+          if (_replacementAnimations.ContainsKey(index))
           {
             changes.Add(
               Change(
@@ -1574,7 +1954,7 @@ namespace EarthTool.MSH.Authoring
 
         foreach (var addition in _additions)
         {
-          var resultIndex = GetResultRenderObjectIds().ToList().IndexOf(addition.Id);
+          var resultIndex = GetResultRenderObjectLocalIds().ToList().IndexOf(addition.LocalId);
           changes.Add(
             Change(
               $"StaticRenderObjectSequence[{resultIndex}]",
@@ -1624,7 +2004,10 @@ namespace EarthTool.MSH.Authoring
               )
             );
           }
-          if (sourceRecord is not null && !_replacementVertices.ContainsKey(sourceRecord.Id))
+          if (
+            sourceRecord is not null
+            && !_replacementVertices.ContainsKey(_sourceRenderObjectOrdinals[sourceRecord])
+          )
           {
             for (
               var vertexIndex = 0;
@@ -1713,71 +2096,307 @@ namespace EarthTool.MSH.Authoring
       return new PreservationChange(path, disposition, reason);
     }
 
-    private void EnsureSourceId(StaticRenderObjectId id)
+    private void EnsureSourceOrdinal(int ordinal)
     {
-      if (!_source.StaticRenderObjectSequence.Any(item => item.Id.Equals(id)))
+      if (ordinal < 0 || ordinal >= InitialRenderObjectCount)
       {
         throw new ArgumentException(
-          "The render-object identity does not belong to this source snapshot.",
-          nameof(id)
+          "The render-object ordinal does not belong to this source snapshot.",
+          nameof(ordinal)
         );
       }
     }
 
-    private static IEnumerable<SourceObjectId> GetSourceObjectIds(StaticSourceObject source)
+    private IEnumerable<int> GetSourceObjectLocalIds(StaticSourceObjectAssembly source)
     {
-      yield return source.Id;
+      yield return _sourceObjectOutputLocalIds[source.Ordinal];
       foreach (var child in source.Children)
       {
-        foreach (var id in GetSourceObjectIds(child))
+        foreach (var id in GetSourceObjectLocalIds(child))
         {
           yield return id;
         }
       }
     }
 
-    private IEnumerable<StaticRenderObjectId> GetResultRenderObjectIds()
+    private StaticMeshAssemblyTrace CreateAssemblyTrace()
+    {
+      var changes = new List<StaticMeshAssemblyChange>();
+      changes.AddRange(
+        _replacementVertices.Keys.Select(id => new StaticMeshAssemblyChange(
+          StaticMeshAssemblyChangeKind.Geometry,
+          _renderObjectOutputLocalIds[id]
+        ))
+      );
+      changes.AddRange(
+        _replacementPivots.Keys.Select(id => new StaticMeshAssemblyChange(
+          StaticMeshAssemblyChangeKind.Pivot,
+          _renderObjectOutputLocalIds[id]
+        ))
+      );
+      changes.AddRange(
+        _replacementTexturePathBytes.Keys.Select(id => new StaticMeshAssemblyChange(
+          StaticMeshAssemblyChangeKind.TexturePath,
+          _renderObjectOutputLocalIds[id]
+        ))
+      );
+      changes.AddRange(
+        _replacementAnimations.Keys.Select(id => new StaticMeshAssemblyChange(
+          StaticMeshAssemblyChangeKind.Animation,
+          _renderObjectOutputLocalIds[id]
+        ))
+      );
+      changes.AddRange(
+        _replacementMarkerFlags.Keys.Select(id => new StaticMeshAssemblyChange(
+          StaticMeshAssemblyChangeKind.MarkerFlags,
+          _renderObjectOutputLocalIds[id]
+        ))
+      );
+      changes.AddRange(
+        _replacementAttachmentRecords.Keys.Select(number => new StaticMeshAssemblyChange(
+          StaticMeshAssemblyChangeKind.Attachment,
+          physicalNumber: number
+        ))
+      );
+      changes.AddRange(
+        _replacementCannonRenderPositions.Keys.Select(number => new StaticMeshAssemblyChange(
+          StaticMeshAssemblyChangeKind.CannonRenderPosition,
+          physicalNumber: number
+        ))
+      );
+      changes.AddRange(
+        _staticLightFieldChanges.Select(item => new StaticMeshAssemblyChange(
+          StaticMeshAssemblyChangeKind.StaticLight,
+          physicalNumber: item.Key.Number,
+          lightKind: item.Key.Kind,
+          changedFields: item.Value
+        ))
+      );
+      changes.AddRange(
+        _removedRenderObjects.Select(id => new StaticMeshAssemblyChange(
+          StaticMeshAssemblyChangeKind.RemovedRenderObject,
+          GetSerializationRenderObjectLocalId(id)
+        ))
+      );
+      changes.AddRange(
+        _additions.Select(addition => new StaticMeshAssemblyChange(
+          StaticMeshAssemblyChangeKind.AddedRenderObject,
+          addition.LocalId
+        ))
+      );
+      if (_replacementAnimationLengths.HasValue)
+      {
+        changes.Add(new StaticMeshAssemblyChange(StaticMeshAssemblyChangeKind.AnimationLengths));
+      }
+      if (_replacementAnimationFrameIndices.HasValue)
+      {
+        changes.Add(
+          new StaticMeshAssemblyChange(StaticMeshAssemblyChangeKind.AnimationFrameIndices)
+        );
+      }
+      if (_replacementHorizontalExtents is not null)
+      {
+        changes.Add(new StaticMeshAssemblyChange(StaticMeshAssemblyChangeKind.HorizontalExtents));
+      }
+      if (_editedRootSourceObject is not null)
+      {
+        changes.Add(new StaticMeshAssemblyChange(StaticMeshAssemblyChangeKind.Hierarchy));
+      }
+
+      return new StaticMeshAssemblyTrace(
+        changes,
+        GetResultRenderObjectLocalIds(),
+        _replacementAdded
+      );
+    }
+
+    private IEnumerable<int> GetResultRenderObjectLocalIds()
     {
       if (_replacementAdded)
       {
-        yield return _resultId;
+        yield return _resultLocalId;
         yield break;
       }
 
-      if (_editedSequence is not null)
+      foreach (var ordinal in PlanRenderObjectOrdinals())
       {
-        foreach (var id in _editedSequence)
-        {
-          yield return id;
-        }
-        yield break;
-      }
-
-      foreach (
-        var id in MshCanonicalSerializer.PlanStaticRenderObjectIds(
-          _source,
-          _removedRenderObjects,
-          _additions
-        )
-      )
-      {
-        yield return id;
+        yield return _renderObjectOutputLocalIds[ordinal];
       }
     }
 
-    private static IEnumerable<StaticSourceObject> GetSourceObjects(StaticSourceObject source)
+    private IEnumerable<int> PlanRenderObjectOrdinals()
+    {
+      var root = CreateFinalSourceObjectAssembly(
+        _editedRootSourceObject
+          ?? StaticSourceObjectAssembly.FromSource(
+            _source!.RootSourceObject,
+            _sourceObjectOrdinals,
+            _sourceRenderObjectOrdinals
+          )
+      );
+      foreach (var ordinal in CreateFinalSequenceForCommit(root))
+      {
+        yield return ordinal;
+      }
+    }
+
+    private IEnumerable<int> CreateFinalSequenceForCommit(StaticSourceObjectAssembly root)
+    {
+      if (_replacementAdded)
+      {
+        return new[] { 0 };
+      }
+      if (_editedRootSourceObject is not null)
+      {
+        return _editedSequence!;
+      }
+
+      var additionsBySource = _additions
+        .GroupBy(item => item.SourceObjectOrdinal)
+        .ToDictionary(group => group.Key, group => group.ToArray());
+      var sourceOrdinalByLocalId = _sourceObjects.ToDictionary(
+        item => item.Id.Value,
+        item => _sourceObjectOrdinals[item]
+      );
+      var sourceRecords = _sourceRenderObjects
+        .Select((record, ordinal) => (record, ordinal))
+        .ToArray();
+      var lastRecordBySource = sourceRecords
+        .GroupBy(item => sourceOrdinalByLocalId[item.record.SourceObjectId.Value])
+        .ToDictionary(group => group.Key, group => group.Last().ordinal);
+      var sequence = new List<int>();
+      foreach (var item in sourceRecords)
+      {
+        if (!_removedRenderObjects.Contains(item.ordinal))
+        {
+          sequence.Add(item.ordinal);
+        }
+        var sourceOrdinal = sourceOrdinalByLocalId[item.record.SourceObjectId.Value];
+        if (
+          lastRecordBySource[sourceOrdinal] == item.ordinal
+          && additionsBySource.TryGetValue(sourceOrdinal, out var additions)
+        )
+        {
+          sequence.AddRange(additions.Select(addition => addition.Ordinal));
+        }
+      }
+      return sequence;
+    }
+
+    private bool EditedSequenceMatchesFinalMembership(StaticSourceObjectAssembly root)
+    {
+      if (_editedSequence is null)
+      {
+        return true;
+      }
+
+      var membership = new HashSet<int>();
+      var membershipCount = 0;
+      foreach (var sourceObject in GetSourceAssemblies(root))
+      {
+        foreach (var ordinal in sourceObject.StaticRenderObjectOrdinals)
+        {
+          membershipCount++;
+          if (!membership.Add(ordinal))
+          {
+            return false;
+          }
+        }
+      }
+
+      return _editedSequence.Count == membershipCount
+        && _editedSequence.Distinct().Count() == _editedSequence.Count
+        && _editedSequence.All(membership.Contains);
+    }
+
+    internal StaticSourceObjectAssembly CreateFinalSourceObjectAssembly(
+      StaticSourceObjectAssembly source
+    )
+    {
+      var renderObjectOrdinals = source
+        .StaticRenderObjectOrdinals.Where(ordinal =>
+          !_removedRenderObjects.Contains(ordinal) || _replacementAdded && ordinal == 0
+        )
+        .ToList();
+      renderObjectOrdinals.AddRange(
+        _additions
+          .Where(addition =>
+            addition.SourceObjectOrdinal == source.Ordinal
+            && !renderObjectOrdinals.Contains(addition.Ordinal)
+          )
+          .Select(addition => addition.Ordinal)
+      );
+      return new StaticSourceObjectAssembly(
+        source.Ordinal,
+        renderObjectOrdinals,
+        source.Children.Select(CreateFinalSourceObjectAssembly)
+      );
+    }
+
+    internal static IReadOnlyList<int> CreateFinalSequence(StaticSourceObjectAssembly root)
+    {
+      return FlattenAssembly(root).ToArray();
+    }
+
+    private static IEnumerable<int> FlattenAssembly(StaticSourceObjectAssembly source)
+    {
+      yield return source.StaticRenderObjectOrdinals[0];
+      foreach (var child in source.Children)
+      {
+        foreach (var ordinal in FlattenAssembly(child))
+        {
+          yield return ordinal;
+        }
+      }
+      foreach (var ordinal in source.StaticRenderObjectOrdinals.Skip(1))
+      {
+        yield return ordinal;
+      }
+    }
+
+    private static IEnumerable<StaticSourceObjectAssembly> GetSourceAssemblies(
+      StaticSourceObjectAssembly source
+    )
     {
       yield return source;
       foreach (var child in source.Children)
       {
-        foreach (var descendant in GetSourceObjects(child))
+        foreach (var descendant in GetSourceAssemblies(child))
         {
           yield return descendant;
         }
       }
     }
 
-    private StaticRenderObjectId AllocateRenderObjectId()
+    private StaticSourceObjectSerializationPlan CreateSerializationPlan(
+      StaticSourceObjectAssembly source
+    )
+    {
+      return new StaticSourceObjectSerializationPlan(
+        _sourceObjectOutputLocalIds[source.Ordinal],
+        source.StaticRenderObjectOrdinals.Select(GetSerializationRenderObjectLocalId),
+        source.Children.Select(CreateSerializationPlan)
+      );
+    }
+
+    private Dictionary<int, TValue> ToSerializationIdentityDictionary<TValue>(
+      IReadOnlyDictionary<int, TValue> valuesByOrdinal
+    )
+    {
+      return valuesByOrdinal.ToDictionary(
+        item => GetSerializationRenderObjectLocalId(item.Key),
+        item => item.Value
+      );
+    }
+
+    private int GetSerializationRenderObjectLocalId(int ordinal)
+    {
+      return ordinal < _renderObjectSourceLocalIds.Count
+        ? _renderObjectSourceLocalIds[ordinal]
+        : _renderObjectOutputLocalIds[ordinal];
+    }
+
+    private int AllocateOutputRenderObjectLocalId()
     {
       if (!_nextLocalId.HasValue)
       {
@@ -1788,7 +2407,51 @@ namespace EarthTool.MSH.Authoring
 
       var value = _nextLocalId.Value;
       _nextLocalId = value == int.MaxValue ? null : value + 1;
-      return new StaticRenderObjectId(_source.LineageId, value);
+      return value;
+    }
+
+    private static IEnumerable<StaticSourceObject> FlattenSourceObjects(StaticSourceObject source)
+    {
+      yield return source;
+      foreach (var child in source.Children)
+      {
+        foreach (var descendant in FlattenSourceObjects(child))
+        {
+          yield return descendant;
+        }
+      }
+    }
+
+    private static IEnumerable<CanonicalStaticSourceObject> FlattenCanonicalSourceObjects(
+      CanonicalStaticSourceObject source
+    )
+    {
+      yield return source;
+      foreach (var child in source.Children)
+      {
+        foreach (var descendant in FlattenCanonicalSourceObjects(child))
+        {
+          yield return descendant;
+        }
+      }
+    }
+
+    private static IEnumerable<CanonicalStaticRenderObject> FlattenCanonicalRenderObjects(
+      CanonicalStaticSourceObject source
+    )
+    {
+      yield return source.RenderObjects[0];
+      foreach (var child in source.Children)
+      {
+        foreach (var renderObject in FlattenCanonicalRenderObjects(child))
+        {
+          yield return renderObject;
+        }
+      }
+      foreach (var renderObject in source.RenderObjects.Skip(1))
+      {
+        yield return renderObject;
+      }
     }
 
     private static bool IsFinite(Vector3 value)
@@ -1803,6 +2466,306 @@ namespace EarthTool.MSH.Authoring
         throw new InvalidOperationException("An edit session can be committed only once.");
       }
     }
+  }
+
+  /// <summary>Accumulates one atomic set of static edits and commits at most once.</summary>
+  public sealed class StaticMeshEditSession
+  {
+    private readonly StaticMeshAsset _source;
+    private readonly StaticMeshAssembler _assembler;
+    private readonly Dictionary<int, int> _allocatedRenderObjectOrdinals = new();
+    private readonly Dictionary<int, int> _allocatedSourceObjectOrdinals = new();
+
+    internal StaticMeshEditSession(StaticMeshAsset source)
+    {
+      _source = source;
+      _assembler = new StaticMeshAssembler(source);
+    }
+
+    /// <summary>Replaces geometry while retaining the render-object identity.</summary>
+    public StaticMeshEditSession ReplaceGeometry(
+      StaticRenderObjectId renderObject,
+      IEnumerable<CanonicalStaticVertex> vertices,
+      IEnumerable<CanonicalTriangle> triangles
+    )
+    {
+      EnsureSourceRenderObjectIdentity(renderObject, nameof(renderObject));
+      _assembler.ReplaceGeometry(GetSourceRenderObjectOrdinal(renderObject), vertices, triangles);
+      return this;
+    }
+
+    /// <summary>Removes the current render object before a replacement object is added.</summary>
+    public StaticMeshEditSession RemoveRenderObject(StaticRenderObjectId renderObject)
+    {
+      EnsureSourceRenderObjectIdentity(renderObject, nameof(renderObject));
+      _assembler.RemoveRenderObject(GetSourceRenderObjectOrdinal(renderObject));
+      return this;
+    }
+
+    /// <summary>Adds a new render object and allocates a fresh lineage-local identity.</summary>
+    public StaticRenderObjectId AddRenderObject(
+      IEnumerable<CanonicalStaticVertex> vertices,
+      IEnumerable<CanonicalTriangle> triangles
+    )
+    {
+      var ordinal = _assembler.AddRenderObject(vertices, triangles);
+      var localId = _assembler.GetOutputRenderObjectLocalId(ordinal);
+      _allocatedRenderObjectOrdinals.Add(localId, ordinal);
+      return new StaticRenderObjectId(_source.LineageId, localId);
+    }
+
+    /// <summary>Adds a canonical material partition to an existing source object.</summary>
+    public StaticRenderObjectId AddRenderObject(
+      SourceObjectId sourceObject,
+      IEnumerable<CanonicalStaticVertex> vertices,
+      IEnumerable<CanonicalTriangle> triangles
+    )
+    {
+      EnsureSourceObjectIdentity(sourceObject, nameof(sourceObject));
+      var ordinal = _assembler.AddRenderObject(
+        GetSourceObjectOrdinal(sourceObject),
+        vertices,
+        triangles
+      );
+      var localId = _assembler.GetOutputRenderObjectLocalId(ordinal);
+      _allocatedRenderObjectOrdinals.Add(localId, ordinal);
+      return new StaticRenderObjectId(_source.LineageId, localId);
+    }
+
+    internal SourceObjectId AllocateSourceObjectId()
+    {
+      var ordinal = _assembler.AllocateSourceObjectOrdinal();
+      _allocatedSourceObjectOrdinals.Add(_assembler.GetOutputSourceObjectLocalId(ordinal), ordinal);
+      return new SourceObjectId(
+        _source.LineageId,
+        _assembler.GetOutputSourceObjectLocalId(ordinal)
+      );
+    }
+
+    internal StaticMeshEditSession ReplacePivot(StaticRenderObjectId renderObject, Vector3 pivot)
+    {
+      EnsureSessionRenderObjectIdentity(renderObject, nameof(renderObject));
+      _assembler.ReplacePivot(GetRenderObjectOrdinal(renderObject), pivot);
+      return this;
+    }
+
+    internal StaticMeshEditSession ReplaceTexturePathBytes(
+      StaticRenderObjectId renderObject,
+      IEnumerable<byte> texturePathBytes
+    )
+    {
+      EnsureSessionRenderObjectIdentity(renderObject, nameof(renderObject));
+      _assembler.ReplaceTexturePathBytes(GetRenderObjectOrdinal(renderObject), texturePathBytes);
+      return this;
+    }
+
+    internal StaticMeshEditSession ReplaceAnimation(
+      StaticRenderObjectId renderObject,
+      IEnumerable<Vector3> scaleFrames,
+      IEnumerable<Vector3> translationFrames,
+      IEnumerable<Matrix4x4> matrices,
+      uint animationClassValue
+    )
+    {
+      EnsureSourceRenderObjectIdentity(renderObject, nameof(renderObject));
+      _assembler.ReplaceAnimation(
+        GetSourceRenderObjectOrdinal(renderObject),
+        scaleFrames,
+        translationFrames,
+        matrices,
+        animationClassValue
+      );
+      return this;
+    }
+
+    internal StaticMeshEditSession ReplaceAnimationLengths(AnimationClassBytes animationLengths)
+    {
+      _assembler.ReplaceAnimationLengths(animationLengths);
+      return this;
+    }
+
+    internal StaticMeshEditSession ReplaceAnimationFrameIndices(
+      AnimationClassBytes animationFrameIndices
+    )
+    {
+      _assembler.ReplaceAnimationFrameIndices(animationFrameIndices);
+      return this;
+    }
+
+    internal StaticMeshEditSession ReplaceHorizontalExtents(
+      CanonicalHorizontalExtents horizontalExtents
+    )
+    {
+      _assembler.ReplaceHorizontalExtents(horizontalExtents);
+      return this;
+    }
+
+    internal StaticMeshEditSession ReplaceMarkerAttachmentFlags(
+      StaticRenderObjectId renderObject,
+      StaticRenderObjectFlags markerFlags
+    )
+    {
+      if (!BelongsToSession(renderObject))
+      {
+        throw new ArgumentOutOfRangeException(nameof(markerFlags));
+      }
+      _assembler.ReplaceMarkerAttachmentFlags(GetRenderObjectOrdinal(renderObject), markerFlags);
+      return this;
+    }
+
+    internal StaticMeshEditSession ReplaceAttachmentRecord(
+      int physicalNumber,
+      IEnumerable<byte> record
+    )
+    {
+      _assembler.ReplaceAttachmentRecord(physicalNumber, record);
+      return this;
+    }
+
+    internal StaticMeshEditSession ReplaceCannonRenderPosition(
+      int physicalNumber,
+      IEnumerable<byte> record
+    )
+    {
+      _assembler.ReplaceCannonRenderPosition(physicalNumber, record);
+      return this;
+    }
+
+    internal StaticMeshEditSession ReplaceStaticLightRecord(
+      StaticLightRecordKind kind,
+      int physicalNumber,
+      IEnumerable<byte> record,
+      IEnumerable<string> changedFields
+    )
+    {
+      _assembler.ReplaceStaticLightRecord(kind, physicalNumber, record, changedFields);
+      return this;
+    }
+
+    /// <summary>Sets or explicitly clears one game-authoritative TEX resource binding.</summary>
+    public StaticMeshEditSession SetTextureResourceBinding(
+      StaticRenderObjectId renderObject,
+      string? textureResourceKey
+    )
+    {
+      EnsureSessionRenderObjectIdentity(renderObject, nameof(renderObject));
+      _assembler.SetTextureResourceBinding(GetRenderObjectOrdinal(renderObject), textureResourceKey);
+      return this;
+    }
+
+    internal StaticMeshEditSession ApplyHierarchy(
+      StaticSourceObject rootSourceObject,
+      IReadOnlyList<StaticRenderObjectId> sequence
+    )
+    {
+      _assembler.ApplyHierarchy(
+        CreateSourceObjectAssembly(rootSourceObject),
+        sequence.Select(GetRenderObjectOrdinal).ToArray()
+      );
+      return this;
+    }
+
+    /// <summary>Commits this session once and returns a new immutable snapshot.</summary>
+    public MshEditResult<StaticMeshAsset> Commit(MshOperationProfile? profile = null)
+    {
+      return _assembler.Commit(profile);
+    }
+
+    private void EnsureSourceRenderObjectIdentity(StaticRenderObjectId id, string parameterName)
+    {
+      if (
+        !id.Lineage.Equals(_source.LineageId)
+        || !_source.StaticRenderObjectSequence.Any(item => item.LocalId == id.Value)
+      )
+      {
+        throw new ArgumentException(
+          "The render-object identity does not belong to this source snapshot.",
+          parameterName
+        );
+      }
+    }
+
+    private int GetSourceRenderObjectOrdinal(StaticRenderObjectId id)
+    {
+      var renderObject = _source.StaticRenderObjectSequence.Single(item => item.Id.Equals(id));
+      return _assembler.GetRenderObjectOrdinal(renderObject);
+    }
+
+    private int GetRenderObjectOrdinal(StaticRenderObjectId id)
+    {
+      if (_allocatedRenderObjectOrdinals.TryGetValue(id.Value, out var ordinal))
+      {
+        return ordinal;
+      }
+      return GetSourceRenderObjectOrdinal(id);
+    }
+
+    private void EnsureSessionRenderObjectIdentity(StaticRenderObjectId id, string parameterName)
+    {
+      if (!BelongsToSession(id))
+      {
+        throw new ArgumentException(
+          "The render-object identity does not belong to this edit session.",
+          parameterName
+        );
+      }
+    }
+
+    private bool BelongsToSession(StaticRenderObjectId id)
+    {
+      return id.Lineage.Equals(_source.LineageId)
+        && (
+          _source.StaticRenderObjectSequence.Any(item => item.LocalId == id.Value)
+          || _allocatedRenderObjectOrdinals.ContainsKey(id.Value)
+        );
+    }
+
+    private void EnsureSourceObjectIdentity(SourceObjectId id, string parameterName)
+    {
+      if (
+        !id.Lineage.Equals(_source.LineageId)
+        || !GetSourceObjects(_source.RootSourceObject).Any(item => item.Id.Equals(id))
+          && !_allocatedSourceObjectOrdinals.ContainsKey(id.Value)
+      )
+      {
+        throw new ArgumentException(
+          "The source-object identity does not belong to this source snapshot.",
+          parameterName
+        );
+      }
+    }
+
+    private int GetSourceObjectOrdinal(SourceObjectId id)
+    {
+      if (_allocatedSourceObjectOrdinals.TryGetValue(id.Value, out var ordinal))
+      {
+        return ordinal;
+      }
+      var sourceObject = GetSourceObjects(_source.RootSourceObject).Single(item => item.Id.Equals(id));
+      return _assembler.GetSourceObjectOrdinal(sourceObject);
+    }
+
+    private StaticSourceObjectAssembly CreateSourceObjectAssembly(StaticSourceObject sourceObject)
+    {
+      return new StaticSourceObjectAssembly(
+        GetSourceObjectOrdinal(sourceObject.Id),
+        sourceObject.StaticRenderObjectIds.Select(GetRenderObjectOrdinal),
+        sourceObject.Children.Select(CreateSourceObjectAssembly)
+      );
+    }
+
+    private static IEnumerable<StaticSourceObject> GetSourceObjects(StaticSourceObject source)
+    {
+      yield return source;
+      foreach (var child in source.Children)
+      {
+        foreach (var descendant in GetSourceObjects(child))
+        {
+          yield return descendant;
+        }
+      }
+    }
+
   }
 
   internal static class AuthoringValidation

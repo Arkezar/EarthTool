@@ -8,6 +8,7 @@ using EarthTool.MSH.Services;
 using System.Buffers.Binary;
 using System.Numerics;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace EarthTool.MSH.Tests;
 
@@ -444,6 +445,35 @@ public class CanonicalMeshAuthoringTests
       );
     Action secondCommit = () => session.Commit();
     secondCommit.Should().Throw<InvalidOperationException>();
+  }
+
+  [Fact]
+  public void SingleObjectReplacementAuthorsNewRepresentationsUnderNewIdentity()
+  {
+    var source = BuildStatic();
+    var replacementVertices = CreateVertices();
+    replacementVertices[1] = new CanonicalStaticVertex(
+      new Vector3(9, 8, 7),
+      Vector3.UnitY,
+      new Vector2(0.25f, 0.75f)
+    );
+    var session = source.Edit();
+    session.RemoveRenderObject(source.StaticRenderObjectSequence[0].Id);
+    var replacementId = session.AddRenderObject(replacementVertices, CreateTriangles());
+    session.SetTextureResourceBinding(replacementId, "Textures\\replacement.tex");
+    session.ReplacePivot(replacementId, new Vector3(6, 5, 4));
+
+    var result = session.Commit();
+
+    result.TryGetValue(out var edited).Should().BeTrue();
+    var replacement = edited!.StaticRenderObjectSequence.Should().ContainSingle().Subject;
+    replacement.Id.Should().Be(replacementId);
+    replacement.RenderVertices[1].Position.Should().Be(new Vector3(9, 8, 7));
+    replacement.RenderVertices[1].Normal.Should().Be(Vector3.UnitY);
+    Encoding.ASCII.GetString(replacement.TexturePathBytes.ToArray())
+      .Should()
+      .Be("Textures\\replacement.tex");
+    replacement.Pivot.Should().Be(new Vector3(6, 5, 4));
   }
 
   [Fact]

@@ -163,6 +163,218 @@ public class StaticMeshAssetTests
     (await WriteAsync(second!)).Should().Equal(first);
   }
 
+  [Fact]
+  public void CanonicalAssemblerAuthorsFinalRepresentationsInOneCommit()
+  {
+    var root = new CanonicalStaticSourceObject([RenderObject()]);
+    var lineage = new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"));
+    var assembler = StaticMeshAssembler.CreateCanonical(
+      new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+      lineage,
+      root,
+      new CanonicalStaticFootprint(0x8000, new float[16], new byte[16]),
+      new CanonicalHorizontalExtents(1, 2, 3, 4)
+    );
+    var renderObjectOrdinal = assembler.GetRenderObjectOrdinal(root.RenderObjects[0]);
+    assembler.ReplacePivot(renderObjectOrdinal, new Vector3(5, 6, 7));
+    assembler.ReplaceAnimationLengths(new AnimationClassBytes(1, 0, 0, 0));
+
+    var result = assembler.Commit();
+
+    result.TryGetValue(out var asset).Should().BeTrue();
+    asset!.Origin.Should().Be(MeshAssetOrigin.Canonical);
+    asset.StaticRenderObjectSequence[0].Pivot.Should().Be(new Vector3(5, 6, 7));
+    asset.CommonBaseHeader.AnimationLengths.Should().Be(new AnimationClassBytes(1, 0, 0, 0));
+  }
+
+  [Fact]
+  public async Task AssemblerUsesSequenceOrdinalsWhenPersistedLocalIdsAreSparse()
+  {
+    await using var stream = new MemoryStream(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var read = await new MshReader().ReadAsync(stream);
+    var decoded = read.Value.Should().BeOfType<StaticMeshAsset>().Subject;
+    var lineage = new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"));
+    var source = MeshAssetRebinder.RebindStatic(
+      decoded,
+      MeshAssetOrigin.Loaded,
+      StaticMeshIdentityState.FromLocalIds(
+        lineage,
+        [101, 205, 409, 817],
+        [31, 47, 63],
+        1000,
+        100
+      )
+    );
+    var assembler = new StaticMeshAssembler(source);
+    var target = source.StaticRenderObjectSequence[1];
+    var ordinal = assembler.GetRenderObjectOrdinal(target);
+
+    assembler.ReplacePivot(ordinal, new Vector3(9, 8, 7));
+    var result = assembler.Commit();
+
+    result.TryGetValue(out var asset).Should().BeTrue();
+    asset!.StaticRenderObjectSequence.Select(item => item.LocalId).Should().Equal(101, 205, 409, 817);
+    asset.StaticRenderObjectSequence[1].Pivot.Should().Be(new Vector3(9, 8, 7));
+    asset.StaticRenderObjectSequence[0].Pivot.Should().NotBe(new Vector3(9, 8, 7));
+  }
+
+  [Fact]
+  public void LegacyHierarchyAdapterMapsSparseAndAllocatedIdentitiesToOrdinals()
+  {
+    var build = StaticMeshBuilder
+      .Create()
+      .SetRootSourceObject(new CanonicalStaticSourceObject([RenderObject()]))
+      .Build();
+    build.TryGetValue(out var canonical).Should().BeTrue();
+    var lineage = new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"));
+    var source = MeshAssetRebinder.RebindStatic(
+      canonical!,
+      MeshAssetOrigin.Loaded,
+      StaticMeshIdentityState.FromLocalIds(lineage, [101], [31], 1000, 100)
+    );
+    var session = source.Edit();
+    var childId = session.AllocateSourceObjectId();
+    var childRenderObjectId = session.AddRenderObject(childId, Vertices(), Triangles());
+    var editedRoot = new StaticSourceObject(
+      source.RootSourceObject.Id,
+      source.RootSourceObject.StaticRenderObjectIds,
+      [new StaticSourceObject(childId, [childRenderObjectId], Array.Empty<StaticSourceObject>())]
+    );
+    session.ApplyHierarchy(
+      editedRoot,
+      [source.StaticRenderObjectSequence[0].Id, childRenderObjectId]
+    );
+
+    var result = session.Commit();
+
+    result.TryGetValue(out var edited).Should().BeTrue();
+    edited!.StaticRenderObjectSequence.Select(item => item.LocalId).Should().Equal(101, 1000);
+    edited.RootSourceObject.Id.Value.Should().Be(31);
+    edited.RootSourceObject.Children.Should().ContainSingle().Subject.Id.Value.Should().Be(100);
+    edited.RootSourceObject.Children[0].StaticRenderObjectIds.Should().Equal(childRenderObjectId);
+  }
+
+  [Fact]
+  public void HierarchyAndPartitionMembershipEditsProduceOneFinalCanonicalSequence()
+  {
+    var build = StaticMeshBuilder
+      .Create()
+      .SetRootSourceObject(
+        new CanonicalStaticSourceObject(
+          [RenderObject(), RenderObject()],
+          [
+            new CanonicalStaticSourceObject([RenderObject()]),
+            new CanonicalStaticSourceObject([RenderObject()]),
+          ]
+        )
+      )
+      .Build();
+    build.TryGetValue(out var source).Should().BeTrue();
+    var root = source!.RootSourceObject;
+    var session = source.Edit();
+    session.RemoveRenderObject(root.StaticRenderObjectIds[0]);
+    var additionId = session.AddRenderObject(root.Id, Vertices(), Triangles());
+    var reorderedRoot = new StaticSourceObject(
+      root.Id,
+      root.StaticRenderObjectIds,
+      root.Children.Reverse()
+    );
+    session.ApplyHierarchy(
+      reorderedRoot,
+      [
+        root.StaticRenderObjectIds[1],
+        root.Children[1].StaticRenderObjectIds[0],
+        root.Children[0].StaticRenderObjectIds[0],
+        additionId,
+      ]
+    );
+
+    var result = session.Commit();
+
+    result.TryGetValue(out var edited).Should().BeTrue();
+    edited!
+      .StaticRenderObjectSequence.Select(record => record.LocalId)
+      .Should()
+      .Equal(
+        root.StaticRenderObjectIds[1].Value,
+        root.Children[1].StaticRenderObjectIds[0].Value,
+        root.Children[0].StaticRenderObjectIds[0].Value,
+        additionId.Value
+      );
+    edited.RootSourceObject.StaticRenderObjectIds.Should().Equal(root.StaticRenderObjectIds[1], additionId);
+    edited.RootSourceObject.Children.Select(child => child.Id).Should().Equal(
+      root.Children[1].Id,
+      root.Children[0].Id
+    );
+  }
+
+  [Fact]
+  public async Task HierarchyEditPreservesAuthoritativeNonFlattenedSequence()
+  {
+    await using var stream = new MemoryStream(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var read = await new MshReader().ReadAsync(stream);
+    var source = read.Value.Should().BeOfType<StaticMeshAsset>().Subject;
+    var authoritativeSequence = source.StaticRenderObjectSequence.Select(record => record.Id).ToArray();
+    var session = source.Edit();
+    session.ApplyHierarchy(source.RootSourceObject, authoritativeSequence);
+
+    var result = session.Commit();
+
+    result.TryGetValue(out var edited).Should().BeTrue();
+    edited!.StaticRenderObjectSequence.Select(record => record.Id).Should().Equal(authoritativeSequence);
+  }
+
+  [Theory]
+  [InlineData("duplicate")]
+  [InlineData("missing")]
+  public async Task HierarchyEditRejectsSequenceThatDoesNotExactlyMatchFinalMembership(
+    string invalidity
+  )
+  {
+    await using var stream = new MemoryStream(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var read = await new MshReader().ReadAsync(stream);
+    var source = read.Value.Should().BeOfType<StaticMeshAsset>().Subject;
+    var sourceSequence = source.StaticRenderObjectSequence.Select(record => record.Id).ToArray();
+    var invalidSequence = invalidity == "duplicate"
+      ? sourceSequence.Take(sourceSequence.Length - 1).Append(sourceSequence[0]).ToArray()
+      : sourceSequence.Take(sourceSequence.Length - 1).ToArray();
+    var session = source.Edit();
+    session.ApplyHierarchy(source.RootSourceObject, invalidSequence);
+
+    var result = session.Commit();
+
+    result.TryGetValue(out _).Should().BeFalse();
+    result.Diagnostics.Should()
+      .ContainSingle()
+      .Subject.Code.Should()
+      .Be(MshDiagnosticCodes.InvalidEdit);
+    source.StaticRenderObjectSequence.Select(record => record.Id).Should().Equal(sourceSequence);
+  }
+
+  [Fact]
+  public void HierarchyEditRejectsSequencePlannedBeforeMembershipChanges()
+  {
+    var build = StaticMeshBuilder
+      .Create()
+      .SetRootSourceObject(new CanonicalStaticSourceObject([RenderObject(), RenderObject()]))
+      .Build();
+    build.TryGetValue(out var source).Should().BeTrue();
+    var sourceSequence = source!.StaticRenderObjectSequence.Select(record => record.Id).ToArray();
+    var session = source.Edit();
+    session.RemoveRenderObject(sourceSequence[0]);
+    session.AddRenderObject(source.RootSourceObject.Id, Vertices(), Triangles());
+    session.ApplyHierarchy(source.RootSourceObject, sourceSequence);
+
+    var result = session.Commit();
+
+    result.TryGetValue(out _).Should().BeFalse();
+    result.Diagnostics.Should()
+      .ContainSingle()
+      .Subject.Code.Should()
+      .Be(MshDiagnosticCodes.InvalidEdit);
+    source.StaticRenderObjectSequence.Select(record => record.Id).Should().Equal(sourceSequence);
+  }
+
   [Theory]
   [InlineData("underflow")]
   [InlineData("trailing")]

@@ -59,6 +59,26 @@ namespace EarthTool.MSH.Internal
         asset.NextSourceObjectLocalId
       );
     }
+
+    internal static StaticMeshIdentityState FromLocalIds(
+      MeshAssetLineageId lineageId,
+      IEnumerable<int> staticRenderObjectLocalIds,
+      IEnumerable<int> sourceObjectLocalIds,
+      int? nextStaticRenderObjectLocalId,
+      int? nextSourceObjectLocalId
+    )
+    {
+      return new StaticMeshIdentityState(
+        lineageId,
+        staticRenderObjectLocalIds.Select(localId => new StaticRenderObjectId(
+          lineageId,
+          localId
+        )),
+        sourceObjectLocalIds.Select(localId => new SourceObjectId(lineageId, localId)),
+        nextStaticRenderObjectLocalId,
+        nextSourceObjectLocalId
+      );
+    }
   }
 
   internal static class MeshAssetRebinder

@@ -1235,6 +1235,8 @@ namespace EarthTool.GLTF
     /// <summary>Gets the exact conflict resolutions applied by the successful transaction.</summary>
     public IReadOnlyList<GltfMetadataConflictResolution> AppliedConflictResolutions { get; }
 
+    internal PreservationReport CreationPreservation { get; }
+
     internal GltfEditImportResult(
       StaticMeshAsset asset,
       InterchangeBaseline nextBaseline,
@@ -1245,7 +1247,8 @@ namespace EarthTool.GLTF
       IReadOnlyDictionary<string, int>? metadataNextIds = null,
       GltfArtistObjectLocalIds? artistObjectLocalIds = null,
       GltfMetadataLineageDisposition lineageDisposition = GltfMetadataLineageDisposition.Retained,
-      IEnumerable<GltfMetadataConflictResolution>? appliedConflictResolutions = null)
+      IEnumerable<GltfMetadataConflictResolution>? appliedConflictResolutions = null,
+      PreservationReport? creationPreservation = null)
     {
       Asset = asset;
       NextBaseline = nextBaseline;
@@ -1265,6 +1268,7 @@ namespace EarthTool.GLTF
       LineageDisposition = lineageDisposition;
       AppliedConflictResolutions = Array.AsReadOnly(
         appliedConflictResolutions?.ToArray() ?? Array.Empty<GltfMetadataConflictResolution>());
+      CreationPreservation = creationPreservation ?? preservation;
     }
   }
 
