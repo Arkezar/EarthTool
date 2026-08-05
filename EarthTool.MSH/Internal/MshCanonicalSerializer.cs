@@ -13,7 +13,6 @@ namespace EarthTool.MSH.Internal
 {
   internal static class MshCanonicalSerializer
   {
-    internal const int BaseHeaderSize = 0x368;
     internal const int StaticRecordSize = 0xDD;
     internal const int DynamicRecordSize = 0x410;
     private const int StaticRecordPivotOffsetFromEnd = 17;
@@ -31,19 +30,16 @@ namespace EarthTool.MSH.Internal
       var vertices = rootSourceObject.RenderObjects
         .SelectMany(record => record.RenderVertices)
         .ToArray();
-      var commonHeader = CreateCanonicalCommonHeader(
-        0,
-        animationLengths,
-        vertices,
-        footprint,
-        horizontalExtents);
+      var commonHeader = CommonMeshBaseHeader.CreateCanonicalStatic(animationLengths)
+        .SerializedRepresentation.ToArray();
+      WriteCanonicalStaticHeaderRegions(commonHeader, vertices, footprint, horizontalExtents);
       return CreateStatic(framing, commonHeader, records, Array.Empty<byte>());
     }
 
     internal static long GetCanonicalStaticSerializedLength(
       IEnumerable<(int VertexCount, int TriangleCount)> geometry)
     {
-      var length = sizeof(uint) + 16L + BaseHeaderSize + sizeof(uint);
+      var length = sizeof(uint) + 16L + CommonMeshBaseHeader.SerializedSize + sizeof(uint);
       foreach (var record in geometry)
       {
         var blocks = checked((record.VertexCount + 3L) / 4L);
@@ -166,7 +162,7 @@ namespace EarthTool.MSH.Internal
           WriteUInt32(records[index].Bytes, markerOffset, 1);
         }
       }
-      var length = archiveHeader.Length + BaseHeaderSize + sizeof(uint)
+      var length = archiveHeader.Length + CommonMeshBaseHeader.SerializedSize + sizeof(uint)
         + records.Sum(record => record.Bytes.Length) + source.RootTrailingBytes.Count;
       var result = new byte[length];
       archiveHeader.CopyTo(result, 0);
@@ -203,7 +199,7 @@ namespace EarthTool.MSH.Internal
         WriteUInt16(commonHeader, 0x366, ToUnsignedFixedPoint(horizontalExtents.NegativeX));
       }
       commonHeader.CopyTo(result, archiveHeader.Length);
-      var cursor = archiveHeader.Length + BaseHeaderSize;
+      var cursor = archiveHeader.Length + CommonMeshBaseHeader.SerializedSize;
       WriteUInt32(result, cursor, trailingHierarchyUnwindCount);
       cursor += sizeof(uint);
       foreach (var record in records)
@@ -673,11 +669,7 @@ namespace EarthTool.MSH.Internal
     internal static byte[] CreateCanonicalDynamicRecord()
     {
       var record = new byte[DynamicRecordSize];
-      var commonHeader = CreateCanonicalCommonHeader(
-        1,
-        new AnimationClassBytes(),
-        Array.Empty<CanonicalStaticVertex>());
-      commonHeader.CopyTo(record, 0);
+      CommonMeshBaseHeader.CanonicalDynamic.SerializedRepresentation.CopyTo(record, 0);
       return record;
     }
 
@@ -737,38 +729,6 @@ namespace EarthTool.MSH.Internal
       }
     }
 
-    internal static byte[] CreateCanonicalCommonHeader(
-      uint meshKind,
-      AnimationClassBytes animationLengths,
-      IReadOnlyList<CanonicalStaticVertex> vertices,
-      CanonicalStaticFootprint? footprint = null,
-      CanonicalHorizontalExtents? horizontalExtents = null)
-    {
-      var header = new byte[BaseHeaderSize];
-      header[0] = (byte)'M';
-      header[1] = (byte)'E';
-      header[2] = (byte)'S';
-      header[3] = (byte)'H';
-      WriteUInt32(header, 0x04, 1);
-      WriteUInt32(header, 0x08, meshKind);
-      WriteAnimationClassBytes(header, 0x10, animationLengths);
-
-      for (var attachment = 0; attachment < 49; attachment++)
-      {
-        var offset = 0x1D8 + (attachment * 8);
-        WriteInt16(header, offset, short.MinValue);
-        WriteInt16(header, offset + 2, short.MinValue);
-        WriteInt16(header, offset + 4, short.MinValue);
-      }
-
-      if (meshKind == 0)
-      {
-        WriteCanonicalStaticHeaderRegions(header, vertices, footprint, horizontalExtents);
-      }
-
-      return header;
-    }
-
     private static byte[] CreateStatic(
       MeshArchiveFraming framing,
       IReadOnlyList<byte> commonHeader,
@@ -777,11 +737,11 @@ namespace EarthTool.MSH.Internal
     {
       var archiveHeader = CreateArchiveHeader(framing);
       var recordLength = records.Sum(GetStaticRecordLength);
-      var result = new byte[archiveHeader.Length + BaseHeaderSize + sizeof(uint) + recordLength
-        + rootTrailingBytes.Count];
+      var result = new byte[archiveHeader.Length + CommonMeshBaseHeader.SerializedSize
+        + sizeof(uint) + recordLength + rootTrailingBytes.Count];
       archiveHeader.CopyTo(result, 0);
       commonHeader.CopyTo(result, archiveHeader.Length);
-      var cursor = archiveHeader.Length + BaseHeaderSize;
+      var cursor = archiveHeader.Length + CommonMeshBaseHeader.SerializedSize;
       WriteUInt32(result, cursor, checked((uint)records[^1].Depth + 1));
       cursor += sizeof(uint);
       for (var index = 0; index < records.Count; index++)
@@ -1130,11 +1090,6 @@ namespace EarthTool.MSH.Internal
     {
       WriteUInt32(data, offset,
         ((uint)value.A << 24) | ((uint)value.B << 16) | ((uint)value.C << 8) | value.D);
-    }
-
-    private static void WriteInt16(byte[] data, int offset, short value)
-    {
-      BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(offset), value);
     }
 
     private static void WriteUInt16(byte[] data, int offset, ushort value)

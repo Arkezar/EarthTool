@@ -40,7 +40,6 @@ namespace EarthTool.MSH.Internal
     private const uint ArchiveTypeFlag = 0x10000000;
     private const uint CreationGuidFlag = 0x20000000;
     private const uint KnownDeclarationBits = 0x30FFFFFF;
-    private const int BaseHeaderSize = 0x368;
 
     internal static MshDecodeResult Decode(
       byte[] source,
@@ -105,8 +104,8 @@ namespace EarthTool.MSH.Internal
       }
 
       var baseOffset = cursor;
-      context.Ensure(baseOffset, BaseHeaderSize, "BaseHeader");
-      var baseHeader = data.Slice(baseOffset, BaseHeaderSize);
+      context.Ensure(baseOffset, CommonMeshBaseHeader.SerializedSize, "BaseHeader");
+      var baseHeader = data.Slice(baseOffset, CommonMeshBaseHeader.SerializedSize);
       if (
         !baseHeader
           .Slice(0, 4)

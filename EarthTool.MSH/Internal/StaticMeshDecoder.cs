@@ -10,7 +10,6 @@ namespace EarthTool.MSH.Internal
 {
   internal static class StaticMeshDecoder
   {
-    private const int BaseHeaderSize = 0x368;
 
     internal static MshDecodeResult Decode(
       MshDecodeContext context,
@@ -20,8 +19,8 @@ namespace EarthTool.MSH.Internal
     {
       var data = context.Data;
       var profile = context.Profile;
-      var baseHeader = data.Slice(baseOffset, BaseHeaderSize);
-      var cursor = baseOffset + BaseHeaderSize;
+      var baseHeader = data.Slice(baseOffset, CommonMeshBaseHeader.SerializedSize);
+      var cursor = baseOffset + CommonMeshBaseHeader.SerializedSize;
       context.Ensure(cursor, sizeof(uint), "StoredTrailingHierarchyUnwindCount");
       var storedTrailingUnwind = context.ReadUInt32(cursor);
       cursor += sizeof(uint);
@@ -63,7 +62,7 @@ namespace EarthTool.MSH.Internal
       {
         throw context.Structural(
           "StoredTrailingHierarchyUnwindCount",
-          baseOffset + BaseHeaderSize,
+          baseOffset + CommonMeshBaseHeader.SerializedSize,
           $"Expected {expectedTrailingUnwind}, found {storedTrailingUnwind}."
         );
       }

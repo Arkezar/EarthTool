@@ -652,7 +652,10 @@ namespace EarthTool.GLTF.Internal
       int nodeIndex,
       GltfOperationProfile profile)
     {
-      var common = DecodeMetadataBytes(payload, "commonBaseHeader", 0x368);
+      var common = DecodeMetadataBytes(
+        payload,
+        "commonBaseHeader",
+        CommonMeshBaseHeader.SerializedSize);
       var effect = DecodeMetadataBytes(payload, "effectRepresentation", 0x9C);
       var meshName = DecodeMetadataBytes(payload, "meshName", profile.MaxInputBytes);
       var texturePath = DecodeMetadataBytes(payload, "texturePath", profile.MaxInputBytes);

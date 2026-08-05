@@ -10,7 +10,6 @@ namespace EarthTool.MSH.Internal
 {
   internal static class DynamicMeshDecoder
   {
-    private const int BaseHeaderSize = 0x368;
     private const int DynamicFixedSize = 0x404;
     private const int MinimumDynamicRecordSize = 0x410;
 
@@ -91,7 +90,7 @@ namespace EarthTool.MSH.Internal
       if (depth > 1)
       {
         var headerPath = path + ".CommonBaseHeader";
-        context.Ensure(objectOffset, BaseHeaderSize, headerPath);
+        context.Ensure(objectOffset, CommonMeshBaseHeader.SerializedSize, headerPath);
         if (!data.Slice(objectOffset, 4).SequenceEqual(new byte[] { (byte)'M', (byte)'E', (byte)'S', (byte)'H' }))
         {
           throw context.Structural(headerPath + ".Magic", objectOffset, "Expected MESH.");
@@ -117,7 +116,9 @@ namespace EarthTool.MSH.Internal
       }
 
       context.Ensure(objectOffset, DynamicFixedSize, path + ".Extension");
-      var fixedExtension = data.Slice(objectOffset + BaseHeaderSize, 0x9C).ToArray();
+      var fixedExtension = data.Slice(
+        objectOffset + CommonMeshBaseHeader.SerializedSize,
+        0x9C).ToArray();
       var cursor = objectOffset + DynamicFixedSize;
       var meshName = ReadBytes(
         context,
@@ -130,9 +131,11 @@ namespace EarthTool.MSH.Internal
         path + ".Extension.TexturePathBytes",
         ref stringBytes);
       var extension = new DynamicEffectExtension(fixedExtension, meshName, texturePath);
+      var commonBaseHeader = new CommonMeshBaseHeader(
+        data.Slice(objectOffset, CommonMeshBaseHeader.SerializedSize).ToArray());
       AddCompatibilityDiagnostics(
         context,
-        data.Slice(objectOffset, BaseHeaderSize),
+        commonBaseHeader,
         extension,
         path,
         objectOffset,
@@ -186,26 +189,19 @@ namespace EarthTool.MSH.Internal
       }
 
       payloadEnd = cursor;
-      return new DynamicObject(
-        new CommonMeshBaseHeader(data.Slice(objectOffset, BaseHeaderSize).ToArray()),
-        extension,
-        children);
+      return new DynamicObject(commonBaseHeader, extension, children);
     }
 
     private static void AddCompatibilityDiagnostics(
       MshDecodeContext context,
-      ReadOnlySpan<byte> commonHeader,
+      CommonMeshBaseHeader commonHeader,
       DynamicEffectExtension extension,
       string path,
       int objectOffset,
       bool isRoot)
     {
-      var extensionOffset = objectOffset + BaseHeaderSize;
-      var canonicalHeader = MshCanonicalSerializer.CreateCanonicalCommonHeader(
-        1,
-        new AnimationClassBytes(),
-        Array.Empty<Authoring.CanonicalStaticVertex>());
-      if (!commonHeader.SequenceEqual(canonicalHeader))
+      var extensionOffset = objectOffset + CommonMeshBaseHeader.SerializedSize;
+      if (!commonHeader.IsCanonicalDynamic)
       {
         context.AddDiagnosticBounded(
           context.Compatibility(

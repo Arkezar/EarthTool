@@ -84,6 +84,31 @@ public class DynamicMeshAssetTests
   }
 
   [Fact]
+  public async Task PublicReaderDiagnosesAndPreservesExactNoncanonicalDynamicBaseHeader()
+  {
+    var build = DynamicMeshBuilder.Create(CreationGuid, LineageId).Build();
+    build.TryGetValue(out var canonical).Should().BeTrue();
+    var fixture = await WriteAsync(canonical!);
+    fixture[0x18 + 0x0C] = 1;
+    await using var source = new MemoryStream(fixture);
+
+    var read = await new MshReader().ReadAsync(source);
+
+    read.Status.Should().Be(OperationStatus.Succeeded);
+    var asset = read.Value.Should().BeOfType<DynamicMeshAsset>().Subject;
+    var diagnostic = read.Diagnostics.Should().ContainSingle().Subject;
+    diagnostic.Code.Should().Be(MshDiagnosticCodes.CompatibilityAnomaly);
+    diagnostic.EventId.Should().Be(1009);
+    diagnostic.Severity.Should().Be(DiagnosticSeverity.Warning);
+    diagnostic.Path.Should().Be("RootDynamicObject.CommonBaseHeader");
+    diagnostic.ByteOffset.Should().Be(0x18);
+    diagnostic.Message.Should().Be("A noncanonical inherited dynamic base header was preserved.");
+    diagnostic.Data.Should().BeEmpty();
+    asset.CommonBaseHeader.BoxPresenceMask.Should().Be(1);
+    (await WriteAsync(asset)).Should().Equal(fixture);
+  }
+
+  [Fact]
   public async Task ExpertConstructionAcceptsUnknownDynamicEffectWithoutCanonicalizingIt()
   {
     var fixture = CreateFixture(CreateDynamicRecord(uint.MaxValue, 7));
