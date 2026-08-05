@@ -120,6 +120,25 @@ namespace EarthTool.GLTF.Internal
       CancellationToken cancellationToken
     )
     {
+      return ImportGlbCore(glb, expectedBaseline, profile, cancellationToken);
+    }
+
+    internal static DynamicGltfImport ImportGlb(
+      byte[] glb,
+      GltfOperationProfile profile,
+      CancellationToken cancellationToken
+    )
+    {
+      return ImportGlbCore(glb, expectedBaseline: null, profile, cancellationToken);
+    }
+
+    private static DynamicGltfImport ImportGlbCore(
+      byte[] glb,
+      InterchangeBaseline? expectedBaseline,
+      GltfOperationProfile profile,
+      CancellationToken cancellationToken
+    )
+    {
       if (glb.Length > profile.MaxInputBytes)
       {
         throw new ResourceLimitException(glb.Length, profile.MaxInputBytes);
@@ -149,6 +168,19 @@ namespace EarthTool.GLTF.Internal
     {
       GlbDocument.ValidateSeparate(json, binary, bufferUri, images);
       return Import(json, binary, expectedBaseline, profile, cancellationToken);
+    }
+
+    internal static DynamicGltfImport ImportSeparate(
+      byte[] json,
+      byte[] binary,
+      string bufferUri,
+      IReadOnlyDictionary<string, byte[]> images,
+      GltfOperationProfile profile,
+      CancellationToken cancellationToken
+    )
+    {
+      GlbDocument.ValidateSeparate(json, binary, bufferUri, images);
+      return Import(json, binary, expectedBaseline: null, profile, cancellationToken);
     }
 
     internal static void ValidateGlb(byte[] glb, GltfOperationProfile profile)
@@ -313,7 +345,7 @@ namespace EarthTool.GLTF.Internal
     private static DynamicGltfImport Import(
       ReadOnlyMemory<byte> jsonBytes,
       ReadOnlyMemory<byte> binary,
-      InterchangeBaseline expectedBaseline,
+      InterchangeBaseline? expectedBaseline,
       GltfOperationProfile profile,
       CancellationToken cancellationToken
     )
@@ -342,7 +374,7 @@ namespace EarthTool.GLTF.Internal
     private static DynamicGltfImport ImportCore(
       ReadOnlyMemory<byte> jsonBytes,
       ReadOnlyMemory<byte> binary,
-      InterchangeBaseline expectedBaseline,
+      InterchangeBaseline? expectedBaseline,
       GltfOperationProfile profile,
       CancellationToken cancellationToken
     )
@@ -365,7 +397,12 @@ namespace EarthTool.GLTF.Internal
       ValidateMetadataBudgets(root, manifestText, profile, layout.ObjectNodeIndices);
       using var manifest = ParseMetadata(manifestText, profile);
       var manifestRoot = manifest.RootElement;
-      ValidateMetadataHeader(manifestRoot, "manifest", 0, expectedBaseline);
+      expectedBaseline = ValidateMetadataHeader(
+        manifestRoot,
+        "manifest",
+        0,
+        expectedBaseline
+      );
       var payload = manifestRoot.GetProperty("payload");
       if (payload.GetProperty("assetKind").GetString() != "dynamic")
       {
@@ -2132,11 +2169,11 @@ namespace EarthTool.GLTF.Internal
       }
     }
 
-    private static void ValidateMetadataHeader(
+    private static InterchangeBaseline ValidateMetadataHeader(
       JsonElement metadata,
       string expectedKind,
       int expectedLocalId,
-      InterchangeBaseline expectedBaseline
+      InterchangeBaseline? expectedBaseline
     )
     {
       if (
@@ -2153,11 +2190,12 @@ namespace EarthTool.GLTF.Internal
       }
       var lineage = metadata.GetProperty("assetLineageId").GetGuid();
       var document = metadata.GetProperty("documentId").GetGuid();
-      if (lineage != expectedBaseline.AssetLineageId)
+      var baseline = expectedBaseline ?? new InterchangeBaseline(lineage, document);
+      if (lineage != baseline.AssetLineageId)
       {
         throw new DynamicMetadataIdentityException(true);
       }
-      if (document != expectedBaseline.DocumentId)
+      if (document != baseline.DocumentId)
       {
         throw new DynamicMetadataIdentityException(false);
       }
@@ -2174,6 +2212,7 @@ namespace EarthTool.GLTF.Internal
           "Dynamic metadata scope does not match its carrier."
         );
       }
+      return baseline;
     }
 
     private static string GetEarthToolMetadata(JsonElement carrier, string path)

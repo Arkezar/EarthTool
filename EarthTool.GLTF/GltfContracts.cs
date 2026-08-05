@@ -1189,6 +1189,22 @@ namespace EarthTool.GLTF
     }
   }
 
+  /// <summary>Reports one immutable mesh asset created from glTF.</summary>
+  public sealed class GltfMeshCreationResult
+  {
+    /// <summary>Gets the created immutable static or dynamic mesh asset.</summary>
+    public MeshAsset Asset { get; }
+
+    /// <summary>Gets the retained, regenerated, and canonicalized MSH paths.</summary>
+    public PreservationReport Preservation { get; }
+
+    internal GltfMeshCreationResult(MeshAsset asset, PreservationReport preservation)
+    {
+      Asset = asset;
+      Preservation = preservation;
+    }
+  }
+
   /// <summary>Reports a successful reconciled edit import.</summary>
   public sealed class GltfEditImportResult
   {

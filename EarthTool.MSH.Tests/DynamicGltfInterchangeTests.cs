@@ -87,6 +87,27 @@ public class DynamicGltfInterchangeTests
   }
 
   [Fact]
+  public async Task UnifiedCreationCreatesMetadataBackedDynamicAssetFromStream()
+  {
+    var asset = CreateAsset();
+    await using var package = new MemoryStream();
+    var interchange = new GltfInterchange();
+    await interchange.ExportGlbAsync(
+      asset,
+      package,
+      new GltfExportOptions(_lineageId, _documentId));
+    package.Position = 0;
+
+    var created = await interchange.CreateMeshAsync(package);
+
+    created.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(created.Diagnostics));
+    created.Value!.Asset.Should().BeOfType<DynamicMeshAsset>();
+    created.Value.Asset.GetSerializedRepresentation().Should()
+      .Equal(asset.GetSerializedRepresentation());
+    created.Value.Preservation.Changes.Should().NotBeEmpty();
+  }
+
+  [Fact]
   public async Task DynamicPlacementRootTransformAndAnimationRemainSceneOnlyOnEditImport()
   {
     var asset = CreateAsset();

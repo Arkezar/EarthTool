@@ -741,6 +741,219 @@ namespace EarthTool.GLTF
       }
     }
 
+    /// <summary>Creates one immutable static or dynamic mesh asset from a GLB stream.</summary>
+    public async Task<OperationResult<GltfMeshCreationResult>> CreateMeshAsync(
+      Stream source,
+      GltfNewModelImportOptions? options = null,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default
+    )
+    {
+      if (source is null)
+      {
+        throw new ArgumentNullException(nameof(source));
+      }
+
+      profile ??= GltfOperationProfile.Default;
+      options ??= new GltfNewModelImportOptions();
+      try
+      {
+        var glb = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
+          .ConfigureAwait(false);
+        return await CreateMeshCoreAsync(
+            glb,
+            separatePackage: null,
+            options,
+            profile,
+            cancellationToken
+          )
+          .ConfigureAwait(false);
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfMeshCreationResult>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfMeshCreationResult>(ToDiagnostic(ex));
+      }
+    }
+
+    /// <summary>Creates one immutable static or dynamic mesh asset from a separate-glTF file.</summary>
+    public async Task<OperationResult<GltfMeshCreationResult>> CreateMeshFileAsync(
+      string sourcePath,
+      GltfNewModelImportOptions? options = null,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default
+    )
+    {
+      if (sourcePath is null)
+      {
+        throw new ArgumentNullException(nameof(sourcePath));
+      }
+
+      profile ??= GltfOperationProfile.Default;
+      options ??= new GltfNewModelImportOptions();
+      try
+      {
+        var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
+          .ConfigureAwait(false);
+        return await CreateMeshCoreAsync(
+            package.Json,
+            package,
+            options,
+            profile,
+            cancellationToken
+          )
+          .ConfigureAwait(false);
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfMeshCreationResult>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfMeshCreationResult>(ToDiagnostic(ex, sourcePath));
+      }
+    }
+
+    private static async Task<OperationResult<GltfMeshCreationResult>> CreateMeshCoreAsync(
+      byte[] source,
+      SeparateGltfPackage? separatePackage,
+      GltfNewModelImportOptions options,
+      GltfOperationProfile profile,
+      CancellationToken cancellationToken
+    )
+    {
+      ReadOnlyMemory<byte> json;
+      if (separatePackage is null)
+      {
+        var jsonLength =
+          source.Length >= 20
+            ? checked((int)BinaryPrimitives.ReadUInt32LittleEndian(source.AsSpan(12, sizeof(uint))))
+            : 0;
+        json = jsonLength > 0 && 20 + jsonLength <= source.Length
+          ? source.AsMemory(20, jsonLength)
+          : ReadOnlyMemory<byte>.Empty;
+      }
+      else
+      {
+        GlbDocument.ValidateSeparate(
+          separatePackage.Json,
+          separatePackage.Binary,
+          separatePackage.BufferUri,
+          separatePackage.Images
+        );
+        json = separatePackage.Json;
+      }
+
+      if (
+        !json.IsEmpty
+        && DynamicGltfDocument.HasDynamicManifest(json, profile.MaxJsonDepth)
+      )
+      {
+        var imported = separatePackage is null
+          ? DynamicGltfDocument.ImportGlb(source, profile, cancellationToken)
+          : DynamicGltfDocument.ImportSeparate(
+            separatePackage.Json,
+            separatePackage.Binary,
+            separatePackage.BufferUri,
+            separatePackage.Images,
+            profile,
+            cancellationToken
+          );
+        return new OperationResult<GltfMeshCreationResult>(
+          OperationStatus.Succeeded,
+          new GltfMeshCreationResult(imported.Asset, imported.Preservation),
+          CreateDynamicPlacementDiagnostics(imported)
+        );
+      }
+
+      ParsedGlb parsed;
+      try
+      {
+        parsed = separatePackage is null
+          ? GlbDocument.Parse(source, profile)
+          : GlbDocument.ParseSeparate(
+            separatePackage.Json,
+            separatePackage.Binary,
+            profile
+          );
+      }
+      catch (Exception ex)
+        when (ex is MissingMetadataException
+          || ex is MetadataConflictException conflict
+          && conflict.Code == GltfDiagnosticCodes.MissingManifest)
+      {
+        parsed = separatePackage is null
+          ? GlbDocument.ParseNewModel(source, profile)
+          : GlbDocument.ParseSeparateNewModel(
+            separatePackage.Json,
+            separatePackage.Binary,
+            profile
+          );
+        ValidateGeometryProfile(parsed, profile);
+        return ToCreationResult(
+          ImportNewModelParsed(parsed, profile, cancellationToken, options),
+          value => value.Asset,
+          value => value.Preservation,
+          MissingMetadataCreationWarning()
+        );
+      }
+
+      ValidateGeometryProfile(parsed, profile);
+      var manifest = GlbDocument.ParseMetadata(parsed.ManifestMetadata!, profile);
+      var baseline = new InterchangeBaseline(manifest.AssetLineageId, manifest.DocumentId);
+      return ToCreationResult(
+        await ImportParsedAsync(
+            parsed,
+            baseline,
+            new GltfEditImportOptions(),
+            profile,
+            cancellationToken
+          )
+          .ConfigureAwait(false),
+        value => value.Asset,
+        value => value.Preservation
+      );
+    }
+
+    private static OperationResult<GltfMeshCreationResult> ToCreationResult<T>(
+      OperationResult<T> result,
+      Func<T, MeshAsset> getAsset,
+      Func<T, PreservationReport> getPreservation,
+      OperationDiagnostic? firstDiagnostic = null
+    ) where T : class
+    {
+      var diagnostics = firstDiagnostic is null
+        ? result.Diagnostics
+        : new[] { firstDiagnostic }.Concat(result.Diagnostics);
+      return result.Succeeded
+        ? new OperationResult<GltfMeshCreationResult>(
+          OperationStatus.Succeeded,
+          new GltfMeshCreationResult(
+            getAsset(result.Value!),
+            getPreservation(result.Value!)
+          ),
+          diagnostics
+        )
+        : new OperationResult<GltfMeshCreationResult>(
+          result.Status,
+          diagnostics: diagnostics
+        );
+    }
+
+    private static OperationDiagnostic MissingMetadataCreationWarning()
+    {
+      return new OperationDiagnostic(
+        GltfDiagnosticCodes.MissingManifest,
+        2000,
+        DiagnosticSeverity.Warning,
+        "$",
+        "EarthTool metadata is missing; canonical static mesh asset creation was attempted."
+      );
+    }
+
     /// <summary>Imports a dynamic GLB into an expected lineage and document baseline.</summary>
     public async Task<OperationResult<GltfDynamicEditImportResult>> ImportEditDynamicGlbAsync(
       Stream source,

@@ -5733,6 +5733,82 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
+  public async Task UnifiedCreationCreatesMetadataBackedStaticAssetFromStream()
+  {
+    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var interchange = new GltfInterchange();
+    await using var package = new MemoryStream();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      package,
+      new GltfExportOptions(LineageId, DocumentId));
+    package.Position = 0;
+
+    var created = await interchange.CreateMeshAsync(package);
+
+    created.Status.Should().Be(OperationStatus.Succeeded);
+    created.Value!.Asset.Should().BeOfType<StaticMeshAsset>();
+    created.Value.Asset.Origin.Should().Be(MeshAssetOrigin.Loaded);
+    created.Value.Asset.GetSerializedRepresentation().Should()
+      .Equal(sourceAsset.GetSerializedRepresentation());
+    created.Value.Preservation.Changes.Should().NotBeEmpty();
+  }
+
+  [Fact]
+  public async Task UnifiedCreationCreatesMetadataBackedStaticAssetFromFile()
+  {
+    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var interchange = new GltfInterchange();
+    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+    var path = Path.Combine(directory, "model.gltf");
+    Directory.CreateDirectory(directory);
+    try
+    {
+      await interchange.ExportGltfFileAsync(
+        sourceAsset,
+        path,
+        new GltfExportOptions(LineageId, DocumentId));
+
+      var created = await interchange.CreateMeshFileAsync(path);
+
+      created.Status.Should().Be(OperationStatus.Succeeded);
+      created.Value!.Asset.Should().BeOfType<StaticMeshAsset>();
+      created.Value.Asset.GetSerializedRepresentation().Should()
+        .Equal(sourceAsset.GetSerializedRepresentation());
+      created.Value.Preservation.Changes.Should().NotBeEmpty();
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
+  }
+
+  [Fact]
+  public async Task UnifiedCreationAuthorsMetadataFreeStaticAssetWithWarning()
+  {
+    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
+    var interchange = new GltfInterchange();
+    await using var exported = new MemoryStream();
+    await interchange.ExportGlbAsync(
+      sourceAsset,
+      exported,
+      new GltfExportOptions(LineageId, DocumentId));
+    var metadataFree = RewriteJson(exported.ToArray(), RemoveEarthToolMetadata);
+    await using var source = new MemoryStream(metadataFree);
+
+    var created = await interchange.CreateMeshAsync(source);
+
+    created.Status.Should().Be(
+      OperationStatus.Succeeded,
+      string.Join("; ", created.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}")));
+    created.Value!.Asset.Should().BeOfType<StaticMeshAsset>();
+    created.Value.Asset.Origin.Should().Be(MeshAssetOrigin.Canonical);
+    created.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.MissingManifest
+      && diagnostic.Severity == DiagnosticSeverity.Warning);
+  }
+
+  [Fact]
   public async Task NewModelImportAuthorsCanonicalAssetAndUsableFirstMetadataBaseline()
   {
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
