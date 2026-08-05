@@ -5,6 +5,7 @@ using EarthTool.GLTF.Internal;
 using EarthTool.MSH.Assets;
 using EarthTool.MSH.Authoring;
 using EarthTool.MSH.Operations;
+using EarthTool.MSH.Services;
 using SharpGLTF.Validation;
 using System;
 using System.Buffers.Binary;
@@ -2831,24 +2832,12 @@ namespace EarthTool.GLTF
       }
 
       cancellationToken.ThrowIfCancellationRequested();
-      if (manifest.StaticRenderObjectLocalIds.Count == 0
-        || manifest.SourceObjectLocalIds.Count == 0
-        || manifest.StaticRenderObjectLocalIds.Any(id => id <= 0)
-        || manifest.SourceObjectLocalIds.Any(id => id <= 0)
-        || manifest.StaticRenderObjectLocalIds.Distinct().Count()
-          != manifest.StaticRenderObjectLocalIds.Count
-        || manifest.SourceObjectLocalIds.Distinct().Count() != manifest.SourceObjectLocalIds.Count
-        || !IsStrictlyIncreasing(manifest.StaticRenderObjectInventory)
+      if (!IsStrictlyIncreasing(manifest.StaticRenderObjectInventory)
         || !IsStrictlyIncreasing(manifest.SourceObjectInventory)
         || !manifest.StaticRenderObjectInventory.SequenceEqual(
           manifest.StaticRenderObjectLocalIds.OrderBy(id => id))
         || !manifest.SourceObjectInventory.SequenceEqual(
-          manifest.SourceObjectLocalIds.OrderBy(id => id))
-        || !manifest.NextStaticRenderObjectLocalId.HasValue
-        || manifest.NextStaticRenderObjectLocalId.Value
-          <= manifest.StaticRenderObjectLocalIds.Max()
-        || !manifest.NextSourceObjectLocalId.HasValue
-        || manifest.NextSourceObjectLocalId.Value <= manifest.SourceObjectLocalIds.Max())
+          manifest.SourceObjectLocalIds.OrderBy(id => id)))
       {
         return Failed<GltfEditImportResult>(MetadataDiagnostic(
           GltfDiagnosticCodes.MalformedMetadata,
@@ -2863,17 +2852,23 @@ namespace EarthTool.GLTF
       StaticMeshAsset asset;
       try
       {
-        var decoded = EarthTool.MSH.Internal.MshV1Decoder.Decode(
-          sourceMsh,
+        using var sourceMshStream = new MemoryStream(sourceMsh, writable: false);
+        var read = await new MshReader().ReadAsync(
+          sourceMshStream,
           MshOperationProfile.Default,
-          cancellationToken);
-        if (decoded.Asset is not StaticMeshAsset decodedAsset)
+          cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (read.Value is null)
+        {
+          throw new InvalidDataException(read.Diagnostics[0].Message);
+        }
+        if (read.Value is not StaticMeshAsset decodedStaticAsset)
         {
           throw new InvalidDataException("Preserved MSH state is not static.");
         }
         var lineageId = new MeshAssetLineageId(manifest.AssetLineageId);
         asset = EarthTool.MSH.Internal.MeshAssetRebinder.RebindStatic(
-          decodedAsset,
+          decodedStaticAsset,
           MeshAssetOrigin.Loaded,
           new EarthTool.MSH.Internal.StaticMeshIdentityState(
             lineageId,
@@ -2883,9 +2878,7 @@ namespace EarthTool.GLTF
             manifest.NextStaticRenderObjectLocalId,
             manifest.NextSourceObjectLocalId));
       }
-      catch (Exception ex) when (ex is EarthTool.MSH.Internal.MshContentException
-        || ex is ArgumentException
-        || ex is InvalidDataException)
+      catch (Exception ex) when (ex is ArgumentException || ex is InvalidDataException)
       {
         return Failed<GltfEditImportResult>(MetadataDiagnostic(
           GltfDiagnosticCodes.MalformedMetadata,
