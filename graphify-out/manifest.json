@@ -1335,8 +1335,8 @@
     "semantic_hash": ""
   },
   "CONTEXT.md": {
-    "mtime": 1785860384.9651072,
-    "ast_hash": "9a964defe02cfb1d8f58d137256ca651",
+    "mtime": 1785879306.2772858,
+    "ast_hash": "f872c5c4c2ed3c9029ab4142872990e7",
     "semantic_hash": ""
   },
   "CONTRIBUTING.md": {
@@ -1520,8 +1520,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH/Internal/MshV1Decoder.cs": {
-    "mtime": 1785860384.9654753,
-    "ast_hash": "77a6b96d87ab3021be3af20d8fdd4504",
+    "mtime": 1785925425.2796917,
+    "ast_hash": "be467176be375fee1f37ebc21f4f5d1b",
     "semantic_hash": ""
   },
   "EarthTool.MSH/Internal/TransactionalFileSystem.cs": {
@@ -1897,6 +1897,21 @@
   "graphify-out/memory/query_20260801_060715_analyze_complexity_of__earthtool_tex_texreader_cs.md": {
     "mtime": 1785564435.2137659,
     "ast_hash": "fa4ae1e8c5c02e4007d54fbb4b9a07d3",
+    "semantic_hash": ""
+  },
+  "EarthTool.MSH/Internal/DynamicMeshDecoder.cs": {
+    "mtime": 1785925425.291692,
+    "ast_hash": "00599291a49c17f7191b6bf00b029d5c",
+    "semantic_hash": ""
+  },
+  "EarthTool.MSH/Internal/MshDecodeContext.cs": {
+    "mtime": 1785925425.2706912,
+    "ast_hash": "fce576bebe365bf5275cf8dee0f01396",
+    "semantic_hash": ""
+  },
+  "EarthTool.MSH/Internal/StaticMeshDecoder.cs": {
+    "mtime": 1785925425.317693,
+    "ast_hash": "b0a4355e8f8d1e09dfdb02051ee2e30d",
     "semantic_hash": ""
   }
 }
