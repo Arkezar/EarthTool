@@ -521,6 +521,42 @@ public class GltfPlanAndReportTests
   }
 
   [Fact]
+  public async Task UnifiedCreationReplaysSeparateGltfPlanAndRejectsAChangedSidecar()
+  {
+    var fixture = await CreateMetadataFreeSeparateGltfAsync();
+    try
+    {
+      var plan = GltfImportPlan.CreateNewModel(
+        GltfPackageKind.Gltf,
+        fixture.SourceSha256);
+      var interchange = new GltfInterchange();
+
+      var created = await interchange.CreateMeshFileWithPlanAsync(fixture.SourcePath, plan);
+
+      created.Status.Should().Be(
+        OperationStatus.Succeeded,
+        string.Join("; ", created.Diagnostics.Select(diagnostic => diagnostic.Message)));
+      created.Value!.Asset.Should().BeOfType<StaticMeshAsset>();
+
+      var binary = await File.ReadAllBytesAsync(fixture.BufferPath);
+      binary[0] ^= 0x01;
+      await File.WriteAllBytesAsync(fixture.BufferPath, binary);
+
+      var changed = await interchange.CreateMeshFileWithPlanAsync(fixture.SourcePath, plan);
+
+      changed.Status.Should().Be(OperationStatus.Failed);
+      changed.Value.Should().BeNull();
+      changed.Diagnostics.Should().ContainSingle().Subject.Should().Match<OperationDiagnostic>(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.ImportPlanMismatch
+        && diagnostic.Path == "sourceSha256");
+    }
+    finally
+    {
+      Directory.Delete(fixture.Directory, true);
+    }
+  }
+
+  [Fact]
   public async Task SeparateGltfEditPlanReplaysAMatchingConflictAction()
   {
     var fixture = await CreateMetadataFreeSeparateGltfAsync();
@@ -571,7 +607,7 @@ public class GltfPlanAndReportTests
       new GltfExportOptions(_lineageId, _documentId));
     var metadataFree = RemoveMetadata(exported.ToArray());
     await using var newSource = new MemoryStream(metadataFree);
-    var imported = await interchange.ImportNewModelGlbAsync(newSource);
+    var imported = await interchange.CreateMeshAsync(newSource);
     var expected = new InterchangeBaseline(_lineageId, _documentId);
     await using var conflictSource = new MemoryStream(metadataFree);
     var conflict = await interchange.ImportEditGlbAsync(conflictSource, expected);
@@ -608,7 +644,7 @@ public class GltfPlanAndReportTests
         GltfPackageKind.Glb,
         sourceAsset,
         export),
-      GltfCliReportOperation.ForNewModelImport(
+      GltfCliReportOperation.ForImport(
         "authored.glb",
         "authored.msh",
         GltfPackageKind.Glb,
@@ -642,10 +678,12 @@ public class GltfPlanAndReportTests
     operations.GetArrayLength().Should().Be(4);
     operations[1].GetProperty("preservation").GetProperty("changes").GetArrayLength()
       .Should().BeGreaterThan(0);
-    operations[1].GetProperty("identities").GetProperty("meshAssetLineageId").GetString()
-      .Should().Be(imported.Value!.Asset.LineageId.Value.ToString("D"));
-    operations[1].GetProperty("identities").GetProperty("meshCreationGuid").GetString()
-      .Should().Be(imported.Value.Asset.ArchiveFraming.CreationGuid!.Value.ToString("D"));
+    operations[1].GetProperty("kind").GetString().Should().Be("import");
+    operations[1].GetProperty("diagnostics").EnumerateArray()
+      .Select(diagnostic => diagnostic.GetProperty("code").GetString()).Should()
+      .Contain(GltfDiagnosticCodes.MissingManifest);
+    operations[1].GetProperty("identities").EnumerateObject().Should()
+      .OnlyContain(property => property.Value.ValueKind == JsonValueKind.Null);
     operations[2].GetProperty("lineageDisposition").GetString().Should().Be("discarded");
     operations[2].GetProperty("appliedConflictActions").GetArrayLength().Should().Be(1);
     operations[2].GetProperty("preservation").GetProperty("changes").GetArrayLength()
@@ -758,11 +796,6 @@ public class GltfPlanAndReportTests
     var exportIdentities = operations[0]!["identities"]!.AsObject();
     exportIdentities["meshAssetLineageId"] = _lineageId.ToString("D");
     exportIdentities["meshCreationGuid"] = _documentId.ToString("D");
-    var importIdentities = operations[1]!["identities"]!.AsObject();
-    importIdentities["meshAssetLineageId"] = _lineageId.ToString("D");
-    importIdentities["meshCreationGuid"] = _documentId.ToString("D");
-    importIdentities["baseline"]!["assetLineageId"] = _lineageId.ToString("D");
-    importIdentities["baseline"]!["documentId"] = _documentId.ToString("D");
     var editIdentities = operations[2]!["identities"]!.AsObject();
     editIdentities["meshAssetLineageId"] = _lineageId.ToString("D");
     editIdentities["meshCreationGuid"] = _documentId.ToString("D");

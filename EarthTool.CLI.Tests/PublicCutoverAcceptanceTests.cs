@@ -21,7 +21,7 @@ public sealed partial class PublicCutoverAcceptanceTests
     var rootHelp = await RunCliAsync("--help");
     var mshHelp = await RunCliAsync("msh", "--help");
     var importHelp = await RunCliAsync("msh", "import", "--help");
-    var invalidEdit = await RunCliAsync("msh", "import", "edit");
+    var invalidImport = await RunCliAsync("msh", "import");
     var failedExport = await RunCliAsync(
       "msh",
       "export",
@@ -30,11 +30,11 @@ public sealed partial class PublicCutoverAcceptanceTests
     rootHelp.ExitCode.Should().Be(0);
     rootHelp.Output.Should().Contain("msh").And.NotContain("dae <InputFilePath>");
     mshHelp.ExitCode.Should().Be(0);
-    mshHelp.Output.Should().Contain("export <INPUT>").And.Contain("import");
+    mshHelp.Output.Should().Contain("export <INPUT>").And.Contain("import <INPUT>");
     mshHelp.Output.Should().NotContain("output-format");
     importHelp.ExitCode.Should().Be(0);
-    importHelp.Output.Should().Contain("edit <INPUT>").And.Contain("new <INPUT>");
-    invalidEdit.ExitCode.Should().Be(CliExitCode.Usage);
+    importHelp.Output.Should().Contain("--plan").And.NotContain("edit <INPUT>").And.NotContain("new <INPUT>");
+    invalidImport.ExitCode.Should().Be(CliExitCode.Usage);
     failedExport.ExitCode.Should().Be(CliExitCode.Failure);
 
     VerifyHelpApproval(rootHelp.Output, mshHelp.Output, importHelp.Output);

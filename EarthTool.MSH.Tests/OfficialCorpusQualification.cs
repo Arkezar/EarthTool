@@ -815,10 +815,9 @@ internal static class OfficialCorpusQualification
       await ValidateKhronosAsync("glb.khronos-validate", packagePath, khronos, result);
 
       result.Begin("glb.unchanged-import");
-      var import = await worker.Interchange.ImportEditMeshGlbAsync(
+      var import = await worker.Interchange.CreateMeshAsync(
         new MemoryStream(bytes),
-        export.Value!.Baseline,
-        _gltfProfile);
+        profile: _gltfProfile);
       result.AddDiagnostics("glb.unchanged-import", import.Diagnostics);
       if (!import.Succeeded || HasChangedPreservation(import.Value!))
       {
@@ -886,10 +885,9 @@ internal static class OfficialCorpusQualification
       await ValidateKhronosAsync("gltf.khronos-validate", packagePath, khronos, result);
 
       result.Begin("gltf.unchanged-import");
-      var import = await worker.Interchange.ImportEditMeshGltfFileAsync(
+      var import = await worker.Interchange.CreateMeshFileAsync(
         packagePath,
-        export.Value!.Baseline,
-        _gltfProfile);
+        profile: _gltfProfile);
       result.AddDiagnostics("gltf.unchanged-import", import.Diagnostics);
       if (!import.Succeeded || HasChangedPreservation(import.Value!))
       {
@@ -1119,7 +1117,7 @@ internal static class OfficialCorpusQualification
           && item.Value.AsSpan().SequenceEqual(bytes));
     }
 
-    private static bool HasChangedPreservation(GltfMeshEditImportResult result)
+    private static bool HasChangedPreservation(GltfMeshCreationResult result)
     {
       return result.Preservation.Changes.Any(change =>
         change.Disposition != PreservationDisposition.Retained);

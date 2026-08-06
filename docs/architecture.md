@@ -50,9 +50,9 @@ retain MSH-only state only while native projection fingerprints prove that state
 remains applicable. Native glTF owns only the deliberately documented artist
 projection; runtime-only dynamic behavior remains metadata authority.
 
-Edit import requires an expected asset lineage and document identity. New-model
-import is a separate operation for intentionally metadata-free input. Both paths
-are bounded, validated, and transactional.
+Mesh asset creation validates self-contained metadata when present and otherwise
+attempts canonical authoring with a warning. Callers provide neither MSH identities
+nor an import mode; both stream and file paths are bounded and transactional.
 
 Release qualification applies the same GLB and separate-glTF export, strict
 validation, unchanged-import, and canonical-baseline oracles to every accepted
@@ -66,8 +66,7 @@ The supported MSH command topology is:
 
 ```text
 earthtool msh export
-earthtool msh import edit
-earthtool msh import new
+earthtool msh import
 ```
 
 Commands return `0` for success, `1` for content or operation failure, `2` for

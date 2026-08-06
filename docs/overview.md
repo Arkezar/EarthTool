@@ -30,12 +30,11 @@ are preferable. Native hierarchy, geometry, animation, materials, attachment
 artist objects, and punctual lights remain editable while versioned EarthTool
 metadata retains applicable MSH-only serialized representations.
 
-Use explicit commands for each intent:
+Use one import command for metadata-backed edits and metadata-free authoring:
 
 ```text
 EarthTool.CLI msh export model.msh
-EarthTool.CLI msh import edit model.glb --expected-lineage <UUID> --expected-document <UUID>
-EarthTool.CLI msh import new model.glb
+EarthTool.CLI msh import model.glb
 ```
 
 See the [quick start](quickstart.md), [MSH API](api/msh.md), and

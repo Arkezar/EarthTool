@@ -2,7 +2,6 @@
 
 using EarthTool.GLTF;
 using Spectre.Console.Cli;
-using System;
 using System.ComponentModel;
 
 namespace EarthTool.CLI.Commands.MSH;
@@ -38,29 +37,13 @@ internal sealed class ExportGltfSettings : GltfCommandSettings
   public string[] MeshResourceSearchRoots { get; init; } = [];
 }
 
-internal abstract class ImportGltfSettings : GltfCommandSettings
-{
-  [CommandOption("--plan <FILE>")]
-  [Description("Optional version-2 typed import plan.")]
-  public string? PlanPath { get; init; }
-}
-
-internal sealed class ImportEditGltfSettings : ImportGltfSettings
-{
-  [CommandArgument(0, "<INPUT>")]
-  [Description("One concrete input file.")]
-  public string Input { get; init; } = string.Empty;
-
-  [CommandOption("--expected-lineage <UUID>")]
-  public Guid ExpectedLineageId { get; init; }
-
-  [CommandOption("--expected-document <UUID>")]
-  public Guid ExpectedDocumentId { get; init; }
-}
-
-internal sealed class ImportNewGltfSettings : ImportGltfSettings
+internal sealed class ImportGltfSettings : GltfCommandSettings
 {
   [CommandArgument(0, "<INPUT>")]
   [Description("One or more concrete input files or file patterns.")]
   public string[] Inputs { get; init; } = [];
+
+  [CommandOption("--plan <FILE>")]
+  [Description("Optional version-2 typed import plan.")]
+  public string? PlanPath { get; init; }
 }

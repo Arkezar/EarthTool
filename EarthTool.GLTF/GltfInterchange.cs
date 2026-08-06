@@ -779,6 +779,62 @@ namespace EarthTool.GLTF
       }
     }
 
+    /// <summary>Creates one immutable mesh asset from a GLB stream bound to a typed import plan.</summary>
+    public async Task<OperationResult<GltfMeshCreationResult>> CreateMeshWithPlanAsync(
+      Stream source,
+      GltfImportPlan plan,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default
+    )
+    {
+      if (source is null)
+      {
+        throw new ArgumentNullException(nameof(source));
+      }
+      if (plan is null)
+      {
+        throw new ArgumentNullException(nameof(plan));
+      }
+
+      profile ??= GltfOperationProfile.Default;
+      try
+      {
+        var mismatch = ValidatePlan(
+          plan,
+          GltfImportPlanKind.NewModel,
+          GltfPackageKind.Glb,
+          expectedBaseline: null,
+          profile
+        );
+        if (mismatch is not null)
+        {
+          return Failed<GltfMeshCreationResult>(mismatch);
+        }
+        var glb = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
+          .ConfigureAwait(false);
+        if (!MatchesPlanSource(glb, plan))
+        {
+          return Failed<GltfMeshCreationResult>(PlanMismatch("sourceSha256"));
+        }
+        return await CreateMeshCoreAsync(
+            glb,
+            separatePackage: null,
+            plan.NewModelOptions!,
+            profile,
+            cancellationToken
+          )
+          .ConfigureAwait(false);
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfMeshCreationResult>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfMeshCreationResult>(ToDiagnostic(ex));
+      }
+    }
+
     /// <summary>Creates one immutable static or dynamic mesh asset from a separate-glTF file.</summary>
     public async Task<OperationResult<GltfMeshCreationResult>> CreateMeshFileAsync(
       string sourcePath,
@@ -799,6 +855,62 @@ namespace EarthTool.GLTF
         var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
           .ConfigureAwait(false);
         return await CreateMeshCoreAsync(package.Json, package, options, profile, cancellationToken)
+          .ConfigureAwait(false);
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<GltfMeshCreationResult>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<GltfMeshCreationResult>(ToDiagnostic(ex, sourcePath));
+      }
+    }
+
+    /// <summary>Creates one immutable mesh asset from a separate-glTF package bound to a typed import plan.</summary>
+    public async Task<OperationResult<GltfMeshCreationResult>> CreateMeshFileWithPlanAsync(
+      string sourcePath,
+      GltfImportPlan plan,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default
+    )
+    {
+      if (sourcePath is null)
+      {
+        throw new ArgumentNullException(nameof(sourcePath));
+      }
+      if (plan is null)
+      {
+        throw new ArgumentNullException(nameof(plan));
+      }
+
+      profile ??= GltfOperationProfile.Default;
+      try
+      {
+        var mismatch = ValidatePlan(
+          plan,
+          GltfImportPlanKind.NewModel,
+          GltfPackageKind.Gltf,
+          expectedBaseline: null,
+          profile
+        );
+        if (mismatch is not null)
+        {
+          return Failed<GltfMeshCreationResult>(mismatch);
+        }
+        var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
+          .ConfigureAwait(false);
+        if (!GltfImportPlanSerializer.MatchesSeparateSource(package, plan.SourceSha256))
+        {
+          return Failed<GltfMeshCreationResult>(PlanMismatch("sourceSha256"));
+        }
+        return await CreateMeshCoreAsync(
+            package.Json,
+            package,
+            plan.NewModelOptions!,
+            profile,
+            cancellationToken
+          )
           .ConfigureAwait(false);
       }
       catch (OperationCanceledException)

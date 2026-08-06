@@ -200,10 +200,11 @@ ambiguous and fails transactionally. Frame declarations, reciprocal atlas
 values, flags, terrain colors/gains, resource bytes, reserved values, inactive
 rectangles/depth/model scales, and child end translations remain exact.
 
-Use `ImportEditDynamicGlbAsync` or `ImportEditDynamicGltfFileAsync` when the
-caller knows the package kind. `ImportEditMeshGlbAsync` and
-`ImportEditMeshGltfFileAsync` preserve the existing kind-specific APIs while
-allowing CLI and batch callers to accept either static or dynamic packages.
+Use `CreateMeshAsync` for GLB streams and `CreateMeshFileAsync` for separate glTF
+files. Both create immutable static or dynamic assets through one result contract;
+diagnostics report when metadata was missing or discarded. Typed import plans use
+`CreateMeshWithPlanAsync` and `CreateMeshFileWithPlanAsync`; these methods validate
+the mode, package kind, profile limits, and exact captured source before creation.
 
 Import plans and machine reports are separate protocols from embedded metadata.
 Version 2 plans use format `earthtool.msh.import-plan`; version 1 reports use
@@ -231,7 +232,7 @@ before opening an import transaction. Malformed, unsupported, excessive, stale,
 mismatched, and removed-input plans report `ETG3000` through `ETG3005` without
 returning a partial asset.
 
-`GltfCliReport` collects complete export, edit-import, new-model-import, and
+`GltfCliReport` collects complete export, unified import, legacy import, and
 validation outcomes. `GltfCliReportSerializer` writes fixed-order UTF-8 JSON with
 an invocation status and every operation's input, destination, package kind, asset kind,
 status, diagnostics, identities, fingerprint, applied conflict actions, restored
@@ -243,8 +244,8 @@ outcomes is byte-identical.
 ## Static authoring authority and inference matrix
 
 EarthTool applies the same hierarchy-first contract to GLB and separate glTF
-packages. The CLI calls this contract directly; `msh import edit` and `msh import
-new` do not require an inference flag. The four authority categories are:
+packages. The CLI calls this contract directly through `msh import`; no inference
+flag or expected identity is required. The four authority categories are:
 
 - A **reconstructable authoring semantic** is safely recoverable from current
   artist-visible glTF state. It overrides stale metadata.

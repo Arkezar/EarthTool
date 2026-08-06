@@ -6,9 +6,9 @@ This guide is for graphics artists who want to modify an existing static Earth 2
 
 | Goal | Command | Important rule |
 |---|---|---|
-| Modify an existing MSH | `msh export`, then `msh import edit` | Keep the EarthTool metadata and use the baseline IDs from the export report |
-| Add a mesh object to an existing MSH | `msh export`, add an untagged Blender object, then `msh import edit` | Do not duplicate EarthTool object or mesh identities |
-| Create a standalone MSH | Export metadata-free glTF from Blender, then `msh import new` | Do not use an EarthTool-exported GLB as new-model input |
+| Modify an existing MSH | `msh export`, then `msh import` | Keep the self-contained EarthTool metadata |
+| Add a mesh object to an existing MSH | `msh export`, add an untagged Blender object, then `msh import` | Remove copied `earthtool` properties from the new object and mesh |
+| Create a standalone MSH | Export metadata-free glTF from Blender, then `msh import` | Review the expected missing-metadata warning |
 
 Back up the original WD archive and MSH before starting.
 
@@ -31,12 +31,8 @@ EarthTool.CLI msh export \
 
 `--tex-root` resolves game TEX previews. `--msh-root` resolves static MSH geometry used by dynamic `ScalableObject` previews.
 
-Keep `export-report.json`. Its first operation contains the values required for edit import:
-
-```text
-operations[0].identities.baseline.assetLineageId
-operations[0].identities.baseline.documentId
-```
+Keep `export-report.json` as an audit record. Import does not require identities
+from it because the GLB or separate glTF package carries self-contained metadata.
 
 ### 2. Import into Blender
 
@@ -126,14 +122,10 @@ Export to a new file so the original EarthTool baseline remains available for co
 
 ### 6. Import the edit and install it
 
-Replace the two UUIDs with `assetLineageId` and `documentId` from the export report:
-
 ```bash
 mkdir -p ./work/built
-EarthTool.CLI msh import edit \
+EarthTool.CLI msh import \
   ./work/model-edited.glb \
-  --expected-lineage 00000000-0000-0000-0000-000000000000 \
-  --expected-document 00000000-0000-0000-0000-000000000000 \
   --output ./work/built \
   --report ./work/import-report.json
 ```
@@ -159,10 +151,10 @@ The archive entry name must match the resource name expected by the game. Rename
 
 ```bash
 mkdir -p ./built
-EarthTool.CLI msh import new model.glb --output ./built --report ./new-report.json
+EarthTool.CLI msh import model.glb --output ./built --report ./new-report.json
 ```
 
-New-model import creates a static MSH. Hierarchy inference is always active; the
+Metadata-free import creates a static MSH. Hierarchy inference is always active; the
 CLI and library use the same contract without an additional flag. A plan is only
 needed for values that glTF cannot evidence safely or when replacing a documented
 canonical authoring default:
@@ -263,7 +255,7 @@ This changes only the Blender viewport presentation; it does not add glTF or MSH
 - The scene is 24 FPS; animation names and frame limits follow the animation section above.
 - Geometry is triangular, finite, and has normals; textured primitives have UVs.
 - Blender export includes Extras, Attributes, Lights, and Animations.
-- `msh import edit` uses the IDs from the same GLB's export report.
+- Review import diagnostics for missing or discarded metadata warnings.
 - The original MSH and WD archive remain backed up.
 
 For binary details and deeper runtime evidence, see [MSH format: Attachments and slots](MSH_FORMAT.md#attachments-and-slots). For metadata reconciliation, topology rules, and animation behavior, see the [glTF API](api/gltf.md).

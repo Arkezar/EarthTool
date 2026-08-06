@@ -1079,7 +1079,9 @@ namespace EarthTool.GLTF
     /// <summary>Metadata-free new-model import.</summary>
     ImportNewModel = 2,
     /// <summary>Package validation without MSH materialization.</summary>
-    Validate = 3
+    Validate = 3,
+    /// <summary>Mesh asset creation from a self-contained glTF package.</summary>
+    Import = 4
   }
 
   /// <summary>Contains one complete operation outcome for a machine report.</summary>
@@ -1134,7 +1136,8 @@ namespace EarthTool.GLTF
       GltfMetadataLineageDisposition? lineageDisposition = null,
       IEnumerable<GltfMetadataConflictResolution>? appliedConflictActions = null,
       IEnumerable<string>? restoredPaths = null,
-      IEnumerable<PreservationChange>? preservationChanges = null)
+      IEnumerable<PreservationChange>? preservationChanges = null,
+      bool includeAssetIdentities = true)
     {
       Input = input ?? throw new ArgumentNullException(nameof(input));
       Destination = destination;
@@ -1146,8 +1149,8 @@ namespace EarthTool.GLTF
       PackageKind = packageKind;
       Status = result.Status;
       Diagnostics = Array.AsReadOnly(result.Diagnostics.ToArray());
-      MeshAssetLineageId = meshAsset?.LineageId.Value;
-      MeshCreationGuid = meshAsset?.ArchiveFraming.CreationGuid;
+      MeshAssetLineageId = includeAssetIdentities ? meshAsset?.LineageId.Value : null;
+      MeshCreationGuid = includeAssetIdentities ? meshAsset?.ArchiveFraming.CreationGuid : null;
       AssetKind = meshAsset?.Kind;
       ExpectedBaseline = expectedBaseline;
       Baseline = baseline;
@@ -1248,6 +1251,28 @@ namespace EarthTool.GLTF
         result.Value?.Asset,
         baseline: result.Value?.Baseline,
         preservationChanges: result.Value?.Preservation.Changes);
+    }
+
+    /// <summary>Captures one complete mesh asset creation outcome.</summary>
+    public static GltfCliReportOperation ForImport(
+      string input,
+      string destination,
+      GltfPackageKind packageKind,
+      OperationResult<GltfMeshCreationResult> result)
+    {
+      if (result is null)
+      {
+        throw new ArgumentNullException(nameof(result));
+      }
+      return new GltfCliReportOperation(
+        input,
+        destination ?? throw new ArgumentNullException(nameof(destination)),
+        GltfCliReportOperationKind.Import,
+        packageKind,
+        result,
+        result.Value?.Asset,
+        preservationChanges: result.Value?.Preservation.Changes,
+        includeAssetIdentities: false);
     }
 
     /// <summary>Captures one complete expected-baseline edit-import outcome.</summary>
@@ -1611,6 +1636,7 @@ namespace EarthTool.GLTF
       GltfCliReportOperationKind.ImportEdit => "importEdit",
       GltfCliReportOperationKind.ImportNewModel => "importNewModel",
       GltfCliReportOperationKind.Validate => "validate",
+      GltfCliReportOperationKind.Import => "import",
       _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
 

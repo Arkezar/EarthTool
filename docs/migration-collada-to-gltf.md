@@ -15,25 +15,24 @@ version only when maintaining an existing COLLADA-based pipeline:
 - [Current releases](https://github.com/Arkezar/EarthTool/releases)
 - [glTF implementation specification](https://github.com/Arkezar/EarthTool/issues/133)
 
-COLLADA files do not contain the new EarthTool metadata graph. They cannot serve
-as edit baselines for `msh import edit`. Export the original MSH again with the
-current release before continuing an asset-editing workflow.
+COLLADA files do not contain the new EarthTool metadata graph. Export the original
+MSH again with the current release before continuing an asset-editing workflow.
 
 ## CLI migration
 
-Replace the former implicit conversion commands with an explicit intent:
+Replace the former conversion commands with the glTF asset-creation commands:
 
 | Previous workflow | Current workflow |
 |---|---|
 | Convert MSH for editing | `EarthTool.CLI msh export model.msh` |
 | Export separate package | `EarthTool.CLI msh export model.msh --format Gltf` |
-| Import an edited EarthTool baseline | `EarthTool.CLI msh import edit model.glb --expected-lineage <UUID> --expected-document <UUID>` |
-| Author MSH from metadata-free input | `EarthTool.CLI msh import new model.glb` |
+| Import an edited EarthTool package | `EarthTool.CLI msh import model.glb` |
+| Author MSH from metadata-free input | `EarthTool.CLI msh import model.glb` |
 
 Export defaults to GLB and accepts static assets plus all 15 recognized dynamic
-effect types. Export and new-model import accept deterministic, case-insensitive
-input patterns. Edit import accepts exactly one concrete package because it binds one
-expected asset lineage and document identity. Use `--tex-root` repeatedly to
+effect types. Export and import accept deterministic, case-insensitive input
+patterns. Import detects applicable self-contained metadata and otherwise attempts
+canonical asset creation with a warning. Use `--tex-root` repeatedly to
 supply ordered absolute TEX preview roots and `--msh-root` repeatedly for
 `ScalableObject` resource previews. Use `--plan` for a versioned typed import
 plan and `--report` for a transactional versioned machine report.
@@ -81,10 +80,9 @@ the removed `helperBindings`, `animationClasses`, and marker-role inputs with
 1. Preserve the original MSH asset as the serialized authority.
 2. Export a fresh GLB or separate glTF baseline with the current EarthTool.
 3. Edit the native glTF scene in Blender 4.5 LTS or a later supported release.
-4. Import with `msh import edit` and the expected identities from the baseline.
-5. Use `msh import new` only for intentionally metadata-free models.
-6. Treat metadata conflicts as explicit decisions; do not strip metadata to
-   force an edit import through the new-model path.
+4. Import with `msh import`; EarthTool validates the package's self-contained metadata.
+5. Review CLI or report warnings when metadata was missing or discarded.
+6. Do not strip metadata from an edited EarthTool package to bypass validation.
 
 ## Attachment helper name migration
 

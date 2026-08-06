@@ -37,20 +37,27 @@
     {
       "index": 1,
       "input": "authored.glb",
-      "kind": "importNewModel",
+      "kind": "import",
       "package": "glb",
       "assetKind": "static",
       "status": "succeeded",
       "destination": "authored.msh",
-      "diagnostics": [],
+      "diagnostics": [
+        {
+          "code": "ETG2000",
+          "eventId": 2000,
+          "severity": "warning",
+          "path": "scenes[0]",
+          "byteOffset": null,
+          "data": {},
+          "message": "EarthTool metadata is missing; metadata-free mesh asset creation with canonical authored defaults was attempted."
+        }
+      ],
       "identities": {
-        "meshAssetLineageId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
-        "meshCreationGuid": "11111111-2222-4333-8444-555555555555",
+        "meshAssetLineageId": null,
+        "meshCreationGuid": null,
         "expectedBaseline": null,
-        "baseline": {
-          "assetLineageId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
-          "documentId": "11111111-2222-4333-8444-555555555555"
-        },
+        "baseline": null,
         "nextBaseline": null,
         "fingerprint": null
       },

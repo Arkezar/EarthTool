@@ -40,9 +40,7 @@ public class OfficialCorpusQualificationTests
         new GltfExportOptions(
           new Guid("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"),
           new Guid("11111111-2222-4333-8444-555555555555")));
-      var import = await interchange.ImportEditGlbAsync(
-        new MemoryStream(glb.ToArray()),
-        export.Value!.Baseline);
+      var import = await interchange.CreateMeshAsync(new MemoryStream(glb.ToArray()));
       if (import.Value!.Preservation.Changes.Any(change =>
         change.FieldPath.EndsWith(".Direction", StringComparison.Ordinal)
         && change.Disposition != EarthTool.MSH.Authoring.PreservationDisposition.Retained))
@@ -76,9 +74,7 @@ public class OfficialCorpusQualificationTests
         new Guid("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"),
         new Guid("11111111-2222-4333-8444-555555555555")));
 
-    var import = await interchange.ImportEditGlbAsync(
-      new MemoryStream(glb.ToArray()),
-      export.Value!.Baseline);
+    var import = await interchange.CreateMeshAsync(new MemoryStream(glb.ToArray()));
 
     import.Succeeded.Should().BeTrue();
     import.Value!.Preservation.Changes.Should().OnlyContain(change =>

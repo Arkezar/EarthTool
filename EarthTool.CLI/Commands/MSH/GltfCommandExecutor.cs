@@ -40,88 +40,8 @@ internal sealed class GltfCommandExecutor
     _output = output.Writer;
   }
 
-  public async Task<int> ImportEditAsync(
-    ImportEditGltfSettings settings,
-    CancellationToken cancellationToken)
-  {
-    if (!TryGetPackageKind(settings.Input, out var packageKind)
-      || ContainsPattern(settings.Input)
-      || !TryCreateBaseline(settings, out var expectedBaseline))
-    {
-      return CliExitCode.Usage;
-    }
-
-    var input = Path.GetFullPath(settings.Input);
-    var destination = GetImportDestination(input, settings.OutputDirectory);
-    if (HasWritePathCollision([destination], settings.ReportPath))
-    {
-      await WritePreflightFailureAsync("The report path collides with the derived destination.")
-        .ConfigureAwait(false);
-      return CliExitCode.Failure;
-    }
-    var plan = await ReadPlanAsync(settings.PlanPath, cancellationToken).ConfigureAwait(false);
-    OperationResult<GltfMeshEditImportResult> imported;
-    if (plan is not null && !plan.Succeeded)
-    {
-      imported = new OperationResult<GltfMeshEditImportResult>(plan.Status, diagnostics: plan.Diagnostics);
-    }
-    else if (packageKind == GltfPackageKind.Glb)
-    {
-      try
-      {
-        await using var source = new FileStream(input, FileMode.Open, FileAccess.Read, FileShare.Read);
-        imported = plan?.Value is null
-          ? await _interchange.ImportEditMeshGlbAsync(
-            source,
-            expectedBaseline!,
-            cancellationToken: cancellationToken).ConfigureAwait(false)
-          : await _interchange.ImportEditMeshGlbWithPlanAsync(
-            source,
-            expectedBaseline!,
-            plan.Value,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-      }
-      catch (OperationCanceledException)
-      {
-        imported = Cancelled<GltfMeshEditImportResult>();
-      }
-      catch (Exception ex)
-      {
-        imported = IoFailure<GltfMeshEditImportResult>(ex);
-      }
-    }
-    else
-    {
-      imported = plan?.Value is null
-        ? await _interchange.ImportEditMeshGltfFileAsync(
-          input,
-          expectedBaseline!,
-          cancellationToken: cancellationToken).ConfigureAwait(false)
-        : await _interchange.ImportEditMeshGltfFileWithPlanAsync(
-          input,
-          expectedBaseline!,
-          plan.Value,
-          cancellationToken: cancellationToken).ConfigureAwait(false);
-    }
-
-    var complete = await WriteImportedAssetAsync(
-      imported,
-      result => result.Asset,
-      destination,
-      cancellationToken)
-      .ConfigureAwait(false);
-    var operation = GltfCliReportOperation.ForEditImport(
-      input,
-      destination,
-      packageKind,
-      expectedBaseline!,
-      complete);
-    await WriteOutcomeAsync(operation).ConfigureAwait(false);
-    return await CompleteInvocationAsync(settings.ReportPath, [operation]).ConfigureAwait(false);
-  }
-
-  public async Task<int> ImportNewAsync(
-    ImportNewGltfSettings settings,
+  public async Task<int> ImportAsync(
+    ImportGltfSettings settings,
     CancellationToken cancellationToken)
   {
     if (settings.Inputs.Length == 0)
@@ -156,7 +76,7 @@ internal sealed class GltfCommandExecutor
     var operations = new List<GltfCliReportOperation>(inputs.Count);
     for (var index = 0; index < inputs.Count; index++)
     {
-      var operation = await ImportNewOneAsync(
+      var operation = await ImportOneAsync(
         inputs[index],
         destinations[index],
         packageKinds[index],
@@ -173,51 +93,54 @@ internal sealed class GltfCommandExecutor
     return await CompleteInvocationAsync(settings.ReportPath, operations).ConfigureAwait(false);
   }
 
-  private async Task<GltfCliReportOperation> ImportNewOneAsync(
+  private async Task<GltfCliReportOperation> ImportOneAsync(
     string input,
     string destination,
     GltfPackageKind packageKind,
     OperationResult<GltfImportPlan>? plan,
     CancellationToken cancellationToken)
   {
-    OperationResult<GltfNewModelImportResult> imported;
+    OperationResult<GltfMeshCreationResult> imported;
     if (plan is not null && !plan.Succeeded)
     {
-      imported = new OperationResult<GltfNewModelImportResult>(plan.Status, diagnostics: plan.Diagnostics);
-    }
-    else if (packageKind == GltfPackageKind.Glb)
-    {
-      try
-      {
-        await using var source = new FileStream(input, FileMode.Open, FileAccess.Read, FileShare.Read);
-        imported = plan?.Value is null
-          ? await _interchange.ImportNewModelGlbAsync(
-            source,
-            cancellationToken: cancellationToken).ConfigureAwait(false)
-          : await _interchange.ImportNewModelGlbWithPlanAsync(
-            source,
-            plan.Value,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-      }
-      catch (OperationCanceledException)
-      {
-        imported = Cancelled<GltfNewModelImportResult>();
-      }
-      catch (Exception ex)
-      {
-        imported = IoFailure<GltfNewModelImportResult>(ex);
-      }
+      imported = new OperationResult<GltfMeshCreationResult>(plan.Status, diagnostics: plan.Diagnostics);
     }
     else
     {
-      imported = plan?.Value is null
-        ? await _interchange.ImportNewModelGltfFileAsync(
-          input,
-          cancellationToken: cancellationToken).ConfigureAwait(false)
-        : await _interchange.ImportNewModelGltfFileWithPlanAsync(
-          input,
-          plan.Value,
-          cancellationToken: cancellationToken).ConfigureAwait(false);
+      if (packageKind == GltfPackageKind.Glb)
+      {
+        try
+        {
+          await using var source = new FileStream(input, FileMode.Open, FileAccess.Read, FileShare.Read);
+          imported = plan?.Value is null
+            ? await _interchange.CreateMeshAsync(
+              source,
+              cancellationToken: cancellationToken).ConfigureAwait(false)
+            : await _interchange.CreateMeshWithPlanAsync(
+              source,
+              plan.Value,
+              cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+          imported = Cancelled<GltfMeshCreationResult>();
+        }
+        catch (Exception ex)
+        {
+          imported = IoFailure<GltfMeshCreationResult>(ex);
+        }
+      }
+      else
+      {
+        imported = plan?.Value is null
+          ? await _interchange.CreateMeshFileAsync(
+            input,
+            cancellationToken: cancellationToken).ConfigureAwait(false)
+          : await _interchange.CreateMeshFileWithPlanAsync(
+            input,
+            plan.Value,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+      }
     }
 
     var complete = await WriteImportedAssetAsync(
@@ -226,7 +149,7 @@ internal sealed class GltfCommandExecutor
       destination,
       cancellationToken)
       .ConfigureAwait(false);
-    var operation = GltfCliReportOperation.ForNewModelImport(
+    var operation = GltfCliReportOperation.ForImport(
       input,
       destination,
       packageKind,
@@ -562,22 +485,6 @@ internal sealed class GltfCommandExecutor
     }
     packageKind = default;
     return false;
-  }
-
-  private static bool TryCreateBaseline(
-    ImportEditGltfSettings settings,
-    out InterchangeBaseline? baseline)
-  {
-    try
-    {
-      baseline = new InterchangeBaseline(settings.ExpectedLineageId, settings.ExpectedDocumentId);
-      return true;
-    }
-    catch (ArgumentException)
-    {
-      baseline = null;
-      return false;
-    }
   }
 
   private static (

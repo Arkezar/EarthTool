@@ -394,19 +394,17 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
-  public async Task EditImportRequiresExpectedIdentitiesAndWritesTheNextBaseline()
+  public async Task ImportCreatesMetadataBackedAssetWithoutCallerIdentities()
   {
     using var fixture = await CliFixture.CreateAsync();
-    var expected = await fixture.CreateEditGlbAsync();
+    await fixture.CreateEditGlbAsync();
     var outputDirectory = Path.Combine(fixture.Directory, "edited");
     System.IO.Directory.CreateDirectory(outputDirectory);
     var reportPath = Path.Combine(fixture.Directory, "edit-report.json");
 
     var exitCode = await InternalMshCommandHost.RunAsync(
     [
-      "msh", "import", "edit", fixture.GlbPath,
-      "--expected-lineage", expected.AssetLineageId.ToString("D"),
-      "--expected-document", expected.DocumentId.ToString("D"),
+      "msh", "import", fixture.GlbPath,
       "--output", outputDirectory,
       "--report", reportPath
     ], TextWriter.Null);
@@ -419,27 +417,24 @@ public sealed class InternalMshCommandHostTests
     read.Status.Should().Be(OperationStatus.Succeeded);
     using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
     var operation = report.RootElement.GetProperty("operations")[0];
-    operation.GetProperty("kind").GetString().Should().Be("importEdit");
-    operation.GetProperty("identities").GetProperty("expectedBaseline")
-      .GetProperty("documentId").GetString().Should().Be(expected.DocumentId.ToString("D"));
-    operation.GetProperty("identities").GetProperty("nextBaseline")
-      .GetProperty("documentId").GetString().Should().NotBe(expected.DocumentId.ToString("D"));
+    operation.GetProperty("kind").GetString().Should().Be("import");
+    var identities = operation.GetProperty("identities");
+    identities.EnumerateObject().Should().OnlyContain(property =>
+      property.Value.ValueKind == JsonValueKind.Null);
   }
 
   [Fact]
   public async Task EditImportPreservesEmitterCompatibilityAnomalyAndReportsIt()
   {
     using var fixture = await CliFixture.CreateEmitterCompatibilityAnomalyAsync();
-    var expected = await fixture.CreateEditGlbAsync();
+    await fixture.CreateEditGlbAsync();
     var outputDirectory = Path.Combine(fixture.Directory, "compatibility-edited");
     System.IO.Directory.CreateDirectory(outputDirectory);
     var reportPath = Path.Combine(fixture.Directory, "compatibility-edit-report.json");
 
     var exitCode = await InternalMshCommandHost.RunAsync(
     [
-      "msh", "import", "edit", fixture.GlbPath,
-      "--expected-lineage", expected.AssetLineageId.ToString("D"),
-      "--expected-document", expected.DocumentId.ToString("D"),
+      "msh", "import", fixture.GlbPath,
       "--output", outputDirectory,
       "--report", reportPath
     ], TextWriter.Null);
@@ -458,10 +453,10 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
-  public async Task EditAndNewModelImportsInferEmitterOwnershipWithoutAPlan()
+  public async Task MetadataBackedAndMetadataFreeImportsInferEmitterOwnershipWithoutAPlan()
   {
     using var fixture = await CliFixture.CreateAsync();
-    var expected = await fixture.CreateEditGlbAsync();
+    await fixture.CreateEditGlbAsync();
     await fixture.AddEmitterHelpersAsync(1);
     var editOutputDirectory = Path.Combine(fixture.Directory, "inferred-edit");
     var newOutputDirectory = Path.Combine(fixture.Directory, "inferred-new");
@@ -472,16 +467,14 @@ public sealed class InternalMshCommandHostTests
 
     var editExitCode = await InternalMshCommandHost.RunAsync(
     [
-      "msh", "import", "edit", fixture.GlbPath,
-      "--expected-lineage", expected.AssetLineageId.ToString("D"),
-      "--expected-document", expected.DocumentId.ToString("D"),
+      "msh", "import", fixture.GlbPath,
       "--output", editOutputDirectory,
       "--report", editReportPath
     ], TextWriter.Null);
     await fixture.RemoveMetadataFromGlbAsync();
     var newExitCode = await InternalMshCommandHost.RunAsync(
     [
-      "msh", "import", "new", fixture.GlbPath,
+      "msh", "import", fixture.GlbPath,
       "--output", newOutputDirectory,
       "--report", newReportPath
     ], TextWriter.Null);
@@ -513,10 +506,10 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
-  public async Task EditAndNewModelImportsRejectDuplicateEmitterOwnershipWithoutAPlan()
+  public async Task MetadataBackedAndMetadataFreeImportsRejectDuplicateEmitterOwnershipWithoutAPlan()
   {
     using var fixture = await CliFixture.CreateAsync();
-    var expected = await fixture.CreateEditGlbAsync();
+    await fixture.CreateEditGlbAsync();
     await fixture.AddEmitterHelpersAsync(2);
     var editOutputDirectory = Path.Combine(fixture.Directory, "ambiguous-edit");
     var newOutputDirectory = Path.Combine(fixture.Directory, "ambiguous-new");
@@ -527,16 +520,14 @@ public sealed class InternalMshCommandHostTests
 
     var editExitCode = await InternalMshCommandHost.RunAsync(
     [
-      "msh", "import", "edit", fixture.GlbPath,
-      "--expected-lineage", expected.AssetLineageId.ToString("D"),
-      "--expected-document", expected.DocumentId.ToString("D"),
+      "msh", "import", fixture.GlbPath,
       "--output", editOutputDirectory,
       "--report", editReportPath
     ], TextWriter.Null);
     await fixture.RemoveMetadataFromGlbAsync();
     var newExitCode = await InternalMshCommandHost.RunAsync(
     [
-      "msh", "import", "new", fixture.GlbPath,
+      "msh", "import", fixture.GlbPath,
       "--output", newOutputDirectory,
       "--report", newReportPath
     ], TextWriter.Null);
@@ -545,15 +536,21 @@ public sealed class InternalMshCommandHostTests
     newExitCode.Should().Be(CliExitCode.Failure);
     File.Exists(Path.Combine(editOutputDirectory, "model.msh")).Should().BeFalse();
     File.Exists(Path.Combine(newOutputDirectory, "model.msh")).Should().BeFalse();
-    foreach (var (reportPath, expectedCode) in new[]
+    foreach (var (reportPath, expectedCode, expectsMissingMetadataWarning) in new[]
     {
-      (editReportPath, GltfDiagnosticCodes.AmbiguousPartitionCorrespondence),
-      (newReportPath, GltfDiagnosticCodes.AmbiguousPartitionCorrespondence)
+      (editReportPath, GltfDiagnosticCodes.AmbiguousPartitionCorrespondence, false),
+      (newReportPath, GltfDiagnosticCodes.AmbiguousPartitionCorrespondence, true)
     })
     {
       using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
-      var diagnostic = report.RootElement.GetProperty("operations")[0]
-        .GetProperty("diagnostics").EnumerateArray().Should().ContainSingle().Subject;
+      var diagnostics = report.RootElement.GetProperty("operations")[0]
+        .GetProperty("diagnostics").EnumerateArray().ToArray();
+      diagnostics.Any(diagnostic =>
+        diagnostic.GetProperty("code").GetString() == GltfDiagnosticCodes.MissingManifest
+        && diagnostic.GetProperty("severity").GetString() == "warning").Should()
+        .Be(expectsMissingMetadataWarning);
+      var diagnostic = diagnostics.Should().ContainSingle(diagnostic =>
+        diagnostic.GetProperty("code").GetString() == expectedCode).Subject;
       diagnostic.GetProperty("code").GetString().Should().Be(expectedCode);
       diagnostic.GetProperty("path").GetString().Should().Be("nodes[2]");
       diagnostic.GetProperty("message").GetString().Should()
@@ -562,19 +559,17 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
-  public async Task EditImportRestoresAnUnchangedDynamicPackage()
+  public async Task ImportRestoresAnUnchangedDynamicPackage()
   {
     using var fixture = await CliFixture.CreateDynamicAsync();
-    var expected = await fixture.CreateEditDynamicGlbAsync();
+    await fixture.CreateEditDynamicGlbAsync();
     var outputDirectory = Path.Combine(fixture.Directory, "dynamic-edited");
     System.IO.Directory.CreateDirectory(outputDirectory);
     var reportPath = Path.Combine(fixture.Directory, "dynamic-edit-report.json");
 
     var exitCode = await InternalMshCommandHost.RunAsync(
     [
-      "msh", "import", "edit", fixture.GlbPath,
-      "--expected-lineage", expected.AssetLineageId.ToString("D"),
-      "--expected-document", expected.DocumentId.ToString("D"),
+      "msh", "import", fixture.GlbPath,
       "--output", outputDirectory,
       "--report", reportPath
     ], TextWriter.Null);
@@ -591,7 +586,7 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
-  public async Task NewModelImportWritesCanonicalMshAndInitialBaseline()
+  public async Task ImportCreatesCanonicalMshAndReportsMissingMetadataWarning()
   {
     using var fixture = await CliFixture.CreateAsync();
     await fixture.CreateMetadataFreeGlbAsync();
@@ -599,12 +594,13 @@ public sealed class InternalMshCommandHostTests
     System.IO.Directory.CreateDirectory(outputDirectory);
     var reportPath = Path.Combine(fixture.Directory, "new-report.json");
 
+    using var output = new StringWriter();
     var exitCode = await InternalMshCommandHost.RunAsync(
     [
-      "msh", "import", "new", fixture.GlbPath,
+      "msh", "import", fixture.GlbPath,
       "--output", outputDirectory,
       "--report", reportPath
-    ], TextWriter.Null);
+    ], output);
 
     exitCode.Should().Be(CliExitCode.Success);
     var read = await new MshReader().ReadFileAsync(Path.Combine(outputDirectory, "model.msh"));
@@ -614,9 +610,11 @@ public sealed class InternalMshCommandHostTests
     asset.StaticRenderObjectSequence.Should().ContainSingle();
     using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
     var operation = report.RootElement.GetProperty("operations")[0];
-    operation.GetProperty("kind").GetString().Should().Be("importNewModel");
-    operation.GetProperty("identities").GetProperty("baseline").ValueKind.Should()
-      .Be(JsonValueKind.Object);
+    operation.GetProperty("kind").GetString().Should().Be("import");
+    operation.GetProperty("diagnostics").EnumerateArray()
+      .Select(diagnostic => diagnostic.GetProperty("code").GetString()).Should()
+      .Contain(GltfDiagnosticCodes.MissingManifest);
+    output.ToString().Should().Contain($"diagnostic code={GltfDiagnosticCodes.MissingManifest}");
     operation.GetProperty("preservation").GetProperty("changes").EnumerateArray()
       .Select(change => change.GetProperty("fieldPath").GetString()).Should().Contain(
       [
@@ -633,7 +631,36 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
-  public async Task NewModelImportBatchesPatternMatchesIntoOneReport()
+  public async Task ImportDiscardsMalformedMetadataAndReportsWarning()
+  {
+    using var fixture = await CliFixture.CreateAsync();
+    await fixture.CreateEditGlbAsync();
+    await fixture.CorruptManifestMetadataAsync();
+    var outputDirectory = Path.Combine(fixture.Directory, "discarded-metadata");
+    System.IO.Directory.CreateDirectory(outputDirectory);
+    var reportPath = Path.Combine(fixture.Directory, "discarded-metadata-report.json");
+    using var output = new StringWriter();
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "import", fixture.GlbPath,
+      "--output", outputDirectory,
+      "--report", reportPath
+    ], output);
+
+    exitCode.Should().Be(CliExitCode.Success);
+    var read = await new MshReader().ReadFileAsync(Path.Combine(outputDirectory, "model.msh"));
+    read.Value.Should().BeOfType<StaticMeshAsset>();
+    using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+    report.RootElement.GetProperty("operations")[0].GetProperty("diagnostics")
+      .EnumerateArray().Should().ContainSingle(diagnostic =>
+        diagnostic.GetProperty("code").GetString() == GltfDiagnosticCodes.MalformedMetadata
+        && diagnostic.GetProperty("severity").GetString() == "warning");
+    output.ToString().Should().Contain($"diagnostic code={GltfDiagnosticCodes.MalformedMetadata}");
+  }
+
+  [Fact]
+  public async Task ImportBatchesPatternMatchesIntoOneReport()
   {
     using var fixture = await CliFixture.CreateAsync();
     await fixture.CreateMetadataFreeGlbAsync();
@@ -647,7 +674,7 @@ public sealed class InternalMshCommandHostTests
 
     var exitCode = await InternalMshCommandHost.RunAsync(
     [
-      "msh", "import", "new", Path.Combine(inputDirectory, "*.glb"),
+      "msh", "import", Path.Combine(inputDirectory, "*.glb"),
       "--output", outputDirectory,
       "--report", reportPath
     ], TextWriter.Null);
@@ -664,7 +691,7 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
-  public async Task NewModelImportRejectsDestinationCollisionsBeforeWriting()
+  public async Task ImportRejectsDestinationCollisionsBeforeWriting()
   {
     using var fixture = await CliFixture.CreateAsync();
     await fixture.CreateMetadataFreeGlbAsync();
@@ -681,7 +708,7 @@ public sealed class InternalMshCommandHostTests
 
     var exitCode = await InternalMshCommandHost.RunAsync(
     [
-      "msh", "import", "new", first, second,
+      "msh", "import", first, second,
       "--output", outputDirectory
     ], TextWriter.Null);
 
@@ -690,7 +717,7 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
-  public async Task NewModelImportContinuesAfterAFileFailure()
+  public async Task ImportContinuesAfterAFileFailure()
   {
     using var fixture = await CliFixture.CreateAsync();
     await fixture.CreateMetadataFreeGlbAsync();
@@ -704,7 +731,7 @@ public sealed class InternalMshCommandHostTests
 
     var exitCode = await InternalMshCommandHost.RunAsync(
     [
-      "msh", "import", "new", invalid, valid,
+      "msh", "import", invalid, valid,
       "--output", outputDirectory,
       "--report", reportPath
     ], TextWriter.Null);
@@ -719,7 +746,7 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
-  public async Task NewModelImportAppliesTypedPlanOptions()
+  public async Task ImportAppliesTypedPlanOptions()
   {
     using var fixture = await CliFixture.CreateAsync();
     await fixture.CreateMetadataFreeGlbAsync();
@@ -731,7 +758,7 @@ public sealed class InternalMshCommandHostTests
 
     var exitCode = await InternalMshCommandHost.RunAsync(
     [
-      "msh", "import", "new", fixture.GlbPath,
+      "msh", "import", fixture.GlbPath,
       "--plan", planPath,
       "--output", outputDirectory
     ], TextWriter.Null);
@@ -783,7 +810,7 @@ public sealed class InternalMshCommandHostTests
 
     var exitCode = await InternalMshCommandHost.RunAsync(
     [
-      "msh", "import", "new", fixture.GlbPath,
+      "msh", "import", fixture.GlbPath,
       "--plan", planPath,
       "--output", outputDirectory,
       "--report", reportPath
@@ -798,40 +825,52 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
-  public async Task InvalidCommandOptionsMapToUsageStatus()
+  public async Task ImportRejectsEditModeAndWrongPackagePlans()
   {
     using var fixture = await CliFixture.CreateAsync();
-    await fixture.CreateEditGlbAsync();
-    var expectedLineage = "aaaaaaaa-1111-4222-8333-bbbbbbbbbbbb";
-    var expectedDocument = "cccccccc-4444-4555-8666-dddddddddddd";
+    await fixture.CreateMetadataFreeGlbAsync();
+    var editPlanPath = await fixture.CreateEditPlanAsync("edit-plan.json");
+    var packagePlanPath = await fixture.CreateNewModelPlanAsync(
+      new GltfNewModelImportOptions(),
+      GltfPackageKind.Gltf,
+      "package-plan.json");
 
-    var missingIdentities = await InternalMshCommandHost.RunAsync(
-      ["msh", "import", "edit", fixture.GlbPath],
-      TextWriter.Null);
-    var patternedEdit = await InternalMshCommandHost.RunAsync(
-    [
-      "msh", "import", "edit", Path.Combine(fixture.Directory, "*.glb"),
-      "--expected-lineage", expectedLineage,
-      "--expected-document", expectedDocument
-    ], TextWriter.Null);
+    foreach (var (planPath, dimension) in new[]
+    {
+      (editPlanPath, "mode"),
+      (packagePlanPath, "package")
+    })
+    {
+      var reportPath = Path.Combine(fixture.Directory, $"{dimension}-mismatch-report.json");
+      var exitCode = await InternalMshCommandHost.RunAsync(
+      [
+        "msh", "import", fixture.GlbPath,
+        "--plan", planPath,
+        "--report", reportPath
+      ], TextWriter.Null);
+
+      exitCode.Should().Be(CliExitCode.Failure);
+      using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+      var diagnostic = report.RootElement.GetProperty("operations")[0]
+        .GetProperty("diagnostics").EnumerateArray().Should().ContainSingle().Subject;
+      diagnostic.GetProperty("code").GetString().Should().Be(GltfDiagnosticCodes.ImportPlanMismatch);
+      diagnostic.GetProperty("path").GetString().Should().Be(dimension);
+      diagnostic.GetProperty("data").GetProperty("dimension").GetString().Should().Be(dimension);
+    }
+  }
+
+  [Fact]
+  public async Task InvalidExportOptionsMapToUsageStatus()
+  {
+    using var fixture = await CliFixture.CreateAsync();
     var relativeTexRoot = await InternalMshCommandHost.RunAsync(
       ["msh", "export", fixture.MshPath, "--tex-root", "relative"],
       TextWriter.Null);
     var relativeMshRoot = await InternalMshCommandHost.RunAsync(
       ["msh", "export", fixture.MshPath, "--msh-root", "relative"],
       TextWriter.Null);
-    var multipleEditInputs = await InternalMshCommandHost.RunAsync(
-    [
-      "msh", "import", "edit", fixture.GlbPath, fixture.GlbPath,
-      "--expected-lineage", expectedLineage,
-      "--expected-document", expectedDocument
-    ], TextWriter.Null);
-
-    missingIdentities.Should().Be(2);
-    patternedEdit.Should().Be(2);
     relativeTexRoot.Should().Be(2);
     relativeMshRoot.Should().Be(2);
-    multipleEditInputs.Should().Be(2);
   }
 
   [Fact]
@@ -908,7 +947,7 @@ public sealed class InternalMshCommandHostTests
 
     var exitCode = await InternalMshCommandHost.RunAsync(
     [
-      "msh", "import", "new", fixture.GlbPath,
+      "msh", "import", fixture.GlbPath,
       "--output", outputDirectory,
       "--report", reportPath
     ], TextWriter.Null, configureServices: services => services.AddSingleton<IMshWriter>(writer));
@@ -1274,18 +1313,48 @@ public sealed class InternalMshCommandHostTests
       return RewriteGlbAsync(RemoveMetadata);
     }
 
-    public async Task<string> CreateNewModelPlanAsync(GltfNewModelImportOptions options)
+    public Task CorruptManifestMetadataAsync()
+    {
+      return RewriteGlbAsync(root => root["scenes"]![0]!["extras"]!["earthtool"] = "{");
+    }
+
+    public async Task<string> CreateNewModelPlanAsync(
+      GltfNewModelImportOptions options,
+      GltfPackageKind packageKind = GltfPackageKind.Glb,
+      string fileName = "import-plan.json")
     {
       var serializer = new GltfImportPlanSerializer();
       await using var source = File.OpenRead(GlbPath);
       var digest = await serializer.ComputeGlbSourceSha256Async(source);
       digest.Status.Should().Be(OperationStatus.Succeeded);
-      var plan = GltfImportPlan.CreateNewModel(GltfPackageKind.Glb, digest.Value!, options);
-      var planPath = Path.Combine(Directory, "import-plan.json");
-      await using var destination = File.Create(planPath);
-      var write = await serializer.SerializeAsync(plan, destination);
-      write.Status.Should().Be(OperationStatus.Succeeded);
+      var plan = GltfImportPlan.CreateNewModel(packageKind, digest.Value!, options);
+      var planPath = Path.Combine(Directory, fileName);
+      await WritePlanAsync(plan, planPath);
       return planPath;
+    }
+
+    public async Task<string> CreateEditPlanAsync(string fileName)
+    {
+      var serializer = new GltfImportPlanSerializer();
+      await using var source = File.OpenRead(GlbPath);
+      var digest = await serializer.ComputeGlbSourceSha256Async(source);
+      digest.Status.Should().Be(OperationStatus.Succeeded);
+      var plan = GltfImportPlan.CreateEdit(
+        GltfPackageKind.Glb,
+        digest.Value!,
+        new InterchangeBaseline(
+          Guid.Parse("aaaaaaaa-1111-4222-8333-bbbbbbbbbbbb"),
+          Guid.Parse("cccccccc-4444-4555-8666-dddddddddddd")));
+      var planPath = Path.Combine(Directory, fileName);
+      await WritePlanAsync(plan, planPath);
+      return planPath;
+    }
+
+    private static async Task WritePlanAsync(GltfImportPlan plan, string planPath)
+    {
+      await using var destination = File.Create(planPath);
+      var write = await new GltfImportPlanSerializer().SerializeAsync(plan, destination);
+      write.Status.Should().Be(OperationStatus.Succeeded);
     }
 
     private async Task RewriteGlbAsync(Action<JsonObject> rewrite)

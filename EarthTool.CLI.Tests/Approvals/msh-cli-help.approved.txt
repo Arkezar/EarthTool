@@ -23,18 +23,21 @@ OPTIONS:
 
 COMMANDS:
     export <INPUT>    Export supported MSH assets to GLB or separate glTF
-    import            Import glTF into MSH
+    import <INPUT>    Create MSH assets from GLB or separate glTF
 
 # earthtool msh import --help
 DESCRIPTION:
-Import glTF into MSH
+Create MSH assets from GLB or separate glTF
 
 USAGE:
-    earthtool msh import [OPTIONS] <COMMAND>
+    earthtool msh import <INPUT> [OPTIONS]
+
+ARGUMENTS:
+    <INPUT>    One or more concrete input files or file patterns
 
 OPTIONS:
-    -h, --help    Prints help information
-
-COMMANDS:
-    edit <INPUT>    Import an edit into an expected interchange lineage
-    new <INPUT>     Author canonical MSH assets from metadata-free glTF
+    -h, --help                  Prints help information
+    -o, --output <DIRECTORY>    Destination directory. Defaults to the input
+                                directory
+        --report <FILE>         Optional versioned machine report path
+        --plan <FILE>           Optional version-2 typed import plan

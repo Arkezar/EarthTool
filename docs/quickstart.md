@@ -199,7 +199,7 @@ EarthTool.CLI msh export \
 
 # The output directory is created when needed. Open the resulting .glb files in
 # Blender 4.5 LTS or later.
-# After editing, use `msh import edit` with the baseline identities.
+# After editing, use `msh import`; the package carries its own metadata.
 ```
 
 ### Task 4: Backup Game Files
@@ -348,8 +348,7 @@ EarthTool.CLI wd info archive.wd
 | `wd remove <archive>` | Remove files |
 | `wd info <archive>` | Show details |
 | `msh export <file>` | Export supported static or dynamic MSH to GLB or glTF |
-| `msh import edit <file>` | Import an edit into an expected interchange lineage |
-| `msh import new <file>` | Author canonical MSH from metadata-free glTF |
+| `msh import <file>` | Create static or dynamic MSH from glTF |
 | `tex <file>` | Convert TEX to PNG |
 | `par convert <file>` | Convert PAR to JSON |
 

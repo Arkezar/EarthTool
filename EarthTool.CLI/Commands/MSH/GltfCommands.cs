@@ -24,38 +24,20 @@ internal sealed class ExportGltfCommand : AsyncCommand<ExportGltfSettings>
   }
 }
 
-internal sealed class ImportEditGltfCommand : AsyncCommand<ImportEditGltfSettings>
+internal sealed class ImportGltfCommand : AsyncCommand<ImportGltfSettings>
 {
   private readonly GltfCommandExecutor _executor;
 
-  public ImportEditGltfCommand(GltfCommandExecutor executor)
+  public ImportGltfCommand(GltfCommandExecutor executor)
   {
     _executor = executor;
   }
 
   protected override Task<int> ExecuteAsync(
     CommandContext context,
-    ImportEditGltfSettings settings,
+    ImportGltfSettings settings,
     CancellationToken cancellationToken)
   {
-    return _executor.ImportEditAsync(settings, cancellationToken);
-  }
-}
-
-internal sealed class ImportNewGltfCommand : AsyncCommand<ImportNewGltfSettings>
-{
-  private readonly GltfCommandExecutor _executor;
-
-  public ImportNewGltfCommand(GltfCommandExecutor executor)
-  {
-    _executor = executor;
-  }
-
-  protected override Task<int> ExecuteAsync(
-    CommandContext context,
-    ImportNewGltfSettings settings,
-    CancellationToken cancellationToken)
-  {
-    return _executor.ImportNewAsync(settings, cancellationToken);
+    return _executor.ImportAsync(settings, cancellationToken);
   }
 }

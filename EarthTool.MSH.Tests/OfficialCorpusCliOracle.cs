@@ -72,13 +72,11 @@ internal static class OfficialCorpusCliOracle
       var importStarted = Stopwatch.GetTimestamp();
       var outputPath = Path.Combine(importDirectory, "source.msh");
       var import = await RunProcessAsync(root, [
-        "msh", "import", "edit", packagePath,
-        "--expected-lineage", exportOperation.Baseline!.AssetLineageId.ToString("D"),
-        "--expected-document", exportOperation.Baseline.DocumentId.ToString("D"),
+        "msh", "import", packagePath,
         "--output", importDirectory,
         "--report", importReport
       ]);
-      var importOperation = await ReadOperationAsync(importReport, "importEdit", package, outputPath);
+      var importOperation = await ReadOperationAsync(importReport, "import", package, outputPath);
       importDuration = Stopwatch.GetElapsedTime(importStarted);
       ioStarted = Stopwatch.GetTimestamp();
       var importedBytes = File.Exists(outputPath)
@@ -89,8 +87,6 @@ internal static class OfficialCorpusCliOracle
         && importOperation.Succeeded
         && importOperation.ReportValid
         && importOperation.AssetKind == exportOperation.AssetKind
-        && BaselinesEqual(importOperation.ExpectedBaseline, exportOperation.Baseline)
-        && importOperation.Fingerprint == exportOperation.Fingerprint
         && importOperation.AllPreservationRetained
         && importedBytes.AsSpan().SequenceEqual(canonicalMsh);
       return new CliOracleResult(
@@ -301,19 +297,16 @@ internal static class OfficialCorpusCliOracle
     var assetKind = operation.GetProperty("assetKind").ValueKind == JsonValueKind.String
       ? operation.GetProperty("assetKind").GetString()
       : null;
-    var restoredPaths = operation.GetProperty("preservation")
-      .GetProperty("restoredSerializedRepresentationPaths");
     var successfulContract = !succeeded
       || (expectedKind == "export"
         ? assetKind is not null && lineageId.HasValue && documentId.HasValue && fingerprint is not null
         : assetKind is not null
-          && expectedBaseline is not null
-          && nextBaseline is not null
-          && nextBaseline.AssetLineageId == expectedBaseline.AssetLineageId
-          && nextBaseline.DocumentId != expectedBaseline.DocumentId
-          && fingerprint is not null
-          && operation.GetProperty("lineageDisposition").GetString() == "retained"
-          && restoredPaths.GetArrayLength() > 0);
+          && !lineageId.HasValue
+          && !documentId.HasValue
+          && expectedBaseline is null
+          && nextBaseline is null
+          && fingerprint is null
+          && operation.GetProperty("lineageDisposition").ValueKind == JsonValueKind.Null);
     var reportValid = operation.GetProperty("kind").GetString() == expectedKind
       && operation.GetProperty("package").GetString() == expectedPackage
       && root.GetProperty("status").GetString() == (succeeded ? "succeeded" : "failed")
@@ -345,14 +338,6 @@ internal static class OfficialCorpusCliOracle
         baseline.GetProperty("assetLineageId").GetGuid(),
         baseline.GetProperty("documentId").GetGuid())
       : null;
-  }
-
-  private static bool BaselinesEqual(InterchangeBaseline? left, InterchangeBaseline? right)
-  {
-    return left is not null
-      && right is not null
-      && left.AssetLineageId == right.AssetLineageId
-      && left.DocumentId == right.DocumentId;
   }
 
   private static DiagnosticSeverity ParseSeverity(string? severity)
