@@ -95,39 +95,6 @@ namespace EarthTool.MSH.Internal
       return result;
     }
 
-    internal static byte[] EncodeRecord(
-      IReadOnlyList<CanonicalStaticVertex> vertices,
-      IReadOnlyList<CanonicalTriangle> triangles,
-      IReadOnlyList<byte> texturePathBytes,
-      uint objectFlags,
-      byte barrelMaximumAngle,
-      uint nextRecordMarker,
-      Vector3 pivot,
-      StaticAnimationReplacement? animation
-    )
-    {
-      var result = new byte[GetRecordLength(
-        vertices.Count,
-        triangles.Count,
-        texturePathBytes.Count,
-        animation
-      )];
-      var cursor = 0;
-      WriteRecord(
-        result,
-        ref cursor,
-        vertices,
-        triangles,
-        texturePathBytes,
-        objectFlags,
-        barrelMaximumAngle,
-        nextRecordMarker,
-        pivot,
-        animation
-      );
-      return result;
-    }
-
     private static int GetSerializedLength(
       IReadOnlyList<CanonicalStaticRecord> records,
       IReadOnlyDictionary<int, StaticAnimationReplacement> animations,

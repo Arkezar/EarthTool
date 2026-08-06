@@ -355,113 +355,6 @@ public class GltfPlanAndReportTests
   }
 
   [Fact]
-  public async Task EditPlanReplaysAMatchingConflictAction()
-  {
-    var (source, expected, conflictKey) = await CreateMissingManifestConflictAsync();
-    var interchange = new GltfInterchange();
-    var plan = GltfImportPlan.CreateEdit(
-      GltfPackageKind.Glb,
-      Sha256(source),
-      expected,
-      new GltfEditImportOptions(
-      [
-        new GltfMetadataConflictResolution(
-          conflictKey,
-          GltfMetadataConflictActions.DiscardLineage)
-      ]));
-    await using var replay = new MemoryStream(source);
-
-    var applied = await interchange.ImportEditGlbWithPlanAsync(replay, expected, plan);
-
-    applied.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", applied.Diagnostics.Select(diagnostic => diagnostic.Message)));
-    applied.Value!.LineageDisposition.Should().Be(GltfMetadataLineageDisposition.Discarded);
-    applied.Value.AppliedConflictResolutions.Should().ContainSingle().Subject.Action.Should()
-      .Be(GltfMetadataConflictActions.DiscardLineage);
-  }
-
-  [Fact]
-  public async Task EditPlanRejectsAStaleConflictAction()
-  {
-    var (source, expected, conflictKey) = await CreateMissingManifestConflictAsync();
-    var interchange = new GltfInterchange();
-
-    var staleKey = conflictKey.Substring(0, conflictKey.Length - 1)
-      + (conflictKey[^1] == 'A' ? "B" : "A");
-    var stalePlan = GltfImportPlan.CreateEdit(
-      GltfPackageKind.Glb,
-      Sha256(source),
-      expected,
-      new GltfEditImportOptions(
-      [
-        new GltfMetadataConflictResolution(staleKey, GltfMetadataConflictActions.DiscardLineage)
-      ]));
-    await using var staleReplay = new MemoryStream(source);
-
-    var stale = await interchange.ImportEditGlbWithPlanAsync(staleReplay, expected, stalePlan);
-
-    stale.Status.Should().Be(OperationStatus.Failed);
-    stale.Value.Should().BeNull();
-    stale.Diagnostics.Should().ContainSingle().Subject.Should().Match<OperationDiagnostic>(diagnostic =>
-      diagnostic.Code == GltfDiagnosticCodes.StaleImportPlan
-      && diagnostic.EventId == 3003
-      && diagnostic.Path == "conflictActions");
-  }
-
-  [Fact]
-  public async Task PublicPlanCannotBypassConflictActionLimits()
-  {
-    var plan = GltfImportPlan.CreateEdit(
-      GltfPackageKind.Glb,
-      new string('a', 64),
-      new InterchangeBaseline(_lineageId, _documentId),
-      new GltfEditImportOptions(
-      [
-        new GltfMetadataConflictResolution(
-          "v1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-          GltfMetadataConflictActions.MapScope,
-          "nodes[0]"),
-        new GltfMetadataConflictResolution(
-          "v1:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
-          GltfMetadataConflictActions.AcceptDeletion)
-      ]));
-    var profile = new GltfOperationProfile(
-      1024,
-      1024,
-      1024,
-      8,
-      16,
-      16,
-      4,
-      1024,
-      1024,
-      2,
-      16,
-      maxTotalMetadataBytes: 1024,
-      maxMetadataEnvelopes: 16,
-      maxMetadataElements: 128,
-      maxUnknownMetadataMembers: 16,
-      maxMetadataGuards: 4,
-      maxMetadataConflicts: 1,
-      meshResourceLimits: GltfMeshResourceLimits.Default);
-    await using var source = new MemoryStream();
-
-    var result = await new GltfInterchange().ImportEditGlbWithPlanAsync(
-      source,
-      plan.ExpectedBaseline!,
-      plan,
-      profile);
-
-    result.Status.Should().Be(OperationStatus.Failed);
-    result.Value.Should().BeNull();
-    result.Diagnostics.Should().ContainSingle().Subject.Should().Match<OperationDiagnostic>(diagnostic =>
-      diagnostic.Code == GltfDiagnosticCodes.ImportPlanResourceLimitExceeded
-      && diagnostic.EventId == 3002
-      && diagnostic.Path == "conflictActions");
-  }
-
-  [Fact]
   public async Task PublicPlanCannotBypassSerializedByteLimits()
   {
     var plan = GltfImportPlan.CreateNewModel(
@@ -592,45 +485,6 @@ public class GltfPlanAndReportTests
   }
 
   [Fact]
-  public async Task SeparateGltfEditPlanReplaysAMatchingConflictAction()
-  {
-    var fixture = await CreateMetadataFreeSeparateGltfAsync();
-    try
-    {
-      var expected = new InterchangeBaseline(_lineageId, _documentId);
-      var interchange = new GltfInterchange();
-      var conflict = await interchange.ImportEditGltfFileAsync(fixture.SourcePath, expected);
-      var conflictKey = conflict.Diagnostics.Should().ContainSingle().Subject.Data["conflictKey"];
-      var plan = GltfImportPlan.CreateEdit(
-        GltfPackageKind.Gltf,
-        fixture.SourceSha256,
-        expected,
-        new GltfEditImportOptions(
-        [
-          new GltfMetadataConflictResolution(
-            conflictKey,
-            GltfMetadataConflictActions.DiscardLineage)
-        ]));
-
-      var result = await interchange.ImportEditGltfFileWithPlanAsync(
-        fixture.SourcePath,
-        expected,
-        plan);
-
-      result.Status.Should().Be(
-        OperationStatus.Succeeded,
-        string.Join("; ", result.Diagnostics.Select(diagnostic => diagnostic.Message)));
-      result.Value!.LineageDisposition.Should().Be(GltfMetadataLineageDisposition.Discarded);
-      result.Value.AppliedConflictResolutions.Should().ContainSingle().Subject.Action.Should()
-        .Be(GltfMetadataConflictActions.DiscardLineage);
-    }
-    finally
-    {
-      Directory.Delete(fixture.Directory, true);
-    }
-  }
-
-  [Fact]
   public async Task VersionTwoReportIsDeterministicAndContainsCompleteOperationEffects()
   {
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
@@ -716,17 +570,6 @@ public class GltfPlanAndReportTests
       new GltfExportOptions(_lineageId, _documentId));
     result.Status.Should().Be(OperationStatus.Succeeded);
     return RemoveMetadata(stream.ToArray());
-  }
-
-  private static async Task<(byte[] Source, InterchangeBaseline Expected, string ConflictKey)>
-    CreateMissingManifestConflictAsync()
-  {
-    var source = await CreateMetadataFreeGlbAsync();
-    var expected = new InterchangeBaseline(_lineageId, _documentId);
-    await using var firstAttempt = new MemoryStream(source);
-    var conflict = await new GltfInterchange().ImportEditGlbAsync(firstAttempt, expected);
-    var conflictKey = conflict.Diagnostics.Should().ContainSingle().Subject.Data["conflictKey"];
-    return (source, expected, conflictKey);
   }
 
   private static async Task<(string Directory, string SourcePath, string BufferPath, string SourceSha256)>

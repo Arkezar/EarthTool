@@ -206,43 +206,6 @@ namespace EarthTool.MSH.Internal
       return new CommonMeshBaseHeader(header);
     }
 
-    internal static CommonMeshBaseHeader RewriteStatic(
-      CommonMeshBaseHeader source,
-      AnimationClassBytes? animationLengths,
-      AnimationClassBytes? animationFrameIndices,
-      IReadOnlyDictionary<int, byte[]> attachmentRecords,
-      IReadOnlyDictionary<int, byte[]> cannonRenderPositions,
-      IReadOnlyDictionary<int, byte[]> staticSpotLights,
-      IReadOnlyDictionary<int, byte[]> staticOmniLights,
-      CanonicalHorizontalExtents? horizontalExtents
-    )
-    {
-      if (source is null)
-      {
-        throw new ArgumentNullException(nameof(source));
-      }
-
-      var header = source.SerializedRepresentation.ToArray();
-      if (animationLengths.HasValue)
-      {
-        WriteAnimationClassBytes(header, AnimationLengthsOffset, animationLengths.Value);
-      }
-      if (animationFrameIndices.HasValue)
-      {
-        WriteAnimationClassBytes(header, AnimationFrameIndicesOffset, animationFrameIndices.Value);
-      }
-      WriteExactRecords(header, AttachmentTableOffset, AttachmentRecordSize, attachmentRecords);
-      WriteExactRecords(header, CannonRenderPositionsOffset, 12, cannonRenderPositions);
-      WriteExactRecords(header, StaticSpotLightsOffset, 0x30, staticSpotLights);
-      WriteExactRecords(header, StaticOmniLightsOffset, 0x1C, staticOmniLights);
-      if (horizontalExtents is not null)
-      {
-        WriteHorizontalExtents(header, horizontalExtents);
-      }
-
-      return new CommonMeshBaseHeader(header);
-    }
-
     internal static bool IsCanonicalDynamic(ReadOnlySpan<byte> serializedRepresentation)
     {
       return serializedRepresentation.SequenceEqual(_dynamicBytes);
@@ -539,19 +502,6 @@ namespace EarthTool.MSH.Internal
       {
         var offset = StaticOmniLightsOffset + ((record.Key - 1) * 0x1C);
         EncodeStaticOmniLight(record.Value).CopyTo(header, offset);
-      }
-    }
-
-    private static void WriteExactRecords(
-      byte[] header,
-      int regionOffset,
-      int recordSize,
-      IReadOnlyDictionary<int, byte[]> records
-    )
-    {
-      foreach (var record in records)
-      {
-        record.Value.CopyTo(header, regionOffset + ((record.Key - 1) * recordSize));
       }
     }
 

@@ -117,23 +117,15 @@ public class CanonicalMeshAuthoringTests
       header.SerializedRepresentation.ToArray()
     );
 
-    var assetBytes = MshCanonicalSerializer.CreateStatic(
-      CreationGuid,
-      new AnimationClassBytes(1, 2, 3, 4),
+    var sequence = CanonicalStaticRenderObjectSequenceEncoder.Encode(
       new CanonicalStaticSourceObject([
         new CanonicalStaticRenderObject(CreateVertices(), CreateTriangles()),
-      ]),
-      new CanonicalStaticFootprint(
-        0xFFFF,
-        Enumerable.Range(0, 16).Select(index => index + 0.5f),
-        Enumerable.Range(0, 16).Select(index => (byte)index)
-      ),
-      new CanonicalHorizontalExtents(1.25f, 2.5f, 3.75f, 4.5f),
-      animationFrameIndices: new AnimationClassBytes(5, 6, 7, 8),
-      attachmentRecords: CreateAttachmentRecords(),
-      cannonRenderPositions: CreateCannonRenderPositions(),
-      staticSpotLights: CreateStaticSpotLights(),
-      staticOmniLights: CreateStaticOmniLights()
+      ])
+    );
+    var assetBytes = MshCanonicalSerializer.CreateStatic(
+      CreationGuid,
+      header.SerializedRepresentation,
+      sequence
     );
     AssertSerializedApproval("msh-canonical-static-full", assetBytes);
   }
@@ -165,12 +157,16 @@ public class CanonicalMeshAuthoringTests
     var animations = new Dictionary<int, StaticAnimationReplacement> { [1] = animation };
 
     var sequence = CanonicalStaticRenderObjectSequenceEncoder.Encode(root, pivots, animations);
+    var header = CanonicalBaseHeaderEncoder.EncodeStatic(
+      new CanonicalStaticBaseHeaderInput(
+        new AnimationClassBytes(0, 0, 1, 0),
+        root.RenderObjects.SelectMany(record => record.RenderVertices)
+      )
+    );
     var framed = MshCanonicalSerializer.CreateStatic(
       CreationGuid,
-      new AnimationClassBytes(0, 0, 1, 0),
-      root,
-      pivots: pivots,
-      animations: animations
+      header.SerializedRepresentation,
+      sequence
     );
 
     CanonicalStaticRenderObjectSequenceEncoder.GetSerializedLength(root, animations)
@@ -534,7 +530,7 @@ public class CanonicalMeshAuthoringTests
   }
 
   [Fact]
-  public void CanonicalStaticAuthoringAndEditControlsEnforceSafeTexResourceKeys()
+  public void CanonicalStaticAuthoringEnforcesSafeTexResourceKeys()
   {
     var build = StaticMeshBuilder
       .Create(CreationGuid)
@@ -555,18 +551,6 @@ public class CanonicalMeshAuthoringTests
       .ContainSingle()
       .Subject.TexturePathBytes.Should()
       .Equal("Textures\\authored\\hull.tex"u8.ToArray());
-    var assembler = new StaticMeshAssembler(asset);
-    assembler.SetTextureResourceBinding(
-      assembler.GetRenderObjectOrdinal(asset.StaticRenderObjectSequence[0]),
-      "Textures\\authored\\replacement.tex"
-    );
-    var edit = assembler.Commit();
-    edit.TryGetValue(out var edited).Should().BeTrue();
-    edited!
-      .StaticRenderObjectSequence[0]
-      .TexturePathBytes.Should()
-      .Equal("Textures\\authored\\replacement.tex"u8.ToArray());
-
     var unsafeBuild = StaticMeshBuilder
       .Create(CreationGuid)
       .SetRootSourceObject(
@@ -581,12 +565,6 @@ public class CanonicalMeshAuthoringTests
       .ContainSingle()
       .Subject.Code.Should()
       .Be(MshDiagnosticCodes.InvalidAuthoringInput);
-    var unsafeAssembler = new StaticMeshAssembler(asset);
-    Action unsafeEdit = () => unsafeAssembler.SetTextureResourceBinding(
-      unsafeAssembler.GetRenderObjectOrdinal(asset.StaticRenderObjectSequence[0]),
-      "Textures\\..\\outside.tex"
-    );
-    unsafeEdit.Should().Throw<ArgumentException>();
   }
 
   [Fact]
@@ -708,117 +686,6 @@ public class CanonicalMeshAuthoringTests
       .Subject.Code.Should()
       .Be(MshDiagnosticCodes.ResourceLimitExceeded);
     oversized.ValuesProduced.Should().Be(5);
-  }
-
-  [Fact]
-  public async Task AssemblyCommitReturnsNewSnapshotAndLeavesSourceReferencesUnchanged()
-  {
-    var source = BuildStatic();
-    var sourceRenderObject = source.StaticRenderObjectSequence[0];
-    var changedVertices = CreateVertices().ToArray();
-    changedVertices[1] = new CanonicalStaticVertex(
-      new Vector3(2, 0, 0),
-      Vector3.UnitZ,
-      Vector2.UnitX
-    );
-
-    var assembler = new StaticMeshAssembler(source);
-    var ordinal = assembler.GetRenderObjectOrdinal(sourceRenderObject);
-    assembler.ReplaceGeometry(ordinal, changedVertices, CreateTriangles());
-    var edit = assembler.Commit();
-
-    edit.TryGetValue(out var edited).Should().BeTrue();
-    edited.Should().NotBeSameAs(source);
-    source.StaticRenderObjectSequence[0].Should().BeSameAs(sourceRenderObject);
-    edited!.StaticRenderObjectSequence[0].Should().NotBeSameAs(sourceRenderObject);
-    source.StaticRenderObjectSequence[0].RenderVertices[1].Position.Should().Be(Vector3.UnitX);
-    edited
-      .StaticRenderObjectSequence[0]
-      .RenderVertices[1]
-      .Position.Should()
-      .Be(new Vector3(2, 0, 0));
-    assembler.Trace.Changes.Should().ContainSingle(change =>
-      change.Kind == StaticMeshAssemblyChangeKind.Geometry
-      && change.RenderObjectOrdinal == ordinal
-    );
-    assembler.Trace.ResultRenderObjectOrdinals.Should().Equal(ordinal);
-
-    var output = await WriteAsync(edited);
-    await using var roundTripSource = new MemoryStream(output);
-    var roundTrip = await new MshReader().ReadAsync(roundTripSource);
-    roundTrip.Status.Should().Be(OperationStatus.Succeeded);
-  }
-
-  [Fact]
-  public void AssemblyReplacementUsesFinalOrdinalAndCanCommitOnlyOnce()
-  {
-    var source = BuildStatic();
-    var sourceRenderObject = source.StaticRenderObjectSequence[0];
-    var assembler = new StaticMeshAssembler(source);
-    assembler.RemoveRenderObject(assembler.GetRenderObjectOrdinal(sourceRenderObject));
-    var replacementOrdinal = assembler.AddRenderObject(CreateVertices(), CreateTriangles());
-
-    var edit = assembler.Commit();
-
-    edit.TryGetValue(out var edited).Should().BeTrue();
-    replacementOrdinal.Should().Be(0);
-    edited!.StaticRenderObjectSequence.Should().ContainSingle()
-      .Subject.Should().NotBeSameAs(sourceRenderObject);
-    assembler.Trace.ReplacedSingleRenderObject.Should().BeTrue();
-    assembler.Trace.ResultRenderObjectOrdinals.Should().Equal(replacementOrdinal);
-    Action secondCommit = () => assembler.Commit();
-    secondCommit.Should().Throw<InvalidOperationException>();
-  }
-
-  [Fact]
-  public void SingleObjectReplacementAuthorsNewRepresentationsUnderNewReference()
-  {
-    var source = BuildStatic();
-    var replacementVertices = CreateVertices();
-    replacementVertices[1] = new CanonicalStaticVertex(
-      new Vector3(9, 8, 7),
-      Vector3.UnitY,
-      new Vector2(0.25f, 0.75f)
-    );
-    var sourceRenderObject = source.StaticRenderObjectSequence[0];
-    var assembler = new StaticMeshAssembler(source);
-    assembler.RemoveRenderObject(assembler.GetRenderObjectOrdinal(sourceRenderObject));
-    var replacementOrdinal = assembler.AddRenderObject(replacementVertices, CreateTriangles());
-    assembler.SetTextureResourceBinding(replacementOrdinal, "Textures\\replacement.tex");
-    assembler.ReplacePivot(replacementOrdinal, new Vector3(6, 5, 4));
-
-    var result = assembler.Commit();
-
-    result.TryGetValue(out var edited).Should().BeTrue();
-    var replacement = edited!.StaticRenderObjectSequence.Should().ContainSingle().Subject;
-    replacement.Should().NotBeSameAs(sourceRenderObject);
-    replacement.RenderVertices[1].Position.Should().Be(new Vector3(9, 8, 7));
-    replacement.RenderVertices[1].Normal.Should().Be(Vector3.UnitY);
-    Encoding.ASCII.GetString(replacement.TexturePathBytes.ToArray())
-      .Should()
-      .Be("Textures\\replacement.tex");
-    replacement.Pivot.Should().Be(new Vector3(6, 5, 4));
-  }
-
-  [Fact]
-  public void UnsupportedRepeatedReplacementFailsWithoutMutatingSource()
-  {
-    var source = BuildStatic();
-    var sourceRenderObject = source.StaticRenderObjectSequence[0];
-    var assembler = new StaticMeshAssembler(source);
-    assembler.RemoveRenderObject(assembler.GetRenderObjectOrdinal(sourceRenderObject));
-    var firstOrdinal = assembler.AddRenderObject(CreateVertices(), CreateTriangles());
-    var secondOrdinal = assembler.AddRenderObject(CreateVertices(), CreateTriangles());
-
-    var edit = assembler.Commit();
-
-    secondOrdinal.Should().Be(firstOrdinal);
-    edit.TryGetValue(out _).Should().BeFalse();
-    edit.Diagnostics.Should()
-      .ContainSingle()
-      .Subject.Code.Should()
-      .Be(MshDiagnosticCodes.InvalidAuthoringInput);
-    source.StaticRenderObjectSequence.Should().ContainSingle().Subject.Should().BeSameAs(sourceRenderObject);
   }
 
   [Fact]
