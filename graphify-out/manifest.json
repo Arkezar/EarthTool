@@ -1890,8 +1890,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH/Internal/DynamicEffectBehavior.cs": {
-    "mtime": 1785860384.9654753,
-    "ast_hash": "bc3e7fcae9d34f248a9f28c95e63cd63",
+    "mtime": 1786014358.641677,
+    "ast_hash": "e81c6f0f8695c8d766daba0e5572b17e",
     "semantic_hash": ""
   },
   "graphify-out/memory/query_20260801_060715_analyze_complexity_of__earthtool_tex_texreader_cs.md": {
@@ -1967,6 +1967,16 @@
   "EarthTool.MSH.Tests/Approvals/msh-canonical-static-full.approved.sha256.txt": {
     "mtime": 1786013035.6796181,
     "ast_hash": "56bc97892cc68933ff509ef21681ae23",
+    "semantic_hash": ""
+  },
+  "EarthTool.GLTF/Internal/GltfAuthoringMetadata.cs": {
+    "mtime": 1786015164.7746167,
+    "ast_hash": "6fcca13ff95a2bafdaea77377c3371f5",
+    "semantic_hash": ""
+  },
+  "EarthTool.MSH.Tests/GltfAuthoringMetadataTests.cs": {
+    "mtime": 1786015094.8650174,
+    "ast_hash": "3df405fe9042a29292237cacce1bdadb",
     "semantic_hash": ""
   }
 }
