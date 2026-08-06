@@ -192,6 +192,18 @@ namespace EarthTool.GLTF
 
     /// <summary>The import plan contains an input removed from the current protocol.</summary>
     public const string RemovedImportPlanMember = "ETG3005";
+
+    /// <summary>An optional typed authoring value used its canonical default.</summary>
+    public const string AuthoringValueDefaulted = "ETG4000";
+
+    /// <summary>A canonical authoring identifier is declared more than once.</summary>
+    public const string DuplicateAuthoringOwner = "ETG4001";
+
+    /// <summary>A required typed authoring value has no safe canonical default.</summary>
+    public const string RequiredAuthoringValueMissing = "ETG4002";
+
+    /// <summary>The bounded typed-authoring warning inventory was truncated.</summary>
+    public const string AuthoringDiagnosticsTruncated = "ETG4003";
   }
 
   /// <summary>Defines the closed version-1 metadata conflict action identifiers.</summary>
@@ -1338,6 +1350,9 @@ namespace EarthTool.GLTF
     /// <summary>Gets material-handle bindings; null clears an untextured material binding.</summary>
     public IReadOnlyDictionary<GltfMaterialHandle, string?> TextureResourceBindings { get; }
 
+    /// <summary>Gets dynamic mesh-resource bindings keyed by owning node handle.</summary>
+    public IReadOnlyDictionary<GltfNodeHandle, string> MeshResourceBindings { get; }
+
     /// <summary>Gets the optional explicit footprint.</summary>
     public GltfNewModelFootprint? Footprint { get; }
 
@@ -1361,7 +1376,8 @@ namespace EarthTool.GLTF
       GltfNewModelHorizontalExtents? horizontalExtents = null,
       IReadOnlyDictionary<GltfNodeHandle, GltfNewModelObjectRole>? objectRoles = null,
       IReadOnlyDictionary<GltfLightHandle, GltfNewModelStaticLightOptions>? staticLightOptions =
-        null
+        null,
+      IReadOnlyDictionary<GltfNodeHandle, string>? meshResourceBindings = null
     )
     {
       var bindings =
@@ -1373,10 +1389,14 @@ namespace EarthTool.GLTF
       var lights =
         staticLightOptions?.ToDictionary(pair => pair.Key, pair => pair.Value)
         ?? new Dictionary<GltfLightHandle, GltfNewModelStaticLightOptions>();
+      var meshes =
+        meshResourceBindings?.ToDictionary(pair => pair.Key, pair => pair.Value)
+        ?? new Dictionary<GltfNodeHandle, string>();
       if (
         bindings.Keys.Any(handle => handle.Value <= 0)
         || roles.Keys.Any(handle => handle.Value <= 0)
         || lights.Keys.Any(handle => handle.Value <= 0)
+        || meshes.Keys.Any(handle => handle.Value <= 0)
       )
       {
         throw new ArgumentOutOfRangeException(
@@ -1384,11 +1404,16 @@ namespace EarthTool.GLTF
           "A document-local handle must be positive."
         );
       }
-      if (roles.Values.Any(role => role is null) || lights.Values.Any(light => light is null))
+      if (
+        roles.Values.Any(role => role is null)
+        || lights.Values.Any(light => light is null)
+        || meshes.Values.Any(mesh => mesh is null)
+      )
       {
         throw new ArgumentException("New-model semantic overrides cannot contain null values.");
       }
       TextureResourceBindings = new ReadOnlyDictionary<GltfMaterialHandle, string?>(bindings);
+      MeshResourceBindings = new ReadOnlyDictionary<GltfNodeHandle, string>(meshes);
       Footprint = footprint;
       HorizontalExtents = horizontalExtents;
       ObjectRoles = new ReadOnlyDictionary<GltfNodeHandle, GltfNewModelObjectRole>(roles);

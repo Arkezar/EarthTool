@@ -1008,6 +1008,43 @@ namespace EarthTool.GLTF
         }
       }
 
+      if (!json.IsEmpty && CanonicalDynamicGltfImporter.HasClaim(json, profile.MaxJsonDepth))
+      {
+        var imported = separatePackage is null
+          ? CanonicalDynamicGltfImporter.ImportGlb(source, options, profile, cancellationToken)
+          : CanonicalDynamicGltfImporter.ImportSeparate(
+            separatePackage.Json,
+            separatePackage.Binary,
+            options,
+            profile,
+            cancellationToken
+          );
+        if (!imported.Succeeded)
+        {
+          return new OperationResult<GltfMeshCreationResult>(
+            imported.Status,
+            diagnostics: imported.Diagnostics
+          );
+        }
+        return new OperationResult<GltfMeshCreationResult>(
+          OperationStatus.Succeeded,
+          new GltfMeshCreationResult(
+            imported.Value!,
+            new PreservationReport(
+              new[]
+              {
+                new PreservationChange(
+                  "RootDynamicObject",
+                  PreservationDisposition.Canonicalized,
+                  "CanonicalDynamicGltfImport"
+                ),
+              }
+            )
+          ),
+          imported.Diagnostics
+        );
+      }
+
       ParsedGlb parsed;
       try
       {

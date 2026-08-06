@@ -403,10 +403,10 @@ namespace EarthTool.GLTF.Internal
 
   internal static class GltfAuthoringMetadataDiagnosticCodes
   {
-    internal const string OptionalValueDefaulted = "ETG3000";
-    internal const string DuplicateOwner = "ETG3001";
-    internal const string RequiredValueMissing = "ETG3002";
-    internal const string DiagnosticsTruncated = "ETG3003";
+    internal const string OptionalValueDefaulted = GltfDiagnosticCodes.AuthoringValueDefaulted;
+    internal const string DuplicateOwner = GltfDiagnosticCodes.DuplicateAuthoringOwner;
+    internal const string RequiredValueMissing = GltfDiagnosticCodes.RequiredAuthoringValueMissing;
+    internal const string DiagnosticsTruncated = GltfDiagnosticCodes.AuthoringDiagnosticsTruncated;
   }
 
   internal static class CanonicalAuthoringMetadata
@@ -477,7 +477,7 @@ namespace EarthTool.GLTF.Internal
         return Failed<CanonicalAuthoringMetadataDocument>(
           new OperationDiagnostic(
             GltfAuthoringMetadataDiagnosticCodes.DuplicateOwner,
-            3001,
+            4001,
             DiagnosticSeverity.Error,
             paths[0],
             "A canonical authoring identifier is declared more than once.",
@@ -1669,7 +1669,7 @@ namespace EarthTool.GLTF.Internal
     {
       return new OperationDiagnostic(
         GltfAuthoringMetadataDiagnosticCodes.OptionalValueDefaulted,
-        3000,
+        4000,
         DiagnosticSeverity.Warning,
         path,
         message);
@@ -1679,7 +1679,7 @@ namespace EarthTool.GLTF.Internal
     {
       return new OperationDiagnostic(
         GltfAuthoringMetadataDiagnosticCodes.RequiredValueMissing,
-        3002,
+        4002,
         DiagnosticSeverity.Error,
         path,
         message);
@@ -1729,7 +1729,7 @@ namespace EarthTool.GLTF.Internal
         {
           _diagnostics.Add(new OperationDiagnostic(
             GltfAuthoringMetadataDiagnosticCodes.DiagnosticsTruncated,
-            3003,
+            4003,
             DiagnosticSeverity.Warning,
             "metadata",
             "Additional canonical authoring metadata warnings were truncated."));

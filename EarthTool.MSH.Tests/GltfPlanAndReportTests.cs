@@ -18,6 +18,37 @@ public class GltfPlanAndReportTests
   private static readonly Guid _documentId = new("11111111-2222-4333-8444-555555555555");
 
   [Fact]
+  public async Task NewModelPlanRoundTripsExplicitDynamicMeshResourceBindings()
+  {
+    var plan = GltfImportPlan.CreateNewModel(
+      GltfPackageKind.Glb,
+      new string('a', 64),
+      new GltfNewModelImportOptions(
+        meshResourceBindings: new Dictionary<GltfNodeHandle, string>
+        {
+          [new GltfNodeHandle(3)] = "Objects\\effects\\scalable.msh",
+        }
+      )
+    );
+    var serializer = new GltfImportPlanSerializer();
+    await using var serialized = new MemoryStream();
+    var write = await serializer.SerializeAsync(plan, serialized);
+    serialized.Position = 0;
+
+    var read = await serializer.DeserializeAsync(serialized);
+
+    write.Status.Should().Be(OperationStatus.Succeeded);
+    read.Status.Should().Be(OperationStatus.Succeeded);
+    read.Value!.NewModelOptions!.MeshResourceBindings.Should().ContainSingle()
+      .Which.Should().Be(
+        new KeyValuePair<GltfNodeHandle, string>(
+          new GltfNodeHandle(3),
+          "Objects\\effects\\scalable.msh"
+        )
+      );
+  }
+
+  [Fact]
   public async Task VersionTwoNewModelPlanRoundTripsEveryTypedAuthoringInput()
   {
     var plan = GltfImportPlan.CreateNewModel(

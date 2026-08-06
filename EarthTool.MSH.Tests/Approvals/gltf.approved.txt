@@ -42,10 +42,13 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String AnimationClassUnrecognized = "ETG1015"
   field System.String AnimationMetadataOnly = "ETG1014"
   field System.String AssetLineageMismatch = "ETG2006"
+  field System.String AuthoringDiagnosticsTruncated = "ETG4003"
+  field System.String AuthoringValueDefaulted = "ETG4000"
   field System.String Cancelled = "ETG1005"
   field System.String CannonRenderPositionPreviewSubstituted = "ETG1016"
   field System.String DanglingMetadataReference = "ETG2013"
   field System.String DocumentMismatch = "ETG2007"
+  field System.String DuplicateAuthoringOwner = "ETG4001"
   field System.String DuplicateScopeIdentity = "ETG2009"
   field System.String EmitterHierarchyFallback = "ETG1027"
   field System.String ImportPlanMismatch = "ETG3004"
@@ -73,6 +76,7 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String OrphanEnvelope = "ETG2011"
   field System.String ProvenanceMismatch = "ETG2017"
   field System.String RemovedImportPlanMember = "ETG3005"
+  field System.String RequiredAuthoringValueMissing = "ETG4002"
   field System.String ResourceLimitExceeded = "ETG1001"
   field System.String SceneLightIgnored = "ETG1018"
   field System.String StaleImportPlan = "ETG3003"
@@ -167,9 +171,10 @@ public sealed class EarthTool.GLTF.GltfNewModelHorizontalExtents
   property System.Single PositiveX { get; }
   property System.Single PositiveY { get; }
 public sealed class EarthTool.GLTF.GltfNewModelImportOptions
-  constructor GltfNewModelImportOptions(System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfMaterialHandle, System.String?>? textureResourceBindings = null, EarthTool.GLTF.GltfNewModelFootprint? footprint = null, EarthTool.GLTF.GltfNewModelHorizontalExtents? horizontalExtents = null, System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfNodeHandle, EarthTool.GLTF.GltfNewModelObjectRole>? objectRoles = null, System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfLightHandle, EarthTool.GLTF.GltfNewModelStaticLightOptions>? staticLightOptions = null)
+  constructor GltfNewModelImportOptions(System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfMaterialHandle, System.String?>? textureResourceBindings = null, EarthTool.GLTF.GltfNewModelFootprint? footprint = null, EarthTool.GLTF.GltfNewModelHorizontalExtents? horizontalExtents = null, System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfNodeHandle, EarthTool.GLTF.GltfNewModelObjectRole>? objectRoles = null, System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfLightHandle, EarthTool.GLTF.GltfNewModelStaticLightOptions>? staticLightOptions = null, System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfNodeHandle, System.String>? meshResourceBindings = null)
   property EarthTool.GLTF.GltfNewModelFootprint? Footprint { get; }
   property EarthTool.GLTF.GltfNewModelHorizontalExtents? HorizontalExtents { get; }
+  property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfNodeHandle, System.String> MeshResourceBindings { get; }
   property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfNodeHandle, EarthTool.GLTF.GltfNewModelObjectRole> ObjectRoles { get; }
   property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfLightHandle, EarthTool.GLTF.GltfNewModelStaticLightOptions> StaticLightOptions { get; }
   property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfMaterialHandle, System.String?> TextureResourceBindings { get; }

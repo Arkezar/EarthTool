@@ -162,6 +162,7 @@ namespace EarthTool.GLTF
     {
       return checked(
         (options.TextureResourceBindings.Count * 2L)
+        + (options.MeshResourceBindings.Count * 2L)
         + (options.ObjectRoles.Count * 3L)
         + (options.StaticLightOptions.Count * 3L)
         + (options.Footprint is null ? 0 : 33)
@@ -475,9 +476,18 @@ namespace EarthTool.GLTF
     {
       RequireKind(value, JsonValueKind.Object, "semanticOverrides", "Semantic overrides must be an object.");
       RejectRemovedOverrideMembers(value);
-      EnsureProperties(value, "semanticOverrides",
-        "textureResourceBindings", "footprint", "horizontalExtents", "objectRoles",
-        "staticLightOptions");
+      if (value.TryGetProperty("meshResourceBindings", out _))
+      {
+        EnsureProperties(value, "semanticOverrides",
+          "textureResourceBindings", "meshResourceBindings", "footprint", "horizontalExtents",
+          "objectRoles", "staticLightOptions");
+      }
+      else
+      {
+        EnsureProperties(value, "semanticOverrides",
+          "textureResourceBindings", "footprint", "horizontalExtents", "objectRoles",
+          "staticLightOptions");
+      }
       var textures = new Dictionary<GltfMaterialHandle, string?>();
       foreach (var item in RequiredArray(value, "textureResourceBindings", "semanticOverrides.textureResourceBindings"))
       {
@@ -486,6 +496,45 @@ namespace EarthTool.GLTF
         if (!textures.TryAdd(handle, OptionalNullableString(item, "resourceKey", "semanticOverrides.textureResourceBindings[].resourceKey")))
         {
           throw Malformed("semanticOverrides.textureResourceBindings", "A material handle is duplicated.");
+        }
+      }
+
+      var meshes = new Dictionary<GltfNodeHandle, string>();
+      if (value.TryGetProperty("meshResourceBindings", out var meshBindings))
+      {
+        RequireKind(
+          meshBindings,
+          JsonValueKind.Array,
+          "semanticOverrides.meshResourceBindings",
+          "Mesh resource bindings must be an array."
+        );
+        foreach (var item in meshBindings.EnumerateArray())
+        {
+          EnsureProperties(
+            item,
+            "semanticOverrides.meshResourceBindings[]",
+            "node",
+            "resourceKey"
+          );
+          var handle = new GltfNodeHandle(
+            RequiredInt32(item, "node", "semanticOverrides.meshResourceBindings[].node")
+          );
+          if (
+            !meshes.TryAdd(
+              handle,
+              RequiredString(
+                item,
+                "resourceKey",
+                "semanticOverrides.meshResourceBindings[].resourceKey"
+              )
+            )
+          )
+          {
+            throw Malformed(
+              "semanticOverrides.meshResourceBindings",
+              "A node handle is duplicated."
+            );
+          }
         }
       }
 
@@ -561,7 +610,7 @@ namespace EarthTool.GLTF
           RequiredSingle(extentsValue, "negativeX", "semanticOverrides.horizontalExtents.negativeX"));
       }
 
-      return new GltfNewModelImportOptions(textures, footprint, extents, roles, lights);
+      return new GltfNewModelImportOptions(textures, footprint, extents, roles, lights, meshes);
     }
 
     private static void RejectRemovedOverrideMembers(JsonElement value)
@@ -649,6 +698,19 @@ namespace EarthTool.GLTF
         writer.WriteEndObject();
       }
       writer.WriteEndArray();
+      if (options.MeshResourceBindings.Count != 0)
+      {
+        writer.WritePropertyName("meshResourceBindings");
+        writer.WriteStartArray();
+        foreach (var binding in options.MeshResourceBindings.OrderBy(item => item.Key.Value))
+        {
+          writer.WriteStartObject();
+          writer.WriteNumber("node", binding.Key.Value);
+          writer.WriteString("resourceKey", binding.Value);
+          writer.WriteEndObject();
+        }
+        writer.WriteEndArray();
+      }
       writer.WritePropertyName("footprint");
       if (options.Footprint is null)
       {
