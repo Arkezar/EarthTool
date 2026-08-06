@@ -79,6 +79,7 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String RequiredAuthoringValueMissing = "ETG4002"
   field System.String ResourceLimitExceeded = "ETG1001"
   field System.String SceneLightIgnored = "ETG1018"
+  field System.String SourceRepresentationNotPreserved = "ETG1030"
   field System.String StaleImportPlan = "ETG3003"
   field System.String StaleNativeProjection = "ETG2016"
   field System.String StaticLightPreviewSubstituted = "ETG1017"

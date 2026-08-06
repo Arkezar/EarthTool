@@ -11,7 +11,32 @@
       "assetKind": "static",
       "status": "succeeded",
       "destination": "input.glb",
-      "diagnostics": [],
+      "diagnostics": [
+        {
+          "code": "ETG1030",
+          "eventId": 1130,
+          "severity": "warning",
+          "path": "ArchiveFraming.CreationGuid",
+          "byteOffset": null,
+          "data": {
+            "creationMode": "canonical",
+            "origin": "Loaded"
+          },
+          "message": "This accepted serialized representation is not carried as an authoring input. Later glTF asset creation regenerates canonical MSH state and does not restore its source bytes."
+        },
+        {
+          "code": "ETG1030",
+          "eventId": 1130,
+          "severity": "warning",
+          "path": "StaticRenderObjectSequence[0].Triangles[0].TriangleRenderPassFlags",
+          "byteOffset": null,
+          "data": {
+            "creationMode": "canonical",
+            "origin": "Loaded"
+          },
+          "message": "This accepted serialized representation is not carried as an authoring input. Later glTF asset creation regenerates canonical MSH state and does not restore its source bytes."
+        }
+      ],
       "identities": {
         "meshAssetLineageId": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
         "meshCreationGuid": "11111111-2222-4333-8444-555555555555",

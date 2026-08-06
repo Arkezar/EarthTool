@@ -248,6 +248,35 @@ namespace EarthTool.MSH.Internal
       return serializedRepresentation.SequenceEqual(_dynamicBytes);
     }
 
+    internal static (
+      bool OccupancyDescriptors,
+      bool CornerPassageMaps
+    ) GetCanonicalRotatedFootprintMatches(CommonMeshBaseHeader header)
+    {
+      var cornerFlags = Enumerable
+        .Range(0, 16)
+        .Select(index => (byte)(header.BoxCornerPassageFlags[15 - index] & 0x0F))
+        .ToArray();
+
+      var footprint = new CanonicalStaticFootprint(
+        (ushort)header.BoxPresenceMask,
+        new float[16],
+        cornerFlags
+      );
+      var canonical = EncodeStatic(
+        new CanonicalStaticBaseHeaderInput(
+          default,
+          Array.Empty<CanonicalStaticVertex>(),
+          footprint,
+          new CanonicalHorizontalExtents(0, 0, 0, 0)
+        )
+      );
+      return (
+        header.RotatedOccupancyDescriptors.SequenceEqual(canonical.RotatedOccupancyDescriptors),
+        header.RotatedCornerPassageMaps.SequenceEqual(canonical.RotatedCornerPassageMaps)
+      );
+    }
+
     internal static byte[] EncodeAttachmentRecord(CanonicalAttachmentRecord record)
     {
       var result = new byte[AttachmentRecordSize];

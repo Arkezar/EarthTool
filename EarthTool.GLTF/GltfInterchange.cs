@@ -27,6 +27,8 @@ using CanonicalStaticBaseHeaderInput = EarthTool.MSH.Internal.CanonicalStaticBas
 using CanonicalStaticMeshAssembler = EarthTool.MSH.Internal.CanonicalStaticMeshAssembler;
 using CanonicalStaticMeshAssemblyInput = EarthTool.MSH.Internal.CanonicalStaticMeshAssemblyInput;
 using CanonicalStaticRenderObjectSequenceEncoder = EarthTool.MSH.Internal.CanonicalStaticRenderObjectSequenceEncoder;
+using DynamicEffectBehavior = EarthTool.MSH.Internal.DynamicEffectBehavior;
+using DynamicObjectPlacement = EarthTool.MSH.Internal.DynamicObjectPlacement;
 
 namespace EarthTool.GLTF
 {
@@ -84,6 +86,7 @@ namespace EarthTool.GLTF
           .Concat(CreateCannonRenderPositionDiagnostics(asset))
           .Concat(CreateStaticLightDiagnostics(asset))
           .Concat(CreateEmitterHierarchyDiagnostics(asset))
+          .Concat(CreateSourceLossDiagnostics(asset))
           .ToArray();
         var metadataLength = GlbDocument.GetMaximumMetadataByteCount(
           asset,
@@ -279,6 +282,7 @@ namespace EarthTool.GLTF
           .Concat(CreateCannonRenderPositionDiagnostics(asset))
           .Concat(CreateStaticLightDiagnostics(asset))
           .Concat(CreateEmitterHierarchyDiagnostics(asset))
+          .Concat(CreateSourceLossDiagnostics(asset))
           .ToArray();
         var metadataLength = GlbDocument.GetMaximumMetadataByteCount(
           asset,
@@ -569,7 +573,9 @@ namespace EarthTool.GLTF
         return new OperationResult<GltfExportReceipt>(
           OperationStatus.Succeeded,
           new GltfExportReceipt(baseline, fingerprint),
-          previewResult.Diagnostics.Concat(meshPreviewResult.Diagnostics)
+          previewResult.Diagnostics
+            .Concat(meshPreviewResult.Diagnostics)
+            .Concat(CreateSourceLossDiagnostics(asset))
         );
       }
       catch (OperationCanceledException)
@@ -737,7 +743,9 @@ namespace EarthTool.GLTF
         return new OperationResult<GltfExportReceipt>(
           OperationStatus.Succeeded,
           new GltfExportReceipt(baseline, fingerprint),
-          previewResult.Diagnostics.Concat(meshPreviewResult.Diagnostics)
+          previewResult.Diagnostics
+            .Concat(meshPreviewResult.Diagnostics)
+            .Concat(CreateSourceLossDiagnostics(asset))
         );
       }
       catch (OperationCanceledException)
@@ -10245,6 +10253,403 @@ namespace EarthTool.GLTF
     )
     {
       return new OperationDiagnostic(code, eventId, DiagnosticSeverity.Error, path, message);
+    }
+
+    private static IReadOnlyList<OperationDiagnostic> CreateSourceLossDiagnostics(MeshAsset asset)
+    {
+      if (asset.Origin == MeshAssetOrigin.Canonical)
+      {
+        return Array.Empty<OperationDiagnostic>();
+      }
+
+      var paths = new List<string>();
+      var canonicalDeclaration = asset.Kind == MeshAssetKind.Static ? 0x20D0A1FFu : 0x30D0A1FFu;
+      var canonicalArchiveType = asset.Kind == MeshAssetKind.Static ? null : (uint?)1;
+      if (asset.ArchiveFraming.Declaration != canonicalDeclaration)
+      {
+        paths.Add("ArchiveFraming.Declaration");
+      }
+      if (asset.ArchiveFraming.ArchiveType != canonicalArchiveType)
+      {
+        paths.Add("ArchiveFraming.ArchiveType");
+      }
+      if (asset.ArchiveFraming.CreationGuid.HasValue)
+      {
+        paths.Add("ArchiveFraming.CreationGuid");
+      }
+      if (asset.RootTrailingBytes.Count != 0)
+      {
+        paths.Add("RootTrailingBytes");
+      }
+
+      switch (asset)
+      {
+        case StaticMeshAsset staticAsset:
+          AddStaticSourceLossPaths(staticAsset, paths);
+          break;
+        case DynamicMeshAsset dynamicAsset:
+          AddDynamicSourceLossPaths(
+            dynamicAsset.RootDynamicObject,
+            "RootDynamicObject",
+            paths,
+            new HashSet<string>(StringComparer.Ordinal)
+          );
+          break;
+      }
+
+      return paths
+        .Distinct(StringComparer.Ordinal)
+        .Select(path => new OperationDiagnostic(
+          GltfDiagnosticCodes.SourceRepresentationNotPreserved,
+          1130,
+          DiagnosticSeverity.Warning,
+          path,
+          "This accepted serialized representation is not carried as an authoring input. Later glTF asset creation regenerates canonical MSH state and does not restore its source bytes.",
+          data: new Dictionary<string, string>
+          {
+            ["origin"] = asset.Origin.ToString(),
+            ["creationMode"] = "canonical",
+          }
+        ))
+        .ToArray();
+    }
+
+    private static void AddStaticSourceLossPaths(
+      StaticMeshAsset asset,
+      ICollection<string> paths
+    )
+    {
+      var header = asset.CommonBaseHeader;
+      if ((header.BoxPresenceMask & 0xFFFF0000u) != 0)
+      {
+        paths.Add("CommonBaseHeader.BoxPresenceMask");
+      }
+      if (!header.AnimationFrameIndices.Equals(default(AnimationClassBytes)))
+      {
+        paths.Add("CommonBaseHeader.AnimationFrameIndices");
+      }
+      if (header.BoxCornerPassageFlags.Any(value => (value & 0xF0) != 0))
+      {
+        paths.Add("CommonBaseHeader.BoxCornerPassageFlags");
+      }
+      var rotatedFootprint = CanonicalBaseHeaderEncoder.GetCanonicalRotatedFootprintMatches(header);
+      if (!rotatedFootprint.OccupancyDescriptors)
+      {
+        paths.Add("CommonBaseHeader.RotatedOccupancyDescriptors");
+      }
+      if (!rotatedFootprint.CornerPassageMaps)
+      {
+        paths.Add("CommonBaseHeader.RotatedCornerPassageMaps");
+      }
+
+      for (var lightIndex = 0; lightIndex < 4; lightIndex++)
+      {
+        var reservedOffset = lightIndex * 0x30 + 0x1D;
+        if (header.StaticSpotLights.Skip(reservedOffset).Take(3).Any(value => value != 0))
+        {
+          paths.Add($"CommonBaseHeader.StaticSpotLights[{lightIndex + 1}].ReservedBytes");
+        }
+      }
+
+      for (var attachmentIndex = 0; attachmentIndex < 49; attachmentIndex++)
+      {
+        var record = header.AttachmentTable.Skip(attachmentIndex * 8).Take(8).ToArray();
+        var inactive = BinaryPrimitives.ReadInt16LittleEndian(record) == short.MinValue;
+        var physicalNumber = attachmentIndex + 1;
+        if (
+          inactive
+          && !record.SequenceEqual(new byte[] { 0, 0x80, 0, 0x80, 0, 0x80, 0, 0 })
+        )
+        {
+          paths.Add($"CommonBaseHeader.AttachmentTable[{physicalNumber}]");
+        }
+        else if (!inactive && physicalNumber > 4)
+        {
+          var canonicalExtra = physicalNumber is >= 13 and <= 20 ? (byte)0 : (byte)0x80;
+          if (record[7] != canonicalExtra)
+          {
+            paths.Add($"CommonBaseHeader.AttachmentTable[{physicalNumber}].Extra");
+          }
+        }
+      }
+
+      for (var cannonIndex = 0; cannonIndex < 4; cannonIndex++)
+      {
+        var attachment = header.AttachmentTable.Skip(cannonIndex * 8).Take(8).ToArray();
+        var renderPosition = header.CannonRenderPositions
+          .Skip(cannonIndex * 12)
+          .Take(12)
+          .ToArray();
+        if (
+          IsInactiveAttachment(header, cannonIndex)
+          && renderPosition.Any(value => value != 0)
+        )
+        {
+          paths.Add($"CommonBaseHeader.CannonRenderPositions[{cannonIndex + 1}]");
+        }
+        else if (
+          !IsInactiveAttachment(header, cannonIndex)
+          && !MatchesCanonicalAttachment(attachment, renderPosition, attachment[6], attachment[7])
+        )
+        {
+          paths.Add($"CommonBaseHeader.AttachmentTable[{cannonIndex + 1}]");
+        }
+      }
+      for (var lightIndex = 0; lightIndex < 4; lightIndex++)
+      {
+        var spotAttachmentIndex = lightIndex + 12;
+        var spotAttachment = header.AttachmentTable.Skip(spotAttachmentIndex * 8).Take(8).ToArray();
+        var spotRecord = header.StaticSpotLights.Skip(lightIndex * 0x30).Take(0x30).ToArray();
+        if (
+          IsInactiveAttachment(header, spotAttachmentIndex)
+          && spotRecord.Any(value => value != 0)
+        )
+        {
+          paths.Add($"CommonBaseHeader.StaticSpotLights[{lightIndex + 1}]");
+        }
+        else if (
+          !IsInactiveAttachment(header, spotAttachmentIndex)
+          && !MatchesCanonicalAttachment(spotAttachment, spotRecord, 0, 0)
+        )
+        {
+          paths.Add($"CommonBaseHeader.AttachmentTable[{spotAttachmentIndex + 1}]");
+        }
+
+        var omniAttachmentIndex = lightIndex + 16;
+        var omniAttachment = header.AttachmentTable.Skip(omniAttachmentIndex * 8).Take(8).ToArray();
+        var omniRecord = header.StaticOmniLights.Skip(lightIndex * 0x1C).Take(0x1C).ToArray();
+        if (
+          IsInactiveAttachment(header, omniAttachmentIndex)
+          && omniRecord.Any(value => value != 0)
+        )
+        {
+          paths.Add($"CommonBaseHeader.StaticOmniLights[{lightIndex + 1}]");
+        }
+        else if (
+          !IsInactiveAttachment(header, omniAttachmentIndex)
+          && !MatchesCanonicalAttachment(omniAttachment, omniRecord, 0, 0)
+        )
+        {
+          paths.Add($"CommonBaseHeader.AttachmentTable[{omniAttachmentIndex + 1}]");
+        }
+      }
+
+      var vertexBlockCountFound = false;
+      var vertexBlockPaddingFound = false;
+      var unclassifiedFlagsFound = false;
+      var texturePathFound = false;
+      var animationClassFound = false;
+      var animationTracksFound = false;
+      var nextMarkerFound = false;
+      var reservedTextureComponentFound = false;
+      var normalSharingFound = false;
+      var positionSharingFound = false;
+      var triangleFlagsFound = false;
+      for (var recordIndex = 0; recordIndex < asset.StaticRenderObjectSequence.Count; recordIndex++)
+      {
+        var record = asset.StaticRenderObjectSequence[recordIndex];
+        var path = $"StaticRenderObjectSequence[{recordIndex}]";
+        var minimumBlockCount = (record.RenderVertices.Count + 3) / 4;
+        if (!vertexBlockCountFound && record.VertexBlockCount != minimumBlockCount)
+        {
+          paths.Add(path + ".VertexBlockCount");
+          vertexBlockCountFound = true;
+        }
+        if (!vertexBlockPaddingFound && record.VertexBlockPadding.Any(value => value != 0))
+        {
+          paths.Add(path + ".VertexBlockPadding");
+          vertexBlockPaddingFound = true;
+        }
+        if (!unclassifiedFlagsFound && record.UnclassifiedObjectFlagsHighWord != 0)
+        {
+          paths.Add(path + ".UnclassifiedObjectFlagsHighWord");
+          unclassifiedFlagsFound = true;
+        }
+        if (!texturePathFound && record.TexturePathBytes.Count != 0)
+        {
+          paths.Add(path + ".TexturePathBytes");
+          texturePathFound = true;
+        }
+        if (!animationClassFound && !record.KnownAnimationClass.HasValue)
+        {
+          paths.Add(path + ".AnimationClassValue");
+          animationClassFound = true;
+        }
+        else if (!animationTracksFound && record.KnownAnimationClass.HasValue)
+        {
+          var declaredLength = GetAnimationClassValue(
+            header.AnimationLengths,
+            record.KnownAnimationClass.Value
+          );
+          if (
+            record.AnimationTracks.ScaleFrames.Count > declaredLength
+            || record.AnimationTracks.TranslationFrames.Count > declaredLength
+            || record.AnimationTracks.Matrices.Count > declaredLength
+          )
+          {
+            paths.Add(path + ".AnimationTracks");
+            animationTracksFound = true;
+          }
+        }
+        var canonicalNextMarker = recordIndex + 1 < asset.StaticRenderObjectSequence.Count ? 1u : 0u;
+        if (!nextMarkerFound && record.NextRecordMarker != canonicalNextMarker)
+        {
+          paths.Add(path + ".NextRecordMarker");
+          nextMarkerFound = true;
+        }
+
+        for (var vertexIndex = 0; vertexIndex < record.RenderVertices.Count; vertexIndex++)
+        {
+          var vertex = record.RenderVertices[vertexIndex];
+          if (
+            !reservedTextureComponentFound
+            && BitConverter.SingleToInt32Bits(vertex.ReservedTextureComponent) != 0
+          )
+          {
+            paths.Add($"{path}.RenderVertices[{vertexIndex}].ReservedTextureComponent");
+            reservedTextureComponentFound = true;
+          }
+          if (!normalSharingFound && vertex.NormalSharingIndex != ushort.MaxValue)
+          {
+            paths.Add($"{path}.RenderVertices[{vertexIndex}].NormalSharingIndex");
+            normalSharingFound = true;
+          }
+          if (!positionSharingFound && vertex.PositionSharingIndex != ushort.MaxValue)
+          {
+            paths.Add($"{path}.RenderVertices[{vertexIndex}].PositionSharingIndex");
+            positionSharingFound = true;
+          }
+        }
+
+        if (!triangleFlagsFound && record.Triangles.Count != 0)
+        {
+          for (var triangleIndex = 0; triangleIndex < record.Triangles.Count; triangleIndex++)
+          {
+            var triangle = record.Triangles[triangleIndex];
+            var canonicalFlags = CanonicalStaticRenderObjectSequenceEncoder
+              .CalculateTriangleRenderPassFlags(record.RenderVertices, triangle);
+            if (triangle.TriangleRenderPassFlags != canonicalFlags)
+            {
+              paths.Add($"{path}.Triangles[{triangleIndex}].TriangleRenderPassFlags");
+              triangleFlagsFound = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (asset.StoredTrailingHierarchyUnwindCount != asset.ExpectedTrailingHierarchyUnwindCount)
+      {
+        paths.Add("StoredTrailingHierarchyUnwindCount");
+      }
+    }
+
+    private static bool MatchesCanonicalAttachment(
+      IReadOnlyList<byte> attachment,
+      IReadOnlyList<byte> positionSource,
+      byte heading,
+      byte extra
+    )
+    {
+      var bytes = positionSource.ToArray();
+      var position = new Vector3(ReadSingle(bytes, 0), ReadSingle(bytes, 4), ReadSingle(bytes, 8));
+      if (!IsFinite(position))
+      {
+        return false;
+      }
+      try
+      {
+        var canonical = CanonicalBaseHeaderEncoder.EncodeAttachmentRecord(
+          new CanonicalAttachmentRecord(position, heading, extra)
+        );
+        return attachment.SequenceEqual(canonical);
+      }
+      catch (OverflowException)
+      {
+        return false;
+      }
+    }
+
+    private static bool IsInactiveAttachment(CommonMeshBaseHeader header, int zeroBasedIndex)
+    {
+      return BinaryPrimitives.ReadInt16LittleEndian(
+          header.AttachmentTable.Skip(zeroBasedIndex * 8).Take(2).ToArray()
+        )
+        == short.MinValue;
+    }
+
+    private static byte GetAnimationClassValue(
+      AnimationClassBytes values,
+      StaticAnimationClass animationClass
+    )
+    {
+      return animationClass switch
+      {
+        StaticAnimationClass.A => values.A,
+        StaticAnimationClass.B => values.B,
+        StaticAnimationClass.C => values.C,
+        _ => values.D,
+      };
+    }
+
+    private static void AddDynamicSourceLossPaths(
+      DynamicObject value,
+      string path,
+      ICollection<string> paths,
+      ISet<string> categories
+    )
+    {
+      if (
+        !value.CommonBaseHeader.IsCanonicalDynamic
+        && categories.Add("CommonBaseHeader")
+      )
+      {
+        paths.Add(path + ".CommonBaseHeader");
+      }
+
+      var extension = value.Extension;
+      if (!extension.KnownEffectType.HasValue && categories.Add("EffectType"))
+      {
+        paths.Add(path + ".Extension.EffectType");
+      }
+      if (!extension.KnownLightType.HasValue && categories.Add("LightType"))
+      {
+        paths.Add(path + ".Extension.LightType");
+      }
+      if (extension.ReservedWord != 0 && categories.Add("ReservedWord"))
+      {
+        paths.Add(path + ".Extension.ReservedWord");
+      }
+      if (extension.MeshNameBytes.Count != 0 && categories.Add("MeshNameBytes"))
+      {
+        paths.Add(path + ".Extension.MeshNameBytes");
+      }
+      if (extension.TexturePathBytes.Count != 0 && categories.Add("TexturePathBytes"))
+      {
+        paths.Add(path + ".Extension.TexturePathBytes");
+      }
+      foreach (
+        var finding in DynamicEffectBehavior.Diagnose(
+          extension,
+          path == "RootDynamicObject" ? DynamicObjectPlacement.Root : DynamicObjectPlacement.Child
+        )
+      )
+      {
+        if (categories.Add(finding.PathSuffix))
+        {
+          paths.Add(path + finding.PathSuffix);
+        }
+      }
+
+      for (var childIndex = 0; childIndex < value.Children.Count; childIndex++)
+      {
+        AddDynamicSourceLossPaths(
+          value.Children[childIndex],
+          $"{path}.Children[{childIndex}]",
+          paths,
+          categories
+        );
+      }
     }
 
     private static OperationDiagnostic? ValidatePlan(

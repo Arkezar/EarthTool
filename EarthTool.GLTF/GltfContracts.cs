@@ -112,6 +112,9 @@ namespace EarthTool.GLTF
     /// <summary>A textured new-model material requires a typed canonical TEX resource binding.</summary>
     public const string TextureResourceBindingRequired = "ETG1029";
 
+    /// <summary>An accepted MSH serialized representation is not retained for later canonical creation.</summary>
+    public const string SourceRepresentationNotPreserved = "ETG1030";
+
     /// <summary>Required EarthTool manifest metadata is absent.</summary>
     public const string MissingManifest = "ETG2000";
 

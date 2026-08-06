@@ -4752,7 +4752,9 @@ public class GltfWalkingSkeletonTests
     export.Status.Should().Be(OperationStatus.Succeeded);
     export
       .Diagnostics.Should()
-      .ContainSingle()
+      .ContainSingle(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.AnimationClassUnrecognized
+      )
       .Which.Code.Should()
       .Be(GltfDiagnosticCodes.AnimationClassUnrecognized);
     using var json = ReadGlbJson(glb.ToArray());
@@ -4885,7 +4887,7 @@ public class GltfWalkingSkeletonTests
     export.Status.Should().Be(OperationStatus.Succeeded);
     export
       .Diagnostics.Should()
-      .ContainSingle()
+      .ContainSingle(diagnostic => diagnostic.Code == GltfDiagnosticCodes.AnimationMetadataOnly)
       .Which.Should()
       .Match<OperationDiagnostic>(diagnostic =>
         diagnostic.Code == "ETG1014"
@@ -4931,7 +4933,9 @@ public class GltfWalkingSkeletonTests
     export.Status.Should().Be(OperationStatus.Succeeded);
     export
       .Diagnostics.Should()
-      .ContainSingle()
+      .ContainSingle(diagnostic =>
+        diagnostic.Code == GltfDiagnosticCodes.AnimationClassUnrecognized
+      )
       .Which.Code.Should()
       .Be(GltfDiagnosticCodes.AnimationClassUnrecognized);
     using (var json = ReadGlbJson(glb.ToArray()))
@@ -5865,7 +5869,7 @@ public class GltfWalkingSkeletonTests
     firstExport.Status.Should().Be(OperationStatus.Succeeded);
     firstExport
       .Diagnostics.Should()
-      .ContainSingle()
+      .ContainSingle(diagnostic => diagnostic.Code == GltfDiagnosticCodes.AnimationMetadataOnly)
       .Which.Should()
       .Match<OperationDiagnostic>(diagnostic =>
         diagnostic.Code == GltfDiagnosticCodes.AnimationMetadataOnly

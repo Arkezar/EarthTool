@@ -301,7 +301,7 @@ namespace EarthTool.MSH.Internal
         WriteUInt16(data, cursor, triangle.Vertex0);
         WriteUInt16(data, cursor + 2, triangle.Vertex1);
         WriteUInt16(data, cursor + 4, triangle.Vertex2);
-        WriteUInt16(data, cursor + 6, CalculateTriangleFlags(vertices, triangle));
+        WriteUInt16(data, cursor + 6, CalculateTriangleRenderPassFlags(vertices, triangle));
         cursor += 8;
       }
 
@@ -360,9 +360,24 @@ namespace EarthTool.MSH.Internal
       WriteUInt32(data, cursor, nextRecordMarker);
     }
 
-    private static ushort CalculateTriangleFlags(
+    internal static ushort CalculateTriangleRenderPassFlags(
       IReadOnlyList<CanonicalStaticVertex> vertices,
       CanonicalTriangle triangle
+    )
+    {
+      var edge1 = vertices[triangle.Vertex1].Position - vertices[triangle.Vertex0].Position;
+      var edge2 = vertices[triangle.Vertex2].Position - vertices[triangle.Vertex0].Position;
+      var cross = Vector3.Cross(edge1, edge2);
+      if (cross.LengthSquared() == 0)
+      {
+        return 1;
+      }
+      return Vector3.Normalize(cross).Z > 0.5f ? (ushort)3 : (ushort)1;
+    }
+
+    internal static ushort CalculateTriangleRenderPassFlags(
+      IReadOnlyList<RenderVertex> vertices,
+      StaticTriangle triangle
     )
     {
       var edge1 = vertices[triangle.Vertex1].Position - vertices[triangle.Vertex0].Position;
