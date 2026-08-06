@@ -242,13 +242,26 @@ namespace EarthTool.GLTF.Internal
   {
     internal float TerrainLightAmplitude { get; }
 
-    internal StaticLightAuthoringValues(float terrainLightAmplitude = 1)
+    internal float? TargetDistance { get; }
+
+    internal StaticLightAuthoringValues(
+      float terrainLightAmplitude = 1,
+      float? targetDistance = null
+    )
     {
       if (!float.IsFinite(terrainLightAmplitude) || terrainLightAmplitude < 0)
       {
         throw new ArgumentOutOfRangeException(nameof(terrainLightAmplitude));
       }
+      if (
+        targetDistance.HasValue
+        && (!float.IsFinite(targetDistance.Value) || targetDistance.Value <= 0)
+      )
+      {
+        throw new ArgumentOutOfRangeException(nameof(targetDistance));
+      }
       TerrainLightAmplitude = terrainLightAmplitude;
+      TargetDistance = targetDistance;
     }
   }
 
@@ -764,19 +777,35 @@ namespace EarthTool.GLTF.Internal
       WarningCollector warnings,
       ref int unknownMembers)
     {
-      var known = new HashSet<string>(StringComparer.Ordinal) { "terrainLightAmplitude" };
+      var known = new HashSet<string>(StringComparer.Ordinal)
+      {
+        "targetDistance",
+        "terrainLightAmplitude"
+      };
       AddUnknownWarnings(values, known, path, warnings, ref unknownMembers);
+      float? targetDistance = null;
+      if (values.TryGetProperty("targetDistance", out var targetProperty))
+      {
+        if (!TryFiniteSingle(targetProperty, out var targetValue) || targetValue <= 0)
+        {
+          warnings.Add(Defaulted(path + ".values.targetDistance", "The spot target distance is invalid; native range evidence or the required-value validation will apply."));
+        }
+        else
+        {
+          targetDistance = targetValue;
+        }
+      }
       if (!values.TryGetProperty("terrainLightAmplitude", out var property))
       {
         warnings.Add(Defaulted(path + ".values.terrainLightAmplitude", "The terrain-light amplitude is absent; its canonical default was used."));
-        return new StaticLightAuthoringValues();
+        return new StaticLightAuthoringValues(targetDistance: targetDistance);
       }
       if (!TryFiniteSingle(property, out var value) || value < 0)
       {
         warnings.Add(Defaulted(path + ".values.terrainLightAmplitude", "The terrain-light amplitude is invalid; its canonical default was used."));
-        return new StaticLightAuthoringValues();
+        return new StaticLightAuthoringValues(targetDistance: targetDistance);
       }
-      return new StaticLightAuthoringValues(value);
+      return new StaticLightAuthoringValues(value, targetDistance);
     }
 
     private static DynamicAuthoringValues ReadDynamic(
@@ -1143,6 +1172,10 @@ namespace EarthTool.GLTF.Internal
           writer.WriteNumber("cannonYawHalfRange", cannon.YawHalfRange);
           break;
         case StaticLightAuthoringValues light:
+          if (light.TargetDistance.HasValue)
+          {
+            writer.WriteNumber("targetDistance", light.TargetDistance.Value);
+          }
           writer.WriteNumber("terrainLightAmplitude", light.TerrainLightAmplitude);
           break;
         case DynamicAuthoringValues dynamicValues:

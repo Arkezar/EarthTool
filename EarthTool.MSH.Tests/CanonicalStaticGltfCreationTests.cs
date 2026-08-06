@@ -67,6 +67,233 @@ public sealed class CanonicalStaticGltfCreationTests
   }
 
   [Fact]
+  public async Task StaticLightArtistObjectsPopulateTheCompleteBaseHeader()
+  {
+    var footprint = new CanonicalStaticFootprint(
+      0x8421,
+      Enumerable.Repeat(1.5f, 16),
+      Enumerable.Repeat((byte)3, 16)
+    );
+    var extents = new CanonicalHorizontalExtents(1.25f, 2.5f, 3.75f, 4.5f);
+    var glb = await ExportCanonicalGlbAsync(
+      CreateSourceAsset(includeStaticLights: true),
+      (root, meshNodes) =>
+      {
+        SetStaticOwner(
+          meshNodes[0],
+          1,
+          new StaticSourceAuthoringValues(
+            footprint,
+            extents,
+            GltfStaticObjectRoles.ViewerFaced
+          )
+        );
+        SetStaticOwner(
+          meshNodes[1],
+          2,
+          new StaticSourceAuthoringValues(
+            roles: GltfStaticObjectRoles.Barrel,
+            barrelMaximumAngle: 37
+          )
+        );
+        SetStaticLightOwner(
+          root,
+          CanonicalAuthoringOwner.Parse("ET_SpotLight_2"),
+          new StaticLightAuthoringValues(0.625f, 8)
+        );
+        SetStaticLightOwner(
+          root,
+          CanonicalAuthoringOwner.Parse("ET_OmniLight_4"),
+          new StaticLightAuthoringValues(0.375f)
+        );
+      }
+    );
+
+    var result = GltfInterchange.ImportCanonicalStaticGlb(
+      glb,
+      new CanonicalStaticGltfCreationOptions(_creationGuid),
+      GltfOperationProfile.Default,
+      CancellationToken.None
+    );
+
+    result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
+    var asset = result.Value!;
+    asset.Origin.Should().Be(MeshAssetOrigin.Canonical);
+    asset.CommonBaseHeader.BoxPresenceMask.Should().Be(0x8421);
+    asset.CommonBaseHeader.BoxTopElevations.Should().Equal(
+      Enumerable.Repeat(new byte[] { 0x80, 0x01 }, 16).SelectMany(value => value)
+    );
+    asset.CommonBaseHeader.BoxCornerPassageFlags.Should().OnlyContain(value => value == 3);
+    asset.CommonBaseHeader.HorizontalExtents.Should().Equal(
+      0x40, 0x01, 0x80, 0x02, 0xC0, 0x03, 0x80, 0x04
+    );
+    asset.CommonBaseHeader.AnimationLengths.Should().Be(new AnimationClassBytes(0, 2, 0, 0));
+    asset.CommonBaseHeader.AnimationFrameIndices.Should().Be(default(AnimationClassBytes));
+
+    var bytes = asset.GetSerializedRepresentation().ToArray();
+    var spot = StaticLightMshFixture.GetSpot(bytes, 2);
+    ReadSingle(spot, 0).Should().Be(2);
+    ReadSingle(spot, 4).Should().Be(3);
+    ReadSingle(spot, 8).Should().Be(4);
+    ReadSingle(spot, 0x0C).Should().BeApproximately(0.25f, 0.00001f);
+    ReadSingle(spot, 0x10).Should().BeApproximately(0.5f, 0.00001f);
+    ReadSingle(spot, 0x14).Should().BeApproximately(0.75f, 0.00001f);
+    ReadSingle(spot, 0x18).Should().Be(8);
+    spot[0x1C].Should().Be(32);
+    spot.AsSpan(0x1D, 3).ToArray().Should().OnlyContain(value => value == 0);
+    ReadSingle(spot, 0x20).Should().BeApproximately(0.25f, 0.00001f);
+    ReadSingle(spot, 0x24).Should().BeApproximately(4, 0.00001f);
+    ReadSingle(spot, 0x28).Should().BeApproximately(0.5f, 0.00001f);
+    ReadSingle(spot, 0x2C).Should().Be(0.625f);
+
+    var omni = StaticLightMshFixture.GetOmni(bytes, 4);
+    ReadSingle(omni, 0).Should().Be(6);
+    ReadSingle(omni, 4).Should().Be(7);
+    ReadSingle(omni, 8).Should().Be(8);
+    ReadSingle(omni, 0x0C).Should().BeApproximately(0.6f, 0.00001f);
+    ReadSingle(omni, 0x10).Should().BeApproximately(0.4f, 0.00001f);
+    ReadSingle(omni, 0x14).Should().BeApproximately(0.2f, 0.00001f);
+    ReadSingle(omni, 0x18).Should().Be(0.375f);
+
+    StaticLightMshFixture.GetAttachment(bytes, 13).Should().Equal(
+      0, 128, 0, 128, 0, 128, 0, 0
+    );
+    BinaryPrimitives.ReadInt16LittleEndian(
+      StaticLightMshFixture.GetAttachment(bytes, 14)
+    ).Should().NotBe(short.MinValue);
+    BinaryPrimitives.ReadInt16LittleEndian(
+      StaticLightMshFixture.GetAttachment(bytes, 20)
+    ).Should().NotBe(short.MinValue);
+    foreach (var number in Enumerable.Range(1, 4).Where(number => number != 2))
+    {
+      StaticLightMshFixture.GetSpot(bytes, number).Should().OnlyContain(value => value == 0);
+      StaticLightMshFixture.GetAttachment(bytes, number + 12).Should().Equal(
+        0, 128, 0, 128, 0, 128, 0, 0
+      );
+    }
+    foreach (var number in Enumerable.Range(1, 4).Where(number => number != 4))
+    {
+      StaticLightMshFixture.GetOmni(bytes, number).Should().OnlyContain(value => value == 0);
+      StaticLightMshFixture.GetAttachment(bytes, number + 16).Should().Equal(
+        0, 128, 0, 128, 0, 128, 0, 0
+      );
+    }
+  }
+
+  [Fact]
+  public async Task TypedTargetDistanceAuthorsASpotWithoutNativeRange()
+  {
+    var glb = await ExportCanonicalGlbAsync(
+      CreateSourceAsset(includeStaticLights: true),
+      (root, meshNodes) =>
+      {
+        AddCanonicalOwners(root, meshNodes);
+        var spotOwner = CanonicalAuthoringOwner.Parse("ET_SpotLight_2");
+        LightDefinition(root, spotOwner).Remove("range");
+        SetStaticLightOwner(
+          root,
+          spotOwner,
+          new StaticLightAuthoringValues(0.625f, 12)
+        );
+        SetStaticLightOwner(
+          root,
+          CanonicalAuthoringOwner.Parse("ET_OmniLight_4"),
+          new StaticLightAuthoringValues()
+        );
+      }
+    );
+
+    var result = GltfInterchange.ImportCanonicalStaticGlb(
+      glb,
+      new CanonicalStaticGltfCreationOptions(_creationGuid),
+      GltfOperationProfile.Default,
+      CancellationToken.None
+    );
+
+    result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
+    var spot = StaticLightMshFixture.GetSpot(
+      result.Value!.GetSerializedRepresentation().ToArray(),
+      2
+    );
+    ReadSingle(spot, 0x18).Should().Be(12);
+    ReadSingle(spot, 0x2C).Should().Be(0.625f);
+  }
+
+  [Fact]
+  public async Task MissingOptionalLightValuesDefaultWithWarnings()
+  {
+    string? spotNodePath = null;
+    var glb = await ExportCanonicalGlbAsync(
+      CreateSourceAsset(includeStaticLights: true),
+      (root, meshNodes) =>
+      {
+        AddCanonicalOwners(root, meshNodes);
+        var spotOwner = CanonicalAuthoringOwner.Parse("ET_SpotLight_2");
+        LightDefinition(root, spotOwner)["range"] = 8;
+        spotNodePath = $"nodes[{NodeIndex(root, spotOwner)}]";
+        SetStaticLightOwner(
+          root,
+          CanonicalAuthoringOwner.Parse("ET_OmniLight_4"),
+          new StaticLightAuthoringValues(0.375f)
+        );
+      }
+    );
+
+    var result = GltfInterchange.ImportCanonicalStaticGlb(
+      glb,
+      new CanonicalStaticGltfCreationOptions(_creationGuid),
+      GltfOperationProfile.Default,
+      CancellationToken.None
+    );
+
+    result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
+    var spot = StaticLightMshFixture.GetSpot(
+      result.Value!.GetSerializedRepresentation().ToArray(),
+      2
+    );
+    ReadSingle(spot, 0x2C).Should().Be(1);
+    result.Diagnostics.Should().Contain(item =>
+      item.Code == GltfAuthoringMetadataDiagnosticCodes.OptionalValueDefaulted
+      && item.Severity == DiagnosticSeverity.Warning
+      && item.Path == spotNodePath
+    );
+  }
+
+  [Fact]
+  public async Task SpotWithoutNativeOrTypedTargetDistanceFailsAtomically()
+  {
+    var glb = await ExportCanonicalGlbAsync(
+      CreateSourceAsset(includeStaticLights: true),
+      (root, meshNodes) =>
+      {
+        AddCanonicalOwners(root, meshNodes);
+        var spotOwner = CanonicalAuthoringOwner.Parse("ET_SpotLight_2");
+        LightDefinition(root, spotOwner).Remove("range");
+        SetStaticLightOwner(root, spotOwner, new StaticLightAuthoringValues());
+        SetStaticLightOwner(
+          root,
+          CanonicalAuthoringOwner.Parse("ET_OmniLight_4"),
+          new StaticLightAuthoringValues()
+        );
+      }
+    );
+
+    var result = GltfInterchange.ImportCanonicalStaticGlb(
+      glb,
+      new CanonicalStaticGltfCreationOptions(_creationGuid),
+      GltfOperationProfile.Default,
+      CancellationToken.None
+    );
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Value.Should().BeNull();
+    result.Diagnostics.Should().ContainSingle(item =>
+      item.Code == GltfDiagnosticCodes.UnsupportedDomain
+      && item.Path.EndsWith(".range", StringComparison.Ordinal)
+    );
+  }
+
+  [Fact]
   public async Task DuplicateStaticIdentifiersFailBeforeAssembly()
   {
     var glb = await ExportCanonicalGlbAsync(CreateSourceAsset(), (root, meshNodes) =>
@@ -238,9 +465,13 @@ public sealed class CanonicalStaticGltfCreationTests
   [Fact]
   public async Task EquivalentGlbAndSeparateGltfProduceIdenticalBytesWithFixedGuid()
   {
-    var source = CreateSourceAsset();
+    var source = CreateSourceAsset(includeStaticLights: true);
     var interchange = new GltfInterchange();
-    var glb = await ExportCanonicalGlbAsync(source, AddCanonicalOwners);
+    var glb = await ExportCanonicalGlbAsync(source, (root, meshNodes) =>
+    {
+      AddCanonicalOwners(root, meshNodes);
+      AddCanonicalStaticLightOwners(root);
+    });
     var directory = Path.Combine(Path.GetTempPath(), $"earthtool-static-202-{Guid.NewGuid():N}");
     var path = Path.Combine(directory, "model.gltf");
     Directory.CreateDirectory(directory);
@@ -251,6 +482,7 @@ public sealed class CanonicalStaticGltfCreationTests
       var json = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
       RemoveEarthToolMetadata(json);
       AddCanonicalOwners(json, MeshNodes(json));
+      AddCanonicalStaticLightOwners(json);
       await File.WriteAllTextAsync(path, json.ToJsonString());
       var bufferUri = json["buffers"]![0]!["uri"]!.GetValue<string>();
       var binary = await File.ReadAllBytesAsync(Path.Combine(directory, bufferUri));
@@ -282,7 +514,10 @@ public sealed class CanonicalStaticGltfCreationTests
     }
   }
 
-  private static StaticMeshAsset CreateSourceAsset(string? textureResourceKey = null)
+  private static StaticMeshAsset CreateSourceAsset(
+    string? textureResourceKey = null,
+    bool includeStaticLights = false
+  )
   {
     var root = new CanonicalStaticSourceObject(
       [CreateRenderObject(0, textureResourceKey), CreateRenderObject(10)],
@@ -306,6 +541,38 @@ public sealed class CanonicalStaticGltfCreationTests
       StaticAnimationProjection.CreateCanonicalTracks(frames),
       (uint)StaticAnimationClass.B
     );
+    var attachmentRecords = includeStaticLights
+      ? new Dictionary<int, CanonicalAttachmentRecord>
+      {
+        [14] = new CanonicalAttachmentRecord(new Vector3(2, 3, 4), 0, 0),
+        [20] = new CanonicalAttachmentRecord(new Vector3(6, 7, 8), 0, 0),
+      }
+      : null;
+    var staticSpotLights = includeStaticLights
+      ? new Dictionary<int, CanonicalSpotLight>
+      {
+        [2] = new CanonicalSpotLight(
+          new Vector3(2, 3, 4),
+          new Vector3(0.25f, 0.5f, 0.75f),
+          8,
+          32,
+          0.25f,
+          4,
+          0.5f,
+          0.875f
+        ),
+      }
+      : null;
+    var staticOmniLights = includeStaticLights
+      ? new Dictionary<int, CanonicalOmniLight>
+      {
+        [4] = new CanonicalOmniLight(
+          new Vector3(6, 7, 8),
+          new Vector3(0.6f, 0.4f, 0.2f),
+          0.875f
+        ),
+      }
+      : null;
     var build = CanonicalStaticMeshAssembler.Assemble(
       new CanonicalStaticMeshAssemblyInput(
         Guid.NewGuid(),
@@ -313,7 +580,10 @@ public sealed class CanonicalStaticGltfCreationTests
           new AnimationClassBytes(0, 2, 0, 0),
           root.RenderObjects.Concat(root.Children[0].RenderObjects).SelectMany(item =>
             item.RenderVertices
-          )
+          ),
+          attachmentRecords: attachmentRecords,
+          staticSpotLights: staticSpotLights,
+          staticOmniLights: staticOmniLights
         ),
         root,
         new Dictionary<int, Vector3> { [1] = new Vector3(4, -6, 5) },
@@ -381,6 +651,20 @@ public sealed class CanonicalStaticGltfCreationTests
     );
   }
 
+  private static void AddCanonicalStaticLightOwners(JsonObject root)
+  {
+    SetStaticLightOwner(
+      root,
+      CanonicalAuthoringOwner.Parse("ET_SpotLight_2"),
+      new StaticLightAuthoringValues(0.625f, 8)
+    );
+    SetStaticLightOwner(
+      root,
+      CanonicalAuthoringOwner.Parse("ET_OmniLight_4"),
+      new StaticLightAuthoringValues(0.375f)
+    );
+  }
+
   private static void SetStaticOwner(
     JsonObject node,
     int number,
@@ -397,6 +681,46 @@ public sealed class CanonicalStaticGltfCreationTests
         GltfOperationProfile.Default
       ),
     };
+  }
+
+  private static void SetStaticLightOwner(
+    JsonObject root,
+    CanonicalAuthoringOwner owner,
+    StaticLightAuthoringValues values
+  )
+  {
+    var node = root["nodes"]!
+      .AsArray()
+      .Select(item => item!.AsObject())
+      .Single(item => item["name"]?.GetValue<string>() == owner.CanonicalName);
+    node["extras"] = new JsonObject
+    {
+      ["earthtool"] = CanonicalAuthoringMetadata.Write(
+        owner,
+        values,
+        GltfOperationProfile.Default
+      ),
+    };
+  }
+
+  private static JsonObject LightDefinition(
+    JsonObject root,
+    CanonicalAuthoringOwner owner
+  )
+  {
+    return root["extensions"]!["KHR_lights_punctual"]!["lights"]!
+      .AsArray()
+      .Select(item => item!.AsObject())
+      .Single(item => item["name"]?.GetValue<string>() == owner.CanonicalName);
+  }
+
+  private static int NodeIndex(JsonObject root, CanonicalAuthoringOwner owner)
+  {
+    return root["nodes"]!
+      .AsArray()
+      .Select((item, index) => (item, index))
+      .Single(item => item.item!["name"]?.GetValue<string>() == owner.CanonicalName)
+      .index;
   }
 
   private static IReadOnlyList<JsonObject> MeshNodes(JsonObject root)
@@ -457,8 +781,18 @@ public sealed class CanonicalStaticGltfCreationTests
     return result;
   }
 
+  private static float ReadSingle(byte[] bytes, int offset)
+  {
+    return BitConverter.Int32BitsToSingle(
+      BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset))
+    );
+  }
+
   private static string Diagnostics(IEnumerable<OperationDiagnostic> diagnostics)
   {
-    return string.Join(Environment.NewLine, diagnostics.Select(item => item.ToString()));
+    return string.Join(
+      Environment.NewLine,
+      diagnostics.Select(item => $"{item.Code} {item.Path}: {item.Message}")
+    );
   }
 }

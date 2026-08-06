@@ -1251,6 +1251,10 @@ namespace EarthTool.GLTF
         );
       }
       var roles = new Dictionary<GltfNodeHandle, GltfNewModelObjectRole>();
+      var staticLightOptions = new Dictionary<
+        GltfLightHandle,
+        GltfNewModelStaticLightOptions
+      >();
       StaticSourceAuthoringValues? rootValues = null;
       foreach (var source in sourceNodes)
       {
@@ -1281,6 +1285,31 @@ namespace EarthTool.GLTF
         }
       }
 
+      foreach (var light in parsed.Nodes.Where(node => node.LightIndex.HasValue))
+      {
+        if (
+          !CanonicalAuthoringOwner.TryParse(light.Name, out var owner)
+          || owner.Kind != CanonicalAuthoringOwnerKind.StaticLight
+        )
+        {
+          continue;
+        }
+        var lightIndex = light.LightIndex!.Value;
+        if (lightIndex < 0 || lightIndex >= parsed.Lights.Count)
+        {
+          continue;
+        }
+        var values = metadata.Get<StaticLightAuthoringValues>(owner);
+        var handle = GetLightHandle(parsed, lightIndex);
+        staticLightOptions.TryAdd(
+          handle,
+          new GltfNewModelStaticLightOptions(
+            values.TargetDistance,
+            values.TerrainLightAmplitude
+          )
+        );
+      }
+
       var footprint = rootValues?.Footprint is null
         ? null
         : new GltfNewModelFootprint(
@@ -1302,7 +1331,8 @@ namespace EarthTool.GLTF
           options.TextureResourceBindings,
           footprint,
           extents,
-          roles
+          roles,
+          staticLightOptions
         )
       );
     }
