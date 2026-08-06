@@ -1195,9 +1195,10 @@ namespace EarthTool.GLTF
         parsed,
         profile,
         cancellationToken,
-        semanticOptions.Value!,
+        semanticOptions.Value!.ImportOptions,
         options.CreationGuid,
-        allowAuthoringMetadata: true
+        allowAuthoringMetadata: true,
+        cannonValues: semanticOptions.Value.CannonValues
       );
       if (!imported.Succeeded)
       {
@@ -1213,7 +1214,7 @@ namespace EarthTool.GLTF
       );
     }
 
-    private static OperationResult<GltfNewModelImportOptions> CreateCanonicalStaticSemanticOptions(
+    private static OperationResult<CanonicalStaticGltfSemanticOptions> CreateCanonicalStaticSemanticOptions(
       ParsedGlb parsed,
       CanonicalStaticGltfCreationOptions options,
       CanonicalAuthoringMetadataDocument metadata
@@ -1240,7 +1241,7 @@ namespace EarthTool.GLTF
         );
       if (unsupportedOwner.Owner.HasValue)
       {
-        return Failed<GltfNewModelImportOptions>(
+        return Failed<CanonicalStaticGltfSemanticOptions>(
           new OperationDiagnostic(
             GltfAuthoringMetadataDiagnosticCodes.RequiredValueMissing,
             4002,
@@ -1251,6 +1252,7 @@ namespace EarthTool.GLTF
         );
       }
       var roles = new Dictionary<GltfNodeHandle, GltfNewModelObjectRole>();
+      var cannonValues = new Dictionary<int, CannonAuthoringValues>();
       var staticLightOptions = new Dictionary<
         GltfLightHandle,
         GltfNewModelStaticLightOptions
@@ -1263,7 +1265,7 @@ namespace EarthTool.GLTF
           || owner.Kind != CanonicalAuthoringOwnerKind.StaticSource
         )
         {
-          return Failed<GltfNewModelImportOptions>(
+          return Failed<CanonicalStaticGltfSemanticOptions>(
             new OperationDiagnostic(
               GltfAuthoringMetadataDiagnosticCodes.RequiredValueMissing,
               4002,
@@ -1310,6 +1312,15 @@ namespace EarthTool.GLTF
         );
       }
 
+      foreach (var node in parsed.Nodes)
+      {
+        if (CanonicalAuthoringOwner.TryParse(node.Name, out var owner)
+          && owner.Kind == CanonicalAuthoringOwnerKind.Cannon)
+        {
+          cannonValues.Add(owner.Number, metadata.Get<CannonAuthoringValues>(owner));
+        }
+      }
+
       var footprint = rootValues?.Footprint is null
         ? null
         : new GltfNewModelFootprint(
@@ -1325,14 +1336,17 @@ namespace EarthTool.GLTF
           rootValues.HorizontalExtents.PositiveX,
           rootValues.HorizontalExtents.NegativeX
         );
-      return new OperationResult<GltfNewModelImportOptions>(
+      return new OperationResult<CanonicalStaticGltfSemanticOptions>(
         OperationStatus.Succeeded,
-        new GltfNewModelImportOptions(
-          options.TextureResourceBindings,
-          footprint,
-          extents,
-          roles,
-          staticLightOptions
+        new CanonicalStaticGltfSemanticOptions(
+          new GltfNewModelImportOptions(
+            options.TextureResourceBindings,
+            footprint,
+            extents,
+            roles,
+            staticLightOptions
+          ),
+          cannonValues
         )
       );
     }
@@ -3070,7 +3084,8 @@ namespace EarthTool.GLTF
       CancellationToken cancellationToken,
       GltfNewModelImportOptions options,
       Guid? creationGuid = null,
-      bool allowAuthoringMetadata = false
+      bool allowAuthoringMetadata = false,
+      IReadOnlyDictionary<int, CannonAuthoringValues>? cannonValues = null
     )
     {
       cancellationToken.ThrowIfCancellationRequested();
@@ -3201,6 +3216,7 @@ namespace EarthTool.GLTF
         parsed,
         options,
         emitterOwnership,
+        cannonValues,
         attachmentRecords,
         cannonRenderPositions,
         staticSpotLights,
@@ -3502,6 +3518,14 @@ namespace EarthTool.GLTF
         var current = parentIndices[emitterNode];
         while (current >= 0 && !parsed.Nodes[current].MeshIndex.HasValue)
         {
+          if (parsed.Nodes[current].LightIndex.HasValue
+            || parsed.Nodes[current].CameraIndex.HasValue)
+          {
+            throw new UnsupportedGltfDomainException(
+              "EmitterMarkerHierarchy",
+              $"nodes[{emitterNode}]"
+            );
+          }
           scaffoldingNodes.Add(current);
           current = parentIndices[current];
         }
@@ -3686,6 +3710,7 @@ namespace EarthTool.GLTF
       ParsedGlb parsed,
       GltfNewModelImportOptions options,
       EmitterOwnershipPlan emitterOwnership,
+      IReadOnlyDictionary<int, CannonAuthoringValues>? cannonValues,
       IDictionary<int, CanonicalAttachmentRecord> attachmentRecords,
       IDictionary<int, CanonicalCannonRenderPosition> cannonRenderPositions,
       IDictionary<int, CanonicalSpotLight> staticSpotLights,
@@ -3754,9 +3779,13 @@ namespace EarthTool.GLTF
       }
       foreach (var cannon in cannons)
       {
+        var yawHalfRange = cannonValues is not null
+          && cannonValues.TryGetValue(cannon.Key, out var cannonAuthoringValues)
+            ? cannonAuthoringValues.YawHalfRange
+            : (byte)0x80;
         attachmentRecords[cannon.Key] = CreateCanonicalAttachmentRecord(
           transforms[cannon.Value],
-          0x80
+          yawHalfRange
         );
         cannonRenderPositions.Add(
           cannon.Key,

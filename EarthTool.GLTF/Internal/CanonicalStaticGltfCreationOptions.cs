@@ -29,4 +29,23 @@ namespace EarthTool.GLTF.Internal
       TextureResourceBindings = new ReadOnlyDictionary<GltfMaterialHandle, string?>(bindings);
     }
   }
+
+  internal sealed class CanonicalStaticGltfSemanticOptions
+  {
+    internal GltfNewModelImportOptions ImportOptions { get; }
+
+    internal IReadOnlyDictionary<int, CannonAuthoringValues> CannonValues { get; }
+
+    internal CanonicalStaticGltfSemanticOptions(
+      GltfNewModelImportOptions importOptions,
+      IReadOnlyDictionary<int, CannonAuthoringValues> cannonValues
+    )
+    {
+      ImportOptions = importOptions ?? throw new ArgumentNullException(nameof(importOptions));
+      CannonValues = new ReadOnlyDictionary<int, CannonAuthoringValues>(
+        (cannonValues ?? throw new ArgumentNullException(nameof(cannonValues)))
+          .ToDictionary(item => item.Key, item => item.Value)
+      );
+    }
+  }
 }

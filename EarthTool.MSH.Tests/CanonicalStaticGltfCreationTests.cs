@@ -181,6 +181,293 @@ public sealed class CanonicalStaticGltfCreationTests
   }
 
   [Fact]
+  public async Task AttachmentAndCannonArtistObjectsRegenerateTheirCanonicalRecords()
+  {
+    var glb = await ExportCanonicalGlbAsync(CreateSourceAsset(), (root, meshNodes) =>
+    {
+      AddCanonicalOwners(root, meshNodes);
+      AddArtistObject(
+        root,
+        meshNodes[0],
+        "ET_HitPoint_2",
+        new Vector3(1.25f, 2.5f, -3.75f),
+        32
+      );
+      AddArtistObject(
+        root,
+        meshNodes[0],
+        "ET_Turret_3",
+        new Vector3(4.125f, 5.25f, -6.5f),
+        96,
+        new CannonAuthoringValues(0x31)
+      );
+      var separateCannonRecord = AddArtistObject(
+        root,
+        meshNodes[0],
+        "ET_CannonRenderPosition_3",
+        new Vector3(100, 100, 100),
+        128
+      );
+      separateCannonRecord["extras"] = new JsonObject
+      {
+        ["earthtool"] = CanonicalAuthoringMetadata.Write(
+          CanonicalAuthoringOwner.Parse("ET_Turret_3"),
+          new CannonAuthoringValues(0x77),
+          GltfOperationProfile.Default
+        ),
+      };
+    });
+
+    var result = GltfInterchange.ImportCanonicalStaticGlb(
+      glb,
+      new CanonicalStaticGltfCreationOptions(_creationGuid),
+      GltfOperationProfile.Default,
+      CancellationToken.None
+    );
+
+    result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
+    var bytes = result.Value!.GetSerializedRepresentation().ToArray();
+    AttachmentAndCannonMshFixture.GetAttachment(bytes, 26).Should().Equal(
+      0x40, 0x01, 0x40, 0xFC, 0x80, 0x02, 32, 0x80
+    );
+    AttachmentAndCannonMshFixture.GetAttachment(bytes, 3).Should().Equal(
+      0x20, 0x04, 0x80, 0xF9, 0x40, 0x05, 96, 0x31
+    );
+    var cannon = AttachmentAndCannonMshFixture.GetCannonRenderPosition(bytes, 3);
+    ReadSingle(cannon, 0).Should().Be(4.125f);
+    ReadSingle(cannon, 4).Should().Be(-6.5f);
+    ReadSingle(cannon, 8).Should().Be(5.25f);
+  }
+
+  [Fact]
+  public async Task EmitterOwnershipCrossesTransformOnlyGroupsAndCombinesMarkerRoles()
+  {
+    var glb = await ExportCanonicalGlbAsync(CreateSourceAsset(), (root, meshNodes) =>
+    {
+      AddCanonicalOwners(root, meshNodes);
+      var group = AddTransformGroup(root, meshNodes[0], new Vector3(2, 0, 0));
+      AddArtistObject(root, group, "ET_Emitter_1", new Vector3(1, 0, 0), 16);
+      AddArtistObject(root, group, "ET_Emitter_3", new Vector3(3, 0, 0), 48);
+    });
+
+    var result = GltfInterchange.ImportCanonicalStaticGlb(
+      glb,
+      new CanonicalStaticGltfCreationOptions(_creationGuid),
+      GltfOperationProfile.Default,
+      CancellationToken.None
+    );
+
+    result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
+    var asset = result.Value!;
+    asset.RootSourceObject.StaticRenderObjects[0].KnownFlags.Should()
+      .HaveFlag(StaticRenderObjectFlags.MarkerAttachment1)
+      .And.HaveFlag(StaticRenderObjectFlags.MarkerAttachment3);
+    asset.RootSourceObject.StaticRenderObjects[1].KnownFlags.Should()
+      .NotHaveFlag(StaticRenderObjectFlags.MarkerAttachment1)
+      .And.NotHaveFlag(StaticRenderObjectFlags.MarkerAttachment3);
+    asset.RootSourceObject.Children[0].StaticRenderObjects[0].KnownFlags.Should()
+      .NotHaveFlag(StaticRenderObjectFlags.MarkerAttachment1)
+      .And.NotHaveFlag(StaticRenderObjectFlags.MarkerAttachment3);
+    var bytes = asset.GetSerializedRepresentation().ToArray();
+    BinaryPrimitives.ReadInt16LittleEndian(
+      AttachmentAndCannonMshFixture.GetAttachment(bytes, 5)
+    ).Should().Be(3 * 256);
+    BinaryPrimitives.ReadInt16LittleEndian(
+      AttachmentAndCannonMshFixture.GetAttachment(bytes, 7)
+    ).Should().Be(5 * 256);
+  }
+
+  [Fact]
+  public async Task EmitterOwnershipThroughANonTransformGroupFailsAtomically()
+  {
+    var glb = await ExportCanonicalGlbAsync(CreateSourceAsset(), (root, meshNodes) =>
+    {
+      AddCanonicalOwners(root, meshNodes);
+      root["cameras"] = new JsonArray(
+        new JsonObject
+        {
+          ["type"] = "perspective",
+          ["perspective"] = new JsonObject { ["yfov"] = 0.7, ["znear"] = 0.1 },
+        }
+      );
+      var camera = AddTransformGroup(root, meshNodes[0], Vector3.Zero);
+      camera["camera"] = 0;
+      AddArtistObject(root, camera, "ET_Emitter_1", Vector3.Zero, 0);
+    });
+
+    var result = GltfInterchange.ImportCanonicalStaticGlb(
+      glb,
+      new CanonicalStaticGltfCreationOptions(_creationGuid),
+      GltfOperationProfile.Default,
+      CancellationToken.None
+    );
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Value.Should().BeNull();
+    result.Diagnostics.Should().ContainSingle(item =>
+      item.Code == GltfDiagnosticCodes.UnsupportedDomain
+      && item.Data.ContainsKey("domain")
+      && item.Data["domain"] == "EmitterMarkerHierarchy"
+    );
+  }
+
+  [Theory]
+  [InlineData("ET_HitPoint_1")]
+  [InlineData("ET_Turret_1")]
+  public async Task DuplicateArtistObjectOwnersFailAtomically(string name)
+  {
+    var glb = await ExportCanonicalGlbAsync(CreateSourceAsset(), (root, meshNodes) =>
+    {
+      AddCanonicalOwners(root, meshNodes);
+      AddArtistObject(root, meshNodes[0], name, Vector3.Zero, 0);
+      AddArtistObject(root, meshNodes[0], name, Vector3.One, 0);
+    });
+
+    var result = GltfInterchange.ImportCanonicalStaticGlb(
+      glb,
+      new CanonicalStaticGltfCreationOptions(_creationGuid),
+      GltfOperationProfile.Default,
+      CancellationToken.None
+    );
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Value.Should().BeNull();
+    result.Diagnostics.Should().ContainSingle(item =>
+      item.Code == GltfAuthoringMetadataDiagnosticCodes.DuplicateOwner
+    );
+  }
+
+  [Fact]
+  public async Task InvalidCannonTypedValueDefaultsWithAWarning()
+  {
+    var glb = await ExportCanonicalGlbAsync(CreateSourceAsset(), (root, meshNodes) =>
+    {
+      AddCanonicalOwners(root, meshNodes);
+      var cannon = AddArtistObject(
+        root,
+        meshNodes[0],
+        "ET_Turret_1",
+        new Vector3(1, 2, 3),
+        64
+      );
+      cannon["extras"] = new JsonObject
+      {
+        ["earthtool"] = "{\"format\":\"earthtool.msh.authoring\",\"version\":1,"
+          + "\"values\":{\"cannonYawHalfRange\":999}}",
+      };
+    });
+
+    var result = GltfInterchange.ImportCanonicalStaticGlb(
+      glb,
+      new CanonicalStaticGltfCreationOptions(_creationGuid),
+      GltfOperationProfile.Default,
+      CancellationToken.None
+    );
+
+    result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
+    AttachmentAndCannonMshFixture.GetAttachment(
+      result.Value!.GetSerializedRepresentation().ToArray(),
+      1
+    )[7].Should().Be(0x80);
+    result.Diagnostics.Should().Contain(item =>
+      item.Code == GltfAuthoringMetadataDiagnosticCodes.OptionalValueDefaulted
+      && item.Severity == DiagnosticSeverity.Warning
+      && item.Path.EndsWith(".values.cannonYawHalfRange", StringComparison.Ordinal)
+    );
+  }
+
+  [Fact]
+  public async Task UnsupportedAttachmentPoseFailsAtomically()
+  {
+    var glb = await ExportCanonicalGlbAsync(CreateSourceAsset(), (root, meshNodes) =>
+    {
+      AddCanonicalOwners(root, meshNodes);
+      var attachment = AddArtistObject(
+        root,
+        meshNodes[0],
+        "ET_LandingSpot_1",
+        Vector3.Zero,
+        0
+      );
+      attachment["rotation"] = new JsonArray(0, 0, 0, 1);
+    });
+
+    var result = GltfInterchange.ImportCanonicalStaticGlb(
+      glb,
+      new CanonicalStaticGltfCreationOptions(_creationGuid),
+      GltfOperationProfile.Default,
+      CancellationToken.None
+    );
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Value.Should().BeNull();
+    result.Diagnostics.Should().ContainSingle(item =>
+      item.Code == GltfDiagnosticCodes.UnsupportedDomain
+      && item.Data.ContainsKey("domain")
+      && item.Data["domain"] == "AttachmentPose"
+    );
+  }
+
+  [Fact]
+  public async Task EquivalentArtistObjectAndMetadataOrderingProducesIdenticalBytes()
+  {
+    var baseGlb = await ExportCanonicalGlbAsync(CreateSourceAsset(), AddCanonicalOwners);
+    var first = RewriteGlb(baseGlb, root =>
+    {
+      var source = MeshNodes(root)[0];
+      AddArtistObject(root, source, "ET_HitPoint_1", new Vector3(1, 2, 3), 16);
+      AddArtistObject(
+        root,
+        source,
+        "ET_Turret_2",
+        new Vector3(4, 5, 6),
+        32,
+        new CannonAuthoringValues(0x31)
+      );
+    });
+    var second = RewriteGlb(baseGlb, root =>
+    {
+      var source = MeshNodes(root)[0];
+      var cannon = AddArtistObject(
+        root,
+        source,
+        "ET_Turret_2",
+        new Vector3(4, 5, 6),
+        32
+      );
+      cannon["extras"] = new JsonObject
+      {
+        ["earthtool"] = "{\"values\":{\"cannonYawHalfRange\":49},"
+          + "\"version\":1,\"format\":\"earthtool.msh.authoring\"}",
+      };
+      AddArtistObject(root, source, "ET_HitPoint_1", new Vector3(1, 2, 3), 16);
+    });
+    var options = new CanonicalStaticGltfCreationOptions(_creationGuid);
+
+    var firstResult = GltfInterchange.ImportCanonicalStaticGlb(
+      first,
+      options,
+      GltfOperationProfile.Default,
+      CancellationToken.None
+    );
+    var secondResult = GltfInterchange.ImportCanonicalStaticGlb(
+      second,
+      options,
+      GltfOperationProfile.Default,
+      CancellationToken.None
+    );
+
+    firstResult.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(firstResult.Diagnostics));
+    secondResult.Status.Should().Be(
+      OperationStatus.Succeeded,
+      Diagnostics(secondResult.Diagnostics)
+    );
+    secondResult.Value!.GetSerializedRepresentation().Should().Equal(
+      firstResult.Value!.GetSerializedRepresentation()
+    );
+  }
+
+  [Fact]
   public async Task TypedTargetDistanceAuthorsASpotWithoutNativeRange()
   {
     var glb = await ExportCanonicalGlbAsync(
@@ -701,6 +988,70 @@ public sealed class CanonicalStaticGltfCreationTests
         GltfOperationProfile.Default
       ),
     };
+  }
+
+  private static JsonObject AddArtistObject(
+    JsonObject root,
+    JsonObject parent,
+    string name,
+    Vector3 translation,
+    byte heading,
+    AuthoringMetadataValues? values = null
+  )
+  {
+    var rotation = AttachmentHeadingProjection.CreateRotation(heading);
+    var node = new JsonObject
+    {
+      ["name"] = name,
+      ["translation"] = new JsonArray(translation.X, translation.Y, translation.Z),
+      ["rotation"] = new JsonArray(rotation.X, rotation.Y, rotation.Z, rotation.W),
+    };
+    if (values is not null)
+    {
+      node["extras"] = new JsonObject
+      {
+        ["earthtool"] = CanonicalAuthoringMetadata.Write(
+          CanonicalAuthoringOwner.Parse(name),
+          values,
+          GltfOperationProfile.Default
+        ),
+      };
+    }
+    return AppendChildNode(root, parent, node);
+  }
+
+  private static JsonObject AddTransformGroup(
+    JsonObject root,
+    JsonObject parent,
+    Vector3 translation
+  )
+  {
+    return AppendChildNode(
+      root,
+      parent,
+      new JsonObject
+      {
+        ["translation"] = new JsonArray(translation.X, translation.Y, translation.Z),
+      }
+    );
+  }
+
+  private static JsonObject AppendChildNode(
+    JsonObject root,
+    JsonObject parent,
+    JsonObject child
+  )
+  {
+    var nodes = root["nodes"]!.AsArray();
+    var index = nodes.Count;
+    nodes.Add(child);
+    if (parent["children"] is not JsonArray children)
+    {
+      children = new JsonArray();
+      parent["children"] = children;
+    }
+    children.Add(index);
+    return child;
   }
 
   private static JsonObject LightDefinition(
