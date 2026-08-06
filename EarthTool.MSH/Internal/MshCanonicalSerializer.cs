@@ -47,10 +47,10 @@ namespace EarthTool.MSH.Internal
       IReadOnlyDictionary<int, Vector3>? pivots = null,
       IReadOnlyDictionary<int, StaticAnimationReplacement>? animations = null,
       AnimationClassBytes? animationFrameIndices = null,
-      IReadOnlyDictionary<int, byte[]>? attachmentRecords = null,
-      IReadOnlyDictionary<int, byte[]>? cannonRenderPositions = null,
-      IReadOnlyDictionary<int, byte[]>? staticSpotLights = null,
-      IReadOnlyDictionary<int, byte[]>? staticOmniLights = null
+      IReadOnlyDictionary<int, CanonicalAttachmentRecord>? attachmentRecords = null,
+      IReadOnlyDictionary<int, CanonicalCannonRenderPosition>? cannonRenderPositions = null,
+      IReadOnlyDictionary<int, CanonicalSpotLight>? staticSpotLights = null,
+      IReadOnlyDictionary<int, CanonicalOmniLight>? staticOmniLights = null
     )
     {
       var framing = new MeshArchiveFraming(0x20D0A1FF, null, creationGuid);
@@ -58,21 +58,21 @@ namespace EarthTool.MSH.Internal
       var vertices = rootSourceObject
         .RenderObjects.SelectMany(record => record.RenderVertices)
         .ToArray();
-      var commonHeader = CommonMeshBaseHeader
-        .CreateCanonicalStatic(animationLengths)
-        .SerializedRepresentation.ToArray();
-      WriteCanonicalStaticHeaderRegions(commonHeader, vertices, footprint, horizontalExtents);
-      if (animationFrameIndices.HasValue)
-      {
-        WriteAnimationClassBytes(commonHeader, 0x14, animationFrameIndices.Value);
-      }
-      WriteStaticHeaderRecords(
-        commonHeader,
-        attachmentRecords,
-        cannonRenderPositions,
-        staticSpotLights,
-        staticOmniLights
-      );
+      var commonHeader = CanonicalBaseHeaderEncoder
+        .EncodeStatic(
+          new CanonicalStaticBaseHeaderInput(
+            animationLengths,
+            vertices,
+            footprint,
+            horizontalExtents,
+            animationFrameIndices,
+            attachmentRecords,
+            cannonRenderPositions,
+            staticSpotLights,
+            staticOmniLights
+          )
+        )
+        .SerializedRepresentation;
       return CreateStatic(
         framing,
         commonHeader,
@@ -94,32 +94,6 @@ namespace EarthTool.MSH.Internal
         length = checked(length + 53L + (blocks * 0xA0L) + (record.TriangleCount * 8L));
       }
       return length;
-    }
-
-    private static void WriteStaticHeaderRecords(
-      byte[] commonHeader,
-      IReadOnlyDictionary<int, byte[]>? attachmentRecords,
-      IReadOnlyDictionary<int, byte[]>? cannonRenderPositions,
-      IReadOnlyDictionary<int, byte[]>? staticSpotLights,
-      IReadOnlyDictionary<int, byte[]>? staticOmniLights
-    )
-    {
-      foreach (var replacement in attachmentRecords ?? new Dictionary<int, byte[]>())
-      {
-        replacement.Value.CopyTo(commonHeader, 0x1D8 + ((replacement.Key - 1) * 8));
-      }
-      foreach (var replacement in cannonRenderPositions ?? new Dictionary<int, byte[]>())
-      {
-        replacement.Value.CopyTo(commonHeader, 0x018 + ((replacement.Key - 1) * 12));
-      }
-      foreach (var replacement in staticSpotLights ?? new Dictionary<int, byte[]>())
-      {
-        replacement.Value.CopyTo(commonHeader, 0x048 + ((replacement.Key - 1) * 0x30));
-      }
-      foreach (var replacement in staticOmniLights ?? new Dictionary<int, byte[]>())
-      {
-        replacement.Value.CopyTo(commonHeader, 0x108 + ((replacement.Key - 1) * 0x1C));
-      }
     }
 
     internal static byte[] RewriteStatic(
@@ -258,39 +232,17 @@ namespace EarthTool.MSH.Internal
         + source.RootTrailingBytes.Count;
       var result = new byte[length];
       archiveHeader.CopyTo(result, 0);
-      var commonHeader = source.CommonBaseHeader.SerializedRepresentation.ToArray();
-      if (animationLengths.HasValue)
-      {
-        WriteAnimationClassBytes(commonHeader, 0x10, animationLengths.Value);
-      }
-      if (animationFrameIndices.HasValue)
-      {
-        WriteAnimationClassBytes(commonHeader, 0x14, animationFrameIndices.Value);
-      }
-      foreach (var replacement in attachmentRecords)
-      {
-        replacement.Value.CopyTo(commonHeader, 0x1D8 + ((replacement.Key - 1) * 8));
-      }
-      foreach (var replacement in cannonRenderPositions)
-      {
-        replacement.Value.CopyTo(commonHeader, 0x018 + ((replacement.Key - 1) * 12));
-      }
-      foreach (var replacement in staticSpotLights)
-      {
-        replacement.Value.CopyTo(commonHeader, 0x048 + ((replacement.Key - 1) * 0x30));
-      }
-      foreach (var replacement in staticOmniLights)
-      {
-        replacement.Value.CopyTo(commonHeader, 0x108 + ((replacement.Key - 1) * 0x1C));
-      }
-      if (horizontalExtents is not null)
-      {
-        WriteUInt16(commonHeader, 0x360, ToUnsignedFixedPoint(horizontalExtents.PositiveY));
-        WriteUInt16(commonHeader, 0x362, ToUnsignedFixedPoint(horizontalExtents.NegativeY));
-        WriteUInt16(commonHeader, 0x364, ToUnsignedFixedPoint(horizontalExtents.PositiveX));
-        WriteUInt16(commonHeader, 0x366, ToUnsignedFixedPoint(horizontalExtents.NegativeX));
-      }
-      commonHeader.CopyTo(result, archiveHeader.Length);
+      var commonHeader = CanonicalBaseHeaderEncoder.RewriteStatic(
+        source.CommonBaseHeader,
+        animationLengths,
+        animationFrameIndices,
+        attachmentRecords,
+        cannonRenderPositions,
+        staticSpotLights,
+        staticOmniLights,
+        horizontalExtents
+      );
+      commonHeader.SerializedRepresentation.CopyTo(result, archiveHeader.Length);
       var cursor = archiveHeader.Length + CommonMeshBaseHeader.SerializedSize;
       WriteUInt32(result, cursor, trailingHierarchyUnwindCount);
       cursor += sizeof(uint);
@@ -851,7 +803,7 @@ namespace EarthTool.MSH.Internal
     internal static byte[] CreateCanonicalDynamicRecord()
     {
       var record = new byte[DynamicRecordSize];
-      CommonMeshBaseHeader.CanonicalDynamic.SerializedRepresentation.CopyTo(record, 0);
+      CanonicalBaseHeaderEncoder.Dynamic.SerializedRepresentation.CopyTo(record, 0);
       return record;
     }
 
@@ -1067,123 +1019,6 @@ namespace EarthTool.MSH.Internal
       return result;
     }
 
-    private static void WriteCanonicalStaticHeaderRegions(
-      byte[] header,
-      IReadOnlyList<CanonicalStaticVertex> vertices,
-      CanonicalStaticFootprint? footprint,
-      CanonicalHorizontalExtents? horizontalExtents
-    )
-    {
-      var resolvedFootprint =
-        footprint
-        ?? new CanonicalStaticFootprint(
-          0x8000,
-          Enumerable
-            .Range(0, 16)
-            .Select(index => index == 15 ? vertices.Max(vertex => vertex.Position.Z) : 0),
-          new byte[16]
-        );
-      WriteUInt32(header, 0x0C, resolvedFootprint.PresenceMask);
-      for (var logicalIndex = 0; logicalIndex < 16; logicalIndex++)
-      {
-        WriteUInt16(
-          header,
-          0x196 - (logicalIndex * sizeof(ushort)),
-          ToUnsignedFixedPoint(resolvedFootprint.TopElevations[logicalIndex])
-        );
-        header[0x1A7 - logicalIndex] = resolvedFootprint.CornerPassageFlags[logicalIndex];
-      }
-      WriteCanonicalRotatedFootprint(header, resolvedFootprint);
-
-      var resolvedExtents =
-        horizontalExtents
-        ?? new CanonicalHorizontalExtents(
-          Math.Max(0, vertices.Max(vertex => vertex.Position.Y)),
-          -Math.Min(0, vertices.Min(vertex => vertex.Position.Y)),
-          Math.Max(0, vertices.Max(vertex => vertex.Position.X)),
-          -Math.Min(0, vertices.Min(vertex => vertex.Position.X))
-        );
-      WriteUInt16(header, 0x360, ToUnsignedFixedPoint(resolvedExtents.PositiveY));
-      WriteUInt16(header, 0x362, ToUnsignedFixedPoint(resolvedExtents.NegativeY));
-      WriteUInt16(header, 0x364, ToUnsignedFixedPoint(resolvedExtents.PositiveX));
-      WriteUInt16(header, 0x366, ToUnsignedFixedPoint(resolvedExtents.NegativeX));
-    }
-
-    private static void WriteCanonicalRotatedFootprint(
-      byte[] header,
-      CanonicalStaticFootprint footprint
-    )
-    {
-      var anchors = new[] { (X: 0, Y: 3), (X: 0, Y: 0), (X: 3, Y: 0), (X: 3, Y: 3) };
-      var flagMaps = new[]
-      {
-        new[] { 1, 0, 3, 2 },
-        new[] { 0, 3, 2, 1 },
-        new[] { 3, 2, 1, 0 },
-        new[] { 2, 1, 0, 3 },
-      };
-      for (var quarterTurn = 0; quarterTurn < 4; quarterTurn++)
-      {
-        ushort rotatedMask = 0;
-        ulong rotatedFlags = footprint.PresenceMask == 0 ? 0 : ulong.MaxValue;
-        var occupiedPhysicalSlots = new List<int>();
-        for (var logicalIndex = 0; logicalIndex < 16; logicalIndex++)
-        {
-          if ((footprint.PresenceMask & (1 << logicalIndex)) == 0)
-          {
-            continue;
-          }
-          var physicalSlot = 15 - logicalIndex;
-          var row = physicalSlot / 4;
-          var column = physicalSlot % 4;
-          var rotatedPhysicalSlot = quarterTurn switch
-          {
-            0 => 4 * (3 - column) + row,
-            1 => physicalSlot,
-            2 => 4 * column + (3 - row),
-            _ => 15 - physicalSlot,
-          };
-          occupiedPhysicalSlots.Add(rotatedPhysicalSlot);
-          var rotatedLogicalIndex = 15 - rotatedPhysicalSlot;
-          rotatedMask |= checked((ushort)(1 << rotatedLogicalIndex));
-          byte rotatedNibble = 0;
-          for (var bit = 0; bit < 4; bit++)
-          {
-            if (
-              (footprint.CornerPassageFlags[logicalIndex] & (1 << flagMaps[quarterTurn][bit])) != 0
-            )
-            {
-              rotatedNibble |= checked((byte)(1 << bit));
-            }
-          }
-          var shift = rotatedLogicalIndex * 4;
-          rotatedFlags = (rotatedFlags & ~(0xFul << shift)) | ((ulong)rotatedNibble << shift);
-        }
-
-        uint descriptor = rotatedMask;
-        if (occupiedPhysicalSlots.Count != 0)
-        {
-          var minimumRow = occupiedPhysicalSlots.Min(slot => slot / 4);
-          var maximumRow = occupiedPhysicalSlots.Max(slot => slot / 4);
-          var minimumColumn = occupiedPhysicalSlots.Min(slot => slot % 4);
-          var maximumColumn = occupiedPhysicalSlots.Max(slot => slot % 4);
-          var biasA = minimumRow + (int)Math.Truncate((maximumColumn + 1 - minimumRow) / 2d);
-          var biasB = minimumColumn + (int)Math.Truncate((maximumRow + 1 - minimumColumn) / 2d);
-          descriptor |= (uint)anchors[quarterTurn].X << 30;
-          descriptor |= (uint)anchors[quarterTurn].Y << 28;
-          descriptor |= (uint)biasA << 26;
-          descriptor |= (uint)biasB << 24;
-        }
-        WriteUInt32(header, 0x1A8 + (quarterTurn * sizeof(uint)), descriptor);
-        WriteUInt64(header, 0x1B8 + (quarterTurn * sizeof(ulong)), rotatedFlags);
-      }
-    }
-
-    private static ushort ToUnsignedFixedPoint(float value)
-    {
-      return checked((ushort)Math.Truncate(value * 256d));
-    }
-
     private static void WriteStaticRecord(
       byte[] data,
       ref int cursor,
@@ -1357,15 +1192,6 @@ namespace EarthTool.MSH.Internal
       }
     }
 
-    private static void WriteAnimationClassBytes(byte[] data, int offset, AnimationClassBytes value)
-    {
-      WriteUInt32(
-        data,
-        offset,
-        ((uint)value.A << 24) | ((uint)value.B << 16) | ((uint)value.C << 8) | value.D
-      );
-    }
-
     private static void WriteUInt16(byte[] data, int offset, ushort value)
     {
       BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(offset), value);
@@ -1384,11 +1210,6 @@ namespace EarthTool.MSH.Internal
     private static void WriteInt32(byte[] data, int offset, int value)
     {
       BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(offset), value);
-    }
-
-    private static void WriteUInt64(byte[] data, int offset, ulong value)
-    {
-      BinaryPrimitives.WriteUInt64LittleEndian(data.AsSpan(offset), value);
     }
 
     private static void WriteSingle(byte[] data, int offset, float value)

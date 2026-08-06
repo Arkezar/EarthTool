@@ -3,6 +3,7 @@ using EarthTool.Common.Operations;
 using EarthTool.MSH.Assets;
 using EarthTool.MSH.Authoring;
 using EarthTool.MSH.Expert;
+using EarthTool.MSH.Internal;
 using EarthTool.MSH.Operations;
 using EarthTool.MSH.Services;
 using System.Buffers.Binary;
@@ -72,6 +73,145 @@ public class CanonicalMeshAuthoringTests
     var read = await new MshReader().ReadAsync(source);
     read.Status.Should().Be(OperationStatus.Succeeded);
     read.Value.Should().BeOfType<StaticMeshAsset>();
+  }
+
+  [Fact]
+  public void CanonicalBaseHeaderDefaultStaticFormMatchesGoldenBytes()
+  {
+    var header = CanonicalBaseHeaderEncoder.EncodeStatic(
+      new CanonicalStaticBaseHeaderInput(
+        new AnimationClassBytes(2, 0, 0, 0),
+        CreateVertices()
+      )
+    );
+
+    AssertSerializedApproval(
+      "msh-canonical-base-header-static-default",
+      header.SerializedRepresentation.ToArray()
+    );
+  }
+
+  [Fact]
+  public void CanonicalBaseHeaderFullyPopulatedStaticFormMatchesGoldenBytes()
+  {
+    var header = CanonicalBaseHeaderEncoder.EncodeStatic(
+      new CanonicalStaticBaseHeaderInput(
+        new AnimationClassBytes(1, 2, 3, 4),
+        CreateVertices(),
+        new CanonicalStaticFootprint(
+          0xFFFF,
+          Enumerable.Range(0, 16).Select(index => index + 0.5f),
+          Enumerable.Range(0, 16).Select(index => (byte)index)
+        ),
+        new CanonicalHorizontalExtents(1.25f, 2.5f, 3.75f, 4.5f),
+        new AnimationClassBytes(5, 6, 7, 8),
+        CreateAttachmentRecords(),
+        CreateCannonRenderPositions(),
+        CreateStaticSpotLights(),
+        CreateStaticOmniLights()
+      )
+    );
+
+    AssertSerializedApproval(
+      "msh-canonical-base-header-static-full",
+      header.SerializedRepresentation.ToArray()
+    );
+
+    var assetBytes = MshCanonicalSerializer.CreateStatic(
+      CreationGuid,
+      new AnimationClassBytes(1, 2, 3, 4),
+      new CanonicalStaticSourceObject([
+        new CanonicalStaticRenderObject(CreateVertices(), CreateTriangles()),
+      ]),
+      new CanonicalStaticFootprint(
+        0xFFFF,
+        Enumerable.Range(0, 16).Select(index => index + 0.5f),
+        Enumerable.Range(0, 16).Select(index => (byte)index)
+      ),
+      new CanonicalHorizontalExtents(1.25f, 2.5f, 3.75f, 4.5f),
+      animationFrameIndices: new AnimationClassBytes(5, 6, 7, 8),
+      attachmentRecords: CreateAttachmentRecords(),
+      cannonRenderPositions: CreateCannonRenderPositions(),
+      staticSpotLights: CreateStaticSpotLights(),
+      staticOmniLights: CreateStaticOmniLights()
+    );
+    AssertSerializedApproval("msh-canonical-static-full", assetBytes);
+  }
+
+  [Fact]
+  public void CanonicalBaseHeaderDynamicFormMatchesGoldenBytes()
+  {
+    AssertSerializedApproval(
+      "msh-canonical-base-header-dynamic",
+      CanonicalBaseHeaderEncoder.Dynamic.SerializedRepresentation.ToArray()
+    );
+  }
+
+  [Fact]
+  public void CanonicalBaseHeaderNormalizesNegativeZero()
+  {
+    var negativeZero = BitConverter.Int32BitsToSingle(unchecked((int)0x80000000));
+    var zeroVector = new Vector3(negativeZero, negativeZero, negativeZero);
+    var header = CanonicalBaseHeaderEncoder.EncodeStatic(
+      new CanonicalStaticBaseHeaderInput(
+        default,
+        CreateVertices(),
+        cannonRenderPositions: new Dictionary<int, CanonicalCannonRenderPosition>
+        {
+          [1] = new(zeroVector),
+        },
+        staticSpotLights: new Dictionary<int, CanonicalSpotLight>
+        {
+          [1] = new(zeroVector, zeroVector, negativeZero, 0, negativeZero, negativeZero, negativeZero, negativeZero),
+        },
+        staticOmniLights: new Dictionary<int, CanonicalOmniLight>
+        {
+          [1] = new(zeroVector, zeroVector, negativeZero),
+        }
+      )
+    );
+    var bytes = header.SerializedRepresentation.ToArray();
+
+    bytes.AsSpan(0x018, 12).ToArray().Should().OnlyContain(value => value == 0);
+    bytes.AsSpan(0x048, 0x30).ToArray().Should().OnlyContain(value => value == 0);
+    bytes.AsSpan(0x108, 0x1C).ToArray().Should().OnlyContain(value => value == 0);
+  }
+
+  [Fact]
+  public void BaseHeaderInputsRejectTheWrongAssemblyMode()
+  {
+    var root = new CanonicalStaticSourceObject([
+      new CanonicalStaticRenderObject(CreateVertices(), CreateTriangles()),
+    ]);
+    var canonical = StaticMeshAssembler.CreateCanonical(
+      CreationGuid,
+      root,
+      new CanonicalStaticFootprint(0x8000, new float[16], new byte[16]),
+      new CanonicalHorizontalExtents(1, 1, 1, 1)
+    );
+
+    ((Action)(() => canonical.ReplaceAttachmentRecord(1, new byte[8])))
+      .Should().Throw<InvalidOperationException>();
+    ((Action)(() => canonical.ReplaceCannonRenderPosition(1, new byte[12])))
+      .Should().Throw<InvalidOperationException>();
+    ((Action)(() => canonical.ReplaceStaticLightRecord(
+      StaticLightRecordKind.Spot,
+      1,
+      new byte[0x30],
+      Array.Empty<string>()
+    ))).Should().Throw<InvalidOperationException>();
+
+    var exact = MshExpert.CreateStatic(OneTriangleMshFixture.Create());
+    exact.TryGetValue(out var loadedAsset).Should().BeTrue();
+    var loaded = new StaticMeshAssembler(loadedAsset!);
+    ((Action)(() => loaded.ReplaceCanonicalAttachmentRecord(1, default)))
+      .Should().Throw<InvalidOperationException>();
+    ((Action)(() => loaded.ReplaceCanonicalCannonRenderPosition(1, default)))
+      .Should().Throw<InvalidOperationException>();
+    ((Action)(() => loaded.ReplaceCanonicalStaticSpotLight(1, default)))
+      .Should().Throw<InvalidOperationException>();
+    ((Action)(() => loaded.ReplaceCanonicalStaticOmniLight(1, default)))
+      .Should().Throw<InvalidOperationException>();
   }
 
   [Fact]
@@ -508,6 +648,68 @@ public class CanonicalMeshAuthoringTests
   private static CanonicalTriangle[] CreateTriangles()
   {
     return [new CanonicalTriangle(0, 1, 2)];
+  }
+
+  private static IReadOnlyDictionary<int, CanonicalAttachmentRecord> CreateAttachmentRecords()
+  {
+    return Enumerable
+      .Range(1, 49)
+      .ToDictionary(
+        number => number,
+        number => new CanonicalAttachmentRecord(
+          new Vector3(number / 4f, -number / 8f, number / 16f),
+          (byte)(number * 3),
+          (byte)(0x80 + number)
+        )
+      );
+  }
+
+  private static IReadOnlyDictionary<
+    int,
+    CanonicalCannonRenderPosition
+  > CreateCannonRenderPositions()
+  {
+    return Enumerable
+      .Range(1, 4)
+      .ToDictionary(
+        number => number,
+        number => new CanonicalCannonRenderPosition(
+          new Vector3(number + 0.25f, number + 0.5f, number + 0.75f)
+        )
+      );
+  }
+
+  private static IReadOnlyDictionary<int, CanonicalSpotLight> CreateStaticSpotLights()
+  {
+    return Enumerable
+      .Range(1, 4)
+      .ToDictionary(
+        number => number,
+        number => new CanonicalSpotLight(
+          new Vector3(number, number + 0.25f, number + 0.5f),
+          new Vector3(number / 10f, number / 8f, number / 5f),
+          10 + number,
+          (byte)(number * 16),
+          number / 20f,
+          number / 4f,
+          -number / 10f,
+          number / 2f
+        )
+      );
+  }
+
+  private static IReadOnlyDictionary<int, CanonicalOmniLight> CreateStaticOmniLights()
+  {
+    return Enumerable
+      .Range(1, 4)
+      .ToDictionary(
+        number => number,
+        number => new CanonicalOmniLight(
+          new Vector3(-number, number + 0.125f, number + 0.625f),
+          new Vector3(number / 6f, number / 7f, number / 9f),
+          number / 3f
+        )
+      );
   }
 
   private static async Task<byte[]> WriteAsync(MeshAsset asset)

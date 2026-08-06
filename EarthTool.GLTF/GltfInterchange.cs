@@ -18,6 +18,11 @@ using System.Text;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using CanonicalAttachmentRecord = EarthTool.MSH.Internal.CanonicalAttachmentRecord;
+using CanonicalBaseHeaderEncoder = EarthTool.MSH.Internal.CanonicalBaseHeaderEncoder;
+using CanonicalCannonRenderPosition = EarthTool.MSH.Internal.CanonicalCannonRenderPosition;
+using CanonicalOmniLight = EarthTool.MSH.Internal.CanonicalOmniLight;
+using CanonicalSpotLight = EarthTool.MSH.Internal.CanonicalSpotLight;
 
 namespace EarthTool.GLTF
 {
@@ -3408,20 +3413,20 @@ namespace EarthTool.GLTF
       }
       foreach (var attachment in attachments)
       {
-        assembler.ReplaceAttachmentRecord(
+        assembler.ReplaceCanonicalAttachmentRecord(
           attachment.Key,
-          CreateAttachmentRecord(transforms[attachment.Value], 0x80)
+          CreateCanonicalAttachmentRecord(transforms[attachment.Value], 0x80)
         );
       }
       foreach (var cannon in cannons)
       {
-        assembler.ReplaceAttachmentRecord(
+        assembler.ReplaceCanonicalAttachmentRecord(
           cannon.Key,
-          CreateAttachmentRecord(transforms[cannon.Value], 0x80)
+          CreateCanonicalAttachmentRecord(transforms[cannon.Value], 0x80)
         );
-        assembler.ReplaceCannonRenderPosition(
+        assembler.ReplaceCanonicalCannonRenderPosition(
           cannon.Key,
-          CreateCannonRenderPositionRecord(transforms[cannon.Value].Translation)
+          CreateCanonicalCannonRenderPosition(transforms[cannon.Value].Translation)
         );
       }
       var definitionReferenceCounts = new int[parsed.Lights.Count];
@@ -3514,25 +3519,37 @@ namespace EarthTool.GLTF
         }
         var attachmentNumber =
           item.Key.Type == "spot" ? item.Key.Number + 12 : item.Key.Number + 16;
-        assembler.ReplaceAttachmentRecord(
+        assembler.ReplaceCanonicalAttachmentRecord(
           attachmentNumber,
-          CreateStaticLightAttachmentRecord(
+          CreateCanonicalStaticLightAttachmentRecord(
             transforms[item.Value].Translation,
             $"nodes[{item.Value}].translation"
           )
         );
-        assembler.ReplaceStaticLightRecord(
-          ToStaticLightRecordKind(item.Key.Type),
-          item.Key.Number,
-          CreateConvertedStaticLightRecord(
-            parsed.Lights[node.LightIndex.Value],
-            transforms[item.Value],
-            $"nodes[{item.Value}]",
-            lightOptions,
-            StaticLightAuthoringIntent.NewModel
-          ),
-          new[] { "NewStaticLight" }
-        );
+        if (item.Key.Type == "spot")
+        {
+          assembler.ReplaceCanonicalStaticSpotLight(
+            item.Key.Number,
+            CreateCanonicalSpotLight(
+              parsed.Lights[node.LightIndex.Value],
+              transforms[item.Value],
+              $"nodes[{item.Value}]",
+              lightOptions
+            )
+          );
+        }
+        else
+        {
+          assembler.ReplaceCanonicalStaticOmniLight(
+            item.Key.Number,
+            CreateCanonicalOmniLight(
+              parsed.Lights[node.LightIndex.Value],
+              transforms[item.Value],
+              $"nodes[{item.Value}]",
+              lightOptions
+            )
+          );
+        }
       }
     }
 
@@ -7489,33 +7506,10 @@ namespace EarthTool.GLTF
           WriteSingle(replacement, 0, translation.X);
           WriteSingle(replacement, 4, translation.Z);
           WriteSingle(replacement, 8, translation.Y);
-          BinaryPrimitives.WriteInt16LittleEndian(
-            attachmentReplacement,
-            QuantizeAttachmentCoordinate(
-              translation.X,
-              true,
-              "StaticLightPose",
-              $"nodes[{nodeIndex}].translation"
-            )
-          );
-          BinaryPrimitives.WriteInt16LittleEndian(
-            attachmentReplacement.AsSpan(2),
-            QuantizeAttachmentCoordinate(
-              translation.Z,
-              false,
-              "StaticLightPose",
-              $"nodes[{nodeIndex}].translation"
-            )
-          );
-          BinaryPrimitives.WriteInt16LittleEndian(
-            attachmentReplacement.AsSpan(4),
-            QuantizeAttachmentCoordinate(
-              translation.Y,
-              false,
-              "StaticLightPose",
-              $"nodes[{nodeIndex}].translation"
-            )
-          );
+          CreateStaticLightAttachmentRecord(
+            translation,
+            $"nodes[{nodeIndex}].translation"
+          ).AsSpan(0, 6).CopyTo(attachmentReplacement);
           changedFields.Add("Position");
         }
         if (changed.Contains("staticLight.color"))
@@ -7916,6 +7910,16 @@ namespace EarthTool.GLTF
 
     private static void WriteStaticLightDirection(byte[] record, Matrix4x4 transform, string path)
     {
+      var (heading, verticalTargetSlope) = ReadStaticLightDirection(transform, path);
+      record[0x1C] = heading;
+      WriteSingle(record, 0x28, verticalTargetSlope);
+    }
+
+    private static (byte Heading, float VerticalTargetSlope) ReadStaticLightDirection(
+      Matrix4x4 transform,
+      string path
+    )
+    {
       if (!Matrix4x4.Decompose(transform, out _, out var rotation, out _) || !IsFinite(rotation))
       {
         throw new UnsupportedGltfDomainException("StaticLightDirection", path);
@@ -7936,40 +7940,99 @@ namespace EarthTool.GLTF
       {
         heading += MathF.PI * 2;
       }
-      record[0x1C] = unchecked(
-        (byte)((int)MathF.Floor((heading * 256 / (MathF.PI * 2)) + 0.5f) & 0xFF)
+      return (
+        unchecked((byte)((int)MathF.Floor((heading * 256 / (MathF.PI * 2)) + 0.5f) & 0xFF)),
+        direction.Y / horizontalLength
       );
-      WriteSingle(record, 0x28, direction.Y / horizontalLength);
     }
 
-    private static byte[] CreateStaticLightAttachmentRecord(Vector3 translation, string path)
+    private static CanonicalAttachmentRecord CreateCanonicalStaticLightAttachmentRecord(
+      Vector3 translation,
+      string path
+    )
     {
       if (!IsFinite(translation))
       {
         throw new UnsupportedGltfDomainException("StaticLightPose", path);
       }
-      var result = new byte[8];
-      BinaryPrimitives.WriteInt16LittleEndian(
-        result,
-        QuantizeAttachmentCoordinate(translation.X, true, "StaticLightPose", path)
+      var record = new CanonicalAttachmentRecord(
+        new Vector3(translation.X, translation.Z, translation.Y),
+        0,
+        0
       );
-      BinaryPrimitives.WriteInt16LittleEndian(
-        result.AsSpan(2),
-        QuantizeAttachmentCoordinate(translation.Z, false, "StaticLightPose", path)
-      );
-      BinaryPrimitives.WriteInt16LittleEndian(
-        result.AsSpan(4),
-        QuantizeAttachmentCoordinate(translation.Y, false, "StaticLightPose", path)
-      );
-      return result;
+      try
+      {
+        CanonicalBaseHeaderEncoder.EncodeAttachmentRecord(record);
+      }
+      catch (OverflowException)
+      {
+        throw new UnsupportedGltfDomainException("StaticLightPose", path);
+      }
+      return record;
     }
 
-    private static byte[] CreateConvertedStaticLightRecord(
+    private static byte[] CreateStaticLightAttachmentRecord(Vector3 translation, string path)
+    {
+      return CanonicalBaseHeaderEncoder.EncodeAttachmentRecord(
+        CreateCanonicalStaticLightAttachmentRecord(translation, path)
+      );
+    }
+
+    private static CanonicalSpotLight CreateCanonicalSpotLight(
       ParsedGltfLight light,
       Matrix4x4 transform,
       string path,
-      GltfNewModelStaticLightOptions? options = null,
-      StaticLightAuthoringIntent intent = StaticLightAuthoringIntent.EditProjection
+      GltfNewModelStaticLightOptions? options
+    )
+    {
+      ValidateStaticLight(light, transform, path);
+      if (
+        light.InnerConeAngle < 0
+        || light.OuterConeAngle < light.InnerConeAngle
+        || light.OuterConeAngle > MathF.PI / 2
+      )
+      {
+        throw new UnsupportedGltfDomainException("StaticLightTypeConversion", path);
+      }
+      var distance =
+        light.Range is > 0 && float.IsFinite(light.Range.Value)
+          ? light.Range.Value
+          : options?.TargetDistance ?? 1;
+      var (heading, verticalTargetSlope) = ReadStaticLightDirection(
+        transform,
+        path + ".rotation"
+      );
+      return new CanonicalSpotLight(
+        new Vector3(transform.Translation.X, transform.Translation.Z, transform.Translation.Y),
+        light.Color,
+        distance,
+        heading,
+        MathF.Tan(light.InnerConeAngle),
+        light.OuterConeAngle * distance,
+        verticalTargetSlope,
+        options?.TerrainLightAmplitude ?? 1
+      );
+    }
+
+    private static CanonicalOmniLight CreateCanonicalOmniLight(
+      ParsedGltfLight light,
+      Matrix4x4 transform,
+      string path,
+      GltfNewModelStaticLightOptions? options
+    )
+    {
+      ValidateStaticLight(light, transform, path);
+      return new CanonicalOmniLight(
+        new Vector3(transform.Translation.X, transform.Translation.Z, transform.Translation.Y),
+        light.Color,
+        options?.TerrainLightAmplitude ?? 1
+      );
+    }
+
+    private static void ValidateStaticLight(
+      ParsedGltfLight light,
+      Matrix4x4 transform,
+      string path
     )
     {
       if (
@@ -7984,6 +8047,15 @@ namespace EarthTool.GLTF
       {
         throw new UnsupportedGltfDomainException("StaticLightTypeConversion", path);
       }
+    }
+
+    private static byte[] CreateConvertedStaticLightRecord(
+      ParsedGltfLight light,
+      Matrix4x4 transform,
+      string path
+    )
+    {
+      ValidateStaticLight(light, transform, path);
       var result = new byte[light.Type == "spot" ? 0x30 : 0x1C];
       WriteSingle(result, 0, transform.Translation.X);
       WriteSingle(result, 4, transform.Translation.Z);
@@ -7993,13 +8065,7 @@ namespace EarthTool.GLTF
       WriteSingle(result, 0x14, light.Color.Z);
       if (light.Type == "point")
       {
-        WriteSingle(
-          result,
-          0x18,
-          intent == StaticLightAuthoringIntent.NewModel
-            ? options?.TerrainLightAmplitude ?? 1
-            : light.Intensity
-        );
+        WriteSingle(result, 0x18, light.Intensity);
         return result;
       }
       if (
@@ -8013,25 +8079,13 @@ namespace EarthTool.GLTF
       var distance =
         light.Range is > 0 && float.IsFinite(light.Range.Value)
           ? light.Range.Value
-          : options?.TargetDistance ?? 1;
+          : 1;
       WriteSingle(result, 0x18, distance);
       WriteStaticLightDirection(result, transform, path + ".rotation");
       WriteSingle(result, 0x20, MathF.Tan(light.InnerConeAngle));
       WriteSingle(result, 0x24, light.OuterConeAngle * distance);
-      WriteSingle(
-        result,
-        0x2C,
-        intent == StaticLightAuthoringIntent.NewModel
-          ? options?.TerrainLightAmplitude ?? 1
-          : light.Intensity
-      );
+      WriteSingle(result, 0x2C, light.Intensity);
       return result;
-    }
-
-    private enum StaticLightAuthoringIntent
-    {
-      EditProjection,
-      NewModel,
     }
 
     private static int ValidateAttachmentMetadata(
@@ -8290,22 +8344,30 @@ namespace EarthTool.GLTF
 
     private static byte[] CreateAttachmentRecord(Matrix4x4 transform, byte extra)
     {
+      return CanonicalBaseHeaderEncoder.EncodeAttachmentRecord(
+        CreateCanonicalAttachmentRecord(transform, extra)
+      );
+    }
+
+    private static CanonicalAttachmentRecord CreateCanonicalAttachmentRecord(
+      Matrix4x4 transform,
+      byte extra
+    )
+    {
       var (translation, heading) = ReadAttachmentTransform(transform);
-      var record = new byte[8];
-      BinaryPrimitives.WriteInt16LittleEndian(
-        record,
-        QuantizeAttachmentCoordinate(translation.X, true)
+      var record = new CanonicalAttachmentRecord(
+        new Vector3(translation.X, translation.Z, translation.Y),
+        heading,
+        extra
       );
-      BinaryPrimitives.WriteInt16LittleEndian(
-        record.AsSpan(2),
-        QuantizeAttachmentCoordinate(translation.Z, false)
-      );
-      BinaryPrimitives.WriteInt16LittleEndian(
-        record.AsSpan(4),
-        QuantizeAttachmentCoordinate(translation.Y, false)
-      );
-      record[6] = heading;
-      record[7] = extra;
+      try
+      {
+        CanonicalBaseHeaderEncoder.EncodeAttachmentRecord(record);
+      }
+      catch (OverflowException)
+      {
+        throw new UnsupportedGltfDomainException("AttachmentPose");
+      }
       return record;
     }
 
@@ -8337,46 +8399,29 @@ namespace EarthTool.GLTF
       return (translation, heading);
     }
 
-    private static short QuantizeAttachmentCoordinate(
-      float value,
-      bool rejectsSentinel,
-      string domain = "AttachmentPose",
-      string? path = null
-    )
-    {
-      var scaled = Math.Truncate(value * 256d);
-      if (!double.IsFinite(scaled) || scaled < short.MinValue || scaled > short.MaxValue)
-      {
-        throw new UnsupportedGltfDomainException(domain, path);
-      }
-      var result = (short)scaled;
-      if (rejectsSentinel && result == short.MinValue)
-      {
-        throw new UnsupportedGltfDomainException(domain, path);
-      }
-      return result;
-    }
-
     private static byte[] CreateAbsentAttachmentRecord()
     {
-      var record = new byte[8];
-      BinaryPrimitives.WriteInt16LittleEndian(record, short.MinValue);
-      BinaryPrimitives.WriteInt16LittleEndian(record.AsSpan(2), short.MinValue);
-      BinaryPrimitives.WriteInt16LittleEndian(record.AsSpan(4), short.MinValue);
-      return record;
+      return CanonicalBaseHeaderEncoder.CreateAbsentAttachmentRecord();
     }
 
     private static byte[] CreateCannonRenderPositionRecord(Vector3 translation)
+    {
+      return CanonicalBaseHeaderEncoder.EncodeCannonRenderPosition(
+        CreateCanonicalCannonRenderPosition(translation)
+      );
+    }
+
+    private static CanonicalCannonRenderPosition CreateCanonicalCannonRenderPosition(
+      Vector3 translation
+    )
     {
       if (!IsFinite(translation))
       {
         throw new UnsupportedGltfDomainException("CannonRenderPosition");
       }
-      var result = new byte[12];
-      WriteSingle(result, 0, translation.X);
-      WriteSingle(result, 4, translation.Z);
-      WriteSingle(result, 8, translation.Y);
-      return result;
+      return new CanonicalCannonRenderPosition(
+        new Vector3(translation.X, translation.Z, translation.Y)
+      );
     }
 
     private static void WriteSingle(byte[] destination, int offset, float value)

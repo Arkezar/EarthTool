@@ -1,5 +1,6 @@
 ﻿#nullable enable
 
+using EarthTool.MSH.Internal;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -12,9 +13,6 @@ namespace EarthTool.MSH.Assets
     internal const int SerializedSize = 0x368;
 
     private readonly byte[] _serializedRepresentation;
-
-    internal static CommonMeshBaseHeader CanonicalDynamic { get; } =
-      CreateCanonical(MeshAssetKind.Dynamic, new AnimationClassBytes());
 
     /// <summary>Gets the MSH format version.</summary>
     public uint Version { get; }
@@ -62,7 +60,7 @@ namespace EarthTool.MSH.Assets
     public IReadOnlyList<byte> SerializedRepresentation { get; }
 
     internal bool IsCanonicalDynamic =>
-      _serializedRepresentation.AsSpan().SequenceEqual(CanonicalDynamic._serializedRepresentation);
+      CanonicalBaseHeaderEncoder.IsCanonicalDynamic(_serializedRepresentation);
 
     internal CommonMeshBaseHeader(byte[] serializedRepresentation)
     {
@@ -93,63 +91,9 @@ namespace EarthTool.MSH.Assets
       SerializedRepresentation = Array.AsReadOnly(_serializedRepresentation);
     }
 
-    internal static CommonMeshBaseHeader CreateCanonicalStatic(AnimationClassBytes animationLengths)
-    {
-      return CreateCanonical(MeshAssetKind.Static, animationLengths);
-    }
-
-    private static CommonMeshBaseHeader CreateCanonical(
-      MeshAssetKind meshKind,
-      AnimationClassBytes animationLengths
-    )
-    {
-      var serializedRepresentation = new byte[SerializedSize];
-      serializedRepresentation[0] = (byte)'M';
-      serializedRepresentation[1] = (byte)'E';
-      serializedRepresentation[2] = (byte)'S';
-      serializedRepresentation[3] = (byte)'H';
-      BinaryPrimitives.WriteUInt32LittleEndian(serializedRepresentation.AsSpan(0x04), 1);
-      BinaryPrimitives.WriteUInt32LittleEndian(
-        serializedRepresentation.AsSpan(0x08),
-        (uint)meshKind
-      );
-      WriteAnimationClassBytes(serializedRepresentation, 0x10, animationLengths);
-
-      for (var attachment = 0; attachment < 49; attachment++)
-      {
-        var offset = 0x1D8 + (attachment * 8);
-        BinaryPrimitives.WriteInt16LittleEndian(
-          serializedRepresentation.AsSpan(offset),
-          short.MinValue
-        );
-        BinaryPrimitives.WriteInt16LittleEndian(
-          serializedRepresentation.AsSpan(offset + 2),
-          short.MinValue
-        );
-        BinaryPrimitives.WriteInt16LittleEndian(
-          serializedRepresentation.AsSpan(offset + 4),
-          short.MinValue
-        );
-      }
-
-      return new CommonMeshBaseHeader(serializedRepresentation);
-    }
-
     private static AnimationClassBytes ReadAnimationClassBytes(ReadOnlySpan<byte> bytes)
     {
       return new AnimationClassBytes(bytes[3], bytes[2], bytes[1], bytes[0]);
-    }
-
-    private static void WriteAnimationClassBytes(
-      Span<byte> data,
-      int offset,
-      AnimationClassBytes value
-    )
-    {
-      data[offset] = value.D;
-      data[offset + 1] = value.C;
-      data[offset + 2] = value.B;
-      data[offset + 3] = value.A;
     }
 
     private static IReadOnlyList<byte> Copy(ReadOnlySpan<byte> data, int offset, int length)

@@ -757,6 +757,13 @@ namespace EarthTool.MSH.Authoring
     private readonly Dictionary<int, byte[]> _replacementCannonRenderPositions = new();
     private readonly Dictionary<int, byte[]> _replacementStaticSpotLights = new();
     private readonly Dictionary<int, byte[]> _replacementStaticOmniLights = new();
+    private readonly Dictionary<int, CanonicalAttachmentRecord> _canonicalAttachmentRecords = new();
+    private readonly Dictionary<
+      int,
+      CanonicalCannonRenderPosition
+    > _canonicalCannonRenderPositions = new();
+    private readonly Dictionary<int, CanonicalSpotLight> _canonicalStaticSpotLights = new();
+    private readonly Dictionary<int, CanonicalOmniLight> _canonicalStaticOmniLights = new();
     private readonly Dictionary<
       (StaticLightRecordKind Kind, int Number),
       HashSet<string>
@@ -1083,6 +1090,7 @@ namespace EarthTool.MSH.Authoring
     )
     {
       EnsureOpen();
+      EnsureLoadedRepresentationEdit();
       if (physicalNumber is < 1 or > 49)
       {
         throw new ArgumentOutOfRangeException(nameof(physicalNumber));
@@ -1099,12 +1107,28 @@ namespace EarthTool.MSH.Authoring
       _replacementAttachmentRecords[physicalNumber] = bytes;
     }
 
+    internal void ReplaceCanonicalAttachmentRecord(
+      int physicalNumber,
+      CanonicalAttachmentRecord record
+    )
+    {
+      EnsureOpen();
+      EnsureCanonicalBaseHeaderAuthoring();
+      if (physicalNumber is < 1 or > 49)
+      {
+        throw new ArgumentOutOfRangeException(nameof(physicalNumber));
+      }
+
+      _canonicalAttachmentRecords[physicalNumber] = record;
+    }
+
     internal void ReplaceCannonRenderPosition(
       int physicalNumber,
       IEnumerable<byte> record
     )
     {
       EnsureOpen();
+      EnsureLoadedRepresentationEdit();
       if (physicalNumber is < 1 or > 4)
       {
         throw new ArgumentOutOfRangeException(nameof(physicalNumber));
@@ -1121,6 +1145,21 @@ namespace EarthTool.MSH.Authoring
       _replacementCannonRenderPositions[physicalNumber] = bytes;
     }
 
+    internal void ReplaceCanonicalCannonRenderPosition(
+      int physicalNumber,
+      CanonicalCannonRenderPosition record
+    )
+    {
+      EnsureOpen();
+      EnsureCanonicalBaseHeaderAuthoring();
+      if (physicalNumber is < 1 or > 4)
+      {
+        throw new ArgumentOutOfRangeException(nameof(physicalNumber));
+      }
+
+      _canonicalCannonRenderPositions[physicalNumber] = record;
+    }
+
     internal void ReplaceStaticLightRecord(
       StaticLightRecordKind kind,
       int physicalNumber,
@@ -1129,6 +1168,7 @@ namespace EarthTool.MSH.Authoring
     )
     {
       EnsureOpen();
+      EnsureLoadedRepresentationEdit();
       if (physicalNumber is < 1 or > 4)
       {
         throw new ArgumentOutOfRangeException(nameof(physicalNumber));
@@ -1150,6 +1190,28 @@ namespace EarthTool.MSH.Authoring
       )[physicalNumber] = bytes;
       _staticLightFieldChanges[(kind, physicalNumber)] = new HashSet<string>(
         changedFields ?? throw new ArgumentNullException(nameof(changedFields)),
+        StringComparer.Ordinal
+      );
+    }
+
+    internal void ReplaceCanonicalStaticSpotLight(int physicalNumber, CanonicalSpotLight record)
+    {
+      EnsureOpen();
+      EnsureCanonicalStaticLightNumber(physicalNumber);
+      _canonicalStaticSpotLights[physicalNumber] = record;
+      _staticLightFieldChanges[(StaticLightRecordKind.Spot, physicalNumber)] = new HashSet<string>(
+        new[] { "NewStaticLight" },
+        StringComparer.Ordinal
+      );
+    }
+
+    internal void ReplaceCanonicalStaticOmniLight(int physicalNumber, CanonicalOmniLight record)
+    {
+      EnsureOpen();
+      EnsureCanonicalStaticLightNumber(physicalNumber);
+      _canonicalStaticOmniLights[physicalNumber] = record;
+      _staticLightFieldChanges[(StaticLightRecordKind.Omni, physicalNumber)] = new HashSet<string>(
+        new[] { "NewStaticLight" },
         StringComparer.Ordinal
       );
     }
@@ -1439,10 +1501,10 @@ namespace EarthTool.MSH.Authoring
         _replacementPivots,
         _replacementAnimations,
         _replacementAnimationFrameIndices,
-        _replacementAttachmentRecords,
-        _replacementCannonRenderPositions,
-        _replacementStaticSpotLights,
-        _replacementStaticOmniLights
+        _canonicalAttachmentRecords,
+        _canonicalCannonRenderPositions,
+        _canonicalStaticSpotLights,
+        _canonicalStaticOmniLights
       );
       if (bytes.Length > profile.MaxOutputBytes)
       {
@@ -1478,6 +1540,35 @@ namespace EarthTool.MSH.Authoring
         null,
         new[] { AuthoringValidation.Invalid(path, message) }
       );
+    }
+
+    private void EnsureCanonicalStaticLightNumber(int physicalNumber)
+    {
+      EnsureCanonicalBaseHeaderAuthoring();
+      if (physicalNumber is < 1 or > 4)
+      {
+        throw new ArgumentOutOfRangeException(nameof(physicalNumber));
+      }
+    }
+
+    private void EnsureCanonicalBaseHeaderAuthoring()
+    {
+      if (_source is not null)
+      {
+        throw new InvalidOperationException(
+          "Canonical base-header values can only be supplied while authoring a canonical asset."
+        );
+      }
+    }
+
+    private void EnsureLoadedRepresentationEdit()
+    {
+      if (_source is null)
+      {
+        throw new InvalidOperationException(
+          "Exact base-header representations can only replace values on a loaded asset."
+        );
+      }
     }
 
     private void EnsureSourceOrdinal(int ordinal)
@@ -1525,16 +1616,18 @@ namespace EarthTool.MSH.Authoring
         ))
       );
       changes.AddRange(
-        _replacementAttachmentRecords.Keys.Select(number => new StaticMeshAssemblyChange(
-          StaticMeshAssemblyChangeKind.Attachment,
-          physicalNumber: number
-        ))
+        _replacementAttachmentRecords.Keys.Concat(_canonicalAttachmentRecords.Keys)
+          .Select(number => new StaticMeshAssemblyChange(
+            StaticMeshAssemblyChangeKind.Attachment,
+            physicalNumber: number
+          ))
       );
       changes.AddRange(
-        _replacementCannonRenderPositions.Keys.Select(number => new StaticMeshAssemblyChange(
-          StaticMeshAssemblyChangeKind.CannonRenderPosition,
-          physicalNumber: number
-        ))
+        _replacementCannonRenderPositions.Keys.Concat(_canonicalCannonRenderPositions.Keys)
+          .Select(number => new StaticMeshAssemblyChange(
+            StaticMeshAssemblyChangeKind.CannonRenderPosition,
+            physicalNumber: number
+          ))
       );
       changes.AddRange(
         _staticLightFieldChanges.Select(item => new StaticMeshAssemblyChange(
