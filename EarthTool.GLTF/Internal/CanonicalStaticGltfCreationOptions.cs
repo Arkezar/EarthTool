@@ -11,22 +11,22 @@ namespace EarthTool.GLTF.Internal
   {
     internal Guid CreationGuid { get; }
 
-    internal IReadOnlyDictionary<GltfMaterialHandle, string?> TextureResourceBindings { get; }
+    internal GltfNewModelImportOptions ImportOptions { get; }
 
     internal CanonicalStaticGltfCreationOptions(
       Guid creationGuid,
       IReadOnlyDictionary<GltfMaterialHandle, string?>? textureResourceBindings = null
     )
-    {
-      var bindings = textureResourceBindings?.ToDictionary(item => item.Key, item => item.Value)
-        ?? new Dictionary<GltfMaterialHandle, string?>();
-      if (bindings.Keys.Any(handle => handle.Value <= 0))
-      {
-        throw new ArgumentOutOfRangeException(nameof(textureResourceBindings));
-      }
+      : this(creationGuid, new GltfNewModelImportOptions(textureResourceBindings))
+    { }
 
+    internal CanonicalStaticGltfCreationOptions(
+      Guid creationGuid,
+      GltfNewModelImportOptions importOptions
+    )
+    {
       CreationGuid = creationGuid;
-      TextureResourceBindings = new ReadOnlyDictionary<GltfMaterialHandle, string?>(bindings);
+      ImportOptions = importOptions ?? throw new ArgumentNullException(nameof(importOptions));
     }
   }
 

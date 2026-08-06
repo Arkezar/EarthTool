@@ -1,6 +1,7 @@
 ﻿#nullable enable
 
 using EarthTool.MSH.Assets;
+using EarthTool.MSH.Authoring;
 using EarthTool.MSH.Operations;
 using SharpGLTF.Schema2;
 using SharpGLTF.Validation;
@@ -1130,7 +1131,9 @@ namespace EarthTool.GLTF.Internal
         nodes.Add(new ParsedGltfNode(
           node.TryGetProperty("name", out var name) ? name.GetString() : null,
           TryGetPlacementRootMarker(node, out var isPlacementRoot) && isPlacementRoot,
-          TryGetMetadata(node),
+          allowAuthoringMetadata
+            ? TryGetAuthoringMetadata(node) ?? TryGetMetadata(node)
+            : TryGetMetadata(node),
           node.TryGetProperty("mesh", out var mesh) ? mesh.GetInt32() : null,
           TryGetLightIndex(node),
           node.TryGetProperty("camera", out var camera) ? camera.GetInt32() : null,
@@ -1277,6 +1280,10 @@ namespace EarthTool.GLTF.Internal
         ref metadataBytes);
       if (intent == GltfImportIntent.NewModel)
       {
+        if (allowAuthoringMetadata)
+        {
+          carriers = carriers.Where(carrier => IsCanonicalAuthoringMetadata(carrier.Value)).ToList();
+        }
         var unsupportedCarrier = allowAuthoringMetadata
           ? carriers.FirstOrDefault(carrier =>
             !allowedCarriers.TryGetValue(carrier.Path, out var carrierKind)
@@ -1480,6 +1487,26 @@ namespace EarthTool.GLTF.Internal
       catch (MetadataConflictException conflict)
       {
         conflicts.Add(conflict);
+      }
+    }
+
+    private static bool IsCanonicalAuthoringMetadata(string value)
+    {
+      try
+      {
+        using var document = JsonDocument.Parse(value);
+        var root = document.RootElement;
+        return root.ValueKind == JsonValueKind.Object
+          && root.TryGetProperty("format", out var format)
+          && format.ValueKind == JsonValueKind.String
+          && string.Equals(
+            format.GetString(),
+            CanonicalAuthoringMetadata.Format,
+            StringComparison.Ordinal);
+      }
+      catch (JsonException)
+      {
+        return false;
       }
     }
 
@@ -2984,9 +3011,7 @@ namespace EarthTool.GLTF.Internal
         {
           var sourceLocalId = identityMap.GetSourceObjectId(source);
           writer.WriteStartObject();
-          writer.WriteString("name", sourceBaseName is null
-            ? $"Source object {sourceLocalId}"
-            : $"{sourceBaseName}_{sourceLocalId}");
+          writer.WriteString("name", $"ET_Static_{sourceLocalId}");
           writer.WriteNumber("mesh", nodeIndices[source]);
           var effectivePivot = layouts[source.StaticRenderObjects[0]].Partition.RenderObject.Pivot;
           var translation = ProjectToGltf(effectivePivot);
@@ -3034,18 +3059,21 @@ namespace EarthTool.GLTF.Internal
             writer.WriteEndArray();
           }
 
-          WriteExtras(writer, CreateMetadata(
-            baseline,
-            "object",
-            sourceLocalId,
-            null,
-            null,
-            unknownMetadata,
-            metadataNextIds,
-            artistObjectLocalIds,
-            identityMap,
-            animationProjection: animations.Objects.SingleOrDefault(item =>
-              item.SourceObjectLocalId == sourceLocalId)));
+          WriteExtras(
+            writer,
+            CreateMetadata(
+              baseline,
+              "object",
+              sourceLocalId,
+              null,
+              null,
+              unknownMetadata,
+              metadataNextIds,
+              artistObjectLocalIds,
+              identityMap,
+              animationProjection: animations.Objects.SingleOrDefault(item =>
+                item.SourceObjectLocalId == sourceLocalId)),
+            CreateStaticSourceAuthoringMetadata(asset, source, sourceLocalId, isRoot));
           writer.WriteEndObject();
         }
         foreach (var attachment in attachments)
@@ -3069,7 +3097,13 @@ namespace EarthTool.GLTF.Internal
           writer.WriteStartObject();
           writer.WriteString("name", GetCannonHelperName(cannon.PhysicalNumber));
           WriteTransform(writer, cannon.Translation, cannon.Rotation);
-          WriteExtras(writer, CreateCannonMetadata(baseline, cannon, unknownMetadata));
+          WriteExtras(
+            writer,
+            CreateCannonMetadata(baseline, cannon, unknownMetadata),
+            CanonicalAuthoringMetadata.Write(
+              CanonicalAuthoringOwner.Parse(GetCannonHelperName(cannon.PhysicalNumber)),
+              new CannonAuthoringValues(cannon.AttachmentRecord[7]),
+              GltfOperationProfile.Default));
           writer.WriteEndObject();
         }
         for (var lightIndex = 0; lightIndex < staticLights.Count; lightIndex++)
@@ -3083,7 +3117,10 @@ namespace EarthTool.GLTF.Internal
           writer.WriteNumber("light", lightIndex);
           writer.WriteEndObject();
           writer.WriteEndObject();
-          WriteExtras(writer, CreateStaticLightInstanceMetadata(baseline, light, unknownMetadata));
+          WriteExtras(
+            writer,
+            CreateStaticLightInstanceMetadata(baseline, light, unknownMetadata),
+            CreateStaticLightAuthoringMetadata(light));
           writer.WriteEndObject();
         }
 
@@ -3330,10 +3367,95 @@ namespace EarthTool.GLTF.Internal
         .ToLowerInvariant();
     }
 
-    private static void WriteExtras(Utf8JsonWriter writer, string metadata)
+    private static string CreateStaticSourceAuthoringMetadata(
+      StaticMeshAsset asset,
+      StaticSourceObject source,
+      int sourceLocalId,
+      bool isRoot)
+    {
+      var first = source.StaticRenderObjects[0];
+      var roles = GltfStaticObjectRoles.None;
+      if ((first.KnownFlags & StaticRenderObjectFlags.ViewerFaced) != 0)
+      {
+        roles |= GltfStaticObjectRoles.ViewerFaced;
+      }
+      if ((first.KnownFlags & StaticRenderObjectFlags.Barrel) != 0)
+      {
+        roles |= GltfStaticObjectRoles.Barrel;
+      }
+      if ((first.KnownFlags & StaticRenderObjectFlags.Rotor) != 0)
+      {
+        roles |= GltfStaticObjectRoles.Rotor;
+      }
+
+      CanonicalStaticFootprint? footprint = null;
+      CanonicalHorizontalExtents? horizontalExtents = null;
+      if (isRoot)
+      {
+        var header = asset.CommonBaseHeader;
+        var elevationBytes = header.BoxTopElevations.ToArray();
+        var elevations = Enumerable.Range(0, 16)
+          .Select(index => BinaryPrimitives.ReadUInt16LittleEndian(
+            elevationBytes.AsSpan((15 - index) * sizeof(ushort), sizeof(ushort))) / 256f)
+          .ToArray();
+        var cornerFlags = Enumerable.Range(0, 16)
+          .Select(index => (byte)(header.BoxCornerPassageFlags[15 - index] & 0x0F))
+          .ToArray();
+        footprint = new CanonicalStaticFootprint(
+          (ushort)header.BoxPresenceMask,
+          elevations,
+          cornerFlags);
+        var extentBytes = header.HorizontalExtents.ToArray();
+        horizontalExtents = new CanonicalHorizontalExtents(
+          ReadExtent(extentBytes, 0),
+          ReadExtent(extentBytes, 2),
+          ReadExtent(extentBytes, 4),
+          ReadExtent(extentBytes, 6));
+      }
+
+      return CanonicalAuthoringMetadata.Write(
+        CanonicalAuthoringOwner.Parse($"ET_Static_{sourceLocalId}"),
+        new StaticSourceAuthoringValues(
+          footprint,
+          horizontalExtents,
+          roles,
+          (roles & GltfStaticObjectRoles.Barrel) != 0 ? first.BarrelMaximumAngle : (byte)0),
+        GltfOperationProfile.Default);
+    }
+
+    private static float ReadExtent(byte[] bytes, int offset)
+    {
+      return BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset, sizeof(ushort))) / 256f;
+    }
+
+    private static string CreateStaticLightAuthoringMetadata(ProjectedStaticLight light)
+    {
+      float? targetDistance = null;
+      if (light.Type == "spot")
+      {
+        var value = ReadSingle(light.Record, 0x18);
+        if (float.IsFinite(value) && value > 0)
+        {
+          targetDistance = value;
+        }
+      }
+      return CanonicalAuthoringMetadata.Write(
+        CanonicalAuthoringOwner.Parse(GetStaticLightHelperName(light.Type, light.PhysicalNumber)),
+        new StaticLightAuthoringValues(light.Intensity, targetDistance),
+        GltfOperationProfile.Default);
+    }
+
+    private static void WriteExtras(
+      Utf8JsonWriter writer,
+      string metadata,
+      string? authoringMetadata = null)
     {
       writer.WriteStartObject("extras");
       writer.WriteString("earthtool", metadata);
+      if (authoringMetadata is not null)
+      {
+        writer.WriteString("earthtoolAuthoring", authoringMetadata);
+      }
       writer.WriteEndObject();
     }
 
@@ -5462,6 +5584,21 @@ namespace EarthTool.GLTF.Internal
       }
 
       return metadata.GetString() ?? throw new InvalidDataException("EarthTool metadata cannot be null.");
+    }
+
+    private static string? TryGetAuthoringMetadata(JsonElement owner)
+    {
+      if (!owner.TryGetProperty("extras", out var extras)
+        || !extras.TryGetProperty("earthtoolAuthoring", out var metadata))
+      {
+        return null;
+      }
+      if (metadata.ValueKind != JsonValueKind.String)
+      {
+        throw new InvalidDataException("EarthTool authoring metadata must be a string.");
+      }
+      return metadata.GetString()
+        ?? throw new InvalidDataException("EarthTool authoring metadata cannot be null.");
     }
 
     private static bool HasReservedMetadata(JsonElement element)

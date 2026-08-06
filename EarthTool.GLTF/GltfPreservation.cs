@@ -7,7 +7,7 @@ using System.Linq;
 namespace EarthTool.GLTF
 {
   /// <summary>Describes how one serialized MSH field was handled during mesh creation.</summary>
-  public enum PreservationDisposition
+  internal enum PreservationDisposition
   {
     /// <summary>The source representation was retained exactly.</summary>
     Retained = 0,
@@ -23,7 +23,7 @@ namespace EarthTool.GLTF
   }
 
   /// <summary>Describes one MSH preservation effect reported by glTF mesh creation.</summary>
-  public sealed class PreservationChange
+  internal sealed class PreservationChange
   {
     /// <summary>Gets the affected MSH field path.</summary>
     public string FieldPath { get; }
@@ -48,7 +48,7 @@ namespace EarthTool.GLTF
   }
 
   /// <summary>Reports ordered MSH preservation effects for one glTF mesh creation.</summary>
-  public sealed class PreservationReport
+  internal sealed class PreservationReport
   {
     /// <summary>Gets the ordered preservation effects.</summary>
     public IReadOnlyList<PreservationChange> Changes { get; }

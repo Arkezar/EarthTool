@@ -32,7 +32,7 @@ public static class WalkingSkeletonConsumer
     _ = asset.RootTrailingBytes.Count;
 
     var export = await interchange.ExportGlbAsync(asset, glb, cancellationToken: cancellationToken);
-    if (export.Value is null)
+    if (!export.Succeeded)
     {
       return export;
     }
@@ -41,6 +41,6 @@ public static class WalkingSkeletonConsumer
     var creation = await interchange.CreateMeshAsync(glb, cancellationToken: cancellationToken);
     return creation.Value is null
       ? creation
-      : await writer.WriteAsync(creation.Value.Asset, destination, cancellationToken: cancellationToken);
+      : await writer.WriteAsync(creation.Value, destination, cancellationToken: cancellationToken);
   }
 }

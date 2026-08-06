@@ -548,7 +548,7 @@ public class MetadataGraphValidationTests
       .Contain("StaticRenderObjectSequence[0]");
 
     await using var nextDocument = new MemoryStream();
-    var nextExport = await new GltfInterchange().ExportGlbAsync(
+    var nextExport = await new GltfInterchange().ExportGlbWithReceiptAsync(
       result.Value.Asset,
       nextDocument,
       result.Value.NextExportOptions
@@ -1207,7 +1207,7 @@ public class MetadataGraphValidationTests
     var asset = read.Value.Should().BeOfType<StaticMeshAsset>().Subject;
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var glbExport = await interchange.ExportGlbAsync(
+    var glbExport = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(_lineageId, _documentId)
@@ -1217,7 +1217,7 @@ public class MetadataGraphValidationTests
     try
     {
       var path = Path.Combine(directory.FullName, "model.gltf");
-      var separateExport = await interchange.ExportGltfFileAsync(
+      var separateExport = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(_lineageId, _documentId)
@@ -1285,7 +1285,7 @@ public class MetadataGraphValidationTests
     try
     {
       var path = Path.Combine(directory.FullName, "model.gltf");
-      var export = await interchange.ExportGltfFileAsync(
+      var export = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(_lineageId, _documentId)
@@ -1562,7 +1562,7 @@ public class MetadataGraphValidationTests
     import.Status.Should().Be(OperationStatus.Succeeded);
     await using var rewritten = new MemoryStream();
 
-    var export = await new GltfInterchange().ExportGlbAsync(
+    var export = await new GltfInterchange().ExportGlbWithReceiptAsync(
       import.Value!.Asset,
       rewritten,
       import.Value.NextExportOptions
@@ -1622,7 +1622,7 @@ public class MetadataGraphValidationTests
       .Be(raw);
     await using var rewritten = new MemoryStream();
 
-    var export = await new GltfInterchange().ExportGlbAsync(
+    var export = await new GltfInterchange().ExportGlbWithReceiptAsync(
       result.Value.Asset,
       rewritten,
       result.Value.NextExportOptions
@@ -1789,7 +1789,7 @@ public class MetadataGraphValidationTests
     var read = await new MshReader().ReadAsync(source);
     var asset = read.Value.Should().BeOfType<StaticMeshAsset>().Subject;
     await using var destination = new MemoryStream();
-    var export = await new GltfInterchange().ExportGlbAsync(
+    var export = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       destination,
       new GltfExportOptions(_lineageId, _documentId)
@@ -1840,7 +1840,8 @@ public class MetadataGraphValidationTests
       maxMetadataElements,
       maxUnknownMetadataMembers,
       maxMetadataGuards,
-      maxMetadataConflicts
+      maxMetadataConflicts,
+      GltfMeshResourceLimits.Default
     );
   }
 

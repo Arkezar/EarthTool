@@ -38,33 +38,23 @@ entries, resolved resources, aggregate bytes, and aggregate preview vertices.
 Dynamic-to-dynamic references are not preview geometry; EarthTool traverses only
 their referenced-binding graph to diagnose cycles, bounded by the configured MSH
 resource depth, then emits the deterministic placeholder. Supply non-default
-values through `GltfMeshResourceLimits`; existing operation-profile constructor
-signatures remain unchanged.
+values through `GltfMeshResourceLimits`.
 
-Both exports assign asset-lineage and document identities and write compact
-version-1 EarthTool envelopes as string-valued `extras["earthtool"]`. Each
-envelope declares `format`, `version`, `kind`, lowercase version-4 `lineage` and
-`document` UUIDs, a bounded local `id`, structured SHA-256 `guards`, and a
-kind-specific `payload`. The scene manifest owns strictly increasing scope
-inventories and retained identity high-water marks. Opaque metadata bytes use
-unpadded base64url. Partition fingerprints ignore index width, vertex
-numbering, cyclic triangle-index rotation, and triangle order. They retain
-winding and triangle multiplicity. The manifest records the preserved MSH byte
-length and SHA-256 as informational provenance; a contradiction reports
-`ETG2017` but never authorizes preservation state.
+Public export methods return `OperationResult`: status and diagnostics only.
+Their generated packages use canonical `ET_Static_{n}` or
+`ET_Dynamic_{n}_{effect}` owner names and canonical authoring envelopes for
+typed values. Embedded legacy EarthTool metadata supports the exported artist
+projection, but its lineage, document, scope, fingerprint, and source-MSH fields
+are not public contracts and never authorize public creation to restore source
+bytes.
 
 ## Dynamic effect-preview contract
 
-Dynamic exports use additive overloads that accept `DynamicMeshAsset`; existing
-static overloads remain strongly typed. Metadata version 2 identifies the
-dynamic package explicitly. The manifest contains the complete exact source MSH,
-an ordered object-scope inventory, a non-reusable next-ID boundary, and the
-historical `dynamic-group-explosion-preview` projection name/version/fingerprint,
-which remains stable for version 1 packages while covering the expanded sprite
-and ribbon families plus attached-particle and procedural previews. Every
-object node has one stable local scope ID, its exact effect declaration, its
-ordered child IDs, exact inherited header and effect bytes, resource bindings,
-and a named/versioned ordered-child guard. `Shockwave`, `Line`, `Sphere`, and
+Dynamic exports use overloads that accept `DynamicMeshAsset`; static overloads
+remain strongly typed. Canonical owner names identify the dynamic object tree.
+Every object node projects its effect declaration, ordered children, resource
+bindings, and authoring values needed by source-free regeneration. `Shockwave`,
+`Line`, `Sphere`, and
 `Keelwater`, and `ScalableObject` preview scopes additionally record and guard their evaluation
 context, frame domain and selected frame, total and remaining lifetime, global
 tick, texture scale, lifetime progress, and parent phase. `ScalableObject` also
@@ -99,15 +89,15 @@ runs for five seconds at the normal 20-update scheduler rate. Periodic
 global-tick transforms, atlas changes, and
 material alpha remain snapshot metadata because their runtime timing or target
 properties do not have an equivalent portable core glTF animation contract.
-The generated action is an artist preview; dynamic import continues to own MSH
-edits through the node rest transform and exact metadata rather than animation
-channel edits.
+The generated action is an artist preview. Public creation regenerates a new
+canonical MSH from the current glTF hierarchy, owner names, authoring values,
+and supported native edits; it does not restore an embedded source asset.
 
 Core glTF material factors are limited to zero through one. Finite MSH colors,
 alpha, or gains that evaluate outside that range are clamped only in the preview
-and made read-only for that native material; their exact authoritative values
-remain in scoped metadata and round-trip unchanged. Non-finite active values are
-rejected instead of being normalized.
+and made read-only for that native material. Supported active authoring values
+remain in the canonical authoring envelope. Non-finite active values are rejected
+instead of being normalized.
 
 The native preview behavior is effect-specific:
 
@@ -119,9 +109,9 @@ The native preview behavior is effect-specific:
 | `Smoke` | Vertical XY billboard snapshot at the camera-depth offset; UVs use the selected source frame and exact reciprocal atlas values | Visible RGB is modulated by the explicit white terrain sample and serialized gain; semantic alpha; no terrain-light producer; ordered children participate normally |
 | `Shockwave` | Vertical XY billboard snapshot at the camera-depth offset; UVs use the attached-particle selected source frame and exact reciprocal atlas values | Explicitly uses attached-particle RGB modulation and frame-phase alpha; primary dispatch has no own geometry or terrain light; ordered children still use normal hierarchy dispatch |
 | `Line` | Same attached-particle billboard contract as `Shockwave` | Explicitly uses attached-particle RGB modulation and frame-phase alpha; primary dispatch has no own geometry or terrain light; ordered children still use normal hierarchy dispatch |
-| `Keelwater` | Vertical XY billboard snapshot at the camera-depth offset; UVs use its dedicated attached-particle frame selection | Uses fixed preview water RGB and frame-phase alpha; primary dispatch has no own geometry or terrain light; serialized visible RGB/gain remain inactive and exact |
-| `Sphere` | Generated unit sphere with full decoded TEX preview; metadata identifies the selected `builtIn16` lifetime frame | Serialized visible RGB and additive selection are represented; ordinary frame, rectangle, alpha, and scale declarations remain inactive and exact; ordered children participate normally |
-| `ScalableObject` | Borrowed referenced static MSH geometry with the selected atlas texture and uniform interpolated model scale | Exact mesh-name binding remains dynamic authority; referenced geometry is preview-only; scale, material, ordered children, and child translation participate in the dynamic edit contract |
+| `Keelwater` | Vertical XY billboard snapshot at the camera-depth offset; UVs use its dedicated attached-particle frame selection | Uses fixed preview water RGB and frame-phase alpha; primary dispatch has no own geometry or terrain light |
+| `Sphere` | Generated unit sphere with full decoded TEX preview; metadata identifies the selected `builtIn16` lifetime frame | Visible RGB and additive selection are represented; ordered children participate normally |
+| `ScalableObject` | Borrowed referenced static MSH geometry with the selected atlas texture and uniform interpolated model scale | Its typed mesh binding remains authoring authority; referenced geometry is preview-only |
 
 The attached-particle billboards are metadata-backed demonstrations of the
 confirmed attached route. A dynamic hierarchy still invokes these records by
@@ -140,15 +130,15 @@ and a fixed bounded integer-derived deviation sequence. `Lightning` uses 31
 center pairs from `(0,12,0)` to `(0,0,0)`, a `+X` side, and a separate fixed
 bounded deviation sequence. These inputs replace runtime entity endpoints,
 heading, global angle, `RDTSC`, and shared CRT random state only for the stock
-preview. They are fingerprinted projection inputs, never claims about the
-serialized representation.
+preview. They are deterministic preview inputs, never claims about the serialized
+representation.
 
 | Effect | Ribbon, texture, material, and light preview | Hierarchy and authority |
 | --- | --- | --- |
-| `Laser` | One segment between the deterministic endpoints; selected atlas frame, semantic alpha, serialized RGB, ribbon half-width, and `BLEND`; its evaluated modulated terrain-light line remains metadata-only | Ordered children and child translation are native; frame/atlas, additive integer, light, resources, and inactive fields remain exact |
-| `LaserWall` | The same one-segment geometry; selected atlas frame, semantic alpha, serialized RGB, ribbon half-width, and `BLEND`; its unmodulated terrain-light line remains metadata-only | Ordered children participate normally; light type remains inactive and exact while terrain-light RGB remains authoritative |
-| `ElectricalCannon` | Twenty deterministic segments communicate the adaptive jagged path without pretending to reproduce runtime randomness; selected atlas frame, semantic alpha, serialized RGB, ribbon half-width, and `BLEND` | Ordered children participate normally; runtime subdivision/RNG and inactive terrain-light representations remain metadata-only |
-| `Lightning` | Thirty deterministic segments communicate the fixed vertical bolt; selected atlas frame, semantic alpha, serialized RGB, ribbon half-width, and `BLEND`; its modulated terrain-light line remains metadata-only | Ordered children participate normally; runtime endpoint/global-angle/RNG inputs and unrelated state remain metadata-only |
+| `Laser` | One segment between the deterministic endpoints; selected atlas frame, semantic alpha, serialized RGB, ribbon half-width, and `BLEND` | Ordered children, child translation, and supported authoring values regenerate canonically |
+| `LaserWall` | The same one-segment geometry; selected atlas frame, semantic alpha, serialized RGB, ribbon half-width, and `BLEND` | Ordered children and supported authoring values regenerate canonically |
+| `ElectricalCannon` | Twenty deterministic segments communicate the adaptive jagged path without pretending to reproduce runtime randomness; selected atlas frame, semantic alpha, serialized RGB, ribbon half-width, and `BLEND` | Runtime subdivision and random inputs are preview-only |
+| `Lightning` | Thirty deterministic segments communicate the fixed vertical bolt; selected atlas frame, semantic alpha, serialized RGB, ribbon half-width, and `BLEND` | Runtime endpoint, global-angle, and random inputs are preview-only |
 
 Each ribbon pair stores logical left then logical right, with atlas U assigned by
 that logical side and V advancing along the path. Indices retain
@@ -159,55 +149,33 @@ ribbon half-width is preserved by the MSH binary API but cannot form a preview
 and fails export with scoped `ETG1006`.
 
 TEX lookup uses the same bounded root order and diagnostic/default fallback as
-static materials. Missing or unsafe resources retain their exact binding and
+static materials. Missing or unsafe resources retain the typed game key and
 receive deterministic diagnostics and, where available, the diagnostic preview.
 Core glTF `BLEND` is only an artist preview: it cannot express the game's
 additive `ONE,ONE` behavior. Core glTF also cannot express runtime billboard
 orientation, terrain tessellation, frame advance, terrain lighting, or random
-light behavior. Exact additive flags, resource bytes, light values, frame and
-atlas declarations, reciprocals, and inactive representations therefore remain
-metadata authority rather than claims of runtime equivalence.
+light behavior. Canonical authoring envelopes carry supported active values;
+resource keys that glTF cannot evidence must come from typed options or plans.
 
-Native edits own ordered parent/child relationships, child start translation,
-and the displayed rectangle and alpha start representation. Depth edits are
-owned by `Explosion`, `FlatExplosion`, `Smoke`, and attached billboards; visible
-RGB edits are owned by every preview except `Track` and `Keelwater`. Smoke,
-Shockwave, and Line RGB edits are inverted through the documented deterministic
-light sample only when their gain is invertible. Sphere material RGB owns its
-serialized visible color while generated sphere geometry remains preview-only. Import
-retains end translation, end rectangle, full frame domain, alpha timing and end
-alpha, exact additive integer, light type/color/gain, reserved and inactive
-fields, resource bytes, inherited headers, and trailing bytes. Unchanged import
-returns the exact source representation. Invalid active frame or atlas capacity,
-and non-finite active value domains report scoped `ETG1006` diagnostics without
-partial output. Duplicate, missing, foreign, stale, dangling, or ambiguous
-scopes fail before a dynamic snapshot is returned. `ScalableObject` uniform
-scale edits regenerate only the selected start-scale representation, and an
-explicit scoped `meshName` metadata edit replaces only the exact variable-length
-binding. Borrowed preview geometry is never written to the referenced MSH.
-Unknown serialized values remain exact and are never converted to catch-all enum
-values.
-
-Ribbon material edits own representable visible RGB and alpha start values.
-Ribbon pair spacing owns the signed `RibbonHalfWidth`; import requires one
-finite, nonzero, consistent ribbon half-width, finite normals, nondegenerate path
-segments, fixed side UVs, and guarded index topology. Centerline and in-plane
-orientation edits are accepted as runtime-only preview input and reported
-separately without rewriting MSH fields; a later MSH export regenerates the
-documented deterministic path.
-Shared or overlapping POSITION, NORMAL, TEXCOORD, or index ownership is
-ambiguous and fails transactionally. Frame declarations, reciprocal atlas
-values, flags, terrain colors/gains, resource bytes, reserved values, inactive
-rectangles/depth/model scales, and child end translations remain exact.
+Native hierarchy, child start translation, visible geometry, and supported
+material values provide current glTF evidence. Canonical authoring envelopes
+provide non-visible active values such as frame domains, end values, light
+settings, and additive selection. Creation emits a new canonical representation
+with a new creation GUID. Invalid, contradictory, ambiguous, or unsupported
+values fail without partial output rather than falling back to embedded source
+bytes. Runtime-only preview inputs and inactive serialized representations are
+not restoration authority.
 
 Use `CreateMeshAsync` for GLB streams and `CreateMeshFileAsync` for separate glTF
-files. Both create immutable static or dynamic assets through one result contract;
-diagnostics report when metadata was missing or discarded. Typed import plans use
+files. Both return `OperationResult<MeshAsset>` and route static and dynamic
+packages exclusively through source-free canonical regeneration. Typed import plans use
 `CreateMeshWithPlanAsync` and `CreateMeshFileWithPlanAsync`; these methods validate
 the mode, package kind, profile limits, and exact captured source before creation.
+No public creation overload accepts a source MSH, expected baseline, lineage,
+document identity, scope identity, or preservation policy.
 
 Import plans and machine reports are separate protocols from embedded metadata.
-Version 2 plans use format `earthtool.msh.import-plan`; version 1 reports use
+Version 2 plans use format `earthtool.msh.import-plan`; version 2 reports use
 format `earthtool.msh.cli-report`. `GltfImportPlanFormat` and
 `GltfCliReportFormat` expose their supported versions independently, so changing
 one protocol does not reinterpret either of the others.
@@ -232,20 +200,28 @@ before opening an import transaction. Malformed, unsupported, excessive, stale,
 mismatched, and removed-input plans report `ETG3000` through `ETG3005` without
 returning a partial asset.
 
-`GltfCliReport` collects complete export, unified import, legacy import, and
-validation outcomes. `GltfCliReportSerializer` writes fixed-order UTF-8 JSON with
-an invocation status and every operation's input, destination, package kind, asset kind,
-status, diagnostics, identities, fingerprint, applied conflict actions, restored
-paths, and preservation effects. Operation order and diagnostic/preservation
-order are retained; diagnostic data keys are sorted ordinally. Reports contain
-no timestamps or host-generated paths, and repeated serialization of the same
+`GltfCliReport` collects export, canonical import, and validation outcomes.
+`GltfCliReportSerializer` writes fixed-order UTF-8 JSON with invocation status
+and each operation's input, destination, package kind, asset kind, status,
+diagnostics, and generated mesh creation GUID. Version 2 deliberately removes
+lineage, document, scope, fingerprint, conflict-action, restoration-path,
+preservation, and export-receipt fields. Operation and diagnostic order are
+retained; diagnostic data keys are sorted ordinally. Reports contain no
+timestamps or host-generated paths, and repeated serialization of the same
 outcomes is byte-identical.
 
-## Static authoring authority and inference matrix
+## Internal legacy reconciliation reference
 
-EarthTool applies the same hierarchy-first contract to GLB and separate glTF
-packages. The CLI calls this contract directly through `msh import`; no inference
-flag or expected identity is required. The four authority categories are:
+The following matrix documents the baseline-backed edit machinery retained
+temporarily for internal tests and deletion work. It is not a public creation
+contract. Public `CreateMesh*` methods do not accept an edit baseline, execute
+these preservation rules, or return the reports described by the matrix.
+
+### Static authoring authority and inference matrix
+
+This internal path applied the same hierarchy-first reconciliation to GLB and
+separate glTF packages. It is not called by the CLI or public creation APIs. Its
+four authority categories are:
 
 - A **reconstructable authoring semantic** is safely recoverable from current
   artist-visible glTF state. It overrides stale metadata.
@@ -254,7 +230,7 @@ flag or expected identity is required. The four authority categories are:
   static example.
 - A **typed authoring input** supplies a value that glTF cannot evidence safely or
   deliberately replaces a documented fallback. Version 2 import plans contain
-  only these values and edit conflict actions.
+  only these values.
 - A **canonical authoring default** is deterministic output used only after no
   applicable evidence or typed value exists. It is not inferred source intent.
 
@@ -280,22 +256,10 @@ static matrix is:
 Use `--report <path>` on CLI export and import commands when the result will be
 reviewed or automated. `operations[n].diagnostics` contains stable codes,
 severity, primary native path, sorted diagnostic data, and the full actionable
-message, including secondary conflicting paths. `operations[n].preservation.changes`
-contains `fieldPath`, `disposition`, and `reason` for every consequential result:
-
-- `retained` means the accepted serialized representation stayed exact.
-- `regenerated` means artist-visible evidence recomputed an existing semantic.
-- `invalidated` means deletion or another edit removed formerly applicable state.
-- `canonicalized` means EarthTool replaced a representation with deterministic
-  canonical authored form, including additions, deletions, typed inputs, and
-  canonical authoring defaults.
-
-An unchanged ordinary edit round trip remains byte-exact. An unchanged accepted
-compatibility anomaly also remains byte-exact and receives its compatibility
-diagnostic instead of silent normalization. Once an artist consequentially
-changes that semantic, the current strict inference and canonicalization rules
-apply only to affected paths. GLB and separate glTF packages, and CLI and library
-entry points, share these inference, rejection, transaction, and reporting rules.
+message, including secondary conflicting paths. Successful import operations
+also report the new mesh creation GUID. Reports do not expose preservation or
+source-restoration details. GLB and separate glTF packages, and CLI and library
+entry points, share the same canonical creation and rejection rules.
 
 Effective animation classes A through D export as `EarthTool A` through
 `EarthTool D` clips. Each participating source object has explicit dense
@@ -392,9 +356,9 @@ flags. Duplicate object or mesh metadata blocks until an explicit fork
 resolution removes the old identity. An untagged object is new only when it
 cannot be confused with a missing expected scope. Ambiguous identity blocks
 with `ETG2012`.
-A successful reconciliation retains the interchange lineage and rotates the
-document identity. Public mesh creation results report retained, regenerated,
-invalidated, and canonicalized MSH paths through `Preservation`.
+This baseline-backed reconciliation code is internal legacy machinery. Public
+mesh creation does not call it and exposes none of its identities, fingerprints,
+restoration paths, or preservation results.
 
 New-model import admits animation only through unique `EarthTool A` through
 `EarthTool D` names. One mesh object may participate in at most one class. Each

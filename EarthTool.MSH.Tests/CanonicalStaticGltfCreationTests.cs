@@ -14,6 +14,31 @@ namespace EarthTool.MSH.Tests;
 
 public sealed class CanonicalStaticGltfCreationTests
 {
+  [Fact]
+  public async Task UntouchedRichExportCarriesCanonicalAuthoringValues()
+  {
+    var source = CreateSourceAsset(includeStaticLights: true);
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var export = await interchange.ExportGlbAsync(source, glb);
+    export.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(export.Diagnostics));
+    glb.Position = 0;
+
+    var creation = await interchange.CreateMeshAsync(glb);
+
+    creation.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(creation.Diagnostics));
+    var actual = creation.Value.Should().BeOfType<StaticMeshAsset>().Subject;
+    actual.CommonBaseHeader.BoxPresenceMask.Should().Be(source.CommonBaseHeader.BoxPresenceMask);
+    actual.CommonBaseHeader.HorizontalExtents.Should().Equal(
+      source.CommonBaseHeader.HorizontalExtents);
+    actual.RootSourceObject.StaticRenderObjects[0].KnownFlags.Should().HaveFlag(
+      StaticRenderObjectFlags.ViewerFaced);
+    var barrel = actual.RootSourceObject.Children.Should().ContainSingle().Subject
+      .StaticRenderObjects[0];
+    barrel.KnownFlags.Should().HaveFlag(StaticRenderObjectFlags.Barrel);
+    barrel.BarrelMaximumAngle.Should().Be(37);
+  }
+
   private static readonly Guid _creationGuid = new("20220220-2222-4222-8222-202202202202");
 
   [Fact]
@@ -684,7 +709,7 @@ public sealed class CanonicalStaticGltfCreationTests
   }
 
   [Fact]
-  public async Task PublicCreationEntryPointDoesNotUseHiddenStaticPath()
+  public async Task PublicCreationEntryPointUsesCanonicalStaticPath()
   {
     var glb = await ExportCanonicalGlbAsync(CreateSourceAsset(), AddCanonicalOwners);
     await using var input = new MemoryStream(glb);
@@ -692,9 +717,9 @@ public sealed class CanonicalStaticGltfCreationTests
     var result = await new GltfInterchange().CreateMeshAsync(input);
 
     result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
-    var asset = result.Value!.Asset.Should().BeOfType<StaticMeshAsset>().Subject;
+    var asset = result.Value!.Should().BeOfType<StaticMeshAsset>().Subject;
     asset.RootSourceObject.StaticRenderObjects[0].KnownFlags.Should().Be(
-      StaticRenderObjectFlags.None
+      StaticRenderObjectFlags.ViewerFaced
     );
   }
 
@@ -1088,6 +1113,7 @@ public sealed class CanonicalStaticGltfCreationTests
     if (node is JsonObject @object)
     {
       @object.Remove("earthtool");
+      @object.Remove("earthtoolAuthoring");
       foreach (var child in @object.ToArray())
       {
         if (child.Value is not null)

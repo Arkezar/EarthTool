@@ -1,6 +1,7 @@
 ﻿using AwesomeAssertions;
 using EarthTool.CLI.Commands.MSH;
 using EarthTool.Common.Enums;
+using EarthTool.Common.Operations;
 using EarthTool.GLTF;
 using EarthTool.MSH;
 using EarthTool.MSH.Assets;
@@ -68,23 +69,28 @@ public sealed partial class PublicCutoverAcceptanceTests
       .ToArray();
     var interchangeMethods = typeof(GltfInterchange).GetMethods()
       .Where(method => method.DeclaringType == typeof(GltfInterchange))
-      .Select(method => method.Name)
       .ToArray();
 
     gltfTypes.Select(type => type.Name).Should().NotContain([
+      "GltfExportReceipt",
       "GltfDynamicEditImportResult",
       "GltfEditImportOptions",
       "GltfEditImportResult",
       "GltfImportPlanKind",
+      "GltfMeshCreationResult",
       "GltfMeshEditImportResult",
       "GltfMetadataConflictActions",
       "GltfMetadataConflictCatalog",
       "GltfMetadataConflictResolution",
       "GltfMetadataLineageDisposition",
       "GltfNewModelImportResult",
-      "InterchangeBaseline"
+      "InterchangeBaseline",
+      "NativeProjectionFingerprint",
+      "PreservationChange",
+      "PreservationDisposition",
+      "PreservationReport"
     ]);
-    interchangeMethods.Should()
+    interchangeMethods.Select(method => method.Name).Should()
       .Contain(["CreateMeshAsync", "CreateMeshFileAsync"])
       .And.NotContain(method => method.StartsWith("ImportEdit", StringComparison.Ordinal)
         || method.StartsWith("ImportNewModel", StringComparison.Ordinal));
@@ -93,8 +99,12 @@ public sealed partial class PublicCutoverAcceptanceTests
       "DocumentId",
       "PreservedUnknownMetadata"
     ]);
-    typeof(GltfExportReceipt).GetProperties().Select(property => property.Name)
-      .Should().NotContain("Baseline");
+    interchangeMethods
+      .Where(method => method.Name.StartsWith("CreateMesh", StringComparison.Ordinal))
+      .Should().OnlyContain(method => method.ReturnType == typeof(Task<OperationResult<MeshAsset>>));
+    interchangeMethods
+      .Where(method => method.Name.StartsWith("ExportGl", StringComparison.Ordinal))
+      .Should().OnlyContain(method => method.ReturnType == typeof(Task<OperationResult>));
     typeof(GltfImportPlan).GetProperties().Select(property => property.Name).Should().NotContain([
       "EditOptions",
       "ExpectedBaseline",
@@ -105,12 +115,27 @@ public sealed partial class PublicCutoverAcceptanceTests
       "AppliedConflictActions",
       "Baseline",
       "ExpectedBaseline",
+      "Fingerprint",
+      "InterchangeAssetLineageId",
       "LineageDisposition",
-      "NextBaseline"
+      "NextBaseline",
+      "PreservationChanges",
+      "RestoredSerializedRepresentationPaths"
     ]);
     typeof(GltfCliReportOperation).GetMethods().Select(method => method.Name).Should().NotContain([
       "ForEditImport",
       "ForNewModelImport"
+    ]);
+    Enum.GetNames<GltfCliReportOperationKind>().Should().NotContain([
+      "ImportEdit",
+      "ImportNewModel"
+    ]);
+    typeof(GltfDiagnosticCodes).GetFields().Select(field => field.Name).Should().NotContain([
+      "AssetLineageMismatch",
+      "DocumentMismatch",
+      "DuplicateScopeIdentity",
+      "MissingExpectedScope",
+      "StaleNativeProjection"
     ]);
   }
 

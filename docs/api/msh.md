@@ -63,10 +63,10 @@ Static assets and dynamic assets composed of `Group`, `Explosion`, `Track`,
 `ElectricalCannon`, `Lightning`, `Shockwave`, `Line`, `Sphere`, and `Keelwater`
 and resource-backed `ScalableObject` cross the artist boundary through
 `EarthTool.GLTF.GltfInterchange`.
-glTF edit import owns interchange identity and preservation reporting while MSH
-assets remain immutable conversion values.
-See the [glTF API](gltf.md) for package, metadata, reconciliation, validation,
-plan, and report contracts.
+Public glTF creation regenerates immutable canonical MSH assets directly from
+GLB or separate glTF packages. It does not expose interchange identity or
+preservation reporting. See the [glTF API](gltf.md) for package, canonical
+authoring, validation, plan, and report contracts.
 
 ## Migrating identity and editing callers
 
@@ -74,8 +74,10 @@ MSH lineage IDs, render-object IDs, source-object IDs, edit sessions, and MSH
 preservation reports have been removed. Keep direct object references while an
 immutable asset is in scope, and use `StaticRenderObjectSequence` when serialized
 ordering matters. Create changed assets through canonical builders, exact expert
-construction, or glTF edit import; glTF results now carry interchange identity
-and preservation details.
+construction, or canonical glTF creation. glTF creation now returns only the
+new immutable asset, status, and diagnostics.
 
-The mutable generic conversion model was removed as a deliberate major-version
-break. See the [COLLADA to glTF migration guide](../migration-collada-to-gltf.md).
+The mutable generic conversion model and preservation-oriented glTF creation
+contracts were removed as deliberate major-version breaks. See the
+[COLLADA to glTF migration guide](../migration-collada-to-gltf.md) and the
+[canonical glTF creation migration guide](../migration-gltf-canonical-creation.md).

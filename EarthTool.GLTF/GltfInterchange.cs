@@ -47,7 +47,21 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Exports one supported static asset as a strictly validated GLB.</summary>
-    public async Task<OperationResult<GltfExportReceipt>> ExportGlbAsync(
+    public async Task<OperationResult> ExportGlbAsync(
+      StaticMeshAsset asset,
+      Stream destination,
+      GltfExportOptions? options = null,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default
+    )
+    {
+      return WithoutValue(
+        await ExportGlbWithReceiptAsync(asset, destination, options, profile, cancellationToken)
+          .ConfigureAwait(false)
+      );
+    }
+
+    internal async Task<OperationResult<GltfExportReceipt>> ExportGlbWithReceiptAsync(
       StaticMeshAsset asset,
       Stream destination,
       GltfExportOptions? options = null,
@@ -192,7 +206,21 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Transactionally exports one supported static asset to a GLB file.</summary>
-    public async Task<OperationResult<GltfExportReceipt>> ExportGlbFileAsync(
+    public async Task<OperationResult> ExportGlbFileAsync(
+      StaticMeshAsset asset,
+      string destinationPath,
+      GltfExportOptions? options = null,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default
+    )
+    {
+      return WithoutValue(
+        await ExportGlbFileWithReceiptAsync(asset, destinationPath, options, profile, cancellationToken)
+          .ConfigureAwait(false)
+      );
+    }
+
+    internal async Task<OperationResult<GltfExportReceipt>> ExportGlbFileWithReceiptAsync(
       StaticMeshAsset asset,
       string destinationPath,
       GltfExportOptions? options = null,
@@ -212,7 +240,7 @@ namespace EarthTool.GLTF
         OperationResult<GltfExportReceipt> result;
         using (var temporary = _fileSystem.CreateTemporary(temporaryPath))
         {
-          result = await ExportGlbAsync(asset, temporary, options, profile, cancellationToken)
+          result = await ExportGlbWithReceiptAsync(asset, temporary, options, profile, cancellationToken)
             .ConfigureAwait(false);
           if (!result.Succeeded)
           {
@@ -241,7 +269,21 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Transactionally exports one supported static asset as separate glTF and buffer files.</summary>
-    public async Task<OperationResult<GltfExportReceipt>> ExportGltfFileAsync(
+    public async Task<OperationResult> ExportGltfFileAsync(
+      StaticMeshAsset asset,
+      string destinationPath,
+      GltfExportOptions? options = null,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default
+    )
+    {
+      return WithoutValue(
+        await ExportGltfFileWithReceiptAsync(asset, destinationPath, options, profile, cancellationToken)
+          .ConfigureAwait(false)
+      );
+    }
+
+    internal async Task<OperationResult<GltfExportReceipt>> ExportGltfFileWithReceiptAsync(
       StaticMeshAsset asset,
       string destinationPath,
       GltfExportOptions? options = null,
@@ -515,7 +557,21 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Exports one bounded supported dynamic asset as a strictly validated GLB.</summary>
-    public async Task<OperationResult<GltfExportReceipt>> ExportGlbAsync(
+    public async Task<OperationResult> ExportGlbAsync(
+      DynamicMeshAsset asset,
+      Stream destination,
+      GltfExportOptions? options = null,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default
+    )
+    {
+      return WithoutValue(
+        await ExportGlbWithReceiptAsync(asset, destination, options, profile, cancellationToken)
+          .ConfigureAwait(false)
+      );
+    }
+
+    internal async Task<OperationResult<GltfExportReceipt>> ExportGlbWithReceiptAsync(
       DynamicMeshAsset asset,
       Stream destination,
       GltfExportOptions? options = null,
@@ -589,7 +645,21 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Transactionally exports one bounded supported dynamic asset to a GLB file.</summary>
-    public async Task<OperationResult<GltfExportReceipt>> ExportGlbFileAsync(
+    public async Task<OperationResult> ExportGlbFileAsync(
+      DynamicMeshAsset asset,
+      string destinationPath,
+      GltfExportOptions? options = null,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default
+    )
+    {
+      return WithoutValue(
+        await ExportGlbFileWithReceiptAsync(asset, destinationPath, options, profile, cancellationToken)
+          .ConfigureAwait(false)
+      );
+    }
+
+    internal async Task<OperationResult<GltfExportReceipt>> ExportGlbFileWithReceiptAsync(
       DynamicMeshAsset asset,
       string destinationPath,
       GltfExportOptions? options = null,
@@ -613,7 +683,7 @@ namespace EarthTool.GLTF
         OperationResult<GltfExportReceipt> result;
         using (var temporary = _fileSystem.CreateTemporary(temporaryPath))
         {
-          result = await ExportGlbAsync(asset, temporary, options, profile, cancellationToken)
+          result = await ExportGlbWithReceiptAsync(asset, temporary, options, profile, cancellationToken)
             .ConfigureAwait(false);
           if (!result.Succeeded)
           {
@@ -640,7 +710,21 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Transactionally exports one bounded supported dynamic asset as separate glTF.</summary>
-    public async Task<OperationResult<GltfExportReceipt>> ExportGltfFileAsync(
+    public async Task<OperationResult> ExportGltfFileAsync(
+      DynamicMeshAsset asset,
+      string destinationPath,
+      GltfExportOptions? options = null,
+      GltfOperationProfile? profile = null,
+      CancellationToken cancellationToken = default
+    )
+    {
+      return WithoutValue(
+        await ExportGltfFileWithReceiptAsync(asset, destinationPath, options, profile, cancellationToken)
+          .ConfigureAwait(false)
+      );
+    }
+
+    internal async Task<OperationResult<GltfExportReceipt>> ExportGltfFileWithReceiptAsync(
       DynamicMeshAsset asset,
       string destinationPath,
       GltfExportOptions? options = null,
@@ -771,7 +855,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Creates one immutable static or dynamic mesh asset from a GLB stream.</summary>
-    public async Task<OperationResult<GltfMeshCreationResult>> CreateMeshAsync(
+    public async Task<OperationResult<MeshAsset>> CreateMeshAsync(
       Stream source,
       GltfNewModelImportOptions? options = null,
       GltfOperationProfile? profile = null,
@@ -789,27 +873,26 @@ namespace EarthTool.GLTF
       {
         var glb = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
           .ConfigureAwait(false);
-        return await CreateMeshCoreAsync(
-            glb,
-            separatePackage: null,
-            options,
-            profile,
-            cancellationToken
-          )
-          .ConfigureAwait(false);
+        return CreateMeshCore(
+          glb,
+          separatePackage: null,
+          options,
+          profile,
+          cancellationToken
+        );
       }
       catch (OperationCanceledException)
       {
-        return Cancelled<GltfMeshCreationResult>();
+        return Cancelled<MeshAsset>();
       }
       catch (Exception ex)
       {
-        return Failed<GltfMeshCreationResult>(ToDiagnostic(ex));
+        return Failed<MeshAsset>(ToDiagnostic(ex));
       }
     }
 
     /// <summary>Creates one immutable mesh asset from a GLB stream bound to a typed import plan.</summary>
-    public async Task<OperationResult<GltfMeshCreationResult>> CreateMeshWithPlanAsync(
+    public async Task<OperationResult<MeshAsset>> CreateMeshWithPlanAsync(
       Stream source,
       GltfImportPlan plan,
       GltfOperationProfile? profile = null,
@@ -837,35 +920,34 @@ namespace EarthTool.GLTF
         );
         if (mismatch is not null)
         {
-          return Failed<GltfMeshCreationResult>(mismatch);
+          return Failed<MeshAsset>(mismatch);
         }
         var glb = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
           .ConfigureAwait(false);
         if (!MatchesPlanSource(glb, plan))
         {
-          return Failed<GltfMeshCreationResult>(PlanMismatch("sourceSha256"));
+          return Failed<MeshAsset>(PlanMismatch("sourceSha256"));
         }
-        return await CreateMeshCoreAsync(
-            glb,
-            separatePackage: null,
-            plan.NewModelOptions!,
-            profile,
-            cancellationToken
-          )
-          .ConfigureAwait(false);
+        return CreateMeshCore(
+          glb,
+          separatePackage: null,
+          plan.NewModelOptions!,
+          profile,
+          cancellationToken
+        );
       }
       catch (OperationCanceledException)
       {
-        return Cancelled<GltfMeshCreationResult>();
+        return Cancelled<MeshAsset>();
       }
       catch (Exception ex)
       {
-        return Failed<GltfMeshCreationResult>(ToDiagnostic(ex));
+        return Failed<MeshAsset>(ToDiagnostic(ex));
       }
     }
 
     /// <summary>Creates one immutable static or dynamic mesh asset from a separate-glTF file.</summary>
-    public async Task<OperationResult<GltfMeshCreationResult>> CreateMeshFileAsync(
+    public async Task<OperationResult<MeshAsset>> CreateMeshFileAsync(
       string sourcePath,
       GltfNewModelImportOptions? options = null,
       GltfOperationProfile? profile = null,
@@ -883,21 +965,20 @@ namespace EarthTool.GLTF
       {
         var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
           .ConfigureAwait(false);
-        return await CreateMeshCoreAsync(package.Json, package, options, profile, cancellationToken)
-          .ConfigureAwait(false);
+        return CreateMeshCore(package.Json, package, options, profile, cancellationToken);
       }
       catch (OperationCanceledException)
       {
-        return Cancelled<GltfMeshCreationResult>();
+        return Cancelled<MeshAsset>();
       }
       catch (Exception ex)
       {
-        return Failed<GltfMeshCreationResult>(ToDiagnostic(ex, sourcePath));
+        return Failed<MeshAsset>(ToDiagnostic(ex, sourcePath));
       }
     }
 
     /// <summary>Creates one immutable mesh asset from a separate-glTF package bound to a typed import plan.</summary>
-    public async Task<OperationResult<GltfMeshCreationResult>> CreateMeshFileWithPlanAsync(
+    public async Task<OperationResult<MeshAsset>> CreateMeshFileWithPlanAsync(
       string sourcePath,
       GltfImportPlan plan,
       GltfOperationProfile? profile = null,
@@ -925,34 +1006,33 @@ namespace EarthTool.GLTF
         );
         if (mismatch is not null)
         {
-          return Failed<GltfMeshCreationResult>(mismatch);
+          return Failed<MeshAsset>(mismatch);
         }
         var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
           .ConfigureAwait(false);
         if (!GltfImportPlanSerializer.MatchesSeparateSource(package, plan.SourceSha256))
         {
-          return Failed<GltfMeshCreationResult>(PlanMismatch("sourceSha256"));
+          return Failed<MeshAsset>(PlanMismatch("sourceSha256"));
         }
-        return await CreateMeshCoreAsync(
-            package.Json,
-            package,
-            plan.NewModelOptions!,
-            profile,
-            cancellationToken
-          )
-          .ConfigureAwait(false);
+        return CreateMeshCore(
+          package.Json,
+          package,
+          plan.NewModelOptions!,
+          profile,
+          cancellationToken
+        );
       }
       catch (OperationCanceledException)
       {
-        return Cancelled<GltfMeshCreationResult>();
+        return Cancelled<MeshAsset>();
       }
       catch (Exception ex)
       {
-        return Failed<GltfMeshCreationResult>(ToDiagnostic(ex, sourcePath));
+        return Failed<MeshAsset>(ToDiagnostic(ex, sourcePath));
       }
     }
 
-    private static async Task<OperationResult<GltfMeshCreationResult>> CreateMeshCoreAsync(
+    private static OperationResult<MeshAsset> CreateMeshCore(
       byte[] source,
       SeparateGltfPackage? separatePackage,
       GltfNewModelImportOptions options,
@@ -983,39 +1063,6 @@ namespace EarthTool.GLTF
         json = separatePackage.Json;
       }
 
-      if (!json.IsEmpty && DynamicGltfDocument.HasDynamicManifest(json, profile.MaxJsonDepth))
-      {
-        try
-        {
-          var imported = separatePackage is null
-            ? DynamicGltfDocument.ImportGlb(source, profile, cancellationToken)
-            : DynamicGltfDocument.ImportSeparate(
-              separatePackage.Json,
-              separatePackage.Binary,
-              separatePackage.BufferUri,
-              separatePackage.Images,
-              profile,
-              cancellationToken
-            );
-          return new OperationResult<GltfMeshCreationResult>(
-            OperationStatus.Succeeded,
-            new GltfMeshCreationResult(imported.Asset, imported.Preservation),
-            CreateDynamicPlacementDiagnostics(imported)
-          );
-        }
-        catch (Exception ex) when (IsMetadataFailure(ex))
-        {
-          return CreateCanonicalFallback(
-            source,
-            separatePackage,
-            options,
-            profile,
-            cancellationToken,
-            new[] { ToDiagnostic(ex) }
-          );
-        }
-      }
-
       if (!json.IsEmpty && CanonicalDynamicGltfImporter.HasClaim(json, profile.MaxJsonDepth))
       {
         var imported = separatePackage is null
@@ -1027,79 +1074,23 @@ namespace EarthTool.GLTF
             profile,
             cancellationToken
           );
-        if (!imported.Succeeded)
-        {
-          return new OperationResult<GltfMeshCreationResult>(
-            imported.Status,
-            diagnostics: imported.Diagnostics
-          );
-        }
-        return new OperationResult<GltfMeshCreationResult>(
-          OperationStatus.Succeeded,
-          new GltfMeshCreationResult(
-            imported.Value!,
-            new PreservationReport(
-              new[]
-              {
-                new PreservationChange(
-                  "RootDynamicObject",
-                  PreservationDisposition.Canonicalized,
-                  "CanonicalDynamicGltfImport"
-                ),
-              }
-            )
-          ),
-          imported.Diagnostics
-        );
+        return ToMeshAsset(imported);
       }
 
-      ParsedGlb parsed;
-      try
-      {
-        parsed = separatePackage is null
-          ? GlbDocument.Parse(source, profile)
-          : GlbDocument.ParseSeparate(separatePackage.Json, separatePackage.Binary, profile);
-      }
-      catch (Exception ex)
-        when (IsMetadataFailure(ex))
-      {
-        return CreateCanonicalFallback(
-          source,
-          separatePackage,
-          options,
-          profile,
-          cancellationToken,
-          new[] { ToDiagnostic(ex) }
-        );
-      }
-
-      ValidateGeometryProfile(parsed, profile);
-      var manifest = GlbDocument.ParseMetadata(parsed.ManifestMetadata!, profile);
-      var baseline = new InterchangeBaseline(manifest.AssetLineageId, manifest.DocumentId);
-      var metadataBacked = await ImportParsedAsync(
-          parsed,
-          baseline,
-          new GltfEditImportOptions(),
+      var staticOptions = new CanonicalStaticGltfCreationOptions(
+        Guid.NewGuid(),
+        options
+      );
+      var staticImport = separatePackage is null
+        ? ImportCanonicalStaticGlb(source, staticOptions, profile, cancellationToken)
+        : ImportCanonicalStaticSeparate(
+          separatePackage.Json,
+          separatePackage.Binary,
+          staticOptions,
           profile,
           cancellationToken
-        )
-        .ConfigureAwait(false);
-      if (!metadataBacked.Succeeded && metadataBacked.Diagnostics.Any(IsMetadataDiagnostic))
-      {
-        return CreateCanonicalFallback(
-          source,
-          separatePackage,
-          options,
-          profile,
-          cancellationToken,
-          metadataBacked.Diagnostics.Where(IsMetadataDiagnostic)
         );
-      }
-      return ToCreationResult(
-        metadataBacked,
-        value => value.Asset,
-        value => value.CreationPreservation
-      );
+      return ToMeshAsset(staticImport);
     }
 
     internal static OperationResult<StaticMeshAsset> ImportCanonicalStaticGlb(
@@ -1259,12 +1250,12 @@ namespace EarthTool.GLTF
           )
         );
       }
-      var roles = new Dictionary<GltfNodeHandle, GltfNewModelObjectRole>();
+      var roles = options.ImportOptions.ObjectRoles.ToDictionary(item => item.Key, item => item.Value);
       var cannonValues = new Dictionary<int, CannonAuthoringValues>();
       var staticLightOptions = new Dictionary<
         GltfLightHandle,
         GltfNewModelStaticLightOptions
-      >();
+      >(options.ImportOptions.StaticLightOptions);
       StaticSourceAuthoringValues? rootValues = null;
       foreach (var source in sourceNodes)
       {
@@ -1288,7 +1279,7 @@ namespace EarthTool.GLTF
         rootValues ??= values;
         if (values.Roles != GltfStaticObjectRoles.None || values.BarrelMaximumAngle != 0)
         {
-          roles.Add(
+          roles.TryAdd(
             GetNodeHandle(parsed, source.index),
             new GltfNewModelObjectRole(values.Roles, values.BarrelMaximumAngle)
           );
@@ -1329,26 +1320,26 @@ namespace EarthTool.GLTF
         }
       }
 
-      var footprint = rootValues?.Footprint is null
+      var footprint = options.ImportOptions.Footprint ?? (rootValues?.Footprint is null
         ? null
         : new GltfNewModelFootprint(
           rootValues.Footprint.PresenceMask,
           rootValues.Footprint.TopElevations,
           rootValues.Footprint.CornerPassageFlags
-        );
-      var extents = rootValues?.HorizontalExtents is null
+        ));
+      var extents = options.ImportOptions.HorizontalExtents ?? (rootValues?.HorizontalExtents is null
         ? null
         : new GltfNewModelHorizontalExtents(
           rootValues.HorizontalExtents.PositiveY,
           rootValues.HorizontalExtents.NegativeY,
           rootValues.HorizontalExtents.PositiveX,
           rootValues.HorizontalExtents.NegativeX
-        );
+        ));
       return new OperationResult<CanonicalStaticGltfSemanticOptions>(
         OperationStatus.Succeeded,
         new CanonicalStaticGltfSemanticOptions(
           new GltfNewModelImportOptions(
-            options.TextureResourceBindings,
+            options.ImportOptions.TextureResourceBindings,
             footprint,
             extents,
             roles,
@@ -1357,46 +1348,6 @@ namespace EarthTool.GLTF
           cannonValues
         )
       );
-    }
-
-    private static OperationResult<GltfMeshCreationResult> CreateCanonicalFallback(
-      byte[] source,
-      SeparateGltfPackage? separatePackage,
-      GltfNewModelImportOptions options,
-      GltfOperationProfile profile,
-      CancellationToken cancellationToken,
-      IEnumerable<OperationDiagnostic> metadataDiagnostics
-    )
-    {
-      var warnings = metadataDiagnostics.Select(MetadataFallbackWarning).ToArray();
-      try
-      {
-        var parsed = separatePackage is null
-          ? GlbDocument.ParseNewModel(RemoveGlbMetadata(source), profile)
-          : GlbDocument.ParseSeparateNewModel(
-            RemoveJsonMetadata(separatePackage.Json),
-            separatePackage.Binary,
-            profile
-          );
-        ValidateGeometryProfile(parsed, profile);
-        return ToCreationResult(
-          ImportNewModelParsed(parsed, profile, cancellationToken, options),
-          value => value.Asset,
-          value => value.Preservation,
-          warnings
-        );
-      }
-      catch (OperationCanceledException)
-      {
-        throw;
-      }
-      catch (Exception ex)
-      {
-        return new OperationResult<GltfMeshCreationResult>(
-          OperationStatus.Failed,
-          diagnostics: warnings.Concat(new[] { ToDiagnostic(ex) })
-        );
-      }
     }
 
     private static PreservationReport CreateStaticCreationPreservation(
@@ -1818,26 +1769,6 @@ namespace EarthTool.GLTF
       return new PreservationChange(path, disposition, reason);
     }
 
-    private static OperationResult<GltfMeshCreationResult> ToCreationResult<T>(
-      OperationResult<T> result,
-      Func<T, MeshAsset> getAsset,
-      Func<T, PreservationReport> getPreservation,
-      IEnumerable<OperationDiagnostic>? leadingDiagnostics = null
-    )
-      where T : class
-    {
-      var diagnostics = leadingDiagnostics is null
-        ? result.Diagnostics
-        : leadingDiagnostics.Concat(result.Diagnostics);
-      return result.Succeeded
-        ? new OperationResult<GltfMeshCreationResult>(
-          OperationStatus.Succeeded,
-          new GltfMeshCreationResult(getAsset(result.Value!), getPreservation(result.Value!)),
-          diagnostics
-        )
-        : new OperationResult<GltfMeshCreationResult>(result.Status, diagnostics: diagnostics);
-    }
-
     private static bool IsMetadataFailure(Exception exception)
     {
       return IsMetadataDiagnostic(ToDiagnostic(exception));
@@ -1846,19 +1777,6 @@ namespace EarthTool.GLTF
     private static bool IsMetadataDiagnostic(OperationDiagnostic diagnostic)
     {
       return GltfMetadataConflictCatalog.ActionsByCode.ContainsKey(diagnostic.Code);
-    }
-
-    private static OperationDiagnostic MetadataFallbackWarning(OperationDiagnostic diagnostic)
-    {
-      return new OperationDiagnostic(
-        diagnostic.Code,
-        diagnostic.EventId,
-        DiagnosticSeverity.Warning,
-        diagnostic.Path,
-        diagnostic.Code == GltfDiagnosticCodes.MissingManifest
-          ? "EarthTool metadata is missing; metadata-free mesh asset creation with canonical authored defaults was attempted."
-          : "EarthTool metadata is unusable and was discarded; mesh asset creation with canonical authored defaults was attempted."
-      );
     }
 
     /// <summary>Imports a dynamic GLB into an expected lineage and document baseline.</summary>
@@ -10777,6 +10695,20 @@ namespace EarthTool.GLTF
       where T : class
     {
       return new OperationResult<T>(OperationStatus.Failed, diagnostics: diagnostics);
+    }
+
+    private static OperationResult WithoutValue<T>(OperationResult<T> result)
+      where T : class
+    {
+      return new OperationResult(result.Status, result.Diagnostics);
+    }
+
+    private static OperationResult<MeshAsset> ToMeshAsset<T>(OperationResult<T> result)
+      where T : MeshAsset
+    {
+      return result.Succeeded
+        ? new OperationResult<MeshAsset>(result.Status, result.Value, result.Diagnostics)
+        : new OperationResult<MeshAsset>(result.Status, diagnostics: result.Diagnostics);
     }
 
     private static OperationResult<T> Cancelled<T>()

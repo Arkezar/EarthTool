@@ -1136,7 +1136,8 @@ namespace EarthTool.GLTF.Internal
       if (
         !node.TryGetProperty("extras", out var extras)
         || extras.ValueKind != JsonValueKind.Object
-        || !extras.TryGetProperty("earthtool", out var metadata)
+        || !(extras.TryGetProperty("earthtoolAuthoring", out var metadata)
+          || extras.TryGetProperty("earthtool", out metadata))
       )
       {
         return null;

@@ -101,7 +101,7 @@ public class GltfPlanAndReportTests
     read.Value.NewModelOptions.StaticLightOptions[new GltfLightHandle(1)].TargetDistance.Should().Be(12.5f);
     read.Value.EditOptions.Should().BeNull();
     GltfImportPlanFormat.SupportedVersions.Should().Equal(2);
-    GltfCliReportFormat.SupportedVersions.Should().Equal(1);
+    GltfCliReportFormat.SupportedVersions.Should().Equal(2);
   }
 
   [Theory]
@@ -298,7 +298,7 @@ public class GltfPlanAndReportTests
       activeSpots: [2]));
     await using var exported = new MemoryStream();
     var interchange = new GltfInterchange();
-    (await interchange.ExportGlbAsync(
+    (await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(_lineageId, _documentId))).Status.Should().Be(OperationStatus.Succeeded);
@@ -438,7 +438,13 @@ public class GltfPlanAndReportTests
       1024,
       2,
       16,
-      maxMetadataConflicts: 1);
+      maxTotalMetadataBytes: 1024,
+      maxMetadataEnvelopes: 16,
+      maxMetadataElements: 128,
+      maxUnknownMetadataMembers: 16,
+      maxMetadataGuards: 4,
+      maxMetadataConflicts: 1,
+      meshResourceLimits: GltfMeshResourceLimits.Default);
     await using var source = new MemoryStream();
 
     var result = await new GltfInterchange().ImportEditGlbWithPlanAsync(
@@ -565,7 +571,7 @@ public class GltfPlanAndReportTests
       created.Status.Should().Be(
         OperationStatus.Succeeded,
         string.Join("; ", created.Diagnostics.Select(diagnostic => diagnostic.Message)));
-      created.Value!.Asset.Should().BeOfType<StaticMeshAsset>();
+      created.Value.Should().BeOfType<StaticMeshAsset>();
 
       var binary = await File.ReadAllBytesAsync(fixture.BufferPath);
       binary[0] ^= 0x01;
@@ -625,32 +631,18 @@ public class GltfPlanAndReportTests
   }
 
   [Fact]
-  public async Task VersionOneReportIsDeterministicAndContainsCompleteOperationEffects()
+  public async Task VersionTwoReportIsDeterministicAndContainsCompleteOperationEffects()
   {
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(_lineageId, _documentId));
     var metadataFree = RemoveMetadata(exported.ToArray());
     await using var newSource = new MemoryStream(metadataFree);
     var imported = await interchange.CreateMeshAsync(newSource);
-    var expected = new InterchangeBaseline(_lineageId, _documentId);
-    await using var conflictSource = new MemoryStream(metadataFree);
-    var conflict = await interchange.ImportEditGlbAsync(conflictSource, expected);
-    var conflictKey = conflict.Diagnostics.Should().ContainSingle().Subject.Data["conflictKey"];
-    await using var editSource = new MemoryStream(metadataFree);
-    var edited = await interchange.ImportEditGlbWithResolutionsAsync(
-      editSource,
-      expected,
-      new GltfEditImportOptions(
-      [
-        new GltfMetadataConflictResolution(
-          conflictKey,
-          GltfMetadataConflictActions.DiscardLineage)
-      ]));
     var failed = new OperationResult(
       OperationStatus.Failed,
       [new OperationDiagnostic(
@@ -678,12 +670,6 @@ public class GltfPlanAndReportTests
         "authored.msh",
         GltfPackageKind.Glb,
         imported),
-      GltfCliReportOperation.ForEditImport(
-        "edited.glb",
-        "edited.msh",
-        GltfPackageKind.Glb,
-        expected,
-        edited),
       GltfCliReportOperation.ForValidation(
         "invalid.glb",
         GltfPackageKind.Glb,
@@ -701,23 +687,15 @@ public class GltfPlanAndReportTests
     first.ToArray().Should().Equal(second.ToArray());
     report.Status.Should().Be(OperationStatus.Failed);
     var normalized = NormalizeReportIdentities(first.ToArray());
-    AssertJsonApproval("gltf-cli-report-v1", normalized);
+    AssertJsonApproval("gltf-cli-report-v2", normalized);
     using var document = JsonDocument.Parse(first.ToArray());
     var operations = document.RootElement.GetProperty("operations");
-    operations.GetArrayLength().Should().Be(4);
-    operations[1].GetProperty("preservation").GetProperty("changes").GetArrayLength()
-      .Should().BeGreaterThan(0);
+    operations.GetArrayLength().Should().Be(3);
     operations[1].GetProperty("kind").GetString().Should().Be("import");
-    operations[1].GetProperty("diagnostics").EnumerateArray()
-      .Select(diagnostic => diagnostic.GetProperty("code").GetString()).Should()
-      .Contain(GltfDiagnosticCodes.MissingManifest);
-    operations[1].GetProperty("identities").EnumerateObject().Should()
-      .OnlyContain(property => property.Value.ValueKind == JsonValueKind.Null);
-    operations[2].GetProperty("lineageDisposition").GetString().Should().Be("discarded");
-    operations[2].GetProperty("appliedConflictActions").GetArrayLength().Should().Be(1);
-    operations[2].GetProperty("preservation").GetProperty("changes").GetArrayLength()
-      .Should().BeGreaterThan(0);
-    operations[3].GetProperty("diagnostics")[0].GetProperty("data")
+    operations[1].TryGetProperty("preservation", out _).Should().BeFalse();
+    operations[1].GetProperty("identities").TryGetProperty("meshAssetLineageId", out _)
+      .Should().BeFalse();
+    operations[2].GetProperty("diagnostics")[0].GetProperty("data")
       .EnumerateObject().Select(property => property.Name).Should().Equal("alpha", "zeta");
   }
 
@@ -732,7 +710,7 @@ public class GltfPlanAndReportTests
   {
     var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     await using var stream = new MemoryStream();
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       stream,
       new GltfExportOptions(_lineageId, _documentId));
@@ -758,13 +736,14 @@ public class GltfPlanAndReportTests
     var sourcePath = Path.Combine(directory, "model.gltf");
     Directory.CreateDirectory(directory);
     var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
-    var export = await new GltfInterchange().ExportGltfFileAsync(
+    var export = await new GltfInterchange().ExportGltfFileWithReceiptAsync(
       asset,
       sourcePath,
       new GltfExportOptions(_lineageId, _documentId));
     export.Status.Should().Be(OperationStatus.Succeeded);
     var root = JsonNode.Parse(await File.ReadAllTextAsync(sourcePath))!;
     RemoveMetadata(root);
+    SetCanonicalStaticNames(root);
     await File.WriteAllTextAsync(sourcePath, root.ToJsonString());
     var bufferName = root["buffers"]![0]!["uri"]!.GetValue<string>();
     var digest = await new GltfImportPlanSerializer().ComputeGltfSourceSha256Async(sourcePath);
@@ -777,6 +756,7 @@ public class GltfPlanAndReportTests
     var jsonLength = BinaryPrimitives.ReadInt32LittleEndian(glb.AsSpan(12));
     var root = JsonNode.Parse(Encoding.UTF8.GetString(glb, 20, jsonLength))!;
     RemoveMetadata(root);
+    SetCanonicalStaticNames(root);
     var json = Encoding.UTF8.GetBytes(root.ToJsonString());
     var paddedLength = (json.Length + 3) & ~3;
     var oldBinaryOffset = 20 + jsonLength;
@@ -799,6 +779,7 @@ public class GltfPlanAndReportTests
       if (value["extras"] is JsonObject extras)
       {
         extras.Remove("earthtool");
+        extras.Remove("earthtoolAuthoring");
         if (extras.Count == 0)
         {
           value.Remove("extras");
@@ -823,14 +804,19 @@ public class GltfPlanAndReportTests
     var root = JsonNode.Parse(json)!.AsObject();
     var operations = root["operations"]!.AsArray();
     var exportIdentities = operations[0]!["identities"]!.AsObject();
-    exportIdentities["meshAssetLineageId"] = _lineageId.ToString("D");
     exportIdentities["meshCreationGuid"] = _documentId.ToString("D");
-    var editIdentities = operations[2]!["identities"]!.AsObject();
-    editIdentities["meshAssetLineageId"] = _lineageId.ToString("D");
-    editIdentities["meshCreationGuid"] = _documentId.ToString("D");
-    editIdentities["nextBaseline"]!["assetLineageId"] = _lineageId.ToString("D");
-    editIdentities["nextBaseline"]!["documentId"] = _documentId.ToString("D");
+    var importIdentities = operations[1]!["identities"]!.AsObject();
+    importIdentities["meshCreationGuid"] = _documentId.ToString("D");
     return Encoding.UTF8.GetBytes(root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + "\n");
+  }
+
+  private static void SetCanonicalStaticNames(JsonNode root)
+  {
+    var number = 1;
+    foreach (var node in root["nodes"]!.AsArray().Where(node => node!["mesh"] is not null))
+    {
+      node!["name"] = $"ET_Static_{number++}";
+    }
   }
 
   private static string Sha256(byte[] value)

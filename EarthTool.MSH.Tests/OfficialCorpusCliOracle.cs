@@ -1,7 +1,11 @@
 ﻿using EarthTool.Common.Operations;
 using EarthTool.GLTF;
+using EarthTool.MSH.Assets;
+using EarthTool.MSH.Services;
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 
 namespace EarthTool.MSH.Tests;
@@ -54,8 +58,6 @@ internal static class OfficialCorpusCliOracle
           false,
           null,
           null,
-          null,
-          null,
           0,
           0,
           exportOperation.Diagnostics,
@@ -71,8 +73,12 @@ internal static class OfficialCorpusCliOracle
       temporaryIoDuration += Stopwatch.GetElapsedTime(ioStarted);
       var importStarted = Stopwatch.GetTimestamp();
       var outputPath = Path.Combine(importDirectory, "source.msh");
+      var importOptions = await CreateImportOptionsAsync(packagePath, packageKind);
+      var planPath = Path.Combine(directory, "import-plan.json");
+      await WritePlanAsync(packagePath, packageKind, importOptions, planPath);
       var import = await RunProcessAsync(root, [
         "msh", "import", packagePath,
+        "--plan", planPath,
         "--output", importDirectory,
         "--report", importReport
       ]);
@@ -83,18 +89,37 @@ internal static class OfficialCorpusCliOracle
         ? await File.ReadAllBytesAsync(outputPath)
         : [];
       temporaryIoDuration += Stopwatch.GetElapsedTime(ioStarted);
+      OperationResult<MeshAsset> libraryImport;
+      if (packageKind == GltfPackageKind.Glb)
+      {
+        await using var packageSource = File.OpenRead(packagePath);
+        libraryImport = await new GltfInterchange().CreateMeshAsync(packageSource, importOptions);
+      }
+      else
+      {
+        libraryImport = await new GltfInterchange().CreateMeshFileAsync(packagePath, importOptions);
+      }
+      var semanticMatch = false;
+      if (libraryImport.Succeeded)
+      {
+        var cliAsset = await new MshReader().ReadAsync(new MemoryStream(importedBytes));
+        semanticMatch = cliAsset.Succeeded
+          && OfficialCorpusQualification.ComputeSemanticDigest(
+            libraryImport.Value!,
+            includeCreationGuid: false)
+            == OfficialCorpusQualification.ComputeSemanticDigest(
+            cliAsset.Value!,
+            includeCreationGuid: false);
+      }
       var importedMatches = import.ExitCode == 0
         && importOperation.Succeeded
         && importOperation.ReportValid
         && importOperation.AssetKind == exportOperation.AssetKind
-        && importOperation.AllPreservationRetained
-        && importedBytes.AsSpan().SequenceEqual(canonicalMsh);
+        && semanticMatch;
       return new CliOracleResult(
         exportOperation.ReportValid,
         importedMatches,
         packagePath,
-        exportOperation.Baseline,
-        exportOperation.Fingerprint,
         exportOperation.AssetKind,
         packageBytes,
         importedBytes.LongLength,
@@ -109,8 +134,6 @@ internal static class OfficialCorpusCliOracle
       return new CliOracleResult(
         false,
         false,
-        null,
-        null,
         null,
         null,
         0,
@@ -221,6 +244,115 @@ internal static class OfficialCorpusCliOracle
     return new CliProcessResult(process.ExitCode);
   }
 
+  internal static async Task<GltfNewModelImportOptions> CreateImportOptionsAsync(
+    string packagePath,
+    GltfPackageKind packageKind)
+  {
+    using var document = await ReadPackageJsonAsync(packagePath, packageKind);
+    var root = document.RootElement;
+    var textureBindings = new Dictionary<GltfMaterialHandle, string?>();
+    if (root.TryGetProperty("materials", out var materials))
+    {
+      for (var index = 0; index < materials.GetArrayLength(); index++)
+      {
+        var binding = ReadLegacyPayloadBytes(materials[index], "textureBinding");
+        if (binding is { Length: > 0 })
+        {
+          textureBindings[new GltfMaterialHandle(index + 1)] = Encoding.ASCII.GetString(binding);
+        }
+      }
+    }
+
+    var meshBindings = new Dictionary<GltfNodeHandle, string>();
+    var nodes = root.GetProperty("nodes");
+    for (var index = 0; index < nodes.GetArrayLength(); index++)
+    {
+      var node = nodes[index];
+      var texture = ReadLegacyPayloadBytes(node, "texturePath");
+      if (texture is { Length: > 0 } && node.TryGetProperty("mesh", out var mesh))
+      {
+        var materialIndex = root.GetProperty("meshes")[mesh.GetInt32()]
+          .GetProperty("primitives")[0]
+          .GetProperty("material")
+          .GetInt32();
+        textureBindings[new GltfMaterialHandle(materialIndex + 1)] = Encoding.ASCII.GetString(texture);
+      }
+      var meshName = ReadLegacyPayloadBytes(node, "meshName");
+      if (meshName is { Length: > 0 })
+      {
+        meshBindings[new GltfNodeHandle(index + 1)] = Encoding.ASCII.GetString(meshName);
+      }
+    }
+    return new GltfNewModelImportOptions(
+      textureResourceBindings: textureBindings,
+      meshResourceBindings: meshBindings);
+  }
+
+  private static async Task WritePlanAsync(
+    string packagePath,
+    GltfPackageKind packageKind,
+    GltfNewModelImportOptions options,
+    string planPath)
+  {
+    var serializer = new GltfImportPlanSerializer();
+    OperationResult<string> digest;
+    if (packageKind == GltfPackageKind.Glb)
+    {
+      await using var source = File.OpenRead(packagePath);
+      digest = await serializer.ComputeGlbSourceSha256Async(source);
+    }
+    else
+    {
+      digest = await serializer.ComputeGltfSourceSha256Async(packagePath);
+    }
+    if (!digest.Succeeded)
+    {
+      throw new InvalidDataException("The qualification package digest could not be created.");
+    }
+    await using var destination = File.Create(planPath);
+    var write = await serializer.SerializeAsync(
+      GltfImportPlan.CreateNewModel(packageKind, digest.Value!, options),
+      destination);
+    if (!write.Succeeded)
+    {
+      throw new InvalidDataException("The qualification import plan could not be written.");
+    }
+  }
+
+  private static async Task<JsonDocument> ReadPackageJsonAsync(
+    string packagePath,
+    GltfPackageKind packageKind)
+  {
+    if (packageKind == GltfPackageKind.Gltf)
+    {
+      return JsonDocument.Parse(await File.ReadAllBytesAsync(packagePath));
+    }
+    var glb = await File.ReadAllBytesAsync(packagePath);
+    var jsonLength = BinaryPrimitives.ReadInt32LittleEndian(glb.AsSpan(12));
+    return JsonDocument.Parse(glb.AsMemory(20, jsonLength));
+  }
+
+  private static byte[]? ReadLegacyPayloadBytes(JsonElement owner, string propertyName)
+  {
+    if (!owner.TryGetProperty("extras", out var extras)
+      || !extras.TryGetProperty("earthtool", out var metadata)
+      || metadata.ValueKind != JsonValueKind.String)
+    {
+      return null;
+    }
+    using var document = JsonDocument.Parse(metadata.GetString()!);
+    if (!document.RootElement.TryGetProperty("payload", out var payload)
+      || !payload.TryGetProperty(propertyName, out var value)
+      || value.ValueKind != JsonValueKind.String)
+    {
+      return null;
+    }
+    var encoded = value.GetString()!;
+    var padded = encoded.Replace('-', '+').Replace('_', '/');
+    padded = padded.PadRight((padded.Length + 3) / 4 * 4, '=');
+    return Convert.FromBase64String(padded);
+  }
+
   private static string ResolveExecutable(string root)
   {
     var packagedExecutable = Environment.GetEnvironmentVariable(ExecutableEnvironmentVariable);
@@ -275,38 +407,15 @@ internal static class OfficialCorpusCliOracle
         item.GetProperty("eventId").GetInt32(),
         ParseSeverity(item.GetProperty("severity").GetString())))
       .ToArray();
-    Guid? lineageId = null;
-    Guid? documentId = null;
-    CliFingerprint? fingerprint = null;
     var identities = operation.GetProperty("identities");
-    if (identities.GetProperty("baseline") is { ValueKind: JsonValueKind.Object } baseline)
-    {
-      lineageId = baseline.GetProperty("assetLineageId").GetGuid();
-      documentId = baseline.GetProperty("documentId").GetGuid();
-    }
-    if (identities.GetProperty("fingerprint") is { ValueKind: JsonValueKind.Object } fingerprintElement)
-    {
-      fingerprint = new CliFingerprint(
-        fingerprintElement.GetProperty("name").GetString() ?? string.Empty,
-        fingerprintElement.GetProperty("version").GetInt32(),
-        fingerprintElement.GetProperty("sha256").GetString() ?? string.Empty);
-    }
-    var expectedBaseline = ReadBaseline(identities.GetProperty("expectedBaseline"));
-    var nextBaseline = ReadBaseline(identities.GetProperty("nextBaseline"));
     var succeeded = operation.GetProperty("status").GetString() == "succeeded";
     var assetKind = operation.GetProperty("assetKind").ValueKind == JsonValueKind.String
       ? operation.GetProperty("assetKind").GetString()
       : null;
     var successfulContract = !succeeded
-      || (expectedKind == "export"
-        ? assetKind is not null && lineageId.HasValue && documentId.HasValue && fingerprint is not null
-        : assetKind is not null
-          && !lineageId.HasValue
-          && !documentId.HasValue
-          && expectedBaseline is null
-          && nextBaseline is null
-          && fingerprint is null
-          && operation.GetProperty("lineageDisposition").ValueKind == JsonValueKind.Null);
+      || assetKind is not null
+        && identities.EnumerateObject().Select(property => property.Name)
+          .SequenceEqual(["meshCreationGuid"]);
     var reportValid = operation.GetProperty("kind").GetString() == expectedKind
       && operation.GetProperty("package").GetString() == expectedPackage
       && root.GetProperty("status").GetString() == (succeeded ? "succeeded" : "failed")
@@ -314,30 +423,11 @@ internal static class OfficialCorpusCliOracle
       && Path.GetFullPath(operation.GetProperty("destination").GetString() ?? string.Empty)
         == Path.GetFullPath(expectedDestination)
       && successfulContract;
-    var preservation = operation.GetProperty("preservation");
-    var allPreservationRetained = preservation.GetProperty("changes").EnumerateArray()
-      .All(change => change.GetProperty("disposition").GetString() == "retained");
     return new CliReportOperation(
       succeeded,
       reportValid,
       assetKind,
-      lineageId.HasValue && documentId.HasValue
-        ? new InterchangeBaseline(lineageId.Value, documentId.Value)
-        : null,
-      expectedBaseline,
-      nextBaseline,
-      fingerprint,
-      allPreservationRetained,
       diagnostics);
-  }
-
-  private static InterchangeBaseline? ReadBaseline(JsonElement baseline)
-  {
-    return baseline.ValueKind == JsonValueKind.Object
-      ? new InterchangeBaseline(
-        baseline.GetProperty("assetLineageId").GetGuid(),
-        baseline.GetProperty("documentId").GetGuid())
-      : null;
   }
 
   private static DiagnosticSeverity ParseSeverity(string? severity)
@@ -357,11 +447,6 @@ internal static class OfficialCorpusCliOracle
     bool Succeeded,
     bool ReportValid,
     string? AssetKind,
-    InterchangeBaseline? Baseline,
-    InterchangeBaseline? ExpectedBaseline,
-    InterchangeBaseline? NextBaseline,
-    CliFingerprint? Fingerprint,
-    bool AllPreservationRetained,
     IReadOnlyList<CliDiagnostic> Diagnostics);
 }
 
@@ -369,8 +454,6 @@ internal sealed record CliOracleResult(
   bool ExportSucceeded,
   bool ImportSucceeded,
   string? PackagePath,
-  InterchangeBaseline? Baseline,
-  CliFingerprint? Fingerprint,
   string? AssetKind,
   long PackageBytes,
   long ImportedMshBytes,
@@ -379,8 +462,6 @@ internal sealed record CliOracleResult(
   TimeSpan ExportDuration,
   TimeSpan ImportDuration,
   TimeSpan TemporaryIoDuration);
-
-internal sealed record CliFingerprint(string Name, int Version, string Sha256);
 
 internal sealed record CliBatchOracleResult(
   bool Succeeded,

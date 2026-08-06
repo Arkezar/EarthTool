@@ -3,6 +3,7 @@
 using EarthTool.MSH.Assets;
 using EarthTool.MSH.Authoring;
 using EarthTool.MSH.Expert;
+using EarthTool.MSH.Internal;
 using EarthTool.MSH.Operations;
 using SharpGLTF.Schema2;
 using SharpGLTF.Validation;
@@ -2421,9 +2422,7 @@ namespace EarthTool.GLTF.Internal
           writer.WriteStartObject();
           writer.WriteString(
             "name",
-            sourceBaseName is null
-              ? $"ET_Dynamic_{scope.Id}_{EffectName(extension)}"
-              : $"{sourceBaseName}_{scope.Id}_{EffectName(extension)}"
+            $"ET_Dynamic_{scope.Id}_{EffectName(extension)}"
           );
           if (scope.ChildIds.Count != 0)
           {
@@ -2455,7 +2454,10 @@ namespace EarthTool.GLTF.Internal
             writer.WriteNumberValue(nodePreview.ModelScale);
             writer.WriteEndArray();
           }
-          WriteExtras(writer, CreateObjectMetadata(baseline, scope));
+          WriteExtras(
+            writer,
+            CreateObjectMetadata(baseline, scope),
+            CreateObjectAuthoringMetadata(scope));
           writer.WriteEndObject();
         }
         writer.WriteEndArray();
@@ -2844,6 +2846,45 @@ namespace EarthTool.GLTF.Internal
       return Encoding.UTF8.GetString(stream.ToArray());
     }
 
+    private static string CreateObjectAuthoringMetadata(DynamicObjectScope scope)
+    {
+      var extension = scope.Object.Extension;
+      var effectType = extension.KnownEffectType
+        ?? throw new UnsupportedGltfDomainException("DynamicEffectType");
+      var requirements = DynamicEffectBehavior.GetAuthoringRequirements(effectType);
+      CanonicalDynamicFrameSequence? frames = null;
+      if ((requirements & DynamicAuthoringRequirement.Frames) != 0)
+      {
+        frames = new CanonicalDynamicFrameSequence(
+          extension.FirstSourceFrame,
+          extension.FrameCount,
+          extension.FramePeriodTicks);
+      }
+      CanonicalDynamicSpriteSheet? spriteSheet = null;
+      if ((requirements & DynamicAuthoringRequirement.SpriteSheet) != 0)
+      {
+        spriteSheet = new CanonicalDynamicSpriteSheet(
+          frames!.Value,
+          extension.SpriteSheetColumnCount,
+          extension.SpriteSheetRowCount);
+      }
+      var values = DynamicAuthoringValues.Create(
+        frames,
+        spriteSheet,
+        extension.EndEffectRectangle,
+        new CanonicalDynamicTerrainLight(
+          extension.KnownLightType ?? DynamicLightType.Constant,
+          extension.TerrainLightColor),
+        extension.VisibleTerrainLightGain,
+        extension.KnownAlphaTiming ?? DynamicAlphaTiming.FramePhase,
+        extension.EndAlpha,
+        extension.UsesAdditiveBlending);
+      return CanonicalAuthoringMetadata.Write(
+        CanonicalAuthoringOwner.Parse($"ET_Dynamic_{scope.Id}_{EffectName(extension)}"),
+        values,
+        GltfOperationProfile.Default);
+    }
+
     private static void WriteMetadataStart(
       Utf8JsonWriter writer,
       InterchangeBaseline baseline,
@@ -2876,10 +2917,17 @@ namespace EarthTool.GLTF.Internal
       writer.WriteEndObject();
     }
 
-    private static void WriteExtras(Utf8JsonWriter writer, string metadata)
+    private static void WriteExtras(
+      Utf8JsonWriter writer,
+      string metadata,
+      string? authoringMetadata = null)
     {
       writer.WriteStartObject("extras");
       writer.WriteString("earthtool", metadata);
+      if (authoringMetadata is not null)
+      {
+        writer.WriteString("earthtoolAuthoring", authoringMetadata);
+      }
       writer.WriteEndObject();
     }
 

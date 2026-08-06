@@ -43,10 +43,9 @@ public sealed class InternalMshCommandHostTests
     operation.GetProperty("kind").GetString().Should().Be("export");
     operation.GetProperty("package").GetString().Should().Be("glb");
     operation.GetProperty("status").GetString().Should().Be("succeeded");
-    operation.GetProperty("identities").GetProperty("baseline").ValueKind.Should()
-      .Be(JsonValueKind.Object);
-    operation.GetProperty("identities").GetProperty("fingerprint").ValueKind.Should()
-      .Be(JsonValueKind.Object);
+    operation.GetProperty("identities").GetProperty("meshCreationGuid").ValueKind.Should()
+      .Be(JsonValueKind.String);
+    operation.TryGetProperty("preservation", out _).Should().BeFalse();
     output.ToString().Should().Contain("summary total=1 succeeded=1 failed=0 cancelled=0");
   }
 
@@ -69,7 +68,7 @@ public sealed class InternalMshCommandHostTests
     var nodes = gltf.RootElement.GetProperty("nodes");
     nodes[sceneRootIndex].GetProperty("name").GetString().Should().Be("model");
     nodes[nodes[sceneRootIndex].GetProperty("children")[0].GetInt32()]
-      .GetProperty("name").GetString().Should().Be("model_1");
+      .GetProperty("name").GetString().Should().Be("ET_Static_1");
   }
 
   [Fact]
@@ -89,10 +88,9 @@ public sealed class InternalMshCommandHostTests
     operation.GetProperty("assetKind").GetString().Should().Be("dynamic");
     operation.GetProperty("package").GetString().Should().Be("glb");
     operation.GetProperty("status").GetString().Should().Be("succeeded");
-    operation.GetProperty("identities").GetProperty("meshAssetLineageId")
+    operation.GetProperty("identities").GetProperty("meshCreationGuid")
       .ValueKind.Should().Be(JsonValueKind.String);
-    operation.GetProperty("identities").GetProperty("fingerprint").GetProperty("name")
-      .GetString().Should().Be("dynamic-group-explosion-preview");
+    operation.GetProperty("identities").TryGetProperty("fingerprint", out _).Should().BeFalse();
   }
 
   [Fact]
@@ -394,7 +392,7 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
-  public async Task ImportCreatesMetadataBackedAssetWithoutCallerIdentities()
+  public async Task ImportCreatesCanonicalAssetWithoutReceiptData()
   {
     using var fixture = await CliFixture.CreateAsync();
     await fixture.CreateEditGlbAsync();
@@ -411,20 +409,23 @@ public sealed class InternalMshCommandHostTests
 
     exitCode.Should().Be(CliExitCode.Success);
     var mshPath = Path.Combine(outputDirectory, "model.msh");
-    (await File.ReadAllBytesAsync(mshPath)).Should().Equal(
-      await File.ReadAllBytesAsync(fixture.MshPath));
     var read = await new MshReader().ReadFileAsync(mshPath);
     read.Status.Should().Be(OperationStatus.Succeeded);
+    var source = await new MshReader().ReadFileAsync(fixture.MshPath);
+    read.Value!.ArchiveFraming.CreationGuid!.Value.Should().NotBe(
+      source.Value!.ArchiveFraming.CreationGuid!.Value
+    );
     using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
     var operation = report.RootElement.GetProperty("operations")[0];
     operation.GetProperty("kind").GetString().Should().Be("import");
     var identities = operation.GetProperty("identities");
-    identities.EnumerateObject().Should().OnlyContain(property =>
-      property.Value.ValueKind == JsonValueKind.Null);
+    identities.GetProperty("meshCreationGuid").ValueKind.Should().Be(JsonValueKind.String);
+    identities.TryGetProperty("meshAssetLineageId", out _).Should().BeFalse();
+    operation.TryGetProperty("preservation", out _).Should().BeFalse();
   }
 
   [Fact]
-  public async Task EditImportPreservesEmitterCompatibilityAnomalyAndReportsIt()
+  public async Task ImportCanonicalizesEmitterCompatibilityAnomalyWithoutPreservationReport()
   {
     using var fixture = await CliFixture.CreateEmitterCompatibilityAnomalyAsync();
     await fixture.CreateEditGlbAsync();
@@ -440,16 +441,14 @@ public sealed class InternalMshCommandHostTests
     ], TextWriter.Null);
 
     exitCode.Should().Be(CliExitCode.Success);
-    (await File.ReadAllBytesAsync(Path.Combine(outputDirectory, "model.msh"))).Should()
-      .Equal(await File.ReadAllBytesAsync(fixture.MshPath));
+    var read = await new MshReader().ReadFileAsync(Path.Combine(outputDirectory, "model.msh"));
+    var source = await new MshReader().ReadFileAsync(fixture.MshPath);
+    read.Value!.ArchiveFraming.CreationGuid!.Value.Should().NotBe(
+      source.Value!.ArchiveFraming.CreationGuid!.Value
+    );
     using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
     var operation = report.RootElement.GetProperty("operations")[0];
-    operation.GetProperty("diagnostics").EnumerateArray()
-      .Select(diagnostic => diagnostic.GetProperty("code").GetString()).Should()
-      .Contain(GltfDiagnosticCodes.EmitterHierarchyFallback);
-    operation.GetProperty("preservation").GetProperty("changes").EnumerateArray()
-      .Select(change => change.GetProperty("disposition").GetString()).Should()
-      .OnlyContain(disposition => disposition == "retained");
+    operation.TryGetProperty("preservation", out _).Should().BeFalse();
   }
 
   [Fact]
@@ -495,11 +494,8 @@ public sealed class InternalMshCommandHostTests
         .KnownFlags.Should().HaveFlag(StaticRenderObjectFlags.MarkerAttachment1);
     }
     using var editReport = JsonDocument.Parse(await File.ReadAllBytesAsync(editReportPath));
-    editReport.RootElement.GetProperty("operations")[0].GetProperty("preservation")
-      .GetProperty("changes").EnumerateArray().Should().Contain(change =>
-        change.GetProperty("fieldPath").GetString() == "StaticRenderObjectSequence[0].ObjectFlags"
-        && change.GetProperty("disposition").GetString() == "regenerated"
-        && change.GetProperty("reason").GetString() == "EmitterMarkerOwnership");
+    editReport.RootElement.GetProperty("operations")[0].TryGetProperty("preservation", out _)
+      .Should().BeFalse();
     using var newReport = JsonDocument.Parse(await File.ReadAllBytesAsync(newReportPath));
     newReport.RootElement.GetProperty("operations")[0].GetProperty("status").GetString()
       .Should().Be("succeeded");
@@ -536,32 +532,26 @@ public sealed class InternalMshCommandHostTests
     newExitCode.Should().Be(CliExitCode.Failure);
     File.Exists(Path.Combine(editOutputDirectory, "model.msh")).Should().BeFalse();
     File.Exists(Path.Combine(newOutputDirectory, "model.msh")).Should().BeFalse();
-    foreach (var (reportPath, expectedCode, expectsMissingMetadataWarning) in new[]
+    foreach (var reportPath in new[]
     {
-      (editReportPath, GltfDiagnosticCodes.AmbiguousPartitionCorrespondence, false),
-      (newReportPath, GltfDiagnosticCodes.AmbiguousPartitionCorrespondence, true)
+      editReportPath,
+      newReportPath
     })
     {
       using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
       var diagnostics = report.RootElement.GetProperty("operations")[0]
         .GetProperty("diagnostics").EnumerateArray().ToArray();
-      diagnostics.Any(diagnostic =>
-        diagnostic.GetProperty("code").GetString() == GltfDiagnosticCodes.MissingManifest
-        && diagnostic.GetProperty("severity").GetString() == "warning").Should()
-        .Be(expectsMissingMetadataWarning);
       var diagnostic = diagnostics.Should().ContainSingle(diagnostic =>
-        diagnostic.GetProperty("code").GetString() == expectedCode).Subject;
-      diagnostic.GetProperty("code").GetString().Should().Be(expectedCode);
-      diagnostic.GetProperty("path").GetString().Should().Be("nodes[2]");
-      diagnostic.GetProperty("message").GetString().Should()
-        .Contain("nodes[2]").And.Contain("nodes[3]");
+        diagnostic.GetProperty("code").GetString() == GltfDiagnosticCodes.DuplicateAuthoringOwner)
+        .Subject;
+      diagnostic.GetProperty("severity").GetString().Should().Be("error");
     }
   }
 
   [Fact]
-  public async Task ImportRestoresAnUnchangedDynamicPackage()
+  public async Task ImportCreatesCanonicalDynamicAsset()
   {
-    using var fixture = await CliFixture.CreateDynamicAsync();
+    using var fixture = await CliFixture.CreateDynamicGroupAsync();
     await fixture.CreateEditDynamicGlbAsync();
     var outputDirectory = Path.Combine(fixture.Directory, "dynamic-edited");
     System.IO.Directory.CreateDirectory(outputDirectory);
@@ -574,11 +564,13 @@ public sealed class InternalMshCommandHostTests
       "--report", reportPath
     ], TextWriter.Null);
 
-    exitCode.Should().Be(CliExitCode.Success);
+    exitCode.Should().Be(CliExitCode.Success, await File.ReadAllTextAsync(reportPath));
     var restored = await new MshReader().ReadFileAsync(Path.Combine(outputDirectory, "model.msh"));
     restored.Value.Should().BeOfType<DynamicMeshAsset>();
-    (await File.ReadAllBytesAsync(Path.Combine(outputDirectory, "model.msh"))).Should()
-      .Equal(await File.ReadAllBytesAsync(fixture.MshPath));
+    var source = await new MshReader().ReadFileAsync(fixture.MshPath);
+    restored.Value!.ArchiveFraming.CreationGuid!.Value.Should().NotBe(
+      source.Value!.ArchiveFraming.CreationGuid!.Value
+    );
     using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
     var operation = report.RootElement.GetProperty("operations")[0];
     operation.GetProperty("assetKind").GetString().Should().Be("dynamic");
@@ -586,7 +578,37 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
-  public async Task ImportCreatesCanonicalMshAndReportsMissingMetadataWarning()
+  public async Task ImportCreatesVisibleDynamicAssetFromCanonicalExportAndPlan()
+  {
+    const string textureKey = "Textures\\effects\\track.tex";
+    using var fixture = await CliFixture.CreateDynamicTrackAsync(textureKey);
+    await fixture.ExportDynamicGlbAsync();
+    var planPath = await fixture.CreateNewModelPlanAsync(
+      new GltfNewModelImportOptions(
+        textureResourceBindings: new Dictionary<GltfMaterialHandle, string?>
+        {
+          [new GltfMaterialHandle(1)] = textureKey,
+        }));
+    var outputDirectory = Path.Combine(fixture.Directory, "dynamic-visible");
+    System.IO.Directory.CreateDirectory(outputDirectory);
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "import", fixture.GlbPath,
+      "--plan", planPath,
+      "--output", outputDirectory
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(CliExitCode.Success);
+    var read = await new MshReader().ReadFileAsync(Path.Combine(outputDirectory, "model.msh"));
+    var asset = read.Value.Should().BeOfType<DynamicMeshAsset>().Subject;
+    asset.RootDynamicObject.Extension.KnownEffectType.Should().Be(DynamicEffectType.Track);
+    asset.RootDynamicObject.Extension.FrameCount.Should().Be(2);
+    asset.RootDynamicObject.Extension.EndAlpha.Should().Be(0.25f);
+  }
+
+  [Fact]
+  public async Task ImportCreatesCanonicalMshAndReportsDefaultedAuthoringValues()
   {
     using var fixture = await CliFixture.CreateAsync();
     await fixture.CreateMetadataFreeGlbAsync();
@@ -613,50 +635,63 @@ public sealed class InternalMshCommandHostTests
     operation.GetProperty("kind").GetString().Should().Be("import");
     operation.GetProperty("diagnostics").EnumerateArray()
       .Select(diagnostic => diagnostic.GetProperty("code").GetString()).Should()
-      .Contain(GltfDiagnosticCodes.MissingManifest);
-    output.ToString().Should().Contain($"diagnostic code={GltfDiagnosticCodes.MissingManifest}");
-    operation.GetProperty("preservation").GetProperty("changes").EnumerateArray()
-      .Select(change => change.GetProperty("fieldPath").GetString()).Should().Contain(
-      [
-        "RootSourceObject",
-        "CommonBaseHeader.AttachmentTable",
-        "StaticRenderObjectSequence[0].ObjectFlags",
-        "CommonBaseHeader.StaticLights",
-        "CommonBaseHeader.AnimationLengths",
-        "CommonBaseHeader.HorizontalExtents",
-        "CommonBaseHeader.Footprint",
-        "StaticRenderObjectSequence",
-        "StaticRenderObjectSequence[0].TexturePathBytes"
-      ]);
+      .Contain(GltfDiagnosticCodes.AuthoringValueDefaulted);
+    output.ToString().Should().Contain(
+      $"diagnostic code={GltfDiagnosticCodes.AuthoringValueDefaulted}"
+    );
+    operation.TryGetProperty("preservation", out _).Should().BeFalse();
   }
 
   [Fact]
-  public async Task ImportDiscardsMalformedMetadataAndReportsWarning()
+  public async Task ImportCreatesCanonicalAssetFromSeparateGltf()
   {
     using var fixture = await CliFixture.CreateAsync();
-    await fixture.CreateEditGlbAsync();
-    await fixture.CorruptManifestMetadataAsync();
-    var outputDirectory = Path.Combine(fixture.Directory, "discarded-metadata");
+    var sourcePath = await fixture.CreateCanonicalStaticGltfAsync();
+    var outputDirectory = Path.Combine(fixture.Directory, "separate-authored");
     System.IO.Directory.CreateDirectory(outputDirectory);
-    var reportPath = Path.Combine(fixture.Directory, "discarded-metadata-report.json");
-    using var output = new StringWriter();
+    var reportPath = Path.Combine(fixture.Directory, "separate-import-report.json");
 
     var exitCode = await InternalMshCommandHost.RunAsync(
     [
-      "msh", "import", fixture.GlbPath,
+      "msh", "import", sourcePath,
       "--output", outputDirectory,
       "--report", reportPath
-    ], output);
+    ], TextWriter.Null);
 
-    exitCode.Should().Be(CliExitCode.Success);
+    exitCode.Should().Be(CliExitCode.Success, await File.ReadAllTextAsync(reportPath));
     var read = await new MshReader().ReadFileAsync(Path.Combine(outputDirectory, "model.msh"));
     read.Value.Should().BeOfType<StaticMeshAsset>();
     using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
-    report.RootElement.GetProperty("operations")[0].GetProperty("diagnostics")
-      .EnumerateArray().Should().ContainSingle(diagnostic =>
-        diagnostic.GetProperty("code").GetString() == GltfDiagnosticCodes.MalformedMetadata
-        && diagnostic.GetProperty("severity").GetString() == "warning");
-    output.ToString().Should().Contain($"diagnostic code={GltfDiagnosticCodes.MalformedMetadata}");
+    var operation = report.RootElement.GetProperty("operations")[0];
+    operation.GetProperty("package").GetString().Should().Be("gltf");
+    operation.GetProperty("status").GetString().Should().Be("succeeded");
+    operation.TryGetProperty("preservation", out _).Should().BeFalse();
+  }
+
+  [Fact]
+  public async Task ImportCreatesCanonicalDynamicAssetFromSeparateGltf()
+  {
+    using var fixture = await CliFixture.CreateDynamicGroupAsync();
+    var sourcePath = await fixture.CreateCanonicalDynamicGltfAsync();
+    var outputDirectory = Path.Combine(fixture.Directory, "separate-dynamic");
+    System.IO.Directory.CreateDirectory(outputDirectory);
+    var reportPath = Path.Combine(fixture.Directory, "separate-dynamic-report.json");
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "import", sourcePath,
+      "--output", outputDirectory,
+      "--report", reportPath
+    ], TextWriter.Null);
+
+    exitCode.Should().Be(CliExitCode.Success, await File.ReadAllTextAsync(reportPath));
+    var read = await new MshReader().ReadFileAsync(Path.Combine(outputDirectory, "model.msh"));
+    read.Value.Should().BeOfType<DynamicMeshAsset>();
+    using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+    var operation = report.RootElement.GetProperty("operations")[0];
+    operation.GetProperty("package").GetString().Should().Be("gltf");
+    operation.GetProperty("assetKind").GetString().Should().Be("dynamic");
+    operation.GetProperty("status").GetString().Should().Be("succeeded");
   }
 
   [Fact]
@@ -789,8 +824,10 @@ public sealed class InternalMshCommandHostTests
     operation.GetProperty("kind").GetString().Should().Be("export");
     operation.GetProperty("status").GetString().Should().Be("failed");
     operation.GetProperty("diagnostics").GetArrayLength().Should().BeGreaterThan(0);
-    operation.GetProperty("identities").GetProperty("meshAssetLineageId").ValueKind.Should()
+    operation.GetProperty("identities").GetProperty("meshCreationGuid").ValueKind.Should()
       .Be(JsonValueKind.Null);
+    operation.GetProperty("identities").TryGetProperty("meshAssetLineageId", out _)
+      .Should().BeFalse();
     output.ToString().Should().Contain("diagnostic code=").And.Contain("eventId=");
   }
 
@@ -1230,6 +1267,42 @@ public sealed class InternalMshCommandHostTests
       return fixture;
     }
 
+    public static async Task<CliFixture> CreateDynamicGroupAsync()
+    {
+      var fixture = new CliFixture(Path.Combine(Path.GetTempPath(), $"earthtool-cli-{Guid.NewGuid():N}"));
+      System.IO.Directory.CreateDirectory(fixture.Directory);
+      var build = DynamicMeshBuilder.Create(
+          Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
+        )
+        .SetRoot(DynamicEffectRecipes.Group())
+        .Build();
+      build.TryGetValue(out var asset).Should().BeTrue();
+      var write = await new MshWriter().WriteFileAsync(asset!, fixture.MshPath);
+      write.Succeeded.Should().BeTrue();
+      return fixture;
+    }
+
+    public static async Task<CliFixture> CreateDynamicTrackAsync(string textureKey)
+    {
+      var fixture = new CliFixture(
+        Path.Combine(Path.GetTempPath(), $"earthtool-cli-{Guid.NewGuid():N}"));
+      System.IO.Directory.CreateDirectory(fixture.Directory);
+      var build = DynamicMeshBuilder.Create()
+        .SetRoot(
+          DynamicEffectRecipes.Track(
+            new CanonicalDynamicFrameSequence(0, 2, 3),
+            new EffectRectangle(-1, 1, 1, -1),
+            new EffectRectangle(-2, 2, 2, -2),
+            textureKey,
+            new CanonicalDynamicAlpha(0.75f, 0.25f, DynamicAlphaTiming.LifetimeProgress),
+            true))
+        .Build();
+      build.TryGetValue(out var asset).Should().BeTrue();
+      var write = await new MshWriter().WriteFileAsync(asset!, fixture.MshPath);
+      write.Succeeded.Should().BeTrue();
+      return fixture;
+    }
+
     public static async Task CreateReferencedMshAsync(string root, string fileName)
     {
       var meshes = Path.Combine(root, "Meshes");
@@ -1256,6 +1329,7 @@ public sealed class InternalMshCommandHostTests
         asset,
         GlbPath);
       export.Status.Should().Be(OperationStatus.Succeeded);
+      await RemoveMetadataFromGlbAsync();
     }
 
     public async Task CreateEditDynamicGlbAsync()
@@ -1266,12 +1340,46 @@ public sealed class InternalMshCommandHostTests
         asset,
         GlbPath);
       export.Status.Should().Be(OperationStatus.Succeeded);
+      await RewriteGlbAsync(RemoveMetadata);
+    }
+
+    public async Task ExportDynamicGlbAsync()
+    {
+      var read = await new MshReader().ReadFileAsync(MshPath);
+      var asset = read.Value.Should().BeOfType<DynamicMeshAsset>().Subject;
+      var export = await new GltfInterchange().ExportGlbFileAsync(asset, GlbPath);
+      export.Status.Should().Be(OperationStatus.Succeeded);
     }
 
     public async Task CreateMetadataFreeGlbAsync()
     {
       await CreateEditGlbAsync();
-      await RemoveMetadataFromGlbAsync();
+    }
+
+    public async Task<string> CreateCanonicalStaticGltfAsync()
+    {
+      var path = Path.ChangeExtension(MshPath, ".gltf");
+      var read = await new MshReader().ReadFileAsync(MshPath);
+      var asset = read.Value.Should().BeOfType<StaticMeshAsset>().Subject;
+      var export = await new GltfInterchange().ExportGltfFileAsync(asset, path);
+      export.Status.Should().Be(OperationStatus.Succeeded);
+      var root = JsonNode.Parse(await File.ReadAllTextAsync(path))!;
+      RemoveMetadata(root);
+      await File.WriteAllTextAsync(path, root.ToJsonString());
+      return path;
+    }
+
+    public async Task<string> CreateCanonicalDynamicGltfAsync()
+    {
+      var path = Path.ChangeExtension(MshPath, ".gltf");
+      var read = await new MshReader().ReadFileAsync(MshPath);
+      var asset = read.Value.Should().BeOfType<DynamicMeshAsset>().Subject;
+      var export = await new GltfInterchange().ExportGltfFileAsync(asset, path);
+      export.Status.Should().Be(OperationStatus.Succeeded);
+      var root = JsonNode.Parse(await File.ReadAllTextAsync(path))!;
+      RemoveMetadata(root);
+      await File.WriteAllTextAsync(path, root.ToJsonString());
+      return path;
     }
 
     public async Task AddEmitterHelpersAsync(int count)
@@ -1300,12 +1408,15 @@ public sealed class InternalMshCommandHostTests
 
     public Task RemoveMetadataFromGlbAsync()
     {
-      return RewriteGlbAsync(RemoveMetadata);
-    }
-
-    public Task CorruptManifestMetadataAsync()
-    {
-      return RewriteGlbAsync(root => root["scenes"]![0]!["extras"]!["earthtool"] = "{");
+      return RewriteGlbAsync(root =>
+      {
+        RemoveMetadata(root);
+        var number = 1;
+        foreach (var node in root["nodes"]!.AsArray().Where(node => node!["mesh"] is not null))
+        {
+          node!["name"] = $"ET_Static_{number++}";
+        }
+      });
     }
 
     public async Task<string> CreateNewModelPlanAsync(
@@ -1403,6 +1514,7 @@ public sealed class InternalMshCommandHostTests
         if (value["extras"] is JsonObject extras)
         {
           extras.Remove("earthtool");
+          extras.Remove("earthtoolAuthoring");
           if (extras.Count == 0)
           {
             value.Remove("extras");

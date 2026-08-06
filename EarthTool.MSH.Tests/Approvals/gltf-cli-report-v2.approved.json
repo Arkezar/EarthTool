@@ -1,0 +1,94 @@
+﻿{
+  "format": "earthtool.msh.cli-report",
+  "version": 2,
+  "status": "failed",
+  "operations": [
+    {
+      "index": 0,
+      "input": "input.msh",
+      "kind": "export",
+      "package": "glb",
+      "assetKind": "static",
+      "status": "succeeded",
+      "destination": "input.glb",
+      "diagnostics": [
+        {
+          "code": "ETG1030",
+          "eventId": 1130,
+          "severity": "warning",
+          "path": "ArchiveFraming.CreationGuid",
+          "byteOffset": null,
+          "data": {
+            "creationMode": "canonical",
+            "origin": "Loaded"
+          },
+          "message": "This accepted serialized representation is not carried as an authoring input. Later glTF asset creation regenerates canonical MSH state and does not restore its source bytes."
+        },
+        {
+          "code": "ETG1030",
+          "eventId": 1130,
+          "severity": "warning",
+          "path": "StaticRenderObjectSequence[0].Triangles[0].TriangleRenderPassFlags",
+          "byteOffset": null,
+          "data": {
+            "creationMode": "canonical",
+            "origin": "Loaded"
+          },
+          "message": "This accepted serialized representation is not carried as an authoring input. Later glTF asset creation regenerates canonical MSH state and does not restore its source bytes."
+        }
+      ],
+      "identities": {
+        "meshCreationGuid": "11111111-2222-4333-8444-555555555555"
+      }
+    },
+    {
+      "index": 1,
+      "input": "authored.glb",
+      "kind": "import",
+      "package": "glb",
+      "assetKind": "static",
+      "status": "succeeded",
+      "destination": "authored.msh",
+      "diagnostics": [
+        {
+          "code": "ETG4000",
+          "eventId": 4000,
+          "severity": "warning",
+          "path": "nodes[0]",
+          "byteOffset": null,
+          "data": {},
+          "message": "Local typed metadata is absent; canonical defaults were used."
+        }
+      ],
+      "identities": {
+        "meshCreationGuid": "11111111-2222-4333-8444-555555555555"
+      }
+    },
+    {
+      "index": 2,
+      "input": "invalid.glb",
+      "kind": "validate",
+      "package": "glb",
+      "assetKind": null,
+      "status": "failed",
+      "destination": null,
+      "diagnostics": [
+        {
+          "code": "ETG1006",
+          "eventId": 1106,
+          "severity": "error",
+          "path": "meshes[0].primitives[0]",
+          "byteOffset": 24,
+          "data": {
+            "alpha": "first",
+            "zeta": "last"
+          },
+          "message": "Non-contractual prose."
+        }
+      ],
+      "identities": {
+        "meshCreationGuid": null
+      }
+    }
+  ]
+}

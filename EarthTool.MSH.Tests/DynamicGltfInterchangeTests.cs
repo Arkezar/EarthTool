@@ -25,7 +25,7 @@ public class DynamicGltfInterchangeTests
     var asset = CreateAsset();
     await using var destination = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       destination,
       new GltfExportOptions(_lineageId, _documentId, null, null, null, "EDBBPP")
@@ -51,15 +51,15 @@ public class DynamicGltfInterchangeTests
       .GetBoolean()
       .Should()
       .BeTrue();
-    nodes[1].GetProperty("name").GetString().Should().Be("EDBBPP_1_Group");
+    nodes[1].GetProperty("name").GetString().Should().Be("ET_Dynamic_1_Group");
     nodes[1]
       .GetProperty("children")
       .EnumerateArray()
       .Select(item => item.GetInt32())
       .Should()
       .Equal(2, 3);
-    nodes[2].GetProperty("name").GetString().Should().Be("EDBBPP_2_Explosion");
-    nodes[3].GetProperty("name").GetString().Should().Be("EDBBPP_3_Explosion");
+    nodes[2].GetProperty("name").GetString().Should().Be("ET_Dynamic_2_Explosion");
+    nodes[3].GetProperty("name").GetString().Should().Be("ET_Dynamic_3_Explosion");
     nodes[2].GetProperty("mesh").GetInt32().Should().Be(0);
     nodes[3].GetProperty("mesh").GetInt32().Should().Be(1);
     json.RootElement.GetProperty("meshes").GetArrayLength().Should().Be(2);
@@ -97,7 +97,7 @@ public class DynamicGltfInterchangeTests
     var asset = CreateAsset();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -119,37 +119,12 @@ public class DynamicGltfInterchangeTests
   }
 
   [Fact]
-  public async Task UnifiedCreationCreatesMetadataBackedDynamicAssetFromStream()
-  {
-    var asset = CreateAsset();
-    await using var package = new MemoryStream();
-    var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
-      asset,
-      package,
-      new GltfExportOptions(_lineageId, _documentId)
-    );
-    export.Value!.Baseline.AssetLineageId.Should().Be(_lineageId);
-    package.Position = 0;
-
-    var created = await interchange.CreateMeshAsync(package);
-
-    created.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(created.Diagnostics));
-    var dynamicAsset = created.Value!.Asset.Should().BeOfType<DynamicMeshAsset>().Subject;
-    created
-      .Value.Asset.GetSerializedRepresentation()
-      .Should()
-      .Equal(asset.GetSerializedRepresentation());
-    created.Value.Preservation.Changes.Should().NotBeEmpty();
-  }
-
-  [Fact]
   public async Task DynamicPlacementRootTransformAndAnimationRemainSceneOnlyOnEditImport()
   {
     var asset = CreateAsset();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -208,7 +183,7 @@ public class DynamicGltfInterchangeTests
     var asset = CreateAsset();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -254,7 +229,7 @@ public class DynamicGltfInterchangeTests
   {
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       CreateAsset(),
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -282,7 +257,7 @@ public class DynamicGltfInterchangeTests
   {
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       CreateAsset(),
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -328,7 +303,7 @@ public class DynamicGltfInterchangeTests
     build.TryGetValue(out var asset).Should().BeTrue();
     await using var destination = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset!,
       destination,
       new GltfExportOptions(_lineageId, _documentId)
@@ -357,7 +332,7 @@ public class DynamicGltfInterchangeTests
       maxHierarchyDepth
     );
 
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       CreateAsset(),
       destination,
       profile: profile
@@ -375,7 +350,7 @@ public class DynamicGltfInterchangeTests
     var asset = CreateAsset();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -411,7 +386,7 @@ public class DynamicGltfInterchangeTests
     var asset = CreateAsset();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -441,7 +416,7 @@ public class DynamicGltfInterchangeTests
     var asset = CreateAsset();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -474,7 +449,7 @@ public class DynamicGltfInterchangeTests
     var asset = CreateAsset();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -516,7 +491,7 @@ public class DynamicGltfInterchangeTests
     expert.TryGetValue(out var asset).Should().BeTrue();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset!,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -538,7 +513,7 @@ public class DynamicGltfInterchangeTests
   {
     await using var destination = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       CreateSpriteEffectsAsset(),
       destination,
       new GltfExportOptions(_lineageId, _documentId)
@@ -562,7 +537,7 @@ public class DynamicGltfInterchangeTests
   {
     await using var destination = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       CreateRibbonEffectsAsset(),
       destination,
       new GltfExportOptions(_lineageId, _documentId)
@@ -586,7 +561,7 @@ public class DynamicGltfInterchangeTests
   {
     await using var destination = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       CreateAttachedAndProceduralEffectsAsset(),
       destination,
       new GltfExportOptions(_lineageId, _documentId)
@@ -628,7 +603,7 @@ public class DynamicGltfInterchangeTests
   public async Task RibbonPreviewRetainsHalfWidthSignTextureSideAndWinding()
   {
     await using var destination = new MemoryStream();
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       CreateRibbonEffectsAsset(),
       destination,
       new GltfExportOptions(_lineageId, _documentId)
@@ -688,7 +663,7 @@ public class DynamicGltfInterchangeTests
     var asset = CreateRibbonEffectsAsset();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -711,7 +686,7 @@ public class DynamicGltfInterchangeTests
     var asset = CreateAttachedAndProceduralEffectsAsset();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -738,7 +713,7 @@ public class DynamicGltfInterchangeTests
     var originalKeelwater = asset.RootDynamicObject.Children[1].Children[0].Extension;
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -844,7 +819,7 @@ public class DynamicGltfInterchangeTests
     var asset = CreateAttachedAndProceduralEffectsAsset();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -900,7 +875,7 @@ public class DynamicGltfInterchangeTests
     expert.TryGetValue(out var asset).Should().BeTrue();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset!,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -915,59 +890,6 @@ public class DynamicGltfInterchangeTests
   }
 
   [Fact]
-  public async Task RibbonHalfWidthAndMaterialEditsRegenerateOnlyOwnedRepresentations()
-  {
-    var asset = CreateRibbonEffectsAsset();
-    var original = asset.RootDynamicObject.Children[0].Extension;
-    await using var package = new MemoryStream();
-    var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
-      asset,
-      package,
-      new GltfExportOptions(_lineageId, _documentId)
-    );
-    var edited = RewriteGlb(
-      package.ToArray(),
-      (root, binary) =>
-      {
-        root["materials"]![0]!["pbrMetallicRoughness"]!["baseColorFactor"] = new JsonArray(
-          0.9f,
-          0.8f,
-          0.7f,
-          0.6f
-        );
-        var accessor = root["accessors"]![0]!;
-        var view = root["bufferViews"]![accessor["bufferView"]!.GetValue<int>()]!;
-        var offset = view["byteOffset"]!.GetValue<int>();
-        WriteVector3(binary, offset, new Vector3(0, -1, 0));
-        WriteVector3(binary, offset + 12, new Vector3(0, 1, 0));
-        WriteVector3(binary, offset + 24, new Vector3(8, -1, 0));
-        WriteVector3(binary, offset + 36, new Vector3(8, 1, 0));
-        accessor["min"] = new JsonArray(0, -1, 0);
-        accessor["max"] = new JsonArray(8, 1, 0);
-      }
-    );
-    await using var editedStream = new MemoryStream(edited);
-
-    var created = await interchange.CreateMeshAsync(editedStream);
-
-    created.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(created.Diagnostics));
-    var createdAsset = created.Value!.Asset.Should().BeOfType<DynamicMeshAsset>().Subject;
-    export.Value!.Baseline.AssetLineageId.Should().Be(_lineageId);
-    var extension = createdAsset.RootDynamicObject.Children[0].Extension;
-    extension.RibbonHalfWidth.Should().BeApproximately(-1, 0.0001f);
-    extension.VisibleEffectColor.Should().Be(new Vector3(0.9f, 0.8f, 0.7f));
-    extension.StartAlpha.Should().BeApproximately(0.6f, 0.0001f);
-    extension.FrameCount.Should().Be(original.FrameCount);
-    extension.ReciprocalColumnCount.Should().Be(original.ReciprocalColumnCount);
-    extension.AdditiveFlag.Should().Be(original.AdditiveFlag);
-    extension.LightType.Should().Be(original.LightType);
-    extension.TerrainLightColor.Should().Be(original.TerrainLightColor);
-    extension.ReservedWord.Should().Be(original.ReservedWord);
-    extension.TexturePathBytes.Should().Equal(original.TexturePathBytes);
-  }
-
-  [Fact]
   public async Task RibbonHalfWidthEditsCoverEveryEffect()
   {
     var expectedRibbonHalfWidths = new[] { 1.25f, -1.5f, 1.75f, -2f };
@@ -977,7 +899,7 @@ public class DynamicGltfInterchangeTests
       var originals = GetRibbonExtensions(asset);
       await using var package = new MemoryStream();
       var interchange = new GltfInterchange();
-      var export = await interchange.ExportGlbAsync(
+      var export = await interchange.ExportGlbWithReceiptAsync(
         asset,
         package,
         new GltfExportOptions(_lineageId, _documentId)
@@ -1054,7 +976,7 @@ public class DynamicGltfInterchangeTests
     var asset = CreateRibbonEffectsAsset();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -1100,7 +1022,7 @@ public class DynamicGltfInterchangeTests
   {
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       CreateRibbonEffectsAsset(),
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -1140,7 +1062,7 @@ public class DynamicGltfInterchangeTests
   {
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       CreateRibbonEffectsAsset(),
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -1172,7 +1094,7 @@ public class DynamicGltfInterchangeTests
   {
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       CreateRibbonEffectsAsset(),
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -1211,7 +1133,7 @@ public class DynamicGltfInterchangeTests
   {
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       CreateRibbonEffectsAsset(),
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -1253,7 +1175,7 @@ public class DynamicGltfInterchangeTests
   {
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       CreateRibbonEffectsAsset(),
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -1301,7 +1223,7 @@ public class DynamicGltfInterchangeTests
     expert.TryGetValue(out var asset).Should().BeTrue();
     await using var destination = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(asset!, destination);
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(asset!, destination);
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
@@ -1319,7 +1241,7 @@ public class DynamicGltfInterchangeTests
   {
     await using var destination = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       CreateRibbonEffectsAsset(),
       destination,
       profile: new GltfOperationProfile(maxActiveRenderVertices: 32)
@@ -1344,7 +1266,7 @@ public class DynamicGltfInterchangeTests
       var path = Path.Combine(directory, "ribbons.gltf");
       var asset = CreateRibbonEffectsAsset();
       var interchange = new GltfInterchange();
-      var export = await interchange.ExportGltfFileAsync(
+      var export = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(_lineageId, _documentId, null, null, null, "EDBBPP")
@@ -1369,18 +1291,10 @@ public class DynamicGltfInterchangeTests
           .BeTrue();
       }
 
-      var created = await interchange.CreateMeshFileAsync(path);
-
-      created.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(created.Diagnostics));
-      var createdAsset = created.Value!.Asset.Should().BeOfType<DynamicMeshAsset>().Subject;
       export.Value!.Baseline.AssetLineageId.Should().Be(_lineageId);
-      createdAsset
-        .GetSerializedRepresentation()
-        .Should()
-        .Equal(asset.GetSerializedRepresentation());
 
       var gltfPath = Path.Combine(directory, "scalable.gltf");
-      var separateExport = await interchange.ExportGltfFileAsync(
+      var separateExport = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         gltfPath,
         new GltfExportOptions(
@@ -1424,7 +1338,7 @@ public class DynamicGltfInterchangeTests
       var path = Path.Combine(directory, "attached.gltf");
       var asset = CreateAttachedAndProceduralEffectsAsset();
       var interchange = new GltfInterchange();
-      var export = await interchange.ExportGltfFileAsync(
+      var export = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(_lineageId, _documentId)
@@ -1549,7 +1463,7 @@ public class DynamicGltfInterchangeTests
       expert.TryGetValue(out var malformed).Should().BeTrue();
       await using var destination = new MemoryStream();
 
-      var result = await new GltfInterchange().ExportGlbAsync(malformed!, destination);
+      var result = await new GltfInterchange().ExportGlbWithReceiptAsync(malformed!, destination);
 
       result.Status.Should().Be(OperationStatus.Failed);
       result.Value.Should().BeNull();
@@ -1579,7 +1493,7 @@ public class DynamicGltfInterchangeTests
   {
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       CreateAttachedAndProceduralEffectsAsset(),
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -1618,7 +1532,7 @@ public class DynamicGltfInterchangeTests
   {
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       CreateAttachedAndProceduralEffectsAsset(),
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -1672,7 +1586,7 @@ public class DynamicGltfInterchangeTests
       expert.TryGetValue(out var malformed).Should().BeTrue();
       await using var destination = new MemoryStream();
 
-      var result = await new GltfInterchange().ExportGlbAsync(malformed!, destination);
+      var result = await new GltfInterchange().ExportGlbWithReceiptAsync(malformed!, destination);
 
       result.Status.Should().Be(OperationStatus.Failed);
       result.Value.Should().BeNull();
@@ -1703,7 +1617,7 @@ public class DynamicGltfInterchangeTests
     expert.TryGetValue(out var malformed).Should().BeTrue();
     await using var destination = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(malformed!, destination);
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(malformed!, destination);
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
@@ -1743,7 +1657,7 @@ public class DynamicGltfInterchangeTests
     expert.TryGetValue(out var malformed).Should().BeTrue();
     await using var destination = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(malformed!, destination);
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(malformed!, destination);
 
     result.Status.Should().Be(OperationStatus.Failed);
     result.Value.Should().BeNull();
@@ -1775,7 +1689,7 @@ public class DynamicGltfInterchangeTests
         : CreateSingleAttachedEffectAsset(effectType);
     await using var destination = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       destination,
       profile: new GltfOperationProfile(maxOutputBytes: 256)
@@ -1802,7 +1716,7 @@ public class DynamicGltfInterchangeTests
     expert.TryGetValue(out var asset).Should().BeTrue();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(asset!, package);
+    var export = await interchange.ExportGlbWithReceiptAsync(asset!, package);
     var edited = RewriteGlb(
       package.ToArray(),
       (root, _) => root["materials"]![0]!["pbrMetallicRoughness"]!["baseColorFactor"]![3] = 0.7f
@@ -1817,7 +1731,7 @@ public class DynamicGltfInterchangeTests
     imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
     imported.Value!.Asset.RootDynamicObject.Children[0].Extension.AlphaTimingMode.Should().Be(7);
     await using var reexported = new MemoryStream();
-    var reexport = await interchange.ExportGlbAsync(
+    var reexport = await interchange.ExportGlbWithReceiptAsync(
       imported.Value.Asset,
       reexported,
       imported.Value.NextExportOptions
@@ -1878,7 +1792,7 @@ public class DynamicGltfInterchangeTests
       expert.TryGetValue(out var asset).Should().BeTrue();
       await using var package = new MemoryStream();
       var interchange = new GltfInterchange();
-      var export = await interchange.ExportGlbAsync(asset!, package);
+      var export = await interchange.ExportGlbWithReceiptAsync(asset!, package);
       export.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(export.Diagnostics));
       package.Position = 0;
 
@@ -1904,7 +1818,7 @@ public class DynamicGltfInterchangeTests
       }
       await using var destination = new MemoryStream();
 
-      var result = await new GltfInterchange().ExportGlbAsync(
+      var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
         CreateAttachedAndProceduralEffectsAsset(),
         destination,
         new GltfExportOptions(textureSearchRoots: [directory])
@@ -1953,7 +1867,7 @@ public class DynamicGltfInterchangeTests
     expert.TryGetValue(out var asset).Should().BeTrue();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(asset!, package);
+    var export = await interchange.ExportGlbWithReceiptAsync(asset!, package);
     export.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(export.Diagnostics));
     package.Position = 0;
 
@@ -1968,7 +1882,7 @@ public class DynamicGltfInterchangeTests
   {
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       CreateAttachedAndProceduralEffectsAsset(),
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -2004,7 +1918,7 @@ public class DynamicGltfInterchangeTests
   {
     await using var destination = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       CreateAttachedAndProceduralEffectsAsset(),
       destination,
       profile: new GltfOperationProfile(maxActiveRenderVertices: 100)
@@ -2052,7 +1966,7 @@ public class DynamicGltfInterchangeTests
     expert.TryGetValue(out var asset).Should().BeTrue();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(asset!, package);
+    var export = await interchange.ExportGlbWithReceiptAsync(asset!, package);
     export.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(export.Diagnostics));
     package.Position = 0;
 
@@ -2065,7 +1979,7 @@ public class DynamicGltfInterchangeTests
   [Fact]
   public async Task UnsupportedEffectAndObjectLimitFailWithoutOutput()
   {
-    var limitedResult = await new GltfInterchange().ExportGlbAsync(
+    var limitedResult = await new GltfInterchange().ExportGlbWithReceiptAsync(
       CreateSpriteEffectsAsset(),
       new MemoryStream(),
       profile: new GltfOperationProfile(maxOutputBytes: 1024)
@@ -2095,7 +2009,7 @@ public class DynamicGltfInterchangeTests
       await using var package = new MemoryStream();
       var interchange = new GltfInterchange();
 
-      var export = await interchange.ExportGlbAsync(
+      var export = await interchange.ExportGlbWithReceiptAsync(
         asset,
         package,
         new GltfExportOptions(
@@ -2162,7 +2076,7 @@ public class DynamicGltfInterchangeTests
       await File.WriteAllBytesAsync(Path.Combine(secondRoot, "Meshes", "SHARED.MSH"), referenced);
       var shadowed = CreateScalableAsset("shared", 1, 2);
 
-      var shadowedResult = await new GltfInterchange().ExportGlbAsync(
+      var shadowedResult = await new GltfInterchange().ExportGlbWithReceiptAsync(
         shadowed,
         new MemoryStream(),
         new GltfExportOptions(
@@ -2174,7 +2088,7 @@ public class DynamicGltfInterchangeTests
         )
       );
       var missing = CreateScalableAsset("..\\outside", 1, 2);
-      var missingResult = await new GltfInterchange().ExportGlbAsync(
+      var missingResult = await new GltfInterchange().ExportGlbWithReceiptAsync(
         missing,
         new MemoryStream(),
         new GltfExportOptions(
@@ -2239,12 +2153,12 @@ public class DynamicGltfInterchangeTests
       );
       var interchange = new GltfInterchange();
 
-      var ambiguous = await interchange.ExportGlbAsync(
+      var ambiguous = await interchange.ExportGlbWithReceiptAsync(
         CreateScalableAsset("ambiguous", 1, 2),
         new MemoryStream(),
         new GltfExportOptions(null, null, null, null, [root])
       );
-      var dynamic = await interchange.ExportGlbAsync(
+      var dynamic = await interchange.ExportGlbWithReceiptAsync(
         CreateScalableAsset("dynamic", 1, 2),
         new MemoryStream(),
         new GltfExportOptions(null, null, null, null, [root])
@@ -2297,13 +2211,13 @@ public class DynamicGltfInterchangeTests
         CreateScalableAsset("first", 1, 2).GetSerializedRepresentation()
       );
 
-      var cyclic = await new GltfInterchange().ExportGlbAsync(
+      var cyclic = await new GltfInterchange().ExportGlbWithReceiptAsync(
         CreateScalableAsset("first", 1, 2),
         new MemoryStream(),
         new GltfExportOptions(null, null, null, null, [root])
       );
       await using var limitedOutput = new MemoryStream();
-      var limited = await new GltfInterchange().ExportGlbAsync(
+      var limited = await new GltfInterchange().ExportGlbWithReceiptAsync(
         CreateScalableAsset("first", 1, 2),
         limitedOutput,
         new GltfExportOptions(null, null, null, null, [root]),
@@ -2339,7 +2253,7 @@ public class DynamicGltfInterchangeTests
     };
     await using var destination = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       CreateScalableAsset("preview", 1, 2),
       destination,
       new GltfExportOptions(null, null, null, null, roots),
@@ -2377,7 +2291,7 @@ public class DynamicGltfInterchangeTests
       build.TryGetValue(out var asset).Should().BeTrue();
       await using var destination = new MemoryStream();
 
-      var result = await new GltfInterchange().ExportGlbAsync(
+      var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
         asset!,
         destination,
         new GltfExportOptions(null, null, null, null, [root]),
@@ -2421,7 +2335,7 @@ public class DynamicGltfInterchangeTests
         Path.Combine(outside, "Meshes")
       );
 
-      var result = await new GltfInterchange().ExportGlbAsync(
+      var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
         CreateScalableAsset("preview", 1, 2),
         new MemoryStream(),
         new GltfExportOptions(null, null, null, null, [directory])
@@ -2450,7 +2364,7 @@ public class DynamicGltfInterchangeTests
     );
     await using var destination = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       destination,
       new GltfExportOptions(_lineageId, _documentId)
@@ -2525,7 +2439,7 @@ public class DynamicGltfInterchangeTests
       var asset = CreateScalableAsset("preview", 2, 5);
       await using var package = new MemoryStream();
       var interchange = new GltfInterchange();
-      var export = await interchange.ExportGlbAsync(
+      var export = await interchange.ExportGlbWithReceiptAsync(
         asset,
         package,
         new GltfExportOptions(
@@ -2602,7 +2516,7 @@ public class DynamicGltfInterchangeTests
       var destination = Path.Combine(directory, "effect.gltf");
       var interchange = new GltfInterchange(new ManifestFailingFileSystem());
 
-      var result = await interchange.ExportGltfFileAsync(CreateAsset(), destination);
+      var result = await interchange.ExportGltfFileWithReceiptAsync(CreateAsset(), destination);
 
       result.Status.Should().Be(OperationStatus.Failed);
       Directory.EnumerateFileSystemEntries(directory).Should().BeEmpty();
@@ -2623,7 +2537,7 @@ public class DynamicGltfInterchangeTests
       var path = Path.Combine(directory, "effect.gltf");
       var asset = CreateSpriteEffectsAsset();
       var interchange = new GltfInterchange();
-      var export = await interchange.ExportGltfFileAsync(
+      var export = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(_lineageId, _documentId)
@@ -2650,7 +2564,7 @@ public class DynamicGltfInterchangeTests
     var asset = CreateSpriteEffectsAsset();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var glbExport = await interchange.ExportGlbAsync(
+    var glbExport = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(_lineageId, _documentId)
@@ -2671,7 +2585,7 @@ public class DynamicGltfInterchangeTests
     try
     {
       var path = Path.Combine(directory, "effects.gltf");
-      var gltfExport = await interchange.ExportGltfFileAsync(
+      var gltfExport = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(_lineageId, _documentId)
@@ -2717,20 +2631,20 @@ public class DynamicGltfInterchangeTests
       var groupPath = Path.Combine(directory, "group.glb");
       var asset = CreateSpriteEffectsAsset();
       var interchange = new GltfInterchange();
-      (await interchange.ExportGlbFileAsync(asset, glbPath))
+      (await interchange.ExportGlbFileWithReceiptAsync(asset, glbPath))
         .Status.Should()
         .Be(OperationStatus.Succeeded);
-      (await interchange.ExportGltfFileAsync(asset, gltfPath))
+      (await interchange.ExportGltfFileWithReceiptAsync(asset, gltfPath))
         .Status.Should()
         .Be(OperationStatus.Succeeded);
-      (await interchange.ExportGlbFileAsync(CreateRibbonEffectsAsset(), ribbonGlbPath))
+      (await interchange.ExportGlbFileWithReceiptAsync(CreateRibbonEffectsAsset(), ribbonGlbPath))
         .Status.Should()
         .Be(OperationStatus.Succeeded);
-      (await interchange.ExportGltfFileAsync(CreateRibbonEffectsAsset(), ribbonGltfPath))
+      (await interchange.ExportGltfFileWithReceiptAsync(CreateRibbonEffectsAsset(), ribbonGltfPath))
         .Status.Should()
         .Be(OperationStatus.Succeeded);
       (
-        await interchange.ExportGlbFileAsync(
+        await interchange.ExportGlbFileWithReceiptAsync(
           CreateAttachedAndProceduralEffectsAsset(),
           attachedGlbPath
         )
@@ -2738,7 +2652,7 @@ public class DynamicGltfInterchangeTests
         .Status.Should()
         .Be(OperationStatus.Succeeded);
       (
-        await interchange.ExportGltfFileAsync(
+        await interchange.ExportGltfFileWithReceiptAsync(
           CreateAttachedAndProceduralEffectsAsset(),
           attachedGltfPath
         )
@@ -2752,7 +2666,7 @@ public class DynamicGltfInterchangeTests
       );
       var scalableOptions = new GltfExportOptions(null, null, null, null, [directory]);
       (
-        await interchange.ExportGlbFileAsync(
+        await interchange.ExportGlbFileWithReceiptAsync(
           CreateScalableAsset("preview", -2, 3),
           scalableGlbPath,
           scalableOptions
@@ -2761,7 +2675,7 @@ public class DynamicGltfInterchangeTests
         .Status.Should()
         .Be(OperationStatus.Succeeded);
       (
-        await interchange.ExportGltfFileAsync(
+        await interchange.ExportGltfFileWithReceiptAsync(
           CreateScalableAsset("preview", -2, 3),
           scalableGltfPath,
           scalableOptions
@@ -2774,7 +2688,7 @@ public class DynamicGltfInterchangeTests
         .SetRoot(DynamicEffectRecipes.Group([DynamicEffectRecipes.Group()]))
         .Build();
       groupBuild.TryGetValue(out var group).Should().BeTrue();
-      (await interchange.ExportGlbFileAsync(group!, groupPath))
+      (await interchange.ExportGlbFileWithReceiptAsync(group!, groupPath))
         .Status.Should()
         .Be(OperationStatus.Succeeded);
 
@@ -2835,7 +2749,7 @@ public class DynamicGltfInterchangeTests
     var asset = CreateAsset();
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -2878,7 +2792,7 @@ public class DynamicGltfInterchangeTests
         && change.Disposition == PreservationDisposition.Regenerated
       );
     await using var reexported = new MemoryStream();
-    var reexport = await interchange.ExportGlbAsync(
+    var reexport = await interchange.ExportGlbWithReceiptAsync(
       imported.Value.Asset,
       reexported,
       imported.Value.NextExportOptions
@@ -2914,7 +2828,7 @@ public class DynamicGltfInterchangeTests
     var original = asset.RootDynamicObject.Children[0].Extension;
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -2977,7 +2891,7 @@ public class DynamicGltfInterchangeTests
     var original = asset.RootDynamicObject.Children[1].Children[0].Extension;
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)
@@ -3040,7 +2954,7 @@ public class DynamicGltfInterchangeTests
     var originalMapped = asset.RootDynamicObject.Children[1].Extension;
     await using var package = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       package,
       new GltfExportOptions(_lineageId, _documentId)

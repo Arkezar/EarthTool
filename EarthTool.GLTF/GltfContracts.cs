@@ -116,67 +116,67 @@ namespace EarthTool.GLTF
     public const string SourceRepresentationNotPreserved = "ETG1030";
 
     /// <summary>Required EarthTool manifest metadata is absent.</summary>
-    public const string MissingManifest = "ETG2000";
+    internal const string MissingManifest = "ETG2000";
 
     /// <summary>The edit-import scene contract is invalid.</summary>
-    public const string InvalidSceneContract = "ETG2001";
+    internal const string InvalidSceneContract = "ETG2001";
 
     /// <summary>A reserved EarthTool metadata carrier is invalid.</summary>
-    public const string InvalidMetadataCarrier = "ETG2002";
+    internal const string InvalidMetadataCarrier = "ETG2002";
 
     /// <summary>EarthTool metadata is malformed.</summary>
-    public const string MalformedMetadata = "ETG2003";
+    internal const string MalformedMetadata = "ETG2003";
 
     /// <summary>EarthTool metadata version is unsupported.</summary>
-    public const string UnsupportedMetadataVersion = "ETG2004";
+    internal const string UnsupportedMetadataVersion = "ETG2004";
 
     /// <summary>The metadata graph exceeds its finite operation profile.</summary>
     public const string MetadataResourceLimitExceeded = "ETG2005";
 
     /// <summary>Asset lineage differs from the expected baseline.</summary>
-    public const string AssetLineageMismatch = "ETG2006";
+    internal const string AssetLineageMismatch = "ETG2006";
 
     /// <summary>Document identity differs from the expected baseline.</summary>
-    public const string DocumentMismatch = "ETG2007";
+    internal const string DocumentMismatch = "ETG2007";
 
     /// <summary>An envelope kind does not match its glTF carrier.</summary>
-    public const string KindCarrierMismatch = "ETG2008";
+    internal const string KindCarrierMismatch = "ETG2008";
 
     /// <summary>More than one envelope claims the same scope identity.</summary>
-    public const string DuplicateScopeIdentity = "ETG2009";
+    internal const string DuplicateScopeIdentity = "ETG2009";
 
     /// <summary>Expected local metadata scope is absent.</summary>
-    public const string MissingExpectedScope = "ETG2010";
+    internal const string MissingExpectedScope = "ETG2010";
 
     /// <summary>An envelope is not associated with a reachable native scope.</summary>
     public const string OrphanEnvelope = "ETG2011";
 
     /// <summary>Native geometry cannot be associated with one unique preserved partition set.</summary>
-    public const string AmbiguousPartitionCorrespondence = "ETG2012";
+    internal const string AmbiguousPartitionCorrespondence = "ETG2012";
 
     /// <summary>A metadata reference has no matching scope.</summary>
-    public const string DanglingMetadataReference = "ETG2013";
+    internal const string DanglingMetadataReference = "ETG2013";
 
     /// <summary>A required native projection guard is absent.</summary>
-    public const string MissingRequiredGuard = "ETG2014";
+    internal const string MissingRequiredGuard = "ETG2014";
 
     /// <summary>A guard projection or version is unsupported.</summary>
-    public const string UnsupportedGuard = "ETG2015";
+    internal const string UnsupportedGuard = "ETG2015";
 
     /// <summary>Native projection no longer matches preservation metadata.</summary>
-    public const string StaleNativeProjection = "ETG2016";
+    internal const string StaleNativeProjection = "ETG2016";
 
     /// <summary>Informational provenance does not match the claimed source.</summary>
-    public const string ProvenanceMismatch = "ETG2017";
+    internal const string ProvenanceMismatch = "ETG2017";
 
     /// <summary>The graph contains unknown semantics required for safe interpretation.</summary>
-    public const string UnknownRequiredSemantics = "ETG2018";
+    internal const string UnknownRequiredSemantics = "ETG2018";
 
     /// <summary>The bounded conflict inventory was truncated.</summary>
-    public const string TooManyMetadataConflicts = "ETG2019";
+    internal const string TooManyMetadataConflicts = "ETG2019";
 
     /// <summary>The manifest inventory or identity high-water marks are invalid.</summary>
-    public const string InvalidManifestInventory = "ETG2020";
+    internal const string InvalidManifestInventory = "ETG2020";
 
     /// <summary>The import plan is malformed or contains forbidden state.</summary>
     public const string MalformedImportPlan = "ETG3000";
@@ -188,7 +188,7 @@ namespace EarthTool.GLTF
     public const string ImportPlanResourceLimitExceeded = "ETG3002";
 
     /// <summary>A conflict action no longer matches the current conflict inventory.</summary>
-    public const string StaleImportPlan = "ETG3003";
+    internal const string StaleImportPlan = "ETG3003";
 
     /// <summary>The plan does not match the selected import or source package.</summary>
     public const string ImportPlanMismatch = "ETG3004";
@@ -589,11 +589,9 @@ namespace EarthTool.GLTF
     /// <summary>Gets the cumulative unknown additive member limit.</summary>
     public int MaxUnknownMetadataMembers { get; }
 
-    /// <summary>Gets the maximum guards accepted in one envelope.</summary>
-    public int MaxMetadataGuards { get; }
+    internal int MaxMetadataGuards { get; }
 
-    /// <summary>Gets the maximum metadata conflicts returned by one operation.</summary>
-    public int MaxMetadataConflicts { get; }
+    internal int MaxMetadataConflicts { get; }
 
     /// <summary>Initializes finite glTF operation limits.</summary>
     public GltfOperationProfile(
@@ -669,9 +667,7 @@ namespace EarthTool.GLTF
         32 * 1024 * 1024,
         262144,
         4194304,
-        262144,
-        64,
-        1024
+        262144
       )
     { }
 
@@ -702,9 +698,7 @@ namespace EarthTool.GLTF
         32 * 1024 * 1024,
         262144,
         4194304,
-        262144,
-        64,
-        1024
+        262144
       )
     { }
 
@@ -724,9 +718,7 @@ namespace EarthTool.GLTF
       int maxTotalMetadataBytes = 32 * 1024 * 1024,
       int maxMetadataEnvelopes = 262144,
       int maxMetadataElements = 4194304,
-      int maxUnknownMetadataMembers = 262144,
-      int maxMetadataGuards = 64,
-      int maxMetadataConflicts = 1024
+      int maxUnknownMetadataMembers = 262144
     )
       : this(
         maxInputBytes,
@@ -744,14 +736,14 @@ namespace EarthTool.GLTF
         maxMetadataEnvelopes,
         maxMetadataElements,
         maxUnknownMetadataMembers,
-        maxMetadataGuards,
-        maxMetadataConflicts,
+        64,
+        1024,
         GltfMeshResourceLimits.Default
       )
     { }
 
     /// <summary>Initializes every finite glTF operation and resource lookup limit.</summary>
-    public GltfOperationProfile(
+    internal GltfOperationProfile(
       int maxInputBytes,
       int maxOutputBytes,
       int maxMetadataBytes,
@@ -843,7 +835,7 @@ namespace EarthTool.GLTF
   }
 
   /// <summary>Describes a named and versioned SHA-256 native projection fingerprint.</summary>
-  public sealed class NativeProjectionFingerprint
+  internal sealed class NativeProjectionFingerprint
   {
     /// <summary>Gets the projection name.</summary>
     public string Name { get; }
@@ -1427,7 +1419,7 @@ namespace EarthTool.GLTF
   }
 
   /// <summary>Reports the baseline and native projection emitted by an export.</summary>
-  public sealed class GltfExportReceipt
+  internal sealed class GltfExportReceipt
   {
     /// <summary>Gets the emitted interchange baseline.</summary>
     internal InterchangeBaseline Baseline { get; }
@@ -1442,22 +1434,6 @@ namespace EarthTool.GLTF
     {
       Baseline = baseline;
       Fingerprint = fingerprint;
-    }
-  }
-
-  /// <summary>Reports one immutable mesh asset created from glTF.</summary>
-  public sealed class GltfMeshCreationResult
-  {
-    /// <summary>Gets the created immutable static or dynamic mesh asset.</summary>
-    public MeshAsset Asset { get; }
-
-    /// <summary>Gets the retained, regenerated, and canonicalized MSH paths.</summary>
-    public PreservationReport Preservation { get; }
-
-    internal GltfMeshCreationResult(MeshAsset asset, PreservationReport preservation)
-    {
-      Asset = asset;
-      Preservation = preservation;
     }
   }
 

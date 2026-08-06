@@ -100,10 +100,10 @@ internal sealed class GltfCommandExecutor
     OperationResult<GltfImportPlan>? plan,
     CancellationToken cancellationToken)
   {
-    OperationResult<GltfMeshCreationResult> imported;
+    OperationResult<MeshAsset> imported;
     if (plan is not null && !plan.Succeeded)
     {
-      imported = new OperationResult<GltfMeshCreationResult>(plan.Status, diagnostics: plan.Diagnostics);
+      imported = new OperationResult<MeshAsset>(plan.Status, diagnostics: plan.Diagnostics);
     }
     else
     {
@@ -123,11 +123,11 @@ internal sealed class GltfCommandExecutor
         }
         catch (OperationCanceledException)
         {
-          imported = Cancelled<GltfMeshCreationResult>();
+          imported = Cancelled<MeshAsset>();
         }
         catch (Exception ex)
         {
-          imported = IoFailure<GltfMeshCreationResult>(ex);
+          imported = IoFailure<MeshAsset>(ex);
         }
       }
       else
@@ -143,11 +143,7 @@ internal sealed class GltfCommandExecutor
       }
     }
 
-    var complete = await WriteImportedAssetAsync(
-      imported,
-      result => result.Asset,
-      destination,
-      cancellationToken)
+    var complete = await WriteImportedAssetAsync(imported, destination, cancellationToken)
       .ConfigureAwait(false);
     var operation = GltfCliReportOperation.ForImport(
       input,
@@ -232,7 +228,7 @@ internal sealed class GltfCommandExecutor
       .ConfigureAwait(false);
     if (read.Value is null)
     {
-      var failed = new OperationResult<GltfExportReceipt>(read.Status, diagnostics: read.Diagnostics);
+      var failed = new OperationResult(read.Status, read.Diagnostics);
       var failedOperation = GltfCliReportOperation.ForFailedExport(
         input,
         destination,
@@ -270,9 +266,8 @@ internal sealed class GltfCommandExecutor
           destination,
           options,
           cancellationToken: cancellationToken)).ConfigureAwait(false);
-    var combined = new OperationResult<GltfExportReceipt>(
+    var combined = new OperationResult(
       exported.Status,
-      exported.Value,
       read.Diagnostics.Concat(exported.Diagnostics));
     var operation = asset.Match(
       onStatic: staticAsset => GltfCliReportOperation.ForExport(
@@ -393,12 +388,10 @@ internal sealed class GltfCommandExecutor
     }
   }
 
-  private async Task<OperationResult<T>> WriteImportedAssetAsync<T>(
-    OperationResult<T> imported,
-    Func<T, MeshAsset> getAsset,
+  private async Task<OperationResult<MeshAsset>> WriteImportedAssetAsync(
+    OperationResult<MeshAsset> imported,
     string destination,
     CancellationToken cancellationToken)
-    where T : class
   {
     if (!imported.Succeeded)
     {
@@ -407,15 +400,15 @@ internal sealed class GltfCommandExecutor
 
     using var scope = _scopeFactory.CreateScope();
     var write = await scope.ServiceProvider.GetRequiredService<IMshWriter>()
-      .WriteFileAsync(getAsset(imported.Value!), destination, cancellationToken: cancellationToken)
+      .WriteFileAsync(imported.Value!, destination, cancellationToken: cancellationToken)
       .ConfigureAwait(false);
     var diagnostics = imported.Diagnostics.Concat(write.Diagnostics);
     return write.Succeeded
-      ? new OperationResult<T>(
+      ? new OperationResult<MeshAsset>(
         OperationStatus.Succeeded,
         imported.Value,
         diagnostics)
-      : new OperationResult<T>(write.Status, diagnostics: diagnostics);
+      : new OperationResult<MeshAsset>(write.Status, diagnostics: diagnostics);
   }
 
   private async Task<OperationResult<GltfImportPlan>?> ReadPlanAsync(

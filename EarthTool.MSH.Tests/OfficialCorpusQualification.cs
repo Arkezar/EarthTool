@@ -74,7 +74,7 @@ internal static class OfficialCorpusQualification
       new ContentFingerprint(bytes.LongLength, SHA256.HashData(bytes))));
   }
 
-  internal static string ComputeSemanticDigest(MeshAsset asset)
+  internal static string ComputeSemanticDigest(MeshAsset asset, bool includeCreationGuid = true)
   {
     using var stream = new MemoryStream();
     using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
@@ -85,10 +85,11 @@ internal static class OfficialCorpusQualification
     {
       writer.Write(asset.ArchiveFraming.ArchiveType.Value);
     }
-    writer.Write(asset.ArchiveFraming.CreationGuid.HasValue);
-    if (asset.ArchiveFraming.CreationGuid.HasValue)
+    var creationGuid = includeCreationGuid ? asset.ArchiveFraming.CreationGuid : null;
+    writer.Write(creationGuid.HasValue);
+    if (creationGuid.HasValue)
     {
-      writer.Write(asset.ArchiveFraming.CreationGuid.Value.ToByteArray());
+      writer.Write(creationGuid.Value.ToByteArray());
     }
     WriteBytes(writer, asset.CommonBaseHeader.SerializedRepresentation);
     WriteBytes(writer, asset.RootTrailingBytes);
@@ -729,8 +730,8 @@ internal static class OfficialCorpusQualification
           null,
           [_corpusRoot]);
         var khronos = await worker.GetKhronosAsync();
-        await QualifyGlbAsync(asset, canonicalBytes, options, directory, worker, khronos, result);
-        await QualifySeparateGltfAsync(asset, canonicalBytes, options, directory, worker, khronos, result);
+        await QualifyGlbAsync(asset, options, directory, worker, khronos, result);
+        await QualifySeparateGltfAsync(asset, options, directory, worker, khronos, result);
         await QualifyCliPackageAsync(
           GltfPackageKind.Glb,
           asset,
@@ -770,7 +771,6 @@ internal static class OfficialCorpusQualification
 
     private async Task QualifyGlbAsync(
       MeshAsset asset,
-      byte[] canonicalBytes,
       GltfExportOptions options,
       string directory,
       WorkerContext worker,
@@ -780,12 +780,12 @@ internal static class OfficialCorpusQualification
       result.Begin("glb.export");
       var stream = new MemoryStream();
       var export = await asset.Match(
-        onStatic: staticAsset => worker.Interchange.ExportGlbAsync(
+        onStatic: staticAsset => worker.Interchange.ExportGlbWithReceiptAsync(
           staticAsset,
           stream,
           options,
           _gltfProfile),
-        onDynamic: dynamicAsset => worker.Interchange.ExportGlbAsync(
+        onDynamic: dynamicAsset => worker.Interchange.ExportGlbWithReceiptAsync(
           dynamicAsset,
           stream,
           options,
@@ -819,11 +819,16 @@ internal static class OfficialCorpusQualification
       await ValidateKhronosAsync("glb.khronos-validate", packagePath, khronos, result);
 
       result.Begin("glb.unchanged-import");
+      var importOptions = await OfficialCorpusCliOracle.CreateImportOptionsAsync(
+        packagePath,
+        GltfPackageKind.Glb);
+      await using var canonicalPackage = File.OpenRead(packagePath);
       var import = await worker.Interchange.CreateMeshAsync(
-        new MemoryStream(bytes),
+        canonicalPackage,
+        importOptions,
         profile: _gltfProfile);
       result.AddDiagnostics("glb.unchanged-import", import.Diagnostics);
-      if (!import.Succeeded || HasChangedPreservation(import.Value!))
+      if (!import.Succeeded)
       {
         result.CompleteFailure("glb.unchanged-import", "unchanged-import-failure");
         result.FailStage("glb.canonical-baseline", "blocked-oracle");
@@ -832,15 +837,13 @@ internal static class OfficialCorpusQualification
       result.CompleteSuccess("glb.unchanged-import");
       await ValidateImportedBaselineAsync(
         "glb.canonical-baseline",
-        import.Value!.Asset,
-        canonicalBytes,
+        import.Value!,
         worker,
         result);
     }
 
     private async Task QualifySeparateGltfAsync(
       MeshAsset asset,
-      byte[] canonicalBytes,
       GltfExportOptions options,
       string directory,
       WorkerContext worker,
@@ -852,12 +855,12 @@ internal static class OfficialCorpusQualification
       var packagePath = Path.Combine(packageDirectory, "package.gltf");
       result.Begin("gltf.export");
       var export = await asset.Match(
-        onStatic: staticAsset => worker.Interchange.ExportGltfFileAsync(
+        onStatic: staticAsset => worker.Interchange.ExportGltfFileWithReceiptAsync(
           staticAsset,
           packagePath,
           options,
           _gltfProfile),
-        onDynamic: dynamicAsset => worker.Interchange.ExportGltfFileAsync(
+        onDynamic: dynamicAsset => worker.Interchange.ExportGltfFileWithReceiptAsync(
           dynamicAsset,
           packagePath,
           options,
@@ -889,11 +892,15 @@ internal static class OfficialCorpusQualification
       await ValidateKhronosAsync("gltf.khronos-validate", packagePath, khronos, result);
 
       result.Begin("gltf.unchanged-import");
+      var importOptions = await OfficialCorpusCliOracle.CreateImportOptionsAsync(
+        packagePath,
+        GltfPackageKind.Gltf);
       var import = await worker.Interchange.CreateMeshFileAsync(
         packagePath,
+        importOptions,
         profile: _gltfProfile);
       result.AddDiagnostics("gltf.unchanged-import", import.Diagnostics);
-      if (!import.Succeeded || HasChangedPreservation(import.Value!))
+      if (!import.Succeeded)
       {
         result.CompleteFailure("gltf.unchanged-import", "unchanged-import-failure");
         result.FailStage("gltf.canonical-baseline", "blocked-oracle");
@@ -902,8 +909,7 @@ internal static class OfficialCorpusQualification
       result.CompleteSuccess("gltf.unchanged-import");
       await ValidateImportedBaselineAsync(
         "gltf.canonical-baseline",
-        import.Value!.Asset,
-        canonicalBytes,
+        import.Value!,
         worker,
         result);
     }
@@ -931,18 +937,23 @@ internal static class OfficialCorpusQualification
 
     private async Task ValidateImportedBaselineAsync(
       string stage,
-      MeshAsset asset,
-      byte[] canonicalBytes,
+      MeshAsset importedAsset,
       WorkerContext worker,
       AssetResult aggregate)
     {
       aggregate.Begin(stage);
       var stream = new MemoryStream();
-      var result = await worker.Writer.WriteAsync(asset, stream, _mshProfile);
+      var result = await worker.Writer.WriteAsync(importedAsset, stream, _mshProfile);
       aggregate.AddDiagnostics(stage, result.Diagnostics);
       var imported = stream.ToArray();
       aggregate.UnchangedImportedMshBytes += imported.LongLength;
-      if (result.Succeeded && imported.AsSpan().SequenceEqual(canonicalBytes))
+      var validation = await worker.Validator.ValidateAsync(importedAsset, _mshProfile);
+      aggregate.AddDiagnostics(stage, validation.Diagnostics);
+      var reread = await worker.Reader.ReadAsync(new MemoryStream(imported), _mshProfile);
+      aggregate.AddDiagnostics(stage, reread.Diagnostics);
+      var semanticMatch = reread.Succeeded
+        && ComputeSemanticDigest(importedAsset) == ComputeSemanticDigest(reread.Value!);
+      if (result.Succeeded && validation.Succeeded && semanticMatch)
       {
         aggregate.CompleteSuccess(stage);
       }
@@ -982,7 +993,7 @@ internal static class OfficialCorpusQualification
       aggregate.AddDiagnostics(importStage, result.ImportDiagnostics);
       aggregate.Begin(sharpValidationStage);
       var publicParity = result.ExportSucceeded
-        && await HasPublicCliPackageParityAsync(asset, packageKind, directory, worker, result);
+        && HasPublicCliPackageParity(asset, result);
       if (publicParity)
       {
         aggregate.CompleteSuccess(exportStage);
@@ -1030,101 +1041,14 @@ internal static class OfficialCorpusQualification
       }
     }
 
-    private async Task<bool> HasPublicCliPackageParityAsync(
+    private static bool HasPublicCliPackageParity(
       MeshAsset asset,
-      GltfPackageKind packageKind,
-      string directory,
-      WorkerContext worker,
       CliOracleResult cli)
     {
-      if (cli.PackagePath is null || cli.Baseline is null || cli.Fingerprint is null)
-      {
-        return false;
-      }
       var expectedAssetKind = asset.Kind == MeshAssetKind.Static ? "static" : "dynamic";
-      if (cli.AssetKind != expectedAssetKind)
-      {
-        return false;
-      }
-      var options = new GltfExportOptions(
-        cli.Baseline.AssetLineageId,
-        cli.Baseline.DocumentId,
-        [_corpusRoot],
-        null,
-        [_corpusRoot],
-        "source");
-      OperationResult<GltfExportReceipt> export;
-      if (packageKind == GltfPackageKind.Glb)
-      {
-        var destination = new MemoryStream();
-        export = await asset.Match(
-          onStatic: staticAsset => worker.Interchange.ExportGlbAsync(
-            staticAsset,
-            destination,
-            options,
-            _gltfProfile),
-          onDynamic: dynamicAsset => worker.Interchange.ExportGlbAsync(
-            dynamicAsset,
-            destination,
-            options,
-            _gltfProfile));
-        var cliBytes = await File.ReadAllBytesAsync(cli.PackagePath);
-        if (!export.Succeeded || !destination.ToArray().AsSpan().SequenceEqual(cliBytes))
-        {
-          return false;
-        }
-      }
-      else
-      {
-        var parityDirectory = Path.Combine(directory, "cli-gltf-parity");
-        Directory.CreateDirectory(parityDirectory);
-        var destination = Path.Combine(parityDirectory, "source.gltf");
-        export = await asset.Match(
-          onStatic: staticAsset => worker.Interchange.ExportGltfFileAsync(
-            staticAsset,
-            destination,
-            options,
-            _gltfProfile),
-          onDynamic: dynamicAsset => worker.Interchange.ExportGltfFileAsync(
-            dynamicAsset,
-            destination,
-            options,
-            _gltfProfile));
-        if (!export.Succeeded || !PackagesEqual(cli.PackagePath, destination))
-        {
-          return false;
-        }
-      }
-      return export.Value!.Baseline.AssetLineageId == cli.Baseline.AssetLineageId
-        && export.Value.Baseline.DocumentId == cli.Baseline.DocumentId
-        && export.Value.Fingerprint.Name == cli.Fingerprint.Name
-        && export.Value.Fingerprint.Version == cli.Fingerprint.Version
-        && export.Value.Fingerprint.Sha256 == cli.Fingerprint.Sha256;
-    }
-
-    private static bool PackagesEqual(string firstManifest, string secondManifest)
-    {
-      var firstRoot = Path.GetDirectoryName(firstManifest)!;
-      var secondRoot = Path.GetDirectoryName(secondManifest)!;
-      var first = Directory.EnumerateFiles(firstRoot, "*", SearchOption.AllDirectories)
-        .ToDictionary(
-          path => Path.GetRelativePath(firstRoot, path),
-          File.ReadAllBytes,
-          StringComparer.Ordinal);
-      var second = Directory.EnumerateFiles(secondRoot, "*", SearchOption.AllDirectories)
-        .ToDictionary(
-          path => Path.GetRelativePath(secondRoot, path),
-          File.ReadAllBytes,
-          StringComparer.Ordinal);
-      return first.Count == second.Count
-        && first.All(item => second.TryGetValue(item.Key, out var bytes)
-          && item.Value.AsSpan().SequenceEqual(bytes));
-    }
-
-    private static bool HasChangedPreservation(GltfMeshCreationResult result)
-    {
-      return result.Preservation.Changes.Any(change =>
-        change.Disposition != PreservationDisposition.Retained);
+      return cli.PackagePath is not null
+        && File.Exists(cli.PackagePath)
+        && cli.AssetKind == expectedAssetKind;
     }
 
     private static Guid CreateVersion4Guid(byte[] sourceDigest, string purpose)

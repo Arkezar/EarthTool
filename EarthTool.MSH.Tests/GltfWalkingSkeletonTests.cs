@@ -62,7 +62,7 @@ public class GltfWalkingSkeletonTests
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
 
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -165,7 +165,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -303,7 +303,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -373,7 +373,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -440,7 +440,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -484,7 +484,7 @@ public class GltfWalkingSkeletonTests
       .Equal(StaticLightMshFixture.GetAttachment(sourceBytes, 13));
 
     await using var reexported = new MemoryStream();
-    var reexport = await interchange.ExportGlbAsync(
+    var reexport = await interchange.ExportGlbWithReceiptAsync(
       import.Value.Asset,
       reexported,
       import.Value.NextExportOptions
@@ -528,7 +528,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var firstExported = new MemoryStream();
     var interchange = new GltfInterchange();
-    var firstExport = await interchange.ExportGlbAsync(
+    var firstExport = await interchange.ExportGlbWithReceiptAsync(
       asset,
       firstExported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -552,7 +552,7 @@ public class GltfWalkingSkeletonTests
     await using var firstInput = new MemoryStream(firstEdit);
     var firstImport = await interchange.ImportEditGlbAsync(firstInput, firstExport.Value!.Baseline);
     await using var reexported = new MemoryStream();
-    var reexport = await interchange.ExportGlbAsync(
+    var reexport = await interchange.ExportGlbWithReceiptAsync(
       firstImport.Value!.Asset,
       reexported,
       firstImport.Value.NextExportOptions
@@ -602,7 +602,7 @@ public class GltfWalkingSkeletonTests
         string.Join("; ", secondImport.Diagnostics.Select(diagnostic => diagnostic.Message))
       );
     await using var secondExported = new MemoryStream();
-    var secondExport = await interchange.ExportGlbAsync(
+    var secondExport = await interchange.ExportGlbWithReceiptAsync(
       secondImport.Value!.Asset,
       secondExported,
       secondImport.Value.NextExportOptions
@@ -635,7 +635,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var exported = new MemoryStream();
     var interchange = new GltfInterchange();
-    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    await interchange.ExportGlbWithReceiptAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
     var noncanonicalDefinition = RewriteJson(
       exported.ToArray(),
       root =>
@@ -672,7 +672,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var exported = new MemoryStream();
     var interchange = new GltfInterchange();
-    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    await interchange.ExportGlbWithReceiptAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
     var childBearing = RewriteJson(
       exported.ToArray(),
       root =>
@@ -713,7 +713,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var exported = new MemoryStream();
     var interchange = new GltfInterchange();
-    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    await interchange.ExportGlbWithReceiptAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
     var sharedDefinition = RewriteJson(
       exported.ToArray(),
       root =>
@@ -769,7 +769,7 @@ public class GltfWalkingSkeletonTests
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
 
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -847,7 +847,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    await interchange.ExportGlbAsync(asset, glb, new GltfExportOptions(LineageId, DocumentId));
+    await interchange.ExportGlbWithReceiptAsync(asset, glb, new GltfExportOptions(LineageId, DocumentId));
     var metadataFree = RewriteJson(glb.ToArray(), RemoveEarthToolMetadata);
 
     await using var input = new MemoryStream(metadataFree);
@@ -915,7 +915,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var exported = new MemoryStream();
     var interchange = new GltfInterchange();
-    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    await interchange.ExportGlbWithReceiptAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
     var metadataFree = RewriteJson(
       exported.ToArray(),
       root =>
@@ -958,7 +958,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var exported = new MemoryStream();
     var interchange = new GltfInterchange();
-    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    await interchange.ExportGlbWithReceiptAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
     var metadataFree = RewriteJson(
       exported.ToArray(),
       root =>
@@ -1003,7 +1003,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var exported = new MemoryStream();
     var interchange = new GltfInterchange();
-    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    await interchange.ExportGlbWithReceiptAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
     var sourceBytes = RewriteJson(
       exported.ToArray(),
       root =>
@@ -1070,7 +1070,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -1122,7 +1122,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -1250,12 +1250,12 @@ public class GltfWalkingSkeletonTests
       var sourcePath = Path.Combine(directory, separate ? "source.gltf" : "source.glb");
       var blenderPath = Path.Combine(directory, separate ? "blender.gltf" : "blender.glb");
       OperationResult<GltfExportReceipt> export = separate
-        ? await interchange.ExportGltfFileAsync(
+        ? await interchange.ExportGltfFileWithReceiptAsync(
           asset,
           sourcePath,
           new GltfExportOptions(LineageId, DocumentId)
         )
-        : await interchange.ExportGlbFileAsync(
+        : await interchange.ExportGlbFileWithReceiptAsync(
           asset,
           sourcePath,
           new GltfExportOptions(LineageId, DocumentId)
@@ -1349,7 +1349,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -1429,7 +1429,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -1520,7 +1520,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var glb = new MemoryStream();
 
-    var export = await new GltfInterchange().ExportGlbAsync(
+    var export = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -1537,6 +1537,7 @@ public class GltfWalkingSkeletonTests
     names
       .Should()
       .BeEquivalentTo(
+        "ET_Static_1",
         "ET_Turret_1",
         "ET_Turret_2",
         "ET_Turret_3",
@@ -1612,7 +1613,7 @@ public class GltfWalkingSkeletonTests
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
 
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -1708,7 +1709,7 @@ public class GltfWalkingSkeletonTests
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
 
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -1779,7 +1780,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
 
-    var export = await new GltfInterchange().ExportGlbAsync(
+    var export = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -1835,7 +1836,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -1893,7 +1894,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -1959,7 +1960,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2003,7 +2004,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2063,7 +2064,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(sourceBytes);
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2145,7 +2146,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2205,7 +2206,7 @@ public class GltfWalkingSkeletonTests
     var asset = await CreateNestedEmitterAssetAsync();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2242,7 +2243,7 @@ public class GltfWalkingSkeletonTests
     var asset = await CreateNestedEmitterAssetAsync();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2292,7 +2293,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2384,7 +2385,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2423,7 +2424,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2486,7 +2487,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2561,7 +2562,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2605,7 +2606,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
 
-    var export = await new GltfInterchange().ExportGlbAsync(
+    var export = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2655,7 +2656,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var glb = new MemoryStream();
 
-    var export = await new GltfInterchange().ExportGlbAsync(
+    var export = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2685,7 +2686,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var glb = new MemoryStream();
 
-    var export = await new GltfInterchange().ExportGlbAsync(
+    var export = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2716,7 +2717,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2782,7 +2783,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2863,7 +2864,7 @@ public class GltfWalkingSkeletonTests
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
 
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -2951,7 +2952,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3033,7 +3034,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3081,7 +3082,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3128,7 +3129,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3185,7 +3186,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3210,7 +3211,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
 
-    var export = await new GltfInterchange().ExportGlbAsync(
+    var export = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3242,7 +3243,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3296,7 +3297,7 @@ public class GltfWalkingSkeletonTests
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
 
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3340,7 +3341,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3435,7 +3436,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3515,7 +3516,7 @@ public class GltfWalkingSkeletonTests
       .And.NotHaveFlag(StaticRenderObjectFlags.MarkerAttachment1);
 
     await using var reexported = new MemoryStream();
-    var reexport = await interchange.ExportGlbAsync(
+    var reexport = await interchange.ExportGlbWithReceiptAsync(
       import.Value.Asset,
       reexported,
       import.Value.NextExportOptions
@@ -3584,7 +3585,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3648,7 +3649,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3699,7 +3700,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3760,7 +3761,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3835,7 +3836,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3883,7 +3884,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -3959,7 +3960,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -4002,7 +4003,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var exported = new MemoryStream();
     var interchange = new GltfInterchange();
-    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    await interchange.ExportGlbWithReceiptAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
     var metadataFree = RewriteJson(exported.ToArray(), RemoveEarthToolMetadata);
     await using var source = new MemoryStream(metadataFree);
 
@@ -4046,7 +4047,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var exported = new MemoryStream();
     var interchange = new GltfInterchange();
-    await interchange.ExportGlbAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
+    await interchange.ExportGlbWithReceiptAsync(asset, exported, new GltfExportOptions(LineageId, DocumentId));
     var unknownPaths = new List<string>();
     var metadataFree = RewriteJson(
       exported.ToArray(),
@@ -4120,7 +4121,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var exported = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -4180,7 +4181,7 @@ public class GltfWalkingSkeletonTests
     try
     {
       var interchange = new GltfInterchange();
-      var export = await interchange.ExportGltfFileAsync(
+      var export = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(LineageId, DocumentId)
@@ -4242,7 +4243,7 @@ public class GltfWalkingSkeletonTests
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
 
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -4279,12 +4280,12 @@ public class GltfWalkingSkeletonTests
       var inputPath = Path.Combine(directory, separate ? "source.gltf" : "source.glb");
       var outputPath = Path.Combine(directory, separate ? "blender.gltf" : "blender.glb");
       OperationResult<GltfExportReceipt> export = separate
-        ? await interchange.ExportGltfFileAsync(
+        ? await interchange.ExportGltfFileWithReceiptAsync(
           asset,
           inputPath,
           new GltfExportOptions(LineageId, DocumentId)
         )
-        : await interchange.ExportGlbFileAsync(
+        : await interchange.ExportGlbFileWithReceiptAsync(
           asset,
           inputPath,
           new GltfExportOptions(LineageId, DocumentId)
@@ -4381,7 +4382,7 @@ public class GltfWalkingSkeletonTests
       var sourcePath = Path.Combine(directory, "source.glb");
       var blenderPath = Path.Combine(directory, "blender.glb");
       var interchange = new GltfInterchange();
-      var export = await interchange.ExportGlbFileAsync(
+      var export = await interchange.ExportGlbFileWithReceiptAsync(
         asset,
         sourcePath,
         new GltfExportOptions(LineageId, DocumentId)
@@ -4525,7 +4526,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var glb = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -4594,7 +4595,7 @@ public class GltfWalkingSkeletonTests
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
 
-    var result = await interchange.ExportGlbAsync(
+    var result = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -4671,7 +4672,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var glb = new MemoryStream();
 
-    var export = await new GltfInterchange().ExportGlbAsync(
+    var export = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -4719,7 +4720,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -4743,7 +4744,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var glb = new MemoryStream();
 
-    var export = await new GltfInterchange().ExportGlbAsync(
+    var export = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -4782,7 +4783,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var glb = new MemoryStream();
 
-    var export = await new GltfInterchange().ExportGlbAsync(
+    var export = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -4813,7 +4814,7 @@ public class GltfWalkingSkeletonTests
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
 
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -4878,7 +4879,7 @@ public class GltfWalkingSkeletonTests
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
 
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -4924,7 +4925,7 @@ public class GltfWalkingSkeletonTests
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
 
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5001,7 +5002,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5068,7 +5069,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5109,7 +5110,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5164,7 +5165,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5238,7 +5239,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5273,7 +5274,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateTwoAnimationClasses().Data);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5325,7 +5326,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5387,7 +5388,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5434,7 +5435,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateTwoAnimationClasses().Data);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5489,7 +5490,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5528,7 +5529,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5568,7 +5569,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5609,7 +5610,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5652,7 +5653,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5696,7 +5697,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5736,7 +5737,7 @@ public class GltfWalkingSkeletonTests
     );
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5773,7 +5774,7 @@ public class GltfWalkingSkeletonTests
     var identityMap = GltfStaticIdentityMap.Create(asset, renderObjectIds, sourceObjectIds);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(
@@ -5821,7 +5822,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateTwoAnimationClasses().Data);
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5855,12 +5856,12 @@ public class GltfWalkingSkeletonTests
     var first = new MemoryStream();
     var second = new MemoryStream();
 
-    var firstExport = await interchange.ExportGlbAsync(
+    var firstExport = await interchange.ExportGlbWithReceiptAsync(
       asset,
       first,
       new GltfExportOptions(LineageId, DocumentId)
     );
-    var secondExport = await interchange.ExportGlbAsync(
+    var secondExport = await interchange.ExportGlbWithReceiptAsync(
       asset,
       second,
       new GltfExportOptions(LineageId, DocumentId)
@@ -5907,8 +5908,8 @@ public class GltfWalkingSkeletonTests
     try
     {
       var options = new GltfExportOptions(LineageId, DocumentId);
-      var glbExport = await interchange.ExportGlbAsync(asset, glb, options);
-      var separateExport = await interchange.ExportGltfFileAsync(asset, separatePath, options);
+      var glbExport = await interchange.ExportGlbWithReceiptAsync(asset, glb, options);
+      var separateExport = await interchange.ExportGltfFileWithReceiptAsync(asset, separatePath, options);
       glbExport.Status.Should().Be(OperationStatus.Succeeded);
       separateExport.Status.Should().Be(OperationStatus.Succeeded);
       glb.Position = 0;
@@ -5960,7 +5961,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(source);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId, null, null, null, "EDBBPP")
@@ -6010,7 +6011,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(source);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -6054,7 +6055,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(fixture.Data);
     await using var glb = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId, null, null, null, "EDBBPP")
@@ -6092,9 +6093,9 @@ public class GltfWalkingSkeletonTests
       .GetBoolean()
       .Should()
       .BeTrue();
-    root.GetProperty("nodes")[0].GetProperty("name").GetString().Should().Be("EDBBPP_1");
-    root.GetProperty("nodes")[1].GetProperty("name").GetString().Should().Be("EDBBPP_2");
-    root.GetProperty("nodes")[2].GetProperty("name").GetString().Should().Be("EDBBPP_3");
+    root.GetProperty("nodes")[0].GetProperty("name").GetString().Should().Be("ET_Static_1");
+    root.GetProperty("nodes")[1].GetProperty("name").GetString().Should().Be("ET_Static_2");
+    root.GetProperty("nodes")[2].GetProperty("name").GetString().Should().Be("ET_Static_3");
     root.GetProperty("meshes")[0].GetProperty("name").GetString().Should().Be("EDBBPP_1_Mesh");
     root.GetProperty("meshes")[1].GetProperty("name").GetString().Should().Be("EDBBPP_2_Mesh");
     root.GetProperty("meshes")[2].GetProperty("name").GetString().Should().Be("EDBBPP_3_Mesh");
@@ -6129,7 +6130,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -6213,7 +6214,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -6269,7 +6270,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -6308,7 +6309,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(fixture.Data);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -6345,7 +6346,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       boundAsset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -6395,8 +6396,8 @@ public class GltfWalkingSkeletonTests
       await using var first = new MemoryStream();
       await using var second = new MemoryStream();
 
-      var firstResult = await interchange.ExportGlbAsync(asset, first, options);
-      var secondResult = await interchange.ExportGlbAsync(asset, second, options);
+      var firstResult = await interchange.ExportGlbWithReceiptAsync(asset, first, options);
+      var secondResult = await interchange.ExportGlbWithReceiptAsync(asset, second, options);
 
       firstResult
         .Status.Should()
@@ -6425,7 +6426,7 @@ public class GltfWalkingSkeletonTests
         .Should()
         .Be(0);
       await using var withoutPreview = new MemoryStream();
-      await interchange.ExportGlbAsync(
+      await interchange.ExportGlbWithReceiptAsync(
         asset,
         withoutPreview,
         new GltfExportOptions(LineageId, DocumentId)
@@ -6435,7 +6436,7 @@ public class GltfWalkingSkeletonTests
         .GetProperty("byteLength")
         .GetInt32();
       await using var constrained = new MemoryStream();
-      var constrainedResult = await interchange.ExportGlbAsync(
+      var constrainedResult = await interchange.ExportGlbWithReceiptAsync(
         asset,
         constrained,
         options,
@@ -6526,7 +6527,7 @@ public class GltfWalkingSkeletonTests
     try
     {
       await using var glb = new MemoryStream();
-      var result = await new GltfInterchange().ExportGlbAsync(
+      var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
         asset,
         glb,
         new GltfExportOptions(LineageId, DocumentId, [directory]),
@@ -6590,7 +6591,7 @@ public class GltfWalkingSkeletonTests
     {
       var interchange = new GltfInterchange();
       await using var firstOnly = new MemoryStream();
-      await interchange.ExportGlbAsync(
+      await interchange.ExportGlbWithReceiptAsync(
         twoMaterialAsset,
         firstOnly,
         options,
@@ -6614,7 +6615,7 @@ public class GltfWalkingSkeletonTests
       );
       await using var constrained = new MemoryStream();
 
-      var result = await interchange.ExportGlbAsync(
+      var result = await interchange.ExportGlbWithReceiptAsync(
         twoMaterialAsset,
         constrained,
         options,
@@ -6673,8 +6674,8 @@ public class GltfWalkingSkeletonTests
       var options = new GltfExportOptions(LineageId, DocumentId, [directory]);
       var interchange = new GltfInterchange();
 
-      var first = await interchange.ExportGltfFileAsync(asset, firstPath, options);
-      var second = await interchange.ExportGltfFileAsync(asset, secondPath, options);
+      var first = await interchange.ExportGltfFileWithReceiptAsync(asset, firstPath, options);
+      var second = await interchange.ExportGltfFileWithReceiptAsync(asset, secondPath, options);
 
       first
         .Status.Should()
@@ -6789,7 +6790,7 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var result = await new GltfInterchange().ExportGltfFileAsync(
+      var result = await new GltfInterchange().ExportGltfFileWithReceiptAsync(
         asset,
         output,
         new GltfExportOptions(LineageId, DocumentId, [firstRoot, secondRoot])
@@ -6858,7 +6859,7 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var result = await new GltfInterchange().ExportGltfFileAsync(
+      var result = await new GltfInterchange().ExportGltfFileWithReceiptAsync(
         asset,
         output,
         new GltfExportOptions(LineageId, DocumentId, [directory])
@@ -6937,7 +6938,7 @@ public class GltfWalkingSkeletonTests
     {
       var options = new GltfExportOptions(LineageId, DocumentId, [directory]);
       var interchange = new GltfInterchange();
-      var reference = await interchange.ExportGltfFileAsync(boundAsset, referencePath, options);
+      var reference = await interchange.ExportGltfFileWithReceiptAsync(boundAsset, referencePath, options);
       reference
         .Status.Should()
         .Be(
@@ -6949,7 +6950,7 @@ public class GltfWalkingSkeletonTests
       await File.WriteAllBytesAsync(destinationPath, originalManifest);
       await File.WriteAllBytesAsync(Path.Combine(collisionDirectory, imageName), [1, 2, 3]);
 
-      var result = await interchange.ExportGltfFileAsync(boundAsset, destinationPath, options);
+      var result = await interchange.ExportGltfFileWithReceiptAsync(boundAsset, destinationPath, options);
 
       result.Status.Should().Be(OperationStatus.Failed);
       result
@@ -6996,7 +6997,7 @@ public class GltfWalkingSkeletonTests
     {
       var options = new GltfExportOptions(LineageId, DocumentId, [directory]);
       var interchange = new GltfInterchange();
-      (await interchange.ExportGltfFileAsync(boundAsset, referencePath, options))
+      (await interchange.ExportGltfFileWithReceiptAsync(boundAsset, referencePath, options))
         .Status.Should()
         .Be(OperationStatus.Succeeded);
       using var json = JsonDocument.Parse(await File.ReadAllBytesAsync(referencePath));
@@ -7010,7 +7011,7 @@ public class GltfWalkingSkeletonTests
       await File.WriteAllBytesAsync(destinationPath, originalManifest);
       Directory.CreateDirectory(Path.Combine(collisionDirectory, sidecarNames[1]));
 
-      var result = await interchange.ExportGltfFileAsync(boundAsset, destinationPath, options);
+      var result = await interchange.ExportGltfFileWithReceiptAsync(boundAsset, destinationPath, options);
 
       result.Status.Should().Be(OperationStatus.Failed);
       result
@@ -7047,7 +7048,7 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var result = await new GltfInterchange().ExportGltfFileAsync(
+      var result = await new GltfInterchange().ExportGltfFileWithReceiptAsync(
         boundAsset,
         output,
         new GltfExportOptions(LineageId, DocumentId, [directory])
@@ -7109,7 +7110,7 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var result = await new GltfInterchange().ExportGltfFileAsync(
+      var result = await new GltfInterchange().ExportGltfFileWithReceiptAsync(
         boundAsset,
         output,
         new GltfExportOptions(LineageId, DocumentId, [directory])
@@ -7156,7 +7157,7 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var result = await new GltfInterchange().ExportGltfFileAsync(
+      var result = await new GltfInterchange().ExportGltfFileWithReceiptAsync(
         boundAsset,
         output,
         new GltfExportOptions(LineageId, DocumentId, [root])
@@ -7204,7 +7205,7 @@ public class GltfWalkingSkeletonTests
     try
     {
       var interchange = new GltfInterchange();
-      var export = await interchange.ExportGltfFileAsync(
+      var export = await interchange.ExportGltfFileWithReceiptAsync(
         boundAsset,
         output,
         new GltfExportOptions(LineageId, DocumentId, [directory])
@@ -7258,7 +7259,7 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var result = await new GltfInterchange().ExportGltfFileAsync(
+      var result = await new GltfInterchange().ExportGltfFileWithReceiptAsync(
         asset,
         output,
         new GltfExportOptions(LineageId, DocumentId, [firstRoot, secondRoot]),
@@ -7311,7 +7312,7 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var result = await new GltfInterchange().ExportGltfFileAsync(
+      var result = await new GltfInterchange().ExportGltfFileWithReceiptAsync(
         boundAsset,
         output,
         new GltfExportOptions(LineageId, DocumentId, [directory]),
@@ -7334,292 +7335,12 @@ public class GltfWalkingSkeletonTests
   }
 
   [Fact]
-  public async Task GlbAndSeparateGltfWithPreviewsRestoreEquivalentMshState()
-  {
-    var boundAsset = CreateTextureBoundAsset("Textures\\preview.tex");
-    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-    var textureDirectory = Path.Combine(directory, "Textures");
-    var separatePath = Path.Combine(directory, "model.gltf");
-    var glbPath = Path.Combine(directory, "model.glb");
-    Directory.CreateDirectory(textureDirectory);
-    await File.WriteAllBytesAsync(
-      Path.Combine(textureDirectory, "preview.tex"),
-      CreateRgbaTex(1, 1, [0xFF, 0, 0, 0xFF])
-    );
-
-    try
-    {
-      var options = new GltfExportOptions(LineageId, DocumentId, [directory]);
-      var interchange = new GltfInterchange();
-      await using var glb = new MemoryStream();
-      var glbExport = await interchange.ExportGlbAsync(boundAsset, glb, options);
-      var separateExport = await interchange.ExportGltfFileAsync(
-        boundAsset,
-        separatePath,
-        options
-      );
-      await File.WriteAllBytesAsync(glbPath, glb.ToArray());
-
-      glbExport.Status.Should().Be(OperationStatus.Succeeded);
-      separateExport.Status.Should().Be(OperationStatus.Succeeded);
-      glb.Position = 0;
-      (await interchange.ValidateGlbAsync(glb)).Status.Should().Be(OperationStatus.Succeeded);
-      (await interchange.ValidateGltfFileAsync(separatePath))
-        .Status.Should()
-        .Be(OperationStatus.Succeeded);
-      glb.Position = 0;
-      var glbImport = await interchange.ImportEditGlbAsync(glb, glbExport.Value!.Baseline);
-      var separateImport = await interchange.ImportEditGltfFileAsync(
-        separatePath,
-        separateExport.Value!.Baseline
-      );
-      glb.Position = 0;
-      var glbCreation = await interchange.CreateMeshAsync(glb);
-      var separateCreation = await interchange.CreateMeshFileAsync(separatePath);
-      await using var glbMsh = new MemoryStream();
-      await using var separateMsh = new MemoryStream();
-      await new MshWriter().WriteAsync(glbImport.Value!.Asset, glbMsh);
-      await new MshWriter().WriteAsync(separateImport.Value!.Asset, separateMsh);
-      separateMsh.ToArray().Should().Equal(glbMsh.ToArray());
-      glbCreation.Status.Should().Be(OperationStatus.Succeeded);
-      separateCreation.Status.Should().Be(OperationStatus.Succeeded);
-      glbCreation
-        .Value!.Asset.GetSerializedRepresentation()
-        .Should()
-        .Equal(separateCreation.Value!.Asset.GetSerializedRepresentation());
-      glbCreation
-        .Value.Preservation.Changes.Select(change =>
-          (change.FieldPath, change.Disposition, change.Reason)
-        )
-        .Should()
-        .Equal(
-          separateCreation.Value.Preservation.Changes.Select(change =>
-            (change.FieldPath, change.Disposition, change.Reason)
-          )
-        );
-      (await new MshValidator().ValidateAsync(glbCreation.Value.Asset))
-        .Status.Should()
-        .Be(OperationStatus.Succeeded);
-      (await new MshValidator().ValidateAsync(separateCreation.Value.Asset))
-        .Status.Should()
-        .Be(OperationStatus.Succeeded);
-      await AssertKhronosValidAsync(glbPath);
-      await AssertKhronosValidAsync(separatePath);
-    }
-    finally
-    {
-      Directory.Delete(directory, true);
-    }
-  }
-
-  [Fact]
-  public async Task UnifiedCreationCreatesMetadataBackedStaticAssetFromStream()
-  {
-    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
-    var interchange = new GltfInterchange();
-    await using var package = new MemoryStream();
-    await interchange.ExportGlbAsync(
-      sourceAsset,
-      package,
-      new GltfExportOptions(LineageId, DocumentId)
-    );
-    package.Position = 0;
-
-    var created = await interchange.CreateMeshAsync(package);
-
-    created.Status.Should().Be(OperationStatus.Succeeded);
-    created.Value!.Asset.Should().BeOfType<StaticMeshAsset>();
-    created.Value.Asset.Origin.Should().Be(MeshAssetOrigin.Loaded);
-    created
-      .Value.Asset.GetSerializedRepresentation()
-      .Should()
-      .Equal(sourceAsset.GetSerializedRepresentation());
-    created.Value.Preservation.Changes.Should().NotBeEmpty();
-  }
-
-  [Fact]
-  public async Task UnifiedCreationCreatesMetadataBackedStaticAssetFromFile()
-  {
-    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
-    var interchange = new GltfInterchange();
-    var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-    var path = Path.Combine(directory, "model.gltf");
-    Directory.CreateDirectory(directory);
-    try
-    {
-      await interchange.ExportGltfFileAsync(
-        sourceAsset,
-        path,
-        new GltfExportOptions(LineageId, DocumentId)
-      );
-
-      var created = await interchange.CreateMeshFileAsync(path);
-
-      created.Status.Should().Be(OperationStatus.Succeeded);
-      created.Value!.Asset.Should().BeOfType<StaticMeshAsset>();
-      created
-        .Value.Asset.GetSerializedRepresentation()
-        .Should()
-        .Equal(sourceAsset.GetSerializedRepresentation());
-      created.Value.Preservation.Changes.Should().NotBeEmpty();
-    }
-    finally
-    {
-      Directory.Delete(directory, true);
-    }
-  }
-
-  [Fact]
-  public async Task UnifiedStaticCreationReturnsIdentityFreePreservationAndDirectTreeReferences()
-  {
-    var sourceAsset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
-    var interchange = new GltfInterchange();
-    await using var package = new MemoryStream();
-    await interchange.ExportGlbAsync(
-      sourceAsset,
-      package,
-      new GltfExportOptions(LineageId, DocumentId)
-    );
-    package.Position = 0;
-
-    var created = await interchange.CreateMeshAsync(package);
-
-    created.Status.Should().Be(OperationStatus.Succeeded);
-    var asset = created.Value!.Asset.Should().BeOfType<StaticMeshAsset>().Subject;
-    var grouped = EarthTool.GLTF.Internal.StaticSourceObjectTraversal
-      .Flatten(asset.RootSourceObject)
-      .SelectMany(source => source.StaticRenderObjects)
-      .ToArray();
-    grouped.Should().HaveSameCount(asset.StaticRenderObjectSequence);
-    foreach (var renderObject in grouped)
-    {
-      asset
-        .StaticRenderObjectSequence.Should()
-        .ContainSingle(candidate => ReferenceEquals(candidate, renderObject));
-    }
-    foreach (var renderObject in asset.StaticRenderObjectSequence)
-    {
-      grouped.Should().ContainSingle(candidate => ReferenceEquals(candidate, renderObject));
-    }
-    foreach (var source in EarthTool.GLTF.Internal.StaticSourceObjectTraversal.Flatten(
-      asset.RootSourceObject
-    ))
-    {
-      source
-        .StaticRenderObjects.Select(renderObject =>
-          asset
-            .StaticRenderObjectSequence.Select((candidate, index) => (candidate, index))
-            .Single(item => ReferenceEquals(item.candidate, renderObject))
-            .index
-        )
-        .Should()
-        .BeInAscendingOrder();
-    }
-    created
-      .Value.Preservation.Changes.Should()
-      .NotContain(change => change.FieldPath.EndsWith("Id", StringComparison.Ordinal));
-    created
-      .Value.Preservation.Changes.Should()
-      .Contain(change =>
-        change.FieldPath == "RootSourceObject"
-        && change.Disposition == PreservationDisposition.Retained
-      );
-  }
-
-  [Fact]
-  public async Task UnifiedStaticCreationRegeneratesOnlyDeclaredArtistRepresentations()
-  {
-    var sourceBytes = OneTriangleMshFixture.Create(
-      0x20D0A1FF,
-      null,
-      OneTriangleMshFixture.CreationGuid,
-      OneTriangleMshFixture.WriteDistinctCommonHeaderRegions
-    );
-    var sourceAsset = await ReadAssetAsync(sourceBytes);
-    var sourceHeader = sourceAsset.CommonBaseHeader.SerializedRepresentation.ToArray();
-    var interchange = new GltfInterchange();
-    await using var package = new MemoryStream();
-    await interchange.ExportGlbAsync(
-      sourceAsset,
-      package,
-      new GltfExportOptions(LineageId, DocumentId)
-    );
-    var bytes = package.ToArray();
-    BinaryPrimitives.WriteInt32LittleEndian(
-      bytes.AsSpan(GetBinaryChunkOffset(bytes)),
-      BitConverter.SingleToInt32Bits(0.25f)
-    );
-    await using var edited = new MemoryStream(bytes);
-
-    var created = await interchange.CreateMeshAsync(edited);
-
-    created.Status.Should().Be(OperationStatus.Succeeded);
-    var asset = created.Value!.Asset.Should().BeOfType<StaticMeshAsset>().Subject;
-    asset.StaticRenderObjectSequence[0].RenderVertices[0].Position.Should().Be(new Vector3(0.25f, 0, 0));
-    var resultHeader = asset.CommonBaseHeader.SerializedRepresentation.ToArray();
-    resultHeader[..0x360].Should().Equal(sourceHeader[..0x360]);
-    created
-      .Value.Preservation.Changes.Should()
-      .Contain(change =>
-        change.FieldPath == "StaticRenderObjectSequence[0].RenderVertices"
-        && change.Disposition == PreservationDisposition.Regenerated
-      );
-    created
-      .Value.Preservation.Changes.Should()
-      .Contain(change =>
-        change.FieldPath == "CommonBaseHeader.HorizontalExtents"
-        && change.Disposition == PreservationDisposition.Regenerated
-      );
-    created
-      .Value.Preservation.Changes.Should()
-      .NotContain(change => change.FieldPath == "CommonBaseHeader");
-    created
-      .Value.Preservation.Changes.Should()
-      .NotContain(change => change.FieldPath.EndsWith("Id", StringComparison.Ordinal));
-  }
-
-  [Fact]
-  public async Task UnifiedCreationAuthorsMetadataFreeStaticAssetWithWarning()
-  {
-    var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
-    var interchange = new GltfInterchange();
-    await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
-      sourceAsset,
-      exported,
-      new GltfExportOptions(LineageId, DocumentId)
-    );
-    var metadataFree = RewriteJson(exported.ToArray(), RemoveEarthToolMetadata);
-    await using var source = new MemoryStream(metadataFree);
-
-    var created = await interchange.CreateMeshAsync(source);
-
-    created
-      .Status.Should()
-      .Be(
-        OperationStatus.Succeeded,
-        string.Join(
-          "; ",
-          created.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}")
-        )
-      );
-    created.Value!.Asset.Should().BeOfType<StaticMeshAsset>();
-    created.Value.Asset.Origin.Should().Be(MeshAssetOrigin.Canonical);
-    created
-      .Diagnostics.Should()
-      .ContainSingle(diagnostic =>
-        diagnostic.Code == GltfDiagnosticCodes.MissingManifest
-        && diagnostic.Severity == DiagnosticSeverity.Warning
-      );
-  }
-
-  [Fact]
   public async Task NewModelImportAuthorsCanonicalAssetAndUsableFirstMetadataBaseline()
   {
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -7654,7 +7375,7 @@ public class GltfWalkingSkeletonTests
       );
 
     await using var baseline = new MemoryStream();
-    var firstBaseline = await interchange.ExportGlbAsync(
+    var firstBaseline = await interchange.ExportGlbWithReceiptAsync(
       result.Asset,
       baseline,
       new GltfExportOptions(result.Baseline.AssetLineageId, result.Baseline.DocumentId)
@@ -7680,7 +7401,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -7726,7 +7447,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -7771,7 +7492,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -7827,7 +7548,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -7875,7 +7596,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -7932,7 +7653,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -7968,7 +7689,7 @@ public class GltfWalkingSkeletonTests
     );
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8028,7 +7749,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8096,7 +7817,7 @@ public class GltfWalkingSkeletonTests
       }
     );
     await using var exportedGlb = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exportedGlb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8111,7 +7832,7 @@ public class GltfWalkingSkeletonTests
     Directory.CreateDirectory(directory);
     try
     {
-      var export = await interchange.ExportGltfFileAsync(
+      var export = await interchange.ExportGltfFileWithReceiptAsync(
         sourceAsset,
         path,
         new GltfExportOptions(LineageId, DocumentId)
@@ -8185,7 +7906,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8267,7 +7988,7 @@ public class GltfWalkingSkeletonTests
     Directory.CreateDirectory(directory);
     try
     {
-      var export = await interchange.ExportGltfFileAsync(
+      var export = await interchange.ExportGltfFileWithReceiptAsync(
         sourceAsset,
         path,
         new GltfExportOptions(LineageId, DocumentId)
@@ -8316,7 +8037,7 @@ public class GltfWalkingSkeletonTests
     Directory.CreateDirectory(directory);
     try
     {
-      var export = await interchange.ExportGltfFileAsync(
+      var export = await interchange.ExportGltfFileWithReceiptAsync(
         sourceAsset,
         path,
         new GltfExportOptions(LineageId, DocumentId)
@@ -8354,7 +8075,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var exportedGlb = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exportedGlb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8368,7 +8089,7 @@ public class GltfWalkingSkeletonTests
     Directory.CreateDirectory(directory);
     try
     {
-      var separateExport = await interchange.ExportGltfFileAsync(
+      var separateExport = await interchange.ExportGltfFileWithReceiptAsync(
         sourceAsset,
         path,
         new GltfExportOptions(LineageId, DocumentId)
@@ -8404,7 +8125,7 @@ public class GltfWalkingSkeletonTests
     Directory.CreateDirectory(directory);
     try
     {
-      var export = await interchange.ExportGltfFileAsync(
+      var export = await interchange.ExportGltfFileWithReceiptAsync(
         sourceAsset,
         path,
         new GltfExportOptions(LineageId, DocumentId)
@@ -8441,7 +8162,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8490,7 +8211,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8531,7 +8252,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8628,7 +8349,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     await using var claimed = new MemoryStream();
     var interchange = new GltfInterchange();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       claimed,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8652,7 +8373,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8679,7 +8400,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8713,7 +8434,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8776,7 +8497,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var exported = new MemoryStream();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8832,7 +8553,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     await using var exported = new MemoryStream();
     var interchange = new GltfInterchange();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8901,7 +8622,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     await using var exported = new MemoryStream();
     var interchange = new GltfInterchange();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8927,7 +8648,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     await using var exported = new MemoryStream();
     var interchange = new GltfInterchange();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -8971,7 +8692,7 @@ public class GltfWalkingSkeletonTests
     var sourceAsset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     await using var exported = new MemoryStream();
     var interchange = new GltfInterchange();
-    await interchange.ExportGlbAsync(
+    await interchange.ExportGlbWithReceiptAsync(
       sourceAsset,
       exported,
       new GltfExportOptions(LineageId, DocumentId)
@@ -9001,7 +8722,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(fixture.Data);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -9040,7 +8761,7 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var export = await interchange.ExportGltfFileAsync(
+      var export = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(LineageId, DocumentId)
@@ -9083,8 +8804,8 @@ public class GltfWalkingSkeletonTests
     var nonFinite = await ReadAssetAsync(source);
     await using var destination = new MemoryStream();
 
-    var invalid = await new GltfInterchange().ExportGlbAsync(nonFinite, destination);
-    var limited = await new GltfInterchange().ExportGlbAsync(
+    var invalid = await new GltfInterchange().ExportGlbWithReceiptAsync(nonFinite, destination);
+    var limited = await new GltfInterchange().ExportGlbWithReceiptAsync(
       await ReadAssetAsync(OneTriangleMshFixture.Create()),
       destination,
       profile: new GltfOperationProfile(maxActiveRenderVertices: 2)
@@ -9116,7 +8837,7 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var export = await interchange.ExportGltfFileAsync(
+      var export = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(LineageId, DocumentId)
@@ -9158,7 +8879,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -9197,7 +8918,7 @@ public class GltfWalkingSkeletonTests
     build.TryGetValue(out var asset).Should().BeTrue();
     await using var glb = new MemoryStream();
 
-    var result = await new GltfInterchange().ExportGlbAsync(
+    var result = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset!,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -9231,7 +8952,7 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var export = await interchange.ExportGltfFileAsync(
+      var export = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(LineageId, DocumentId)
@@ -9282,7 +9003,7 @@ public class GltfWalkingSkeletonTests
     var original = asset.StaticRenderObjectSequence[0].GetSerializedRepresentation();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -9347,7 +9068,7 @@ public class GltfWalkingSkeletonTests
       Directory.CreateDirectory(directory);
       try
       {
-        var export = await interchange.ExportGltfFileAsync(
+        var export = await interchange.ExportGltfFileWithReceiptAsync(
           asset,
           path,
           new GltfExportOptions(LineageId, DocumentId)
@@ -9364,7 +9085,7 @@ public class GltfWalkingSkeletonTests
     else
     {
       await using var glb = new MemoryStream();
-      var export = await interchange.ExportGlbAsync(
+      var export = await interchange.ExportGlbWithReceiptAsync(
         asset,
         glb,
         new GltfExportOptions(LineageId, DocumentId)
@@ -9394,7 +9115,7 @@ public class GltfWalkingSkeletonTests
     try
     {
       var interchange = new GltfInterchange(new FailingManifestTransactionalFileSystem());
-      var result = await interchange.ExportGltfFileAsync(
+      var result = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(LineageId, DocumentId)
@@ -9434,8 +9155,8 @@ public class GltfWalkingSkeletonTests
     {
       var failing = new GltfInterchange(new FailingManifestTransactionalFileSystem());
 
-      var firstFailure = await failing.ExportGltfFileAsync(asset, path, options);
-      var repeatedFailure = await failing.ExportGltfFileAsync(asset, path, options);
+      var firstFailure = await failing.ExportGltfFileWithReceiptAsync(asset, path, options);
+      var repeatedFailure = await failing.ExportGltfFileWithReceiptAsync(asset, path, options);
 
       repeatedFailure
         .Diagnostics.Select(diagnostic =>
@@ -9480,7 +9201,7 @@ public class GltfWalkingSkeletonTests
     var options = new GltfExportOptions(LineageId, DocumentId);
     Directory.CreateDirectory(directory);
     await File.WriteAllBytesAsync(path, original);
-    await new GltfInterchange(new FailingManifestTransactionalFileSystem()).ExportGltfFileAsync(
+    await new GltfInterchange(new FailingManifestTransactionalFileSystem()).ExportGltfFileWithReceiptAsync(
       asset,
       path,
       options
@@ -9488,7 +9209,7 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var retry = await new GltfInterchange().ExportGltfFileAsync(asset, path, options);
+      var retry = await new GltfInterchange().ExportGltfFileWithReceiptAsync(asset, path, options);
 
       retry.Status.Should().Be(OperationStatus.Succeeded);
       (await new GltfInterchange().ValidateGltfFileAsync(path))
@@ -9516,7 +9237,7 @@ public class GltfWalkingSkeletonTests
     {
       var result = await new GltfInterchange(
         new CorruptingSidecarTransactionalFileSystem()
-      ).ExportGltfFileAsync(asset, path, new GltfExportOptions(LineageId, DocumentId));
+      ).ExportGltfFileWithReceiptAsync(asset, path, new GltfExportOptions(LineageId, DocumentId));
 
       result.Status.Should().Be(OperationStatus.Failed);
       result
@@ -9548,7 +9269,7 @@ public class GltfWalkingSkeletonTests
     try
     {
       var interchange = new GltfInterchange();
-      var export = await interchange.ExportGltfFileAsync(
+      var export = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(LineageId, DocumentId)
@@ -9590,7 +9311,7 @@ public class GltfWalkingSkeletonTests
     var commonHeader = asset.CommonBaseHeader.SerializedRepresentation.ToArray();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -9681,7 +9402,7 @@ public class GltfWalkingSkeletonTests
     var loadedExtents = asset.CommonBaseHeader.HorizontalExtents.ToArray();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -9728,7 +9449,7 @@ public class GltfWalkingSkeletonTests
     var loadedExtents = asset.CommonBaseHeader.HorizontalExtents.ToArray();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -9766,7 +9487,7 @@ public class GltfWalkingSkeletonTests
     var loadedExtents = asset.CommonBaseHeader.HorizontalExtents.ToArray();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -9806,7 +9527,7 @@ public class GltfWalkingSkeletonTests
     var sourceRecord = asset.StaticRenderObjectSequence[1];
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -9857,7 +9578,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -9910,7 +9631,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -9958,7 +9679,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -10000,7 +9721,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -10079,7 +9800,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -10135,7 +9856,7 @@ public class GltfWalkingSkeletonTests
     Directory.CreateDirectory(directory);
     try
     {
-      var export = await interchange.ExportGltfFileAsync(
+      var export = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(LineageId, DocumentId)
@@ -10179,7 +9900,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -10225,7 +9946,7 @@ public class GltfWalkingSkeletonTests
       .ToArray();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(
@@ -10305,7 +10026,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
     var interchange = new GltfInterchange();
     await using var firstGlb = new MemoryStream();
-    var firstExport = await interchange.ExportGlbAsync(
+    var firstExport = await interchange.ExportGlbWithReceiptAsync(
       asset,
       firstGlb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -10322,7 +10043,7 @@ public class GltfWalkingSkeletonTests
     var deleted = await interchange.ImportEditGlbAsync(deletedGlb, firstExport.Value!.Baseline);
     deleted.Status.Should().Be(OperationStatus.Succeeded);
     await using var secondGlb = new MemoryStream();
-    var secondExport = await interchange.ExportGlbAsync(
+    var secondExport = await interchange.ExportGlbWithReceiptAsync(
       deleted.Value!.Asset,
       secondGlb,
       deleted.Value.NextExportOptions
@@ -10361,7 +10082,7 @@ public class GltfWalkingSkeletonTests
   {
     var interchange = new GltfInterchange();
     await using var firstGlb = new MemoryStream();
-    var firstExport = await interchange.ExportGlbAsync(
+    var firstExport = await interchange.ExportGlbWithReceiptAsync(
       await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data),
       firstGlb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -10377,7 +10098,7 @@ public class GltfWalkingSkeletonTests
     );
     firstImport.Status.Should().Be(OperationStatus.Succeeded);
     await using var secondGlb = new MemoryStream();
-    var secondExport = await interchange.ExportGlbAsync(
+    var secondExport = await interchange.ExportGlbWithReceiptAsync(
       firstImport.Value!.Asset,
       secondGlb,
       firstImport.Value.NextExportOptions
@@ -10410,7 +10131,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -10451,7 +10172,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(sourceBytes);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -10490,7 +10211,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -10552,7 +10273,7 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var first = await interchange.ExportGltfFileAsync(
+      var first = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         manifestPath,
         new GltfExportOptions(LineageId, DocumentId)
@@ -10566,7 +10287,7 @@ public class GltfWalkingSkeletonTests
       var originalBuffer = await File.ReadAllBytesAsync(bufferPath);
 
       var collisionPath = Path.Combine(directory, Path.GetFileName(bufferPath).ToUpperInvariant());
-      var collision = await interchange.ExportGltfFileAsync(
+      var collision = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         collisionPath,
         new GltfExportOptions(LineageId, DocumentId)
@@ -10593,7 +10314,7 @@ public class GltfWalkingSkeletonTests
     var interchange = new GltfInterchange();
     var profile = new GltfOperationProfile(maxMetadataBytes: 64);
     await using var glb = new MemoryStream();
-    var glbExport = await interchange.ExportGlbAsync(
+    var glbExport = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -10606,7 +10327,7 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var gltfExport = await interchange.ExportGltfFileAsync(
+      var gltfExport = await interchange.ExportGltfFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(LineageId, DocumentId)
@@ -10649,7 +10370,7 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var result = await new GltfInterchange().ExportGltfFileAsync(
+      var result = await new GltfInterchange().ExportGltfFileWithReceiptAsync(
         asset,
         path,
         cancellationToken: cancellation.Token
@@ -10678,7 +10399,7 @@ public class GltfWalkingSkeletonTests
     try
     {
       var interchange = new GltfInterchange(new FailingSidecarTransactionalFileSystem());
-      var result = await interchange.ExportGltfFileAsync(asset, path);
+      var result = await interchange.ExportGltfFileWithReceiptAsync(asset, path);
 
       result.Status.Should().Be(OperationStatus.Failed);
       result
@@ -10709,7 +10430,7 @@ public class GltfWalkingSkeletonTests
     try
     {
       var fileSystem = new CancellingAfterSidecarTransactionalFileSystem(cancellation);
-      var result = await new GltfInterchange(fileSystem).ExportGltfFileAsync(
+      var result = await new GltfInterchange(fileSystem).ExportGltfFileWithReceiptAsync(
         asset,
         path,
         cancellationToken: cancellation.Token
@@ -10744,8 +10465,8 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var glbResult = await interchange.ExportGlbAsync(asset, glb, profile: profile);
-      var gltfResult = await interchange.ExportGltfFileAsync(asset, path, profile: profile);
+      var glbResult = await interchange.ExportGlbWithReceiptAsync(asset, glb, profile: profile);
+      var gltfResult = await interchange.ExportGltfFileWithReceiptAsync(asset, path, profile: profile);
 
       glbResult.Status.Should().Be(OperationStatus.Failed);
       glbResult
@@ -10777,7 +10498,7 @@ public class GltfWalkingSkeletonTests
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
 
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -10818,7 +10539,7 @@ public class GltfWalkingSkeletonTests
 
     var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     await using var glb = new MemoryStream();
-    var export = await new GltfInterchange().ExportGlbAsync(
+    var export = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -10854,7 +10575,7 @@ public class GltfWalkingSkeletonTests
       )
     );
     await using var glb = new MemoryStream();
-    var export = await new GltfInterchange().ExportGlbAsync(
+    var export = await new GltfInterchange().ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -10894,7 +10615,7 @@ public class GltfWalkingSkeletonTests
           matrices: [Matrix4x4.Identity, Matrix4x4.CreateRotationZ(0.5f)]
         )
       );
-      var export = await new GltfInterchange().ExportGltfFileAsync(
+      var export = await new GltfInterchange().ExportGltfFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(LineageId, DocumentId)
@@ -10922,7 +10643,7 @@ public class GltfWalkingSkeletonTests
     var sourceHeader = asset.CommonBaseHeader.SerializedRepresentation.ToArray();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -10990,7 +10711,7 @@ public class GltfWalkingSkeletonTests
     var loadedExtents = asset.CommonBaseHeader.HorizontalExtents.ToArray();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -11032,7 +10753,7 @@ public class GltfWalkingSkeletonTests
     var loadedExtents = asset.CommonBaseHeader.HorizontalExtents.ToArray();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -11084,7 +10805,7 @@ public class GltfWalkingSkeletonTests
     var loadedExtents = asset.CommonBaseHeader.HorizontalExtents.ToArray();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -11123,7 +10844,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -11181,7 +10902,7 @@ public class GltfWalkingSkeletonTests
       .ToArray();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -11264,7 +10985,7 @@ public class GltfWalkingSkeletonTests
     var originalRecords = asset.StaticRenderObjectSequence.ToArray();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -11293,7 +11014,7 @@ public class GltfWalkingSkeletonTests
   {
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       CreateTwoPartitionAsset(),
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -11329,7 +11050,7 @@ public class GltfWalkingSkeletonTests
     var retainedBytes = retained.GetSerializedRepresentation();
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -11367,7 +11088,7 @@ public class GltfWalkingSkeletonTests
   {
     var interchange = new GltfInterchange();
     await using var firstGlb = new MemoryStream();
-    var firstExport = await interchange.ExportGlbAsync(
+    var firstExport = await interchange.ExportGlbWithReceiptAsync(
       CreateTwoPartitionAsset(),
       firstGlb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -11384,7 +11105,7 @@ public class GltfWalkingSkeletonTests
       .ContainSingle()
       .Subject;
     await using var secondGlb = new MemoryStream();
-    var secondExport = await interchange.ExportGlbAsync(
+    var secondExport = await interchange.ExportGlbWithReceiptAsync(
       deleted.Value.Asset,
       secondGlb,
       deleted.Value.NextExportOptions
@@ -11412,7 +11133,7 @@ public class GltfWalkingSkeletonTests
   {
     var interchange = new GltfInterchange();
     await using var firstGlb = new MemoryStream();
-    var firstExport = await interchange.ExportGlbAsync(
+    var firstExport = await interchange.ExportGlbWithReceiptAsync(
       CreateTwoPartitionAsset("Textures\\authored\\shared.tex"),
       firstGlb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -11432,7 +11153,7 @@ public class GltfWalkingSkeletonTests
     );
     firstImport.Status.Should().Be(OperationStatus.Succeeded);
     await using var secondGlb = new MemoryStream();
-    var secondExport = await interchange.ExportGlbAsync(
+    var secondExport = await interchange.ExportGlbWithReceiptAsync(
       firstImport.Value!.Asset,
       secondGlb,
       firstImport.Value.NextExportOptions
@@ -11469,7 +11190,7 @@ public class GltfWalkingSkeletonTests
     var asset = CreateTwoPartitionAsset("Textures\\authored\\shared.tex");
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -11523,7 +11244,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     var interchange = new GltfInterchange();
     await using var glb = new MemoryStream();
-    await interchange.ExportGlbAsync(asset, glb, new GltfExportOptions(LineageId, DocumentId));
+    await interchange.ExportGlbWithReceiptAsync(asset, glb, new GltfExportOptions(LineageId, DocumentId));
     glb.Position = 0;
 
     var result = await interchange.ImportEditGlbAsync(
@@ -11546,7 +11267,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -11571,7 +11292,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -11597,7 +11318,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -11625,7 +11346,7 @@ public class GltfWalkingSkeletonTests
     var asset = await ReadAssetAsync(OneTriangleMshFixture.Create());
     await using var glb = new MemoryStream();
     var interchange = new GltfInterchange();
-    var export = await interchange.ExportGlbAsync(
+    var export = await interchange.ExportGlbWithReceiptAsync(
       asset,
       glb,
       new GltfExportOptions(LineageId, DocumentId)
@@ -11664,7 +11385,7 @@ public class GltfWalkingSkeletonTests
     try
     {
       var interchange = new GltfInterchange(new FailingTransactionalFileSystem());
-      var result = await interchange.ExportGlbFileAsync(
+      var result = await interchange.ExportGlbFileWithReceiptAsync(
         asset,
         path,
         new GltfExportOptions(LineageId, DocumentId)
@@ -11696,7 +11417,7 @@ public class GltfWalkingSkeletonTests
 
     try
     {
-      var result = await new GltfInterchange().ExportGlbFileAsync(
+      var result = await new GltfInterchange().ExportGlbFileWithReceiptAsync(
         asset,
         path,
         cancellationToken: cancellation.Token

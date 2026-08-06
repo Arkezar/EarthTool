@@ -14,6 +14,58 @@ namespace EarthTool.MSH.Tests;
 public sealed class CanonicalDynamicGltfCreationTests
 {
   [Fact]
+  public async Task UntouchedVisibleExportCarriesCanonicalAuthoringValuesForBothPackages()
+  {
+    var frames = new CanonicalDynamicFrameSequence(0, 2, 3);
+    const string textureKey = "Textures\\effects\\track.tex";
+    var source = DynamicMeshBuilder.Create()
+      .SetRoot(
+        DynamicEffectRecipes.Track(
+          frames,
+          new EffectRectangle(-1, 1, 1, -1),
+          new EffectRectangle(-2, 2, 2, -2),
+          textureKey,
+          new CanonicalDynamicAlpha(0.75f, 0.25f, DynamicAlphaTiming.LifetimeProgress),
+          true))
+      .Build();
+    source.TryGetValue(out var sourceAsset).Should().BeTrue();
+    var options = new GltfNewModelImportOptions(
+      textureResourceBindings: new Dictionary<GltfMaterialHandle, string?>
+      {
+        [new GltfMaterialHandle(1)] = textureKey,
+      });
+    var interchange = new GltfInterchange();
+    await using var glb = new MemoryStream();
+    var glbExport = await interchange.ExportGlbAsync(sourceAsset!, glb);
+    glbExport.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(glbExport.Diagnostics));
+    glb.Position = 0;
+    var glbCreation = await interchange.CreateMeshAsync(glb, options);
+
+    var directory = Path.Combine(Path.GetTempPath(), $"earthtool-dynamic-cutover-{Guid.NewGuid():N}");
+    var gltfPath = Path.Combine(directory, "model.gltf");
+    Directory.CreateDirectory(directory);
+    try
+    {
+      var gltfExport = await interchange.ExportGltfFileAsync(sourceAsset!, gltfPath);
+      gltfExport.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(gltfExport.Diagnostics));
+      var gltfCreation = await interchange.CreateMeshFileAsync(gltfPath, options);
+
+      glbCreation.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(glbCreation.Diagnostics));
+      gltfCreation.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(gltfCreation.Diagnostics));
+      AssertEqualExceptCreationGuid(
+        sourceAsset!.GetSerializedRepresentation(),
+        glbCreation.Value!.GetSerializedRepresentation());
+      AssertEqualExceptCreationGuid(
+        sourceAsset.GetSerializedRepresentation(),
+        gltfCreation.Value!.GetSerializedRepresentation());
+    }
+    finally
+    {
+      Directory.Delete(directory, recursive: true);
+    }
+  }
+
+  [Fact]
   public async Task ChildTranslationAnimationRegeneratesStartAndEndFromGltfHierarchy()
   {
     var child = DynamicEffectRecipes.Group().SetChildTranslation(
@@ -36,7 +88,7 @@ public sealed class CanonicalDynamicGltfCreationTests
     result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
     AssertEqualExceptCreationGuid(
       sourceAsset!.GetSerializedRepresentation(),
-      result.Value!.Asset.GetSerializedRepresentation()
+      result.Value!.GetSerializedRepresentation()
     );
   }
 
@@ -112,7 +164,7 @@ public sealed class CanonicalDynamicGltfCreationTests
     var result = await new GltfInterchange().CreateMeshAsync(input);
 
     result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
-    result.Value!.Asset.Should().BeOfType<DynamicMeshAsset>();
+    result.Value!.Should().BeOfType<DynamicMeshAsset>();
     result.Diagnostics.Should().HaveCount(2);
     result.Diagnostics.Should().OnlyContain(item =>
       item.Code == GltfAuthoringMetadataDiagnosticCodes.OptionalValueDefaulted
@@ -187,7 +239,7 @@ public sealed class CanonicalDynamicGltfCreationTests
     var result = await new GltfInterchange().CreateMeshAsync(input, options);
 
     result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
-    var actual = result.Value!.Asset.Should().BeOfType<DynamicMeshAsset>().Subject;
+    var actual = result.Value!.Should().BeOfType<DynamicMeshAsset>().Subject;
     AssertEqualExceptCreationGuid(
       sourceAsset!.GetSerializedRepresentation(),
       actual.GetSerializedRepresentation()
@@ -233,8 +285,8 @@ public sealed class CanonicalDynamicGltfCreationTests
         Diagnostics(gltfCreated.Diagnostics)
       );
       AssertEqualExceptCreationGuid(
-        glbCreated.Value!.Asset.GetSerializedRepresentation(),
-        gltfCreated.Value!.Asset.GetSerializedRepresentation()
+        glbCreated.Value!.GetSerializedRepresentation(),
+        gltfCreated.Value!.GetSerializedRepresentation()
       );
     }
     finally
@@ -279,7 +331,7 @@ public sealed class CanonicalDynamicGltfCreationTests
     var result = await new GltfInterchange().CreateMeshAsync(input, options);
 
     result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
-    var actual = result.Value!.Asset.Should().BeOfType<DynamicMeshAsset>().Subject;
+    var actual = result.Value!.Should().BeOfType<DynamicMeshAsset>().Subject;
     AssertEqualExceptCreationGuid(
       sourceAsset!.GetSerializedRepresentation(),
       actual.GetSerializedRepresentation()
@@ -349,7 +401,7 @@ public sealed class CanonicalDynamicGltfCreationTests
     var result = await interchange.CreateMeshAsync(input, options);
 
     result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
-    var actual = result.Value!.Asset.Should().BeOfType<DynamicMeshAsset>().Subject;
+    var actual = result.Value!.Should().BeOfType<DynamicMeshAsset>().Subject;
     actual.Origin.Should().Be(MeshAssetOrigin.Canonical);
     AssertEqualExceptCreationGuid(
       sourceAsset!.GetSerializedRepresentation(),
@@ -390,7 +442,7 @@ public sealed class CanonicalDynamicGltfCreationTests
     var result = await interchange.CreateMeshAsync(input);
 
     result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
-    var asset = result.Value!.Asset.Should().BeOfType<DynamicMeshAsset>().Subject;
+    var asset = result.Value!.Should().BeOfType<DynamicMeshAsset>().Subject;
     asset.Origin.Should().Be(MeshAssetOrigin.Canonical);
     asset.RootDynamicObject.Extension.KnownEffectType.Should().Be(DynamicEffectType.Group);
     asset.RootDynamicObject.Children.Should().HaveCount(2);

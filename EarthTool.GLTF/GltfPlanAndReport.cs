@@ -35,7 +35,7 @@ namespace EarthTool.GLTF
     /// <summary>Gets the CLI-report protocol identifier.</summary>
     public const string Identifier = "earthtool.msh.cli-report";
     /// <summary>Gets the current CLI-report protocol version.</summary>
-    public const int Version = 1;
+    public const int Version = 2;
     /// <summary>Gets every CLI-report version emitted by this build.</summary>
     public static IReadOnlyList<int> SupportedVersions { get; } = Array.AsReadOnly(new[] { Version });
   }
@@ -1099,10 +1099,6 @@ namespace EarthTool.GLTF
   {
     /// <summary>MSH to glTF export.</summary>
     Export = 0,
-    /// <summary>Expected-baseline edit import.</summary>
-    ImportEdit = 1,
-    /// <summary>Metadata-free new-model import.</summary>
-    ImportNewModel = 2,
     /// <summary>Package validation without MSH materialization.</summary>
     Validate = 3,
     /// <summary>Mesh asset creation from a self-contained glTF package.</summary>
@@ -1126,26 +1122,8 @@ namespace EarthTool.GLTF
     public OperationStatus Status { get; }
     /// <summary>Gets every operation diagnostic in result order.</summary>
     public IReadOnlyList<OperationDiagnostic> Diagnostics { get; }
-    /// <summary>Gets the produced or source glTF interchange lineage identity.</summary>
-    public Guid? InterchangeAssetLineageId { get; }
     /// <summary>Gets the produced or source MSH archive creation identity.</summary>
     public Guid? MeshCreationGuid { get; }
-    /// <summary>Gets the caller-authorized edit baseline.</summary>
-    internal InterchangeBaseline? ExpectedBaseline { get; }
-    /// <summary>Gets an emitted or initial interchange baseline.</summary>
-    internal InterchangeBaseline? Baseline { get; }
-    /// <summary>Gets the rotated baseline after edit reconciliation.</summary>
-    internal InterchangeBaseline? NextBaseline { get; }
-    /// <summary>Gets the emitted or applied native projection fingerprint.</summary>
-    public NativeProjectionFingerprint? Fingerprint { get; }
-    /// <summary>Gets how a successful edit treated its lineage.</summary>
-    internal GltfMetadataLineageDisposition? LineageDisposition { get; }
-    /// <summary>Gets every conflict action committed by the operation.</summary>
-    internal IReadOnlyList<GltfMetadataConflictResolution> AppliedConflictActions { get; }
-    /// <summary>Gets exact serialized paths restored from applicable metadata.</summary>
-    public IReadOnlyList<string> RestoredSerializedRepresentationPaths { get; }
-    /// <summary>Gets every preservation effect in operation order.</summary>
-    public IReadOnlyList<PreservationChange> PreservationChanges { get; }
 
     private GltfCliReportOperation(
       string input,
@@ -1153,16 +1131,7 @@ namespace EarthTool.GLTF
       GltfCliReportOperationKind kind,
       GltfPackageKind packageKind,
       OperationResult result,
-      MeshAsset? meshAsset = null,
-      InterchangeBaseline? expectedBaseline = null,
-      InterchangeBaseline? baseline = null,
-      InterchangeBaseline? nextBaseline = null,
-      NativeProjectionFingerprint? fingerprint = null,
-      GltfMetadataLineageDisposition? lineageDisposition = null,
-      IEnumerable<GltfMetadataConflictResolution>? appliedConflictActions = null,
-      IEnumerable<string>? restoredPaths = null,
-      IEnumerable<PreservationChange>? preservationChanges = null,
-      bool includeAssetIdentities = true)
+      MeshAsset? meshAsset = null)
     {
       Input = input ?? throw new ArgumentNullException(nameof(input));
       Destination = destination;
@@ -1174,21 +1143,8 @@ namespace EarthTool.GLTF
       PackageKind = packageKind;
       Status = result.Status;
       Diagnostics = Array.AsReadOnly(result.Diagnostics.ToArray());
-      InterchangeAssetLineageId = includeAssetIdentities
-        ? baseline?.AssetLineageId
-          ?? nextBaseline?.AssetLineageId
-          ?? expectedBaseline?.AssetLineageId
-        : null;
-      MeshCreationGuid = includeAssetIdentities ? meshAsset?.ArchiveFraming.CreationGuid : null;
+      MeshCreationGuid = meshAsset?.ArchiveFraming.CreationGuid;
       AssetKind = meshAsset?.Kind;
-      ExpectedBaseline = expectedBaseline;
-      Baseline = baseline;
-      NextBaseline = nextBaseline;
-      Fingerprint = fingerprint;
-      LineageDisposition = lineageDisposition;
-      AppliedConflictActions = Array.AsReadOnly(appliedConflictActions?.ToArray() ?? Array.Empty<GltfMetadataConflictResolution>());
-      RestoredSerializedRepresentationPaths = Array.AsReadOnly(restoredPaths?.ToArray() ?? Array.Empty<string>());
-      PreservationChanges = Array.AsReadOnly(preservationChanges?.ToArray() ?? Array.Empty<PreservationChange>());
     }
 
     /// <summary>Captures one complete export outcome.</summary>
@@ -1197,7 +1153,7 @@ namespace EarthTool.GLTF
       string destination,
       GltfPackageKind packageKind,
       StaticMeshAsset asset,
-      OperationResult<GltfExportReceipt> result)
+      OperationResult result)
     {
       if (result is null)
       {
@@ -1209,9 +1165,7 @@ namespace EarthTool.GLTF
         GltfCliReportOperationKind.Export,
         packageKind,
         result,
-        asset ?? throw new ArgumentNullException(nameof(asset)),
-        baseline: result.Value?.Baseline,
-        fingerprint: result.Value?.Fingerprint);
+        asset ?? throw new ArgumentNullException(nameof(asset)));
     }
 
     /// <summary>Captures one complete dynamic export outcome.</summary>
@@ -1220,7 +1174,7 @@ namespace EarthTool.GLTF
       string destination,
       GltfPackageKind packageKind,
       DynamicMeshAsset asset,
-      OperationResult<GltfExportReceipt> result)
+      OperationResult result)
     {
       if (result is null)
       {
@@ -1232,9 +1186,7 @@ namespace EarthTool.GLTF
         GltfCliReportOperationKind.Export,
         packageKind,
         result,
-        asset ?? throw new ArgumentNullException(nameof(asset)),
-        baseline: result.Value?.Baseline,
-        fingerprint: result.Value?.Fingerprint);
+        asset ?? throw new ArgumentNullException(nameof(asset)));
     }
 
     /// <summary>Captures an export that failed before a static source asset was available.</summary>
@@ -1242,7 +1194,7 @@ namespace EarthTool.GLTF
       string input,
       string destination,
       GltfPackageKind packageKind,
-      OperationResult<GltfExportReceipt> result)
+      OperationResult result)
     {
       if (result is null)
       {
@@ -1260,34 +1212,12 @@ namespace EarthTool.GLTF
         result);
     }
 
-    /// <summary>Captures one complete new-model import outcome.</summary>
-    internal static GltfCliReportOperation ForNewModelImport(
-      string input,
-      string destination,
-      GltfPackageKind packageKind,
-      OperationResult<GltfNewModelImportResult> result)
-    {
-      if (result is null)
-      {
-        throw new ArgumentNullException(nameof(result));
-      }
-      return new GltfCliReportOperation(
-        input,
-        destination ?? throw new ArgumentNullException(nameof(destination)),
-        GltfCliReportOperationKind.ImportNewModel,
-        packageKind,
-        result,
-        result.Value?.Asset,
-        baseline: result.Value?.Baseline,
-        preservationChanges: result.Value?.Preservation.Changes);
-    }
-
     /// <summary>Captures one complete mesh asset creation outcome.</summary>
     public static GltfCliReportOperation ForImport(
       string input,
       string destination,
       GltfPackageKind packageKind,
-      OperationResult<GltfMeshCreationResult> result)
+      OperationResult<MeshAsset> result)
     {
       if (result is null)
       {
@@ -1299,65 +1229,7 @@ namespace EarthTool.GLTF
         GltfCliReportOperationKind.Import,
         packageKind,
         result,
-        result.Value?.Asset,
-        preservationChanges: result.Value?.Preservation.Changes,
-        includeAssetIdentities: false);
-    }
-
-    /// <summary>Captures one complete expected-baseline edit-import outcome.</summary>
-    internal static GltfCliReportOperation ForEditImport(
-      string input,
-      string destination,
-      GltfPackageKind packageKind,
-      InterchangeBaseline expectedBaseline,
-      OperationResult<GltfEditImportResult> result)
-    {
-      if (result is null)
-      {
-        throw new ArgumentNullException(nameof(result));
-      }
-      return new GltfCliReportOperation(
-        input,
-        destination ?? throw new ArgumentNullException(nameof(destination)),
-        GltfCliReportOperationKind.ImportEdit,
-        packageKind,
-        result,
-        result.Value?.Asset,
-        expectedBaseline ?? throw new ArgumentNullException(nameof(expectedBaseline)),
-        nextBaseline: result.Value?.NextBaseline,
-        fingerprint: result.Value?.AppliedFingerprint,
-        lineageDisposition: result.Value?.LineageDisposition,
-        appliedConflictActions: result.Value?.AppliedConflictResolutions,
-        restoredPaths: result.Value?.RestoredSerializedRepresentationPaths,
-        preservationChanges: result.Value?.Preservation.Changes);
-    }
-
-    /// <summary>Captures one complete kind-neutral expected-baseline edit-import outcome.</summary>
-    internal static GltfCliReportOperation ForEditImport(
-      string input,
-      string destination,
-      GltfPackageKind packageKind,
-      InterchangeBaseline expectedBaseline,
-      OperationResult<GltfMeshEditImportResult> result)
-    {
-      if (result is null)
-      {
-        throw new ArgumentNullException(nameof(result));
-      }
-      return new GltfCliReportOperation(
-        input,
-        destination ?? throw new ArgumentNullException(nameof(destination)),
-        GltfCliReportOperationKind.ImportEdit,
-        packageKind,
-        result,
-        result.Value?.Asset,
-        expectedBaseline ?? throw new ArgumentNullException(nameof(expectedBaseline)),
-        nextBaseline: result.Value?.NextBaseline,
-        fingerprint: result.Value?.AppliedFingerprint,
-        lineageDisposition: result.Value?.LineageDisposition,
-        appliedConflictActions: result.Value?.AppliedConflictResolutions,
-        restoredPaths: result.Value?.RestoredSerializedRepresentationPaths,
-        preservationChanges: result.Value?.Preservation.Changes);
+        result.Value);
     }
 
     /// <summary>Captures one complete package-validation outcome.</summary>
@@ -1404,10 +1276,10 @@ namespace EarthTool.GLTF
     }
   }
 
-  /// <summary>Writes deterministic version-1 CLI machine reports.</summary>
+  /// <summary>Writes deterministic version-2 CLI machine reports.</summary>
   public sealed class GltfCliReportSerializer
   {
-    /// <summary>Writes one bounded deterministic version-1 machine report.</summary>
+    /// <summary>Writes one bounded deterministic version-2 machine report.</summary>
     public async Task<OperationResult> SerializeAsync(
       GltfCliReport report,
       Stream destination,
@@ -1530,71 +1402,7 @@ namespace EarthTool.GLTF
       writer.WriteEndArray();
       writer.WritePropertyName("identities");
       writer.WriteStartObject();
-      WriteNullableGuid(writer, "meshAssetLineageId", operation.InterchangeAssetLineageId);
       WriteNullableGuid(writer, "meshCreationGuid", operation.MeshCreationGuid);
-      WriteNullableBaseline(writer, "expectedBaseline", operation.ExpectedBaseline);
-      WriteNullableBaseline(writer, "baseline", operation.Baseline);
-      WriteNullableBaseline(writer, "nextBaseline", operation.NextBaseline);
-      writer.WritePropertyName("fingerprint");
-      if (operation.Fingerprint is null)
-      {
-        writer.WriteNullValue();
-      }
-      else
-      {
-        writer.WriteStartObject();
-        writer.WriteString("name", operation.Fingerprint.Name);
-        writer.WriteNumber("version", operation.Fingerprint.Version);
-        writer.WriteString("sha256", operation.Fingerprint.Sha256);
-        writer.WriteEndObject();
-      }
-      writer.WriteEndObject();
-      if (operation.LineageDisposition.HasValue)
-      {
-        writer.WriteString("lineageDisposition", LineageName(operation.LineageDisposition.Value));
-      }
-      else
-      {
-        writer.WriteNull("lineageDisposition");
-      }
-      writer.WritePropertyName("appliedConflictActions");
-      writer.WriteStartArray();
-      foreach (var action in operation.AppliedConflictActions)
-      {
-        writer.WriteStartObject();
-        writer.WriteString("conflictKey", action.ConflictKey);
-        writer.WriteString("action", action.Action);
-        if (action.TargetNativePath is null)
-        {
-          writer.WriteNull("targetNativePath");
-        }
-        else
-        {
-          writer.WriteString("targetNativePath", action.TargetNativePath);
-        }
-        writer.WriteEndObject();
-      }
-      writer.WriteEndArray();
-      writer.WritePropertyName("preservation");
-      writer.WriteStartObject();
-      writer.WritePropertyName("restoredSerializedRepresentationPaths");
-      writer.WriteStartArray();
-      foreach (var path in operation.RestoredSerializedRepresentationPaths)
-      {
-        writer.WriteStringValue(path);
-      }
-      writer.WriteEndArray();
-      writer.WritePropertyName("changes");
-      writer.WriteStartArray();
-      foreach (var change in operation.PreservationChanges)
-      {
-        writer.WriteStartObject();
-        writer.WriteString("fieldPath", change.FieldPath);
-        writer.WriteString("disposition", PreservationName(change.Disposition));
-        writer.WriteString("reason", change.Reason);
-        writer.WriteEndObject();
-      }
-      writer.WriteEndArray();
       writer.WriteEndObject();
       writer.WriteEndObject();
     }
@@ -1625,20 +1433,6 @@ namespace EarthTool.GLTF
       writer.WriteEndObject();
     }
 
-    private static void WriteNullableBaseline(Utf8JsonWriter writer, string name, InterchangeBaseline? baseline)
-    {
-      writer.WritePropertyName(name);
-      if (baseline is null)
-      {
-        writer.WriteNullValue();
-        return;
-      }
-      writer.WriteStartObject();
-      writer.WriteString("assetLineageId", baseline.AssetLineageId.ToString("D"));
-      writer.WriteString("documentId", baseline.DocumentId.ToString("D"));
-      writer.WriteEndObject();
-    }
-
     private static void WriteNullableGuid(Utf8JsonWriter writer, string name, Guid? value)
     {
       if (value.HasValue)
@@ -1662,29 +1456,10 @@ namespace EarthTool.GLTF
     private static string OperationName(GltfCliReportOperationKind kind) => kind switch
     {
       GltfCliReportOperationKind.Export => "export",
-      GltfCliReportOperationKind.ImportEdit => "importEdit",
-      GltfCliReportOperationKind.ImportNewModel => "importNewModel",
       GltfCliReportOperationKind.Validate => "validate",
       GltfCliReportOperationKind.Import => "import",
       _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
 
-    private static string LineageName(GltfMetadataLineageDisposition disposition) => disposition switch
-    {
-      GltfMetadataLineageDisposition.Retained => "retained",
-      GltfMetadataLineageDisposition.BranchAccepted => "branchAccepted",
-      GltfMetadataLineageDisposition.AdoptedAsNew => "adoptedAsNew",
-      GltfMetadataLineageDisposition.Discarded => "discarded",
-      _ => throw new ArgumentOutOfRangeException(nameof(disposition))
-    };
-
-    private static string PreservationName(PreservationDisposition disposition) => disposition switch
-    {
-      PreservationDisposition.Retained => "retained",
-      PreservationDisposition.Regenerated => "regenerated",
-      PreservationDisposition.Invalidated => "invalidated",
-      PreservationDisposition.Canonicalized => "canonicalized",
-      _ => throw new ArgumentOutOfRangeException(nameof(disposition))
-    };
   }
 }

@@ -376,7 +376,8 @@ public sealed class GltfAuthoringMetadataTests
       maxMetadataElements: 128,
       maxUnknownMetadataMembers: 16,
       maxMetadataGuards: 4,
-      maxMetadataConflicts: maxMetadataConflicts);
+      maxMetadataConflicts: maxMetadataConflicts,
+      meshResourceLimits: GltfMeshResourceLimits.Default);
   }
 
   private static DynamicAuthoringValues CreateDynamicValues(DynamicEffectType effectType)
