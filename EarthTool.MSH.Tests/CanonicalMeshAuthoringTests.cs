@@ -148,6 +148,115 @@ public class CanonicalMeshAuthoringTests
   }
 
   [Fact]
+  public void CanonicalStaticSequenceOwnsCompleteNestedRecordEncoding()
+  {
+    var root = CreateCanonicalSequenceSource();
+    var pivots = Enumerable
+      .Range(0, 4)
+      .ToDictionary(index => index, index => new Vector3(index + 1, index + 2, index + 3));
+    var animation = new StaticAnimationReplacement(
+      new StaticAnimationTracks(
+        [new Vector3(1, 2, 3)],
+        [new Vector3(4, 5, 6)],
+        [Matrix4x4.CreateTranslation(7, 8, 9)]
+      ),
+      (uint)StaticAnimationClass.C
+    );
+    var animations = new Dictionary<int, StaticAnimationReplacement> { [1] = animation };
+
+    var sequence = CanonicalStaticRenderObjectSequenceEncoder.Encode(root, pivots, animations);
+    var framed = MshCanonicalSerializer.CreateStatic(
+      CreationGuid,
+      new AnimationClassBytes(0, 0, 1, 0),
+      root,
+      pivots: pivots,
+      animations: animations
+    );
+
+    CanonicalStaticRenderObjectSequenceEncoder.GetSerializedLength(root, animations)
+      .Should().Be(sequence.Length);
+    framed.AsSpan(0x14 + CommonMeshBaseHeader.SerializedSize).ToArray().Should().Equal(sequence);
+    var build = MshExpert.CreateStatic(framed);
+    build.TryGetValue(out var asset).Should().BeTrue();
+    asset!.StaticRenderObjectSequence.Select(record =>
+      Encoding.ASCII.GetString(record.TexturePathBytes.ToArray())
+    ).Should().Equal(
+      "Textures\\root-a.tex",
+      "Textures\\child-a.tex",
+      "Textures\\child-b.tex",
+      "Textures\\root-b.tex"
+    );
+    asset.StaticRenderObjectSequence.Select(record => record.Pivot)
+      .Should().Equal(pivots.OrderBy(item => item.Key).Select(item => item.Value));
+    asset.StaticRenderObjectSequence.Select(record => record.NextRecordMarker)
+      .Should().Equal(1u, 1u, 1u, 0u);
+    asset.StaticRenderObjectSequence.Select(record => record.HierarchyUnwindCount)
+      .Should().Equal(0, 0, 0, 1);
+    asset.StaticRenderObjectSequence[0].KnownFlags.Should().Be(
+      StaticRenderObjectFlags.MarkerAttachment1 | StaticRenderObjectFlags.MarkerAttachment3
+    );
+    asset.StaticRenderObjectSequence[1].KnownFlags.Should().Be(
+      StaticRenderObjectFlags.BeginsNestedSourceObject
+        | StaticRenderObjectFlags.MarkerAttachment2
+        | StaticRenderObjectFlags.MarkerAttachment4
+    );
+    asset.StaticRenderObjectSequence[2].KnownFlags.Should().Be(StaticRenderObjectFlags.None);
+    asset.StaticRenderObjectSequence[3].KnownFlags.Should().Be(StaticRenderObjectFlags.None);
+    asset.StaticRenderObjectSequence[1].AnimationClassValue.Should().Be((uint)StaticAnimationClass.C);
+    asset.StaticRenderObjectSequence[1].AnimationTracks.ScaleFrames.Should().Equal(new Vector3(1, 2, 3));
+    asset.StaticRenderObjectSequence[1].AnimationTracks.TranslationFrames.Should().Equal(new Vector3(4, 5, 6));
+    asset.StaticRenderObjectSequence[1].AnimationTracks.Matrices.Should().Equal(
+      Matrix4x4.CreateTranslation(7, 8, 9)
+    );
+    asset.StaticRenderObjectSequence.Should().OnlyContain(record =>
+      record.VertexBlockCount == 1
+      && record.VertexBlockPadding.All(value => value == 0)
+      && record.RenderVertices.All(vertex =>
+        vertex.NormalSharingIndex == ushort.MaxValue
+        && vertex.PositionSharingIndex == ushort.MaxValue
+      )
+      && record.Triangles.Single().TriangleRenderPassFlags == 3
+    );
+    asset.StoredTrailingHierarchyUnwindCount.Should().Be(1);
+  }
+
+  [Fact]
+  public void EquivalentCanonicalStaticSequencesHaveExactDeterministicLengths()
+  {
+    var negativeZero = BitConverter.Int32BitsToSingle(unchecked((int)0x80000000));
+    var firstRoot = CreateCanonicalSequenceSource();
+    var secondRoot = CreateCanonicalSequenceSource(negativeZero);
+    var firstAnimations = new Dictionary<int, StaticAnimationReplacement>
+    {
+      [2] = CreateSequenceAnimation(0),
+    };
+    var secondAnimations = new Dictionary<int, StaticAnimationReplacement>
+    {
+      [2] = CreateSequenceAnimation(negativeZero),
+    };
+    var firstPivots = Enumerable.Range(0, 4).ToDictionary(index => index, _ => Vector3.Zero);
+    var secondPivots = Enumerable.Range(0, 4)
+      .ToDictionary(index => index, _ => new Vector3(negativeZero));
+
+    var first = CanonicalStaticRenderObjectSequenceEncoder.Encode(
+      firstRoot,
+      firstPivots,
+      animations: firstAnimations
+    );
+    var second = CanonicalStaticRenderObjectSequenceEncoder.Encode(
+      secondRoot,
+      secondPivots,
+      animations: secondAnimations
+    );
+
+    CanonicalStaticRenderObjectSequenceEncoder.GetSerializedLength(firstRoot, firstAnimations)
+      .Should().Be(first.Length);
+    CanonicalStaticRenderObjectSequenceEncoder.GetSerializedLength(secondRoot, secondAnimations)
+      .Should().Be(second.Length);
+    first.Should().Equal(second);
+  }
+
+  [Fact]
   public void CanonicalBaseHeaderNormalizesNegativeZero()
   {
     var negativeZero = BitConverter.Int32BitsToSingle(unchecked((int)0x80000000));
@@ -643,6 +752,85 @@ public class CanonicalMeshAuthoringTests
       new CanonicalStaticVertex(Vector3.UnitX, Vector3.UnitZ, Vector2.UnitX),
       new CanonicalStaticVertex(new Vector3(0, 1, 1), Vector3.UnitZ, Vector2.UnitY),
     ];
+  }
+
+  private static CanonicalStaticSourceObject CreateCanonicalSequenceSource(float zero = 0)
+  {
+    var child = new CanonicalStaticSourceObject(
+      [
+        new CanonicalStaticRenderObject(
+          CreateSequenceVertices(zero),
+          CreateTriangles(),
+          "Textures\\child-a.tex"
+        ),
+        new CanonicalStaticRenderObject(
+          CreateSequenceVertices(zero),
+          CreateTriangles(),
+          "Textures\\child-b.tex"
+        ),
+      ],
+      role: new CanonicalStaticObjectRole(
+        StaticRenderObjectFlags.MarkerAttachment2 | StaticRenderObjectFlags.MarkerAttachment4
+      )
+    );
+    return new CanonicalStaticSourceObject(
+      [
+        new CanonicalStaticRenderObject(
+          CreateSequenceVertices(zero),
+          CreateTriangles(),
+          "Textures\\root-a.tex"
+        ),
+        new CanonicalStaticRenderObject(
+          CreateSequenceVertices(zero),
+          CreateTriangles(),
+          "Textures\\root-b.tex"
+        ),
+      ],
+      [child],
+      new CanonicalStaticObjectRole(
+        StaticRenderObjectFlags.MarkerAttachment1 | StaticRenderObjectFlags.MarkerAttachment3
+      )
+    );
+  }
+
+  private static CanonicalStaticVertex[] CreateSequenceVertices(float zero)
+  {
+    return
+    [
+      new CanonicalStaticVertex(
+        new Vector3(zero, zero, zero),
+        new Vector3(zero, zero, 1),
+        new Vector2(zero, zero)
+      ),
+      new CanonicalStaticVertex(
+        new Vector3(1, zero, zero),
+        new Vector3(zero, zero, 1),
+        new Vector2(1, zero)
+      ),
+      new CanonicalStaticVertex(
+        new Vector3(zero, 1, 1),
+        new Vector3(zero, zero, 1),
+        new Vector2(zero, 1)
+      ),
+    ];
+  }
+
+  private static StaticAnimationReplacement CreateSequenceAnimation(float zero)
+  {
+    var matrix = new Matrix4x4(
+      1, zero, zero, zero,
+      zero, 1, zero, zero,
+      zero, zero, 1, zero,
+      zero, zero, zero, 1
+    );
+    return new StaticAnimationReplacement(
+      new StaticAnimationTracks(
+        [new Vector3(1, zero, 1)],
+        [new Vector3(2, zero, 4)],
+        [matrix]
+      ),
+      (uint)StaticAnimationClass.B
+    );
   }
 
   private static CanonicalTriangle[] CreateTriangles()

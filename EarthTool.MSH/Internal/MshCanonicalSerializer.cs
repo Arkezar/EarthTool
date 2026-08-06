@@ -33,7 +33,6 @@ namespace EarthTool.MSH.Internal
 
   internal static class MshCanonicalSerializer
   {
-    internal const int StaticRecordSize = 0xDD;
     internal const int DynamicRecordSize = 0x410;
     private const int StaticRecordPivotOffsetFromEnd = 17;
     private static readonly Encoding _dynamicStringEncoding = CreateDynamicStringEncoding();
@@ -54,7 +53,6 @@ namespace EarthTool.MSH.Internal
     )
     {
       var framing = new MeshArchiveFraming(0x20D0A1FF, null, creationGuid);
-      var records = FlattenStaticTree(rootSourceObject);
       var vertices = rootSourceObject
         .RenderObjects.SelectMany(record => record.RenderVertices)
         .ToArray();
@@ -73,27 +71,24 @@ namespace EarthTool.MSH.Internal
           )
         )
         .SerializedRepresentation;
-      return CreateStatic(
-        framing,
-        commonHeader,
-        records,
-        Array.Empty<byte>(),
+      var sequence = CanonicalStaticRenderObjectSequenceEncoder.Encode(
+        rootSourceObject,
         pivots,
         animations
       );
+      return CreateStatic(framing, commonHeader, sequence);
     }
 
     internal static long GetCanonicalStaticSerializedLength(
       IEnumerable<(int VertexCount, int TriangleCount)> geometry
     )
     {
-      var length = sizeof(uint) + 16L + CommonMeshBaseHeader.SerializedSize + sizeof(uint);
-      foreach (var record in geometry)
-      {
-        var blocks = checked((record.VertexCount + 3L) / 4L);
-        length = checked(length + 53L + (blocks * 0xA0L) + (record.TriangleCount * 8L));
-      }
-      return length;
+      return checked(
+        sizeof(uint)
+        + 16L
+        + CommonMeshBaseHeader.SerializedSize
+        + CanonicalStaticRenderObjectSequenceEncoder.GetMinimumSerializedLength(geometry)
+      );
     }
 
     internal static byte[] RewriteStatic(
@@ -559,14 +554,16 @@ namespace EarthTool.MSH.Internal
       Vector3 pivot
     )
     {
-      var blocks = (vertices.Count + 3) / 4;
-      var result = new byte[
-        checked(53 + blocks * 0xA0 + texturePathBytes.Count + triangles.Count * 8)
-      ];
-      var cursor = 0;
-      WriteStaticRecord(result, ref cursor, vertices, triangles, texturePathBytes, 0, 0, 1);
-      WriteVector3(result, result.Length - StaticRecordPivotOffsetFromEnd, pivot, invertY: true);
-      return result;
+      return CanonicalStaticRenderObjectSequenceEncoder.EncodeRecord(
+        vertices,
+        triangles,
+        texturePathBytes,
+        0,
+        0,
+        1,
+        pivot,
+        null
+      );
     }
 
     private static byte[] RewriteStaticRecord(
@@ -579,64 +576,16 @@ namespace EarthTool.MSH.Internal
       uint animationClassValue
     )
     {
-      var blockCount = (vertices.Count + 3) / 4;
-      var length = checked(
-        53
-        + blockCount * 0xA0
-        + texturePathBytes.Count
-        + triangles.Count * 8
-        + tracks.ScaleFrames.Count * 12
-        + tracks.TranslationFrames.Count * 12
-        + tracks.Matrices.Count * 64
-      );
-      var data = new byte[length];
-      WriteUInt32(data, 0, checked((uint)vertices.Count));
-      WriteUInt32(data, 4, checked((uint)blockCount));
-      for (var index = 0; index < vertices.Count; index++)
-      {
-        var vertex = vertices[index];
-        var blockOffset = 8 + index / 4 * 0xA0;
-        var laneOffset = index % 4 * 4;
-        WriteSingle(data, blockOffset + laneOffset, vertex.Position.X);
-        WriteSingle(data, blockOffset + 0x10 + laneOffset, -vertex.Position.Y);
-        WriteSingle(data, blockOffset + 0x20 + laneOffset, vertex.Position.Z);
-        WriteSingle(data, blockOffset + 0x30 + laneOffset, vertex.Normal.X);
-        WriteSingle(data, blockOffset + 0x40 + laneOffset, -vertex.Normal.Y);
-        WriteSingle(data, blockOffset + 0x50 + laneOffset, vertex.Normal.Z);
-        WriteSingle(data, blockOffset + 0x60 + laneOffset, vertex.TextureCoordinate.X);
-        WriteSingle(data, blockOffset + 0x70 + laneOffset, vertex.TextureCoordinate.Y);
-        WriteUInt16(data, blockOffset + 0x90 + index % 4 * 2, ushort.MaxValue);
-        WriteUInt16(data, blockOffset + 0x98 + index % 4 * 2, ushort.MaxValue);
-      }
-
-      var cursor = 8 + blockCount * 0xA0;
-      WriteUInt32(data, cursor, source.ObjectFlags);
-      cursor += 4;
-      WriteUInt32(data, cursor, checked((uint)texturePathBytes.Count));
-      cursor += 4;
-      texturePathBytes.CopyTo(data, cursor);
-      cursor += texturePathBytes.Count;
-      WriteUInt32(data, cursor, checked((uint)triangles.Count));
-      cursor += 4;
-      foreach (var triangle in triangles)
-      {
-        WriteUInt16(data, cursor, triangle.Vertex0);
-        WriteUInt16(data, cursor + 2, triangle.Vertex1);
-        WriteUInt16(data, cursor + 4, triangle.Vertex2);
-        WriteUInt16(data, cursor + 6, CalculateTriangleFlags(vertices, triangle));
-        cursor += 8;
-      }
-
-      WriteStaticAnimationTail(
-        data,
-        ref cursor,
-        tracks,
-        animationClassValue,
-        pivot,
+      return CanonicalStaticRenderObjectSequenceEncoder.EncodeRecord(
+        vertices,
+        triangles,
+        texturePathBytes,
+        source.ObjectFlags,
         source.BarrelMaximumAngle,
-        source.NextRecordMarker
+        source.NextRecordMarker,
+        pivot,
+        new StaticAnimationReplacement(tracks, animationClassValue)
       );
-      return data;
     }
 
     private static byte[] RewriteStaticRecordRepresentations(
@@ -871,129 +820,19 @@ namespace EarthTool.MSH.Internal
     private static byte[] CreateStatic(
       MeshArchiveFraming framing,
       IReadOnlyList<byte> commonHeader,
-      IReadOnlyList<CanonicalStaticRecord> records,
-      IReadOnlyList<byte> rootTrailingBytes,
-      IReadOnlyDictionary<int, Vector3>? pivots,
-      IReadOnlyDictionary<int, StaticAnimationReplacement>? animations
+      IReadOnlyList<byte> sequence
     )
     {
       var archiveHeader = CreateArchiveHeader(framing);
-      pivots ??= new Dictionary<int, Vector3>();
-      animations ??= new Dictionary<int, StaticAnimationReplacement>();
-      var recordLength = records.Select(
-        (record, ordinal) => GetStaticRecordLength(
-          record,
-          animations.TryGetValue(ordinal, out var animation) ? animation : null
-        )
-      ).Sum();
       var result = new byte[
         archiveHeader.Length
           + CommonMeshBaseHeader.SerializedSize
-          + sizeof(uint)
-          + recordLength
-          + rootTrailingBytes.Count
+          + sequence.Count
       ];
       archiveHeader.CopyTo(result, 0);
       commonHeader.CopyTo(result, archiveHeader.Length);
-      var cursor = archiveHeader.Length + CommonMeshBaseHeader.SerializedSize;
-      WriteUInt32(result, cursor, checked((uint)records[^1].Depth + 1));
-      cursor += sizeof(uint);
-      for (var index = 0; index < records.Count; index++)
-      {
-        var record = records[index];
-        WriteStaticRecord(
-          result,
-          ref cursor,
-          record.RenderObject.RenderVertices,
-          record.RenderObject.Triangles,
-          record.RenderObject.TextureResourceKey is null
-            ? Array.Empty<byte>()
-            : Encoding.ASCII.GetBytes(record.RenderObject.TextureResourceKey),
-          record.ObjectFlags,
-          ReferenceEquals(record.RenderObject, record.Source.RenderObjects[0])
-            ? record.Source.Role?.BarrelMaximumAngle ?? 0
-            : (byte)0,
-          index == records.Count - 1 ? 0u : 1u,
-          pivots.TryGetValue(index, out var pivot) ? pivot : Vector3.Zero,
-          animations.TryGetValue(index, out var animation) ? animation : null
-        );
-      }
-
-      rootTrailingBytes.CopyTo(result, cursor);
+      sequence.CopyTo(result, archiveHeader.Length + CommonMeshBaseHeader.SerializedSize);
       return result;
-    }
-
-    private static IReadOnlyList<CanonicalStaticRecord> FlattenStaticTree(
-      CanonicalStaticSourceObject root
-    )
-    {
-      var records = new List<CanonicalStaticRecord>();
-      Flatten(root, 0, records);
-      var encounteredSources = new HashSet<CanonicalStaticSourceObject> { records[0].Source };
-      for (var index = 0; index < records.Count; index++)
-      {
-        var current = records[index];
-        if (index == 0 || ReferenceEquals(current.Source, records[index - 1].Source))
-        {
-          continue;
-        }
-
-        var previousDepth = records[index - 1].Depth;
-        var beginsNested = encounteredSources.Add(current.Source);
-        var unwind = beginsNested
-          ? previousDepth - (current.Depth - 1)
-          : previousDepth - current.Depth;
-        current.ObjectFlags = (current.ObjectFlags & 0xFFFFFF00u) | checked((byte)unwind);
-        if (beginsNested)
-        {
-          current.ObjectFlags |= (uint)StaticRenderObjectFlags.BeginsNestedSourceObject;
-        }
-      }
-
-      return records;
-    }
-
-    private static void Flatten(
-      CanonicalStaticSourceObject source,
-      int depth,
-      List<CanonicalStaticRecord> records
-    )
-    {
-      records.Add(
-        new CanonicalStaticRecord(source, source.RenderObjects[0], depth)
-        {
-          ObjectFlags = (uint)(source.Role?.Flags ?? StaticRenderObjectFlags.None),
-        }
-      );
-      foreach (var child in source.Children)
-      {
-        Flatten(child, depth + 1, records);
-      }
-      records.AddRange(
-        source
-          .RenderObjects.Skip(1)
-          .Select(renderObject => new CanonicalStaticRecord(source, renderObject, depth))
-      );
-    }
-
-    private static int GetStaticRecordLength(
-      CanonicalStaticRecord record,
-      StaticAnimationReplacement? animation
-    )
-    {
-      var blocks = (record.RenderObject.RenderVertices.Count + 3) / 4;
-      var texturePathLength = record.RenderObject.TextureResourceKey is null
-        ? 0
-        : Encoding.ASCII.GetByteCount(record.RenderObject.TextureResourceKey);
-      return checked(
-        53
-        + blocks * 0xA0
-        + texturePathLength
-        + record.RenderObject.Triangles.Count * 8
-        + (animation?.Tracks.ScaleFrames.Count ?? 0) * 12
-        + (animation?.Tracks.TranslationFrames.Count ?? 0) * 12
-        + (animation?.Tracks.Matrices.Count ?? 0) * 64
-      );
     }
 
     private static byte[] CreateArchiveHeader(MeshArchiveFraming framing)
@@ -1019,91 +858,6 @@ namespace EarthTool.MSH.Internal
       return result;
     }
 
-    private static void WriteStaticRecord(
-      byte[] data,
-      ref int cursor,
-      IReadOnlyList<CanonicalStaticVertex> vertices,
-      IReadOnlyList<CanonicalTriangle> triangles,
-      IReadOnlyList<byte> texturePathBytes,
-      uint objectFlags,
-      byte barrelMaximumAngle,
-      uint nextRecordMarker,
-      Vector3 pivot = default,
-      StaticAnimationReplacement? animation = null
-    )
-    {
-      var recordOffset = cursor;
-      WriteUInt32(data, recordOffset, checked((uint)vertices.Count));
-      var blockCount = (vertices.Count + 3) / 4;
-      WriteUInt32(data, recordOffset + 4, checked((uint)blockCount));
-      var vertexOffset = recordOffset + 8;
-      for (var lane = 0; lane < vertices.Count; lane++)
-      {
-        var vertex = vertices[lane];
-        var blockOffset = vertexOffset + lane / 4 * 0xA0;
-        var laneOffset = lane % 4 * sizeof(float);
-        WriteSingle(data, blockOffset + laneOffset, vertex.Position.X);
-        WriteSingle(data, blockOffset + 0x10 + laneOffset, -vertex.Position.Y);
-        WriteSingle(data, blockOffset + 0x20 + laneOffset, vertex.Position.Z);
-        WriteSingle(data, blockOffset + 0x30 + laneOffset, vertex.Normal.X);
-        WriteSingle(data, blockOffset + 0x40 + laneOffset, -vertex.Normal.Y);
-        WriteSingle(data, blockOffset + 0x50 + laneOffset, vertex.Normal.Z);
-        WriteSingle(data, blockOffset + 0x60 + laneOffset, vertex.TextureCoordinate.X);
-        WriteSingle(data, blockOffset + 0x70 + laneOffset, vertex.TextureCoordinate.Y);
-        WriteUInt16(data, blockOffset + 0x90 + lane % 4 * sizeof(ushort), ushort.MaxValue);
-        WriteUInt16(data, blockOffset + 0x98 + lane % 4 * sizeof(ushort), ushort.MaxValue);
-      }
-
-      cursor = vertexOffset + blockCount * 0xA0;
-      WriteUInt32(data, cursor, objectFlags);
-      cursor += sizeof(uint);
-      WriteUInt32(data, cursor, checked((uint)texturePathBytes.Count));
-      cursor += sizeof(uint);
-      texturePathBytes.CopyTo(data, cursor);
-      cursor += texturePathBytes.Count;
-      WriteUInt32(data, cursor, checked((uint)triangles.Count));
-      cursor += sizeof(uint);
-      foreach (var triangle in triangles)
-      {
-        WriteUInt16(data, cursor, triangle.Vertex0);
-        WriteUInt16(data, cursor + 2, triangle.Vertex1);
-        WriteUInt16(data, cursor + 4, triangle.Vertex2);
-        WriteUInt16(data, cursor + 6, CalculateTriangleFlags(vertices, triangle));
-        cursor += 8;
-      }
-
-      WriteStaticAnimationTail(
-        data,
-        ref cursor,
-        animation?.Tracks ?? new StaticAnimationTracks(
-          Array.Empty<Vector3>(),
-          Array.Empty<Vector3>(),
-          Array.Empty<Matrix4x4>()
-        ),
-        animation?.ClassValue ?? 0,
-        pivot,
-        barrelMaximumAngle,
-        nextRecordMarker
-      );
-      cursor += sizeof(uint);
-    }
-
-    private static ushort CalculateTriangleFlags(
-      IReadOnlyList<CanonicalStaticVertex> vertices,
-      CanonicalTriangle triangle
-    )
-    {
-      var edge1 = vertices[triangle.Vertex1].Position - vertices[triangle.Vertex0].Position;
-      var edge2 = vertices[triangle.Vertex2].Position - vertices[triangle.Vertex0].Position;
-      var cross = Vector3.Cross(edge1, edge2);
-      if (cross.LengthSquared() == 0)
-      {
-        return 1;
-      }
-
-      return Vector3.Normalize(cross).Z > 0.5f ? (ushort)3 : (ushort)1;
-    }
-
     private static IEnumerable<StaticSourceObject> EnumerateSourceObjects(
       StaticSourceObject source
     )
@@ -1115,25 +869,6 @@ namespace EarthTool.MSH.Internal
         {
           yield return descendant;
         }
-      }
-    }
-
-    private sealed class CanonicalStaticRecord
-    {
-      internal CanonicalStaticSourceObject Source { get; }
-      internal CanonicalStaticRenderObject RenderObject { get; }
-      internal int Depth { get; }
-      internal uint ObjectFlags { get; set; }
-
-      internal CanonicalStaticRecord(
-        CanonicalStaticSourceObject source,
-        CanonicalStaticRenderObject renderObject,
-        int depth
-      )
-      {
-        Source = source;
-        RenderObject = renderObject;
-        Depth = depth;
       }
     }
 
