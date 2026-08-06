@@ -961,16 +961,33 @@ namespace EarthTool.GLTF.Internal
       return Parse(glb, profile, GltfImportIntent.NewModel);
     }
 
+    internal static ParsedGlb ParseCanonicalStatic(byte[] glb, GltfOperationProfile profile)
+    {
+      return Parse(
+        glb,
+        profile,
+        GltfImportIntent.NewModel,
+        allowAuthoringMetadata: true
+      );
+    }
+
     private static ParsedGlb Parse(
       byte[] glb,
       GltfOperationProfile profile,
-      GltfImportIntent intent)
+      GltfImportIntent intent,
+      bool allowAuthoringMetadata = false)
     {
       var root = Validate(glb, profile, intent, out var binaryHeader, out var binaryLength);
       using (root)
       {
         var binary = glb.AsSpan(binaryHeader + 8, binaryLength);
-        return ParseDocument(root.RootElement, binary, profile, intent);
+        return ParseDocument(
+          root.RootElement,
+          binary,
+          profile,
+          intent,
+          allowAuthoringMetadata
+        );
       }
     }
 
@@ -990,11 +1007,27 @@ namespace EarthTool.GLTF.Internal
       return ParseSeparate(json, binary, profile, GltfImportIntent.NewModel);
     }
 
+    internal static ParsedGlb ParseSeparateCanonicalStatic(
+      byte[] json,
+      byte[] binary,
+      GltfOperationProfile profile
+    )
+    {
+      return ParseSeparate(
+        json,
+        binary,
+        profile,
+        GltfImportIntent.NewModel,
+        allowAuthoringMetadata: true
+      );
+    }
+
     private static ParsedGlb ParseSeparate(
       byte[] json,
       byte[] binary,
       GltfOperationProfile profile,
-      GltfImportIntent intent)
+      GltfImportIntent intent,
+      bool allowAuthoringMetadata = false)
     {
       using var document = JsonDocument.Parse(json, new JsonDocumentOptions
       {
@@ -1009,7 +1042,13 @@ namespace EarthTool.GLTF.Internal
         throw new InvalidDataException("The separate glTF buffer length is invalid.");
       }
 
-      return ParseDocument(document.RootElement, binary.AsSpan(0, declaredLength), profile, intent);
+      return ParseDocument(
+        document.RootElement,
+        binary.AsSpan(0, declaredLength),
+        profile,
+        intent,
+        allowAuthoringMetadata
+      );
     }
 
     internal static string GetSeparateBufferUri(byte[] json, GltfOperationProfile profile)
@@ -1066,11 +1105,18 @@ namespace EarthTool.GLTF.Internal
       JsonElement root,
       ReadOnlySpan<byte> binary,
       GltfOperationProfile profile,
-      GltfImportIntent intent)
+      GltfImportIntent intent,
+      bool allowAuthoringMetadata = false)
     {
       var metadataConflicts = new MetadataConflictCollector(profile.MaxMetadataConflicts);
       ValidateSupportedGraph(root, profile, intent);
-      ValidateMetadataGraph(root, profile, intent, metadataConflicts);
+      ValidateMetadataGraph(
+        root,
+        profile,
+        intent,
+        metadataConflicts,
+        allowAuthoringMetadata
+      );
       var rootNodeIndex = ResolveRootNodeIndex(root, intent, out var placementRootIndex);
       var manifest = intent == GltfImportIntent.Edit
         ? GetMetadata(root.GetProperty("scenes")[0], "scene")
@@ -1200,7 +1246,8 @@ namespace EarthTool.GLTF.Internal
       JsonElement root,
       GltfOperationProfile profile,
       GltfImportIntent intent,
-      MetadataConflictCollector conflicts)
+      MetadataConflictCollector conflicts,
+      bool allowAuthoringMetadata)
     {
       var allowedCarriers = new Dictionary<string, string>(StringComparer.Ordinal)
       {
@@ -1230,7 +1277,24 @@ namespace EarthTool.GLTF.Internal
         ref metadataBytes);
       if (intent == GltfImportIntent.NewModel)
       {
-        if (carriers.Count != 0)
+        var unsupportedCarrier = allowAuthoringMetadata
+          ? carriers.FirstOrDefault(carrier =>
+            !allowedCarriers.TryGetValue(carrier.Path, out var carrierKind)
+            || !string.Equals(carrierKind, "object", StringComparison.Ordinal)
+          )
+          : default;
+        if (unsupportedCarrier != default)
+        {
+          throw new MetadataConflictException(
+            GltfDiagnosticCodes.OrphanEnvelope,
+            2011,
+            unsupportedCarrier.Path,
+            "Canonical asset creation accepts typed authoring metadata only on named nodes.",
+            GltfMetadataConflictActions.Abort,
+            GltfMetadataConflictActions.DiscardLineage
+          );
+        }
+        if (!allowAuthoringMetadata && carriers.Count != 0)
         {
           throw new MetadataConflictException(
             GltfDiagnosticCodes.OrphanEnvelope,

@@ -1094,6 +1094,219 @@ namespace EarthTool.GLTF
       );
     }
 
+    internal static OperationResult<StaticMeshAsset> ImportCanonicalStaticGlb(
+      byte[] source,
+      CanonicalStaticGltfCreationOptions options,
+      GltfOperationProfile profile,
+      CancellationToken cancellationToken
+    )
+    {
+      try
+      {
+        cancellationToken.ThrowIfCancellationRequested();
+        var parsed = GlbDocument.ParseCanonicalStatic(source, profile);
+        ValidateGeometryProfile(parsed, profile);
+        return ImportCanonicalStaticParsed(
+          parsed,
+          options,
+          profile,
+          cancellationToken
+        );
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<StaticMeshAsset>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<StaticMeshAsset>(ToDiagnostic(ex));
+      }
+    }
+
+    internal static OperationResult<StaticMeshAsset> ImportCanonicalStaticSeparate(
+      byte[] json,
+      byte[] binary,
+      CanonicalStaticGltfCreationOptions options,
+      GltfOperationProfile profile,
+      CancellationToken cancellationToken
+    )
+    {
+      try
+      {
+        cancellationToken.ThrowIfCancellationRequested();
+        var parsed = GlbDocument.ParseSeparateCanonicalStatic(json, binary, profile);
+        ValidateGeometryProfile(parsed, profile);
+        return ImportCanonicalStaticParsed(
+          parsed,
+          options,
+          profile,
+          cancellationToken
+        );
+      }
+      catch (OperationCanceledException)
+      {
+        return Cancelled<StaticMeshAsset>();
+      }
+      catch (Exception ex)
+      {
+        return Failed<StaticMeshAsset>(ToDiagnostic(ex));
+      }
+    }
+
+    private static OperationResult<StaticMeshAsset> ImportCanonicalStaticParsed(
+      ParsedGlb parsed,
+      CanonicalStaticGltfCreationOptions options,
+      GltfOperationProfile profile,
+      CancellationToken cancellationToken
+    )
+    {
+      var metadata = CanonicalAuthoringMetadata.Read(
+        parsed.Nodes.Select((node, index) =>
+          new AuthoringMetadataCarrier(
+            $"nodes[{index}]",
+            node.Name ?? string.Empty,
+            node.Metadata
+          )
+        ),
+        profile
+      );
+      if (!metadata.Succeeded)
+      {
+        return new OperationResult<StaticMeshAsset>(
+          metadata.Status,
+          diagnostics: metadata.Diagnostics
+        );
+      }
+
+      var semanticOptions = CreateCanonicalStaticSemanticOptions(
+        parsed,
+        options,
+        metadata.Value!
+      );
+      if (!semanticOptions.Succeeded)
+      {
+        return new OperationResult<StaticMeshAsset>(
+          semanticOptions.Status,
+          diagnostics: metadata.Diagnostics.Concat(semanticOptions.Diagnostics)
+        );
+      }
+
+      var imported = ImportNewModelParsed(
+        parsed,
+        profile,
+        cancellationToken,
+        semanticOptions.Value!,
+        options.CreationGuid,
+        allowAuthoringMetadata: true
+      );
+      if (!imported.Succeeded)
+      {
+        return new OperationResult<StaticMeshAsset>(
+          imported.Status,
+          diagnostics: metadata.Diagnostics.Concat(imported.Diagnostics)
+        );
+      }
+      return new OperationResult<StaticMeshAsset>(
+        OperationStatus.Succeeded,
+        imported.Value!.Asset,
+        metadata.Diagnostics.Concat(imported.Diagnostics)
+      );
+    }
+
+    private static OperationResult<GltfNewModelImportOptions> CreateCanonicalStaticSemanticOptions(
+      ParsedGlb parsed,
+      CanonicalStaticGltfCreationOptions options,
+      CanonicalAuthoringMetadataDocument metadata
+    )
+    {
+      var sourceNodes = GetNodeOrder(parsed)
+        .Where(index => parsed.Nodes[index].MeshIndex.HasValue)
+        .Select(index => (node: parsed.Nodes[index], index))
+        .ToArray();
+      var unsupportedOwner = parsed.Nodes
+        .Select((node, index) =>
+          CanonicalAuthoringOwner.TryParse(node.Name, out var owner)
+            ? (Owner: (CanonicalAuthoringOwner?)owner, Node: node, Index: index)
+            : (Owner: null, Node: node, Index: index)
+        )
+        .FirstOrDefault(item =>
+          item.Owner.HasValue
+          && (
+            item.Owner.Value.Kind is CanonicalAuthoringOwnerKind.DynamicObject
+              or CanonicalAuthoringOwnerKind.Animation
+            || item.Owner.Value.Kind == CanonicalAuthoringOwnerKind.StaticSource
+              && !item.Node.MeshIndex.HasValue
+          )
+        );
+      if (unsupportedOwner.Owner.HasValue)
+      {
+        return Failed<GltfNewModelImportOptions>(
+          new OperationDiagnostic(
+            GltfAuthoringMetadataDiagnosticCodes.RequiredValueMissing,
+            4002,
+            DiagnosticSeverity.Error,
+            $"nodes[{unsupportedOwner.Index}]",
+            "The canonical owner declares a required semantic unsupported by static creation."
+          )
+        );
+      }
+      var roles = new Dictionary<GltfNodeHandle, GltfNewModelObjectRole>();
+      StaticSourceAuthoringValues? rootValues = null;
+      foreach (var source in sourceNodes)
+      {
+        if (
+          !CanonicalAuthoringOwner.TryParse(source.node.Name, out var owner)
+          || owner.Kind != CanonicalAuthoringOwnerKind.StaticSource
+        )
+        {
+          return Failed<GltfNewModelImportOptions>(
+            new OperationDiagnostic(
+              GltfAuthoringMetadataDiagnosticCodes.RequiredValueMissing,
+              4002,
+              DiagnosticSeverity.Error,
+              $"nodes[{source.index}]",
+              "A static source object requires an exact canonical ET_Static_{n} name."
+            )
+          );
+        }
+
+        var values = metadata.Get<StaticSourceAuthoringValues>(owner);
+        rootValues ??= values;
+        if (values.Roles != GltfStaticObjectRoles.None || values.BarrelMaximumAngle != 0)
+        {
+          roles.Add(
+            GetNodeHandle(parsed, source.index),
+            new GltfNewModelObjectRole(values.Roles, values.BarrelMaximumAngle)
+          );
+        }
+      }
+
+      var footprint = rootValues?.Footprint is null
+        ? null
+        : new GltfNewModelFootprint(
+          rootValues.Footprint.PresenceMask,
+          rootValues.Footprint.TopElevations,
+          rootValues.Footprint.CornerPassageFlags
+        );
+      var extents = rootValues?.HorizontalExtents is null
+        ? null
+        : new GltfNewModelHorizontalExtents(
+          rootValues.HorizontalExtents.PositiveY,
+          rootValues.HorizontalExtents.NegativeY,
+          rootValues.HorizontalExtents.PositiveX,
+          rootValues.HorizontalExtents.NegativeX
+        );
+      return new OperationResult<GltfNewModelImportOptions>(
+        OperationStatus.Succeeded,
+        new GltfNewModelImportOptions(
+          options.TextureResourceBindings,
+          footprint,
+          extents,
+          roles
+        )
+      );
+    }
+
     private static OperationResult<GltfMeshCreationResult> CreateCanonicalFallback(
       byte[] source,
       SeparateGltfPackage? separatePackage,
@@ -2825,7 +3038,9 @@ namespace EarthTool.GLTF
       ParsedGlb parsed,
       GltfOperationProfile profile,
       CancellationToken cancellationToken,
-      GltfNewModelImportOptions options
+      GltfNewModelImportOptions options,
+      Guid? creationGuid = null,
+      bool allowAuthoringMetadata = false
     )
     {
       cancellationToken.ThrowIfCancellationRequested();
@@ -2839,7 +3054,7 @@ namespace EarthTool.GLTF
         .Concat(CreateIgnoredSceneNodeDiagnostics(parsed))
         .ToArray();
       var texBindingDiagnostics = CreateNewModelTexBindingDiagnostics(parsed, options);
-      if (parsed.HasReservedMetadata)
+      if (parsed.HasReservedMetadata && !allowAuthoringMetadata)
       {
         return Failed<GltfNewModelImportResult>(
           Diagnostic(
@@ -2969,7 +3184,7 @@ namespace EarthTool.GLTF
         .ToDictionary(item => item.renderObject, item => item.ordinal);
       var committed = CanonicalStaticMeshAssembler.Assemble(
         new CanonicalStaticMeshAssemblyInput(
-          Guid.NewGuid(),
+          creationGuid ?? Guid.NewGuid(),
           new CanonicalStaticBaseHeaderInput(
             animations.Lengths,
             resourceBindings.Keys.SelectMany(record => record.RenderVertices),
