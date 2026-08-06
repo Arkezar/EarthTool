@@ -9,30 +9,22 @@ public static class EarthTool.GLTF.GltfCliReportFormat
   field System.Int32 Version = 1
   property System.Collections.Generic.IReadOnlyList<System.Int32> SupportedVersions { get; }
 public sealed class EarthTool.GLTF.GltfCliReportOperation
-  property System.Collections.Generic.IReadOnlyList<EarthTool.GLTF.GltfMetadataConflictResolution> AppliedConflictActions { get; }
   property EarthTool.MSH.Assets.MeshAssetKind? AssetKind { get; }
-  property EarthTool.GLTF.InterchangeBaseline? Baseline { get; }
   property System.String? Destination { get; }
   property System.Collections.Generic.IReadOnlyList<EarthTool.Common.Operations.OperationDiagnostic> Diagnostics { get; }
-  property EarthTool.GLTF.InterchangeBaseline? ExpectedBaseline { get; }
   property EarthTool.GLTF.NativeProjectionFingerprint? Fingerprint { get; }
   property System.String Input { get; }
   property EarthTool.GLTF.GltfCliReportOperationKind Kind { get; }
-  property EarthTool.GLTF.GltfMetadataLineageDisposition? LineageDisposition { get; }
   property System.Guid? MeshAssetLineageId { get; }
   property System.Guid? MeshCreationGuid { get; }
-  property EarthTool.GLTF.InterchangeBaseline? NextBaseline { get; }
   property EarthTool.GLTF.GltfPackageKind PackageKind { get; }
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Authoring.PreservationChange> PreservationChanges { get; }
   property System.Collections.Generic.IReadOnlyList<System.String> RestoredSerializedRepresentationPaths { get; }
   property EarthTool.Common.Operations.OperationStatus Status { get; }
-  method EarthTool.GLTF.GltfCliReportOperation ForEditImport(System.String input, System.String destination, EarthTool.GLTF.GltfPackageKind packageKind, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfEditImportResult> result)
-  method EarthTool.GLTF.GltfCliReportOperation ForEditImport(System.String input, System.String destination, EarthTool.GLTF.GltfPackageKind packageKind, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfMeshEditImportResult> result)
   method EarthTool.GLTF.GltfCliReportOperation ForExport(System.String input, System.String destination, EarthTool.GLTF.GltfPackageKind packageKind, EarthTool.MSH.Assets.DynamicMeshAsset asset, EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfExportReceipt> result)
   method EarthTool.GLTF.GltfCliReportOperation ForExport(System.String input, System.String destination, EarthTool.GLTF.GltfPackageKind packageKind, EarthTool.MSH.Assets.StaticMeshAsset asset, EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfExportReceipt> result)
   method EarthTool.GLTF.GltfCliReportOperation ForFailedExport(System.String input, System.String destination, EarthTool.GLTF.GltfPackageKind packageKind, EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfExportReceipt> result)
   method EarthTool.GLTF.GltfCliReportOperation ForImport(System.String input, System.String destination, EarthTool.GLTF.GltfPackageKind packageKind, EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfMeshCreationResult> result)
-  method EarthTool.GLTF.GltfCliReportOperation ForNewModelImport(System.String input, System.String destination, EarthTool.GLTF.GltfPackageKind packageKind, EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfNewModelImportResult> result)
   method EarthTool.GLTF.GltfCliReportOperation ForValidation(System.String input, EarthTool.GLTF.GltfPackageKind packageKind, EarthTool.Common.Operations.OperationResult result)
 public enum EarthTool.GLTF.GltfCliReportOperationKind : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
   field EarthTool.GLTF.GltfCliReportOperationKind Export = 0
@@ -101,57 +93,24 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String UnsupportedImportPlanVersion = "ETG3001"
   field System.String UnsupportedMeshResource = "ETG1025"
   field System.String UnsupportedMetadataVersion = "ETG2004"
-public sealed class EarthTool.GLTF.GltfDynamicEditImportResult
-  property EarthTool.GLTF.NativeProjectionFingerprint AppliedFingerprint { get; }
-  property EarthTool.MSH.Assets.DynamicMeshAsset Asset { get; }
-  property EarthTool.GLTF.InterchangeBaseline NextBaseline { get; }
-  property EarthTool.GLTF.GltfExportOptions NextExportOptions { get; }
-  property EarthTool.MSH.Authoring.PreservationReport Preservation { get; }
-  property System.Collections.Generic.IReadOnlyList<System.String> RestoredSerializedRepresentationPaths { get; }
-public sealed class EarthTool.GLTF.GltfEditImportOptions
-  constructor GltfEditImportOptions(System.Collections.Generic.IEnumerable<EarthTool.GLTF.GltfMetadataConflictResolution>? conflictResolutions = null)
-  property System.Collections.Generic.IReadOnlyList<EarthTool.GLTF.GltfMetadataConflictResolution> ConflictResolutions { get; }
-public sealed class EarthTool.GLTF.GltfEditImportResult
-  property System.Collections.Generic.IReadOnlyList<EarthTool.GLTF.GltfMetadataConflictResolution> AppliedConflictResolutions { get; }
-  property EarthTool.GLTF.NativeProjectionFingerprint? AppliedFingerprint { get; }
-  property EarthTool.MSH.Assets.StaticMeshAsset Asset { get; }
-  property EarthTool.GLTF.GltfMetadataLineageDisposition LineageDisposition { get; }
-  property EarthTool.GLTF.InterchangeBaseline NextBaseline { get; }
-  property EarthTool.GLTF.GltfExportOptions NextExportOptions { get; }
-  property EarthTool.MSH.Authoring.PreservationReport Preservation { get; }
-  property System.Collections.Generic.IReadOnlyDictionary<System.String, System.String> PreservedUnknownMetadata { get; }
-  property System.Collections.Generic.IReadOnlyList<System.String> RestoredSerializedRepresentationPaths { get; }
 public sealed class EarthTool.GLTF.GltfExportOptions
-  constructor GltfExportOptions(System.Guid? assetLineageId = null, System.Guid? documentId = null, System.Collections.Generic.IEnumerable<System.String>? textureSearchRoots = null, System.Collections.Generic.IReadOnlyDictionary<System.String, System.String>? preservedUnknownMetadata = null)
-  constructor GltfExportOptions(System.Guid? assetLineageId, System.Guid? documentId, System.Collections.Generic.IEnumerable<System.String>? textureSearchRoots, System.Collections.Generic.IReadOnlyDictionary<System.String, System.String>? preservedUnknownMetadata, System.Collections.Generic.IEnumerable<System.String>? meshResourceSearchRoots)
-  constructor GltfExportOptions(System.Guid? assetLineageId, System.Guid? documentId, System.Collections.Generic.IEnumerable<System.String>? textureSearchRoots, System.Collections.Generic.IReadOnlyDictionary<System.String, System.String>? preservedUnknownMetadata, System.Collections.Generic.IEnumerable<System.String>? meshResourceSearchRoots, System.String? sourceBaseName)
-  property System.Guid? AssetLineageId { get; }
-  property System.Guid? DocumentId { get; }
+  constructor GltfExportOptions(System.Collections.Generic.IEnumerable<System.String>? textureSearchRoots = null, System.Collections.Generic.IEnumerable<System.String>? meshResourceSearchRoots = null, System.String? sourceBaseName = null)
   property System.Collections.Generic.IReadOnlyList<System.String> MeshResourceSearchRoots { get; }
-  property System.Collections.Generic.IReadOnlyDictionary<System.String, System.String> PreservedUnknownMetadata { get; }
   property System.String? SourceBaseName { get; }
   property System.Collections.Generic.IReadOnlyList<System.String> TextureSearchRoots { get; }
 public sealed class EarthTool.GLTF.GltfExportReceipt
-  property EarthTool.GLTF.InterchangeBaseline Baseline { get; }
   property EarthTool.GLTF.NativeProjectionFingerprint Fingerprint { get; }
 public sealed class EarthTool.GLTF.GltfImportPlan
-  property EarthTool.GLTF.GltfEditImportOptions? EditOptions { get; }
-  property EarthTool.GLTF.InterchangeBaseline? ExpectedBaseline { get; }
   property System.String Format { get; }
-  property EarthTool.GLTF.GltfImportPlanKind Kind { get; }
   property EarthTool.GLTF.GltfNewModelImportOptions? NewModelOptions { get; }
   property EarthTool.GLTF.GltfPackageKind PackageKind { get; }
   property System.String SourceSha256 { get; }
   property System.Int32 Version { get; }
-  method EarthTool.GLTF.GltfImportPlan CreateEdit(EarthTool.GLTF.GltfPackageKind packageKind, System.String sourceSha256, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfEditImportOptions? options = null)
   method EarthTool.GLTF.GltfImportPlan CreateNewModel(EarthTool.GLTF.GltfPackageKind packageKind, System.String sourceSha256, EarthTool.GLTF.GltfNewModelImportOptions? options = null)
 public static class EarthTool.GLTF.GltfImportPlanFormat
   field System.String Identifier = "earthtool.msh.import-plan"
   field System.Int32 Version = 2
   property System.Collections.Generic.IReadOnlyList<System.Int32> SupportedVersions { get; }
-public enum EarthTool.GLTF.GltfImportPlanKind : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
-  field EarthTool.GLTF.GltfImportPlanKind Edit = 1
-  field EarthTool.GLTF.GltfImportPlanKind NewModel = 0
 public sealed class EarthTool.GLTF.GltfImportPlanSerializer
   constructor GltfImportPlanSerializer()
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<System.String>> ComputeGlbSourceSha256Async(System.IO.Stream source, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
@@ -170,22 +129,6 @@ public sealed class EarthTool.GLTF.GltfInterchange
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfExportReceipt>> ExportGlbFileAsync(EarthTool.MSH.Assets.StaticMeshAsset asset, System.String destinationPath, EarthTool.GLTF.GltfExportOptions? options = null, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfExportReceipt>> ExportGltfFileAsync(EarthTool.MSH.Assets.DynamicMeshAsset asset, System.String destinationPath, EarthTool.GLTF.GltfExportOptions? options = null, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfExportReceipt>> ExportGltfFileAsync(EarthTool.MSH.Assets.StaticMeshAsset asset, System.String destinationPath, EarthTool.GLTF.GltfExportOptions? options = null, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfDynamicEditImportResult>> ImportEditDynamicGlbAsync(System.IO.Stream source, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfDynamicEditImportResult>> ImportEditDynamicGltfFileAsync(System.String sourcePath, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfEditImportResult>> ImportEditGlbAsync(System.IO.Stream source, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfEditImportResult>> ImportEditGlbWithPlanAsync(System.IO.Stream source, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfImportPlan plan, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfEditImportResult>> ImportEditGlbWithResolutionsAsync(System.IO.Stream source, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfEditImportOptions options, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfEditImportResult>> ImportEditGltfFileAsync(System.String sourcePath, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfEditImportResult>> ImportEditGltfFileWithPlanAsync(System.String sourcePath, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfImportPlan plan, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfEditImportResult>> ImportEditGltfFileWithResolutionsAsync(System.String sourcePath, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfEditImportOptions options, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfMeshEditImportResult>> ImportEditMeshGlbAsync(System.IO.Stream source, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfMeshEditImportResult>> ImportEditMeshGlbWithPlanAsync(System.IO.Stream source, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfImportPlan plan, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfMeshEditImportResult>> ImportEditMeshGltfFileAsync(System.String sourcePath, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfMeshEditImportResult>> ImportEditMeshGltfFileWithPlanAsync(System.String sourcePath, EarthTool.GLTF.InterchangeBaseline expectedBaseline, EarthTool.GLTF.GltfImportPlan plan, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfNewModelImportResult>> ImportNewModelGlbAsync(System.IO.Stream source, EarthTool.GLTF.GltfNewModelImportOptions? options = null, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfNewModelImportResult>> ImportNewModelGlbWithPlanAsync(System.IO.Stream source, EarthTool.GLTF.GltfImportPlan plan, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfNewModelImportResult>> ImportNewModelGltfFileAsync(System.String sourcePath, EarthTool.GLTF.GltfNewModelImportOptions? options = null, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfNewModelImportResult>> ImportNewModelGltfFileWithPlanAsync(System.String sourcePath, EarthTool.GLTF.GltfImportPlan plan, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult> ValidateGlbAsync(System.IO.Stream source, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult> ValidateGltfFileAsync(System.String sourcePath, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
 public struct EarthTool.GLTF.GltfLightHandle : System.IEquatable<EarthTool.GLTF.GltfLightHandle>
@@ -203,14 +146,6 @@ public struct EarthTool.GLTF.GltfMaterialHandle : System.IEquatable<EarthTool.GL
 public sealed class EarthTool.GLTF.GltfMeshCreationResult
   property EarthTool.MSH.Assets.MeshAsset Asset { get; }
   property EarthTool.MSH.Authoring.PreservationReport Preservation { get; }
-public sealed class EarthTool.GLTF.GltfMeshEditImportResult
-  property System.Collections.Generic.IReadOnlyList<EarthTool.GLTF.GltfMetadataConflictResolution> AppliedConflictResolutions { get; }
-  property EarthTool.GLTF.NativeProjectionFingerprint? AppliedFingerprint { get; }
-  property EarthTool.MSH.Assets.MeshAsset Asset { get; }
-  property EarthTool.GLTF.GltfMetadataLineageDisposition LineageDisposition { get; }
-  property EarthTool.GLTF.InterchangeBaseline NextBaseline { get; }
-  property EarthTool.MSH.Authoring.PreservationReport Preservation { get; }
-  property System.Collections.Generic.IReadOnlyList<System.String> RestoredSerializedRepresentationPaths { get; }
 public sealed class EarthTool.GLTF.GltfMeshResourceLimits
   constructor GltfMeshResourceLimits(System.Int32 maxResourceBytes = 16777216, System.Int32 maxSearchRoots = 64, System.Int32 maxDirectoryEntries = 65536, System.Int32 maxResources = 256, System.Int32 maxPreviewVertices = 262144, System.Int32 maxDepth = 8)
   property EarthTool.GLTF.GltfMeshResourceLimits Default { get; }
@@ -220,30 +155,6 @@ public sealed class EarthTool.GLTF.GltfMeshResourceLimits
   property System.Int32 MaxResourceBytes { get; }
   property System.Int32 MaxResources { get; }
   property System.Int32 MaxSearchRoots { get; }
-public static class EarthTool.GLTF.GltfMetadataConflictActions
-  field System.String Abort = "abort"
-  field System.String AcceptBranch = "acceptBranch"
-  field System.String AcceptDeletion = "acceptDeletion"
-  field System.String AdoptAsNew = "adoptAsNew"
-  field System.String DiscardAffectedState = "discardAffectedState"
-  field System.String DiscardLineage = "discardLineage"
-  field System.String ForkScope = "forkScope"
-  field System.String MapScope = "mapScope"
-  field System.String RegenerateDerivedState = "regenerateDerivedState"
-  field System.String RepairNativeExternally = "repairNativeExternally"
-  field System.String RetryWithMetadata = "retryWithMetadata"
-public static class EarthTool.GLTF.GltfMetadataConflictCatalog
-  property System.Collections.Generic.IReadOnlyDictionary<System.String, System.Collections.Generic.IReadOnlyList<System.String>> ActionsByCode { get; }
-public sealed class EarthTool.GLTF.GltfMetadataConflictResolution
-  constructor GltfMetadataConflictResolution(System.String conflictKey, System.String action, System.String? targetNativePath = null)
-  property System.String Action { get; }
-  property System.String ConflictKey { get; }
-  property System.String? TargetNativePath { get; }
-public enum EarthTool.GLTF.GltfMetadataLineageDisposition : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
-  field EarthTool.GLTF.GltfMetadataLineageDisposition AdoptedAsNew = 2
-  field EarthTool.GLTF.GltfMetadataLineageDisposition BranchAccepted = 1
-  field EarthTool.GLTF.GltfMetadataLineageDisposition Discarded = 3
-  field EarthTool.GLTF.GltfMetadataLineageDisposition Retained = 0
 public sealed class EarthTool.GLTF.GltfNewModelFootprint
   constructor GltfNewModelFootprint(System.UInt16 presenceMask, System.Collections.Generic.IEnumerable<System.Single> topElevations, System.Collections.Generic.IEnumerable<System.Byte> cornerPassageFlags)
   property System.Collections.Generic.IReadOnlyList<System.Byte> CornerPassageFlags { get; }
@@ -262,10 +173,6 @@ public sealed class EarthTool.GLTF.GltfNewModelImportOptions
   property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfNodeHandle, EarthTool.GLTF.GltfNewModelObjectRole> ObjectRoles { get; }
   property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfLightHandle, EarthTool.GLTF.GltfNewModelStaticLightOptions> StaticLightOptions { get; }
   property System.Collections.Generic.IReadOnlyDictionary<EarthTool.GLTF.GltfMaterialHandle, System.String?> TextureResourceBindings { get; }
-public sealed class EarthTool.GLTF.GltfNewModelImportResult
-  property EarthTool.MSH.Assets.StaticMeshAsset Asset { get; }
-  property EarthTool.GLTF.InterchangeBaseline Baseline { get; }
-  property EarthTool.MSH.Authoring.PreservationReport Preservation { get; }
 public sealed class EarthTool.GLTF.GltfNewModelObjectRole
   constructor GltfNewModelObjectRole(EarthTool.GLTF.GltfStaticObjectRoles roles, System.Byte barrelMaximumAngle = 0)
   property System.Byte BarrelMaximumAngle { get; }
@@ -321,10 +228,6 @@ public enum EarthTool.GLTF.GltfStaticObjectRoles : System.IComparable, System.IC
   field EarthTool.GLTF.GltfStaticObjectRoles ViewerFaced = 1
 public static class EarthTool.GLTF.HostExtensions
   method Microsoft.Extensions.DependencyInjection.IServiceCollection AddGltfServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services)
-public sealed class EarthTool.GLTF.InterchangeBaseline
-  constructor InterchangeBaseline(System.Guid assetLineageId, System.Guid documentId)
-  property System.Guid AssetLineageId { get; }
-  property System.Guid DocumentId { get; }
 public sealed class EarthTool.GLTF.NativeProjectionFingerprint
   property System.String Name { get; }
   property System.String Sha256 { get; }

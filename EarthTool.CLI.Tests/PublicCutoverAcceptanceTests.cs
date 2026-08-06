@@ -61,6 +61,60 @@ public sealed partial class PublicCutoverAcceptanceTests
   }
 
   [Fact]
+  public void GltfPublicSurfaceExposesOnlyUnifiedMeshCreation()
+  {
+    var gltfTypes = typeof(GltfInterchange).Assembly.ExportedTypes
+      .Where(type => type.Namespace == "EarthTool.GLTF")
+      .ToArray();
+    var interchangeMethods = typeof(GltfInterchange).GetMethods()
+      .Where(method => method.DeclaringType == typeof(GltfInterchange))
+      .Select(method => method.Name)
+      .ToArray();
+
+    gltfTypes.Select(type => type.Name).Should().NotContain([
+      "GltfDynamicEditImportResult",
+      "GltfEditImportOptions",
+      "GltfEditImportResult",
+      "GltfImportPlanKind",
+      "GltfMeshEditImportResult",
+      "GltfMetadataConflictActions",
+      "GltfMetadataConflictCatalog",
+      "GltfMetadataConflictResolution",
+      "GltfMetadataLineageDisposition",
+      "GltfNewModelImportResult",
+      "InterchangeBaseline"
+    ]);
+    interchangeMethods.Should()
+      .Contain(["CreateMeshAsync", "CreateMeshFileAsync"])
+      .And.NotContain(method => method.StartsWith("ImportEdit", StringComparison.Ordinal)
+        || method.StartsWith("ImportNewModel", StringComparison.Ordinal));
+    typeof(GltfExportOptions).GetProperties().Select(property => property.Name).Should().NotContain([
+      "AssetLineageId",
+      "DocumentId",
+      "PreservedUnknownMetadata"
+    ]);
+    typeof(GltfExportReceipt).GetProperties().Select(property => property.Name)
+      .Should().NotContain("Baseline");
+    typeof(GltfImportPlan).GetProperties().Select(property => property.Name).Should().NotContain([
+      "EditOptions",
+      "ExpectedBaseline",
+      "Kind"
+    ]);
+    typeof(GltfImportPlan).GetMethods().Select(method => method.Name).Should().NotContain("CreateEdit");
+    typeof(GltfCliReportOperation).GetProperties().Select(property => property.Name).Should().NotContain([
+      "AppliedConflictActions",
+      "Baseline",
+      "ExpectedBaseline",
+      "LineageDisposition",
+      "NextBaseline"
+    ]);
+    typeof(GltfCliReportOperation).GetMethods().Select(method => method.Name).Should().NotContain([
+      "ForEditImport",
+      "ForNewModelImport"
+    ]);
+  }
+
+  [Fact]
   public void PublicDependencyInjectionRegistersTheMshAndGltfSurfaces()
   {
     using var services = new ServiceCollection()

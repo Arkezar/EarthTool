@@ -142,7 +142,7 @@ public class GltfPlanAndReportTests
   }
 
   [Fact]
-  public async Task VersionTwoEditPlanRoundTripsOnlyTypedConflictActions()
+  public async Task VersionTwoEditPlanIsRejectedAsRemoved()
   {
     var options = new GltfEditImportOptions(
     [
@@ -166,14 +166,12 @@ public class GltfPlanAndReportTests
     stream.Position = 0;
     var read = await serializer.DeserializeAsync(stream);
 
-    read.Status.Should().Be(
-      OperationStatus.Succeeded,
-      string.Join("; ", read.Diagnostics.Select(diagnostic => $"{diagnostic.Code}:{diagnostic.Path}:{diagnostic.Message}")));
-    read.Value!.Kind.Should().Be(GltfImportPlanKind.Edit);
-    read.Value.ExpectedBaseline!.AssetLineageId.Should().Be(_lineageId);
-    read.Value.EditOptions!.ConflictResolutions.Should().HaveCount(2);
-    read.Value.EditOptions.ConflictResolutions[0].TargetNativePath.Should().Be("nodes[2]");
-    read.Value.NewModelOptions.Should().BeNull();
+    read.Status.Should().Be(OperationStatus.Failed);
+    read.Value.Should().BeNull();
+    read.Diagnostics.Should().ContainSingle().Subject.Should().Match<OperationDiagnostic>(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.RemovedImportPlanMember
+      && diagnostic.EventId == 3005
+      && diagnostic.Path == "mode");
   }
 
   [Theory]

@@ -1439,10 +1439,25 @@ public class MetadataGraphValidationTests
     result.Value.NextBaseline.DocumentId.Should().NotBe(expected.DocumentId);
   }
 
-  [Theory]
-  [InlineData(GltfMetadataConflictActions.AdoptAsNew, GltfMetadataLineageDisposition.AdoptedAsNew)]
-  [InlineData(GltfMetadataConflictActions.DiscardLineage, GltfMetadataLineageDisposition.Discarded)]
-  public async Task WholeLineageActionsCanonicallyImportNativeState(
+  [Fact]
+  public Task AdoptAsNewCanonicallyImportsNativeState()
+  {
+    return WholeLineageActionCanonicallyImportsNativeState(
+      GltfMetadataConflictActions.AdoptAsNew,
+      GltfMetadataLineageDisposition.AdoptedAsNew
+    );
+  }
+
+  [Fact]
+  public Task DiscardLineageCanonicallyImportsNativeState()
+  {
+    return WholeLineageActionCanonicallyImportsNativeState(
+      GltfMetadataConflictActions.DiscardLineage,
+      GltfMetadataLineageDisposition.Discarded
+    );
+  }
+
+  private async Task WholeLineageActionCanonicallyImportsNativeState(
     string action,
     GltfMetadataLineageDisposition expectedDisposition
   )

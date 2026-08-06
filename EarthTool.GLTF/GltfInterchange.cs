@@ -1539,7 +1539,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports a dynamic GLB into an expected lineage and document baseline.</summary>
-    public async Task<OperationResult<GltfDynamicEditImportResult>> ImportEditDynamicGlbAsync(
+    internal async Task<OperationResult<GltfDynamicEditImportResult>> ImportEditDynamicGlbAsync(
       Stream source,
       InterchangeBaseline expectedBaseline,
       GltfOperationProfile? profile = null,
@@ -1590,7 +1590,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports a dynamic separate-glTF package into an expected baseline.</summary>
-    public async Task<OperationResult<GltfDynamicEditImportResult>> ImportEditDynamicGltfFileAsync(
+    internal async Task<OperationResult<GltfDynamicEditImportResult>> ImportEditDynamicGltfFileAsync(
       string sourcePath,
       InterchangeBaseline expectedBaseline,
       GltfOperationProfile? profile = null,
@@ -1644,7 +1644,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports a static or dynamic GLB while preserving existing kind-specific contracts.</summary>
-    public async Task<OperationResult<GltfMeshEditImportResult>> ImportEditMeshGlbAsync(
+    internal async Task<OperationResult<GltfMeshEditImportResult>> ImportEditMeshGlbAsync(
       Stream source,
       InterchangeBaseline expectedBaseline,
       GltfOperationProfile? profile = null,
@@ -1705,7 +1705,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports a static or dynamic separate-glTF package.</summary>
-    public async Task<OperationResult<GltfMeshEditImportResult>> ImportEditMeshGltfFileAsync(
+    internal async Task<OperationResult<GltfMeshEditImportResult>> ImportEditMeshGltfFileAsync(
       string sourcePath,
       InterchangeBaseline expectedBaseline,
       GltfOperationProfile? profile = null,
@@ -1759,7 +1759,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports a planned static GLB through the kind-neutral result contract.</summary>
-    public async Task<OperationResult<GltfMeshEditImportResult>> ImportEditMeshGlbWithPlanAsync(
+    internal async Task<OperationResult<GltfMeshEditImportResult>> ImportEditMeshGlbWithPlanAsync(
       Stream source,
       InterchangeBaseline expectedBaseline,
       GltfImportPlan plan,
@@ -1774,7 +1774,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports a planned static separate-glTF package through the kind-neutral result contract.</summary>
-    public async Task<
+    internal async Task<
       OperationResult<GltfMeshEditImportResult>
     > ImportEditMeshGltfFileWithPlanAsync(
       string sourcePath,
@@ -1873,7 +1873,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports a GLB into an expected lineage and document baseline.</summary>
-    public Task<OperationResult<GltfEditImportResult>> ImportEditGlbAsync(
+    internal Task<OperationResult<GltfEditImportResult>> ImportEditGlbAsync(
       Stream source,
       InterchangeBaseline expectedBaseline,
       GltfOperationProfile? profile = null,
@@ -1890,7 +1890,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports a GLB using one validated, source-bound edit plan.</summary>
-    public async Task<OperationResult<GltfEditImportResult>> ImportEditGlbWithPlanAsync(
+    internal async Task<OperationResult<GltfEditImportResult>> ImportEditGlbWithPlanAsync(
       Stream source,
       InterchangeBaseline expectedBaseline,
       GltfImportPlan plan,
@@ -1952,7 +1952,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports a GLB and transactionally applies exact metadata conflict resolutions.</summary>
-    public async Task<OperationResult<GltfEditImportResult>> ImportEditGlbWithResolutionsAsync(
+    internal async Task<OperationResult<GltfEditImportResult>> ImportEditGlbWithResolutionsAsync(
       Stream source,
       InterchangeBaseline expectedBaseline,
       GltfEditImportOptions options,
@@ -2076,7 +2076,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports separate glTF into an expected lineage and document baseline.</summary>
-    public Task<OperationResult<GltfEditImportResult>> ImportEditGltfFileAsync(
+    internal Task<OperationResult<GltfEditImportResult>> ImportEditGltfFileAsync(
       string sourcePath,
       InterchangeBaseline expectedBaseline,
       GltfOperationProfile? profile = null,
@@ -2093,7 +2093,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports separate glTF using one validated, source-bound edit plan.</summary>
-    public async Task<OperationResult<GltfEditImportResult>> ImportEditGltfFileWithPlanAsync(
+    internal async Task<OperationResult<GltfEditImportResult>> ImportEditGltfFileWithPlanAsync(
       string sourcePath,
       InterchangeBaseline expectedBaseline,
       GltfImportPlan plan,
@@ -2155,7 +2155,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports separate glTF and transactionally applies exact metadata conflict resolutions.</summary>
-    public async Task<OperationResult<GltfEditImportResult>> ImportEditGltfFileWithResolutionsAsync(
+    internal async Task<OperationResult<GltfEditImportResult>> ImportEditGltfFileWithResolutionsAsync(
       string sourcePath,
       InterchangeBaseline expectedBaseline,
       GltfEditImportOptions options,
@@ -2323,7 +2323,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports a metadata-free GLB as a canonical authored static mesh representation.</summary>
-    public async Task<OperationResult<GltfNewModelImportResult>> ImportNewModelGlbAsync(
+    internal async Task<OperationResult<GltfNewModelImportResult>> ImportNewModelGlbAsync(
       Stream source,
       GltfNewModelImportOptions? options = null,
       GltfOperationProfile? profile = null,
@@ -2356,7 +2356,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports a metadata-free GLB using one validated, source-bound semantic plan.</summary>
-    public async Task<OperationResult<GltfNewModelImportResult>> ImportNewModelGlbWithPlanAsync(
+    internal async Task<OperationResult<GltfNewModelImportResult>> ImportNewModelGlbWithPlanAsync(
       Stream source,
       GltfImportPlan plan,
       GltfOperationProfile? profile = null,
@@ -2411,7 +2411,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports metadata-free separate glTF as a canonical authored static mesh representation.</summary>
-    public async Task<OperationResult<GltfNewModelImportResult>> ImportNewModelGltfFileAsync(
+    internal async Task<OperationResult<GltfNewModelImportResult>> ImportNewModelGltfFileAsync(
       string sourcePath,
       GltfNewModelImportOptions? options = null,
       GltfOperationProfile? profile = null,
@@ -2442,7 +2442,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Imports metadata-free separate glTF using one validated, source-bound semantic plan.</summary>
-    public async Task<
+    internal async Task<
       OperationResult<GltfNewModelImportResult>
     > ImportNewModelGltfFileWithPlanAsync(
       string sourcePath,

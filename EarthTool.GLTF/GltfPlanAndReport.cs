@@ -50,7 +50,7 @@ namespace EarthTool.GLTF
   }
 
   /// <summary>Names the closed import intents represented by a version-2 plan.</summary>
-  public enum GltfImportPlanKind
+  internal enum GltfImportPlanKind
   {
     /// <summary>Canonical admission of metadata-free native content.</summary>
     NewModel = 0,
@@ -66,17 +66,17 @@ namespace EarthTool.GLTF
     /// <summary>Gets the independent import-plan protocol version.</summary>
     public int Version => GltfImportPlanFormat.Version;
     /// <summary>Gets the import intent.</summary>
-    public GltfImportPlanKind Kind { get; }
+    internal GltfImportPlanKind Kind { get; }
     /// <summary>Gets the source package form.</summary>
     public GltfPackageKind PackageKind { get; }
     /// <summary>Gets the lowercase source-package SHA-256 binding.</summary>
     public string SourceSha256 { get; }
     /// <summary>Gets the required edit baseline, or null for new-model import.</summary>
-    public InterchangeBaseline? ExpectedBaseline { get; }
+    internal InterchangeBaseline? ExpectedBaseline { get; }
     /// <summary>Gets typed new-model overrides, or null for edit import.</summary>
     public GltfNewModelImportOptions? NewModelOptions { get; }
     /// <summary>Gets exact conflict actions, or null for new-model import.</summary>
-    public GltfEditImportOptions? EditOptions { get; }
+    internal GltfEditImportOptions? EditOptions { get; }
 
     private GltfImportPlan(
       GltfImportPlanKind kind,
@@ -115,7 +115,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Creates one source- and baseline-bound edit plan from exact conflict actions.</summary>
-    public static GltfImportPlan CreateEdit(
+    internal static GltfImportPlan CreateEdit(
       GltfPackageKind packageKind,
       string sourceSha256,
       InterchangeBaseline expectedBaseline,
@@ -463,12 +463,10 @@ namespace EarthTool.GLTF
       }
       if (mode == "edit")
       {
-        EnsureProperties(root, "$", "format", "version", "mode", "package", "sourceSha256", "expectedBaseline", "conflictActions");
-        return GltfImportPlan.CreateEdit(
-          packageKind,
-          sourceSha256,
-          ParseBaseline(Required(root, "expectedBaseline", "expectedBaseline"), "expectedBaseline"),
-          ParseConflictActions(Required(root, "conflictActions", "conflictActions"), profile));
+        throw RemovedMember(
+          "mode",
+          "The edit import-plan mode was removed. Use self-contained metadata with unified mesh creation."
+        );
       }
       throw Malformed("mode", "The import-plan mode is invalid.");
     }
@@ -584,41 +582,6 @@ namespace EarthTool.GLTF
             + "Use the canonical authoring identifiers EarthTool A through EarthTool D for animation clips, "
             + "then regenerate the plan.");
       }
-    }
-
-    private static GltfEditImportOptions ParseConflictActions(JsonElement value, GltfOperationProfile profile)
-    {
-      RequireKind(value, JsonValueKind.Array, "conflictActions", "Conflict actions must be an array.");
-      if (value.GetArrayLength() > profile.MaxMetadataConflicts)
-      {
-        throw LimitException("conflictActions", value.GetArrayLength(), profile.MaxMetadataConflicts);
-      }
-      var resolutions = new List<GltfMetadataConflictResolution>();
-      var keys = new HashSet<string>(StringComparer.Ordinal);
-      var index = 0;
-      foreach (var item in value.EnumerateArray())
-      {
-        var path = $"conflictActions[{index}]";
-        EnsureProperties(item, path, "conflictKey", "action", "targetNativePath");
-        var key = RequiredString(item, "conflictKey", path + ".conflictKey");
-        if (!IsConflictKey(key) || !keys.Add(key))
-        {
-          throw Malformed(path + ".conflictKey", "A conflict key is invalid or duplicated.");
-        }
-        var action = RequiredString(item, "action", path + ".action");
-        var target = OptionalNullableString(item, "targetNativePath", path + ".targetNativePath");
-        resolutions.Add(new GltfMetadataConflictResolution(key, action, target));
-        index++;
-      }
-      return new GltfEditImportOptions(resolutions);
-    }
-
-    private static InterchangeBaseline ParseBaseline(JsonElement value, string path)
-    {
-      EnsureProperties(value, path, "assetLineageId", "documentId");
-      return new InterchangeBaseline(
-        Guid.ParseExact(RequiredString(value, "assetLineageId", path + ".assetLineageId"), "D"),
-        Guid.ParseExact(RequiredString(value, "documentId", path + ".documentId"), "D"));
     }
 
     private static byte[] WritePlan(GltfImportPlan plan)
@@ -1106,17 +1069,17 @@ namespace EarthTool.GLTF
     /// <summary>Gets the produced or source MSH archive creation identity.</summary>
     public Guid? MeshCreationGuid { get; }
     /// <summary>Gets the caller-authorized edit baseline.</summary>
-    public InterchangeBaseline? ExpectedBaseline { get; }
+    internal InterchangeBaseline? ExpectedBaseline { get; }
     /// <summary>Gets an emitted or initial interchange baseline.</summary>
-    public InterchangeBaseline? Baseline { get; }
+    internal InterchangeBaseline? Baseline { get; }
     /// <summary>Gets the rotated baseline after edit reconciliation.</summary>
-    public InterchangeBaseline? NextBaseline { get; }
+    internal InterchangeBaseline? NextBaseline { get; }
     /// <summary>Gets the emitted or applied native projection fingerprint.</summary>
     public NativeProjectionFingerprint? Fingerprint { get; }
     /// <summary>Gets how a successful edit treated its lineage.</summary>
-    public GltfMetadataLineageDisposition? LineageDisposition { get; }
+    internal GltfMetadataLineageDisposition? LineageDisposition { get; }
     /// <summary>Gets every conflict action committed by the operation.</summary>
-    public IReadOnlyList<GltfMetadataConflictResolution> AppliedConflictActions { get; }
+    internal IReadOnlyList<GltfMetadataConflictResolution> AppliedConflictActions { get; }
     /// <summary>Gets exact serialized paths restored from applicable metadata.</summary>
     public IReadOnlyList<string> RestoredSerializedRepresentationPaths { get; }
     /// <summary>Gets every preservation effect in operation order.</summary>
@@ -1232,7 +1195,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Captures one complete new-model import outcome.</summary>
-    public static GltfCliReportOperation ForNewModelImport(
+    internal static GltfCliReportOperation ForNewModelImport(
       string input,
       string destination,
       GltfPackageKind packageKind,
@@ -1276,7 +1239,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Captures one complete expected-baseline edit-import outcome.</summary>
-    public static GltfCliReportOperation ForEditImport(
+    internal static GltfCliReportOperation ForEditImport(
       string input,
       string destination,
       GltfPackageKind packageKind,
@@ -1304,7 +1267,7 @@ namespace EarthTool.GLTF
     }
 
     /// <summary>Captures one complete kind-neutral expected-baseline edit-import outcome.</summary>
-    public static GltfCliReportOperation ForEditImport(
+    internal static GltfCliReportOperation ForEditImport(
       string input,
       string destination,
       GltfPackageKind packageKind,

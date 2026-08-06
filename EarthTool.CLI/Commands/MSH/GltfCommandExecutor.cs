@@ -243,10 +243,7 @@ internal sealed class GltfCommandExecutor
 
     var sourceBaseName = Path.GetFileNameWithoutExtension(input);
     var options = new GltfExportOptions(
-      null,
-      null,
       settings.TextureSearchRoots,
-      null,
       settings.MeshResourceSearchRoots,
       string.IsNullOrWhiteSpace(sourceBaseName) ? null : sourceBaseName);
     var asset = read.Value;

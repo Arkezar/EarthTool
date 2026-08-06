@@ -139,7 +139,7 @@ namespace EarthTool.GLTF
   }
 
   /// <summary>Defines the closed version-1 metadata conflict action identifiers.</summary>
-  public static class GltfMetadataConflictActions
+  internal static class GltfMetadataConflictActions
   {
     public const string Abort = "abort";
     public const string RetryWithMetadata = "retryWithMetadata";
@@ -155,7 +155,7 @@ namespace EarthTool.GLTF
   }
 
   /// <summary>Exposes the complete allowed-action set for each version-1 metadata conflict.</summary>
-  public static class GltfMetadataConflictCatalog
+  internal static class GltfMetadataConflictCatalog
   {
     public static IReadOnlyDictionary<string, IReadOnlyList<string>> ActionsByCode { get; } =
       new ReadOnlyDictionary<string, IReadOnlyList<string>>(
@@ -261,7 +261,7 @@ namespace EarthTool.GLTF
   }
 
   /// <summary>Identifies how a successful edit import treated its metadata lineage.</summary>
-  public enum GltfMetadataLineageDisposition
+  internal enum GltfMetadataLineageDisposition
   {
     /// <summary>The expected lineage and document branch were retained.</summary>
     Retained,
@@ -274,7 +274,7 @@ namespace EarthTool.GLTF
   }
 
   /// <summary>Selects one allowed action for one exact metadata conflict.</summary>
-  public sealed class GltfMetadataConflictResolution
+  internal sealed class GltfMetadataConflictResolution
   {
     /// <summary>Gets the deterministic key of the exact conflict being resolved.</summary>
     public string ConflictKey { get; }
@@ -317,7 +317,7 @@ namespace EarthTool.GLTF
   }
 
   /// <summary>Supplies operation-scoped metadata conflict resolutions for edit import.</summary>
-  public sealed class GltfEditImportOptions
+  internal sealed class GltfEditImportOptions
   {
     /// <summary>Gets the exact conflict resolutions applied as one transaction.</summary>
     public IReadOnlyList<GltfMetadataConflictResolution> ConflictResolutions { get; }
@@ -679,7 +679,7 @@ namespace EarthTool.GLTF
   }
 
   /// <summary>Identifies one asset lineage and one emitted interchange baseline.</summary>
-  public sealed class InterchangeBaseline
+  internal sealed class InterchangeBaseline
   {
     /// <summary>Gets the persistent asset-lineage identity.</summary>
     public Guid AssetLineageId { get; }
@@ -747,10 +747,10 @@ namespace EarthTool.GLTF
   public sealed class GltfExportOptions
   {
     /// <summary>Gets an optional caller-supplied asset-lineage identity.</summary>
-    public Guid? AssetLineageId { get; }
+    internal Guid? AssetLineageId { get; }
 
     /// <summary>Gets an optional caller-supplied document identity.</summary>
-    public Guid? DocumentId { get; }
+    internal Guid? DocumentId { get; }
 
     /// <summary>Gets ordered absolute roots used only to resolve decoded TEX previews.</summary>
     public IReadOnlyList<string> TextureSearchRoots { get; }
@@ -762,16 +762,30 @@ namespace EarthTool.GLTF
     public string? SourceBaseName { get; }
 
     /// <summary>Gets exact unknown additive metadata tokens to carry into the next baseline.</summary>
-    public IReadOnlyDictionary<string, string> PreservedUnknownMetadata { get; }
+    internal IReadOnlyDictionary<string, string> PreservedUnknownMetadata { get; }
 
     internal IReadOnlyDictionary<string, int> MetadataNextIds { get; }
     internal GltfArtistObjectLocalIds ArtistObjectLocalIds { get; }
     internal IReadOnlyList<int> DynamicObjectIds { get; private set; }
 
-    /// <summary>Initializes GLB export options.</summary>
+    /// <summary>Initializes export options for previews and artist-facing source naming.</summary>
     public GltfExportOptions(
-      Guid? assetLineageId = null,
-      Guid? documentId = null,
+      IEnumerable<string>? textureSearchRoots = null,
+      IEnumerable<string>? meshResourceSearchRoots = null,
+      string? sourceBaseName = null)
+      : this(
+        null,
+        null,
+        textureSearchRoots,
+        null,
+        meshResourceSearchRoots,
+        sourceBaseName)
+    {
+    }
+
+    internal GltfExportOptions(
+      Guid? assetLineageId,
+      Guid? documentId,
       IEnumerable<string>? textureSearchRoots = null,
       IReadOnlyDictionary<string, string>? preservedUnknownMetadata = null)
       : this(
@@ -779,13 +793,11 @@ namespace EarthTool.GLTF
         documentId,
         textureSearchRoots,
         preservedUnknownMetadata,
-        null,
         null)
     {
     }
 
-    /// <summary>Initializes GLB export options including referenced MSH preview roots.</summary>
-    public GltfExportOptions(
+    internal GltfExportOptions(
       Guid? assetLineageId,
       Guid? documentId,
       IEnumerable<string>? textureSearchRoots,
@@ -801,8 +813,7 @@ namespace EarthTool.GLTF
     {
     }
 
-    /// <summary>Initializes GLB export options including artist-facing source naming.</summary>
-    public GltfExportOptions(
+    internal GltfExportOptions(
       Guid? assetLineageId,
       Guid? documentId,
       IEnumerable<string>? textureSearchRoots,
@@ -1177,7 +1188,7 @@ namespace EarthTool.GLTF
   public sealed class GltfExportReceipt
   {
     /// <summary>Gets the emitted interchange baseline.</summary>
-    public InterchangeBaseline Baseline { get; }
+    internal InterchangeBaseline Baseline { get; }
 
     /// <summary>Gets the emitted native projection fingerprint.</summary>
     public NativeProjectionFingerprint Fingerprint { get; }
@@ -1206,7 +1217,7 @@ namespace EarthTool.GLTF
   }
 
   /// <summary>Reports a successful reconciled edit import.</summary>
-  public sealed class GltfEditImportResult
+  internal sealed class GltfEditImportResult
   {
     /// <summary>Gets the restored immutable static mesh asset.</summary>
     public StaticMeshAsset Asset { get; }
@@ -1273,7 +1284,7 @@ namespace EarthTool.GLTF
   }
 
   /// <summary>Reports a successful reconciled dynamic edit import.</summary>
-  public sealed class GltfDynamicEditImportResult
+  internal sealed class GltfDynamicEditImportResult
   {
     /// <summary>Gets the restored immutable dynamic mesh asset.</summary>
     public DynamicMeshAsset Asset { get; }
@@ -1315,7 +1326,7 @@ namespace EarthTool.GLTF
   }
 
   /// <summary>Reports a successful edit import without weakening kind-specific APIs.</summary>
-  public sealed class GltfMeshEditImportResult
+  internal sealed class GltfMeshEditImportResult
   {
     /// <summary>Gets the restored immutable static or dynamic mesh asset.</summary>
     public MeshAsset Asset { get; }
@@ -1360,7 +1371,7 @@ namespace EarthTool.GLTF
   }
 
   /// <summary>Reports a successful new-model import and its first interchange baseline.</summary>
-  public sealed class GltfNewModelImportResult
+  internal sealed class GltfNewModelImportResult
   {
     /// <summary>Gets the immutable canonical authored static mesh asset.</summary>
     public StaticMeshAsset Asset { get; }

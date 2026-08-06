@@ -835,10 +835,10 @@ public sealed class InternalMshCommandHostTests
       GltfPackageKind.Gltf,
       "package-plan.json");
 
-    foreach (var (planPath, dimension) in new[]
+    foreach (var (planPath, expectedCode, dimension) in new[]
     {
-      (editPlanPath, "mode"),
-      (packagePlanPath, "package")
+      (editPlanPath, GltfDiagnosticCodes.RemovedImportPlanMember, "mode"),
+      (packagePlanPath, GltfDiagnosticCodes.ImportPlanMismatch, "package")
     })
     {
       var reportPath = Path.Combine(fixture.Directory, $"{dimension}-mismatch-report.json");
@@ -853,9 +853,12 @@ public sealed class InternalMshCommandHostTests
       using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
       var diagnostic = report.RootElement.GetProperty("operations")[0]
         .GetProperty("diagnostics").EnumerateArray().Should().ContainSingle().Subject;
-      diagnostic.GetProperty("code").GetString().Should().Be(GltfDiagnosticCodes.ImportPlanMismatch);
+      diagnostic.GetProperty("code").GetString().Should().Be(expectedCode);
       diagnostic.GetProperty("path").GetString().Should().Be(dimension);
-      diagnostic.GetProperty("data").GetProperty("dimension").GetString().Should().Be(dimension);
+      if (expectedCode == GltfDiagnosticCodes.ImportPlanMismatch)
+      {
+        diagnostic.GetProperty("data").GetProperty("dimension").GetString().Should().Be(dimension);
+      }
     }
   }
 
@@ -1248,34 +1251,24 @@ public sealed class InternalMshCommandHostTests
       write.Succeeded.Should().BeTrue();
     }
 
-    public async Task<InterchangeBaseline> CreateEditGlbAsync()
+    public async Task CreateEditGlbAsync()
     {
       var read = await new MshReader().ReadFileAsync(MshPath);
       var asset = read.Value.Should().BeOfType<StaticMeshAsset>().Subject;
-      var expected = new InterchangeBaseline(
-        Guid.Parse("aaaaaaaa-1111-4222-8333-bbbbbbbbbbbb"),
-        Guid.Parse("cccccccc-4444-4555-8666-dddddddddddd"));
       var export = await new GltfInterchange().ExportGlbFileAsync(
         asset,
-        GlbPath,
-        new GltfExportOptions(expected.AssetLineageId, expected.DocumentId));
+        GlbPath);
       export.Status.Should().Be(OperationStatus.Succeeded);
-      return expected;
     }
 
-    public async Task<InterchangeBaseline> CreateEditDynamicGlbAsync()
+    public async Task CreateEditDynamicGlbAsync()
     {
       var read = await new MshReader().ReadFileAsync(MshPath);
       var asset = read.Value.Should().BeOfType<DynamicMeshAsset>().Subject;
-      var expected = new InterchangeBaseline(
-        Guid.Parse("aaaaaaaa-1111-4222-8333-bbbbbbbbbbbb"),
-        Guid.Parse("cccccccc-4444-4555-8666-dddddddddddd"));
       var export = await new GltfInterchange().ExportGlbFileAsync(
         asset,
-        GlbPath,
-        new GltfExportOptions(expected.AssetLineageId, expected.DocumentId));
+        GlbPath);
       export.Status.Should().Be(OperationStatus.Succeeded);
-      return expected;
     }
 
     public async Task CreateMetadataFreeGlbAsync()
@@ -1339,14 +1332,21 @@ public sealed class InternalMshCommandHostTests
       await using var source = File.OpenRead(GlbPath);
       var digest = await serializer.ComputeGlbSourceSha256Async(source);
       digest.Status.Should().Be(OperationStatus.Succeeded);
-      var plan = GltfImportPlan.CreateEdit(
-        GltfPackageKind.Glb,
-        digest.Value!,
-        new InterchangeBaseline(
-          Guid.Parse("aaaaaaaa-1111-4222-8333-bbbbbbbbbbbb"),
-          Guid.Parse("cccccccc-4444-4555-8666-dddddddddddd")));
       var planPath = Path.Combine(Directory, fileName);
-      await WritePlanAsync(plan, planPath);
+      await File.WriteAllTextAsync(planPath, $$"""
+        {
+          "format": "earthtool.msh.import-plan",
+          "version": 2,
+          "mode": "edit",
+          "package": "glb",
+          "sourceSha256": "{{digest.Value}}",
+          "expectedBaseline": {
+            "assetLineageId": "aaaaaaaa-1111-4222-8333-bbbbbbbbbbbb",
+            "documentId": "cccccccc-4444-4555-8666-dddddddddddd"
+          },
+          "conflictActions": []
+        }
+        """);
       return planPath;
     }
 
