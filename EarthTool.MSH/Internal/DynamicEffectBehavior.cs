@@ -545,6 +545,19 @@ namespace EarthTool.MSH.Internal
       return GetDescriptor(effectType).Uses(semanticUse);
     }
 
+    internal static DynamicAuthoringRequirement GetAuthoringRequirements(
+      DynamicEffectType effectType)
+    {
+      return GetDescriptor(effectType).AuthoringRequirements;
+    }
+
+    internal static bool ConsumesRepresentation(
+      DynamicEffectType effectType,
+      DynamicRepresentationUse representation)
+    {
+      return GetDescriptor(effectType).Consumes(representation);
+    }
+
     private static DynamicEffectDescriptor GetDescriptor(DynamicEffectType effectType)
     {
       return TryGetDescriptor(effectType, out var descriptor)
