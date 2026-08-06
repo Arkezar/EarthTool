@@ -221,6 +221,141 @@ public class CanonicalMeshAuthoringTests
   }
 
   [Fact]
+  public async Task CanonicalStaticAssemblyConsumesOneCompleteInputDeterministically()
+  {
+    var root = CreateCanonicalSequenceSource();
+    var records = new[]
+    {
+      root.RenderObjects[0],
+      root.Children[0].RenderObjects[0],
+      root.Children[0].RenderObjects[1],
+      root.RenderObjects[1],
+    };
+    var baseHeader = new CanonicalStaticBaseHeaderInput(
+      new AnimationClassBytes(1, 1, 1, 1),
+      records.SelectMany(record => record.RenderVertices),
+      new CanonicalStaticFootprint(
+        0xFFFF,
+        Enumerable.Range(0, 16).Select(index => index + 0.5f),
+        Enumerable.Range(0, 16).Select(index => (byte)index)
+      ),
+      new CanonicalHorizontalExtents(1.25f, 2.5f, 3.75f, 4.5f),
+      new AnimationClassBytes(0, 0, 0, 0),
+      CreateAttachmentRecords(),
+      CreateCannonRenderPositions(),
+      CreateStaticSpotLights(),
+      CreateStaticOmniLights()
+    );
+    var animation = CreateSequenceAnimation(0);
+    var input = new CanonicalStaticMeshAssemblyInput(
+      CreationGuid,
+      baseHeader,
+      root,
+      new Dictionary<int, Vector3>
+      {
+        [1] = new Vector3(4, 5, 6),
+      },
+      new Dictionary<int, StaticAnimationReplacement>
+      {
+        [1] = animation,
+      },
+      new Dictionary<int, string?>
+      {
+        [0] = "Textures\\explicit-a.tex",
+        [1] = "Textures\\explicit-b.tex",
+        [2] = null,
+        [3] = "Textures\\explicit-c.tex",
+      }
+    );
+
+    var first = CanonicalStaticMeshAssembler.Assemble(input);
+    var second = CanonicalStaticMeshAssembler.Assemble(input);
+
+    first.TryGetValue(out var firstAsset).Should().BeTrue();
+    second.TryGetValue(out var secondAsset).Should().BeTrue();
+    firstAsset!.CommonBaseHeader.SerializedRepresentation.Should()
+      .Equal(CanonicalBaseHeaderEncoder.EncodeStatic(baseHeader).SerializedRepresentation);
+    firstAsset.StaticRenderObjectSequence.Select(record =>
+      Encoding.ASCII.GetString(record.TexturePathBytes.ToArray())
+    ).Should().Equal(
+      "Textures\\explicit-a.tex",
+      "Textures\\explicit-b.tex",
+      string.Empty,
+      "Textures\\explicit-c.tex"
+    );
+    firstAsset.StaticRenderObjectSequence[1].Pivot.Should().Be(new Vector3(4, 5, 6));
+    firstAsset.StaticRenderObjectSequence[1].AnimationClassValue.Should().Be(animation.ClassValue);
+    (await WriteAsync(firstAsset)).Should().Equal(await WriteAsync(secondAsset!));
+  }
+
+  [Fact]
+  public void CanonicalStaticAssemblyRejectsInvalidCompleteInputWithoutPartialAsset()
+  {
+    var root = CreateCanonicalSequenceSource();
+    var input = new CanonicalStaticMeshAssemblyInput(
+      CreationGuid,
+      new CanonicalStaticBaseHeaderInput(
+        default,
+        root.RenderObjects.SelectMany(record => record.RenderVertices)
+      ),
+      root,
+      textureResourceBindings: new Dictionary<int, string?>
+      {
+        [0] = "..\\unsafe.tex",
+      }
+    );
+
+    var result = CanonicalStaticMeshAssembler.Assemble(input);
+
+    result.TryGetValue(out var asset).Should().BeFalse();
+    asset.Should().BeNull();
+    result.Diagnostics.Should()
+      .ContainSingle()
+      .Subject.Code.Should().Be(MshDiagnosticCodes.InvalidAuthoringInput);
+  }
+
+  [Fact]
+  public void CanonicalStaticBuilderPreservesRootGeometryHeaderDefaults()
+  {
+    var childGeometry = new[]
+    {
+      new CanonicalStaticVertex(
+        new Vector3(100, 100, 100),
+        Vector3.UnitZ,
+        Vector2.Zero
+      ),
+      new CanonicalStaticVertex(
+        new Vector3(101, 100, 100),
+        Vector3.UnitZ,
+        Vector2.UnitX
+      ),
+      new CanonicalStaticVertex(
+        new Vector3(100, 101, 100),
+        Vector3.UnitZ,
+        Vector2.UnitY
+      ),
+    };
+    var root = new CanonicalStaticSourceObject(
+      [new CanonicalStaticRenderObject(CreateVertices(), CreateTriangles())],
+      [
+        new CanonicalStaticSourceObject([
+          new CanonicalStaticRenderObject(childGeometry, CreateTriangles()),
+        ]),
+      ]
+    );
+
+    var result = StaticMeshBuilder.Create(CreationGuid).SetRootSourceObject(root).Build();
+
+    result.TryGetValue(out var asset).Should().BeTrue();
+    BinaryPrimitives.ReadUInt16LittleEndian(
+      asset!.CommonBaseHeader.BoxTopElevations.Take(2).ToArray()
+    ).Should().Be(256);
+    asset.CommonBaseHeader.HorizontalExtents.Should().Equal(
+      ToBytes((ushort)256, (ushort)0, (ushort)256, (ushort)0)
+    );
+  }
+
+  [Fact]
   public void EquivalentCanonicalStaticSequencesHaveExactDeterministicLengths()
   {
     var negativeZero = BitConverter.Int32BitsToSingle(unchecked((int)0x80000000));
@@ -284,43 +419,6 @@ public class CanonicalMeshAuthoringTests
     bytes.AsSpan(0x018, 12).ToArray().Should().OnlyContain(value => value == 0);
     bytes.AsSpan(0x048, 0x30).ToArray().Should().OnlyContain(value => value == 0);
     bytes.AsSpan(0x108, 0x1C).ToArray().Should().OnlyContain(value => value == 0);
-  }
-
-  [Fact]
-  public void BaseHeaderInputsRejectTheWrongAssemblyMode()
-  {
-    var root = new CanonicalStaticSourceObject([
-      new CanonicalStaticRenderObject(CreateVertices(), CreateTriangles()),
-    ]);
-    var canonical = StaticMeshAssembler.CreateCanonical(
-      CreationGuid,
-      root,
-      new CanonicalStaticFootprint(0x8000, new float[16], new byte[16]),
-      new CanonicalHorizontalExtents(1, 1, 1, 1)
-    );
-
-    ((Action)(() => canonical.ReplaceAttachmentRecord(1, new byte[8])))
-      .Should().Throw<InvalidOperationException>();
-    ((Action)(() => canonical.ReplaceCannonRenderPosition(1, new byte[12])))
-      .Should().Throw<InvalidOperationException>();
-    ((Action)(() => canonical.ReplaceStaticLightRecord(
-      StaticLightRecordKind.Spot,
-      1,
-      new byte[0x30],
-      Array.Empty<string>()
-    ))).Should().Throw<InvalidOperationException>();
-
-    var exact = MshExpert.CreateStatic(OneTriangleMshFixture.Create());
-    exact.TryGetValue(out var loadedAsset).Should().BeTrue();
-    var loaded = new StaticMeshAssembler(loadedAsset!);
-    ((Action)(() => loaded.ReplaceCanonicalAttachmentRecord(1, default)))
-      .Should().Throw<InvalidOperationException>();
-    ((Action)(() => loaded.ReplaceCanonicalCannonRenderPosition(1, default)))
-      .Should().Throw<InvalidOperationException>();
-    ((Action)(() => loaded.ReplaceCanonicalStaticSpotLight(1, default)))
-      .Should().Throw<InvalidOperationException>();
-    ((Action)(() => loaded.ReplaceCanonicalStaticOmniLight(1, default)))
-      .Should().Throw<InvalidOperationException>();
   }
 
   [Fact]

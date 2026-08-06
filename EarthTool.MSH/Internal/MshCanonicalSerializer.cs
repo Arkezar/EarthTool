@@ -91,6 +91,19 @@ namespace EarthTool.MSH.Internal
       );
     }
 
+    internal static byte[] CreateStatic(
+      Guid creationGuid,
+      IReadOnlyList<byte> commonHeader,
+      IReadOnlyList<byte> sequence
+    )
+    {
+      return CreateStatic(
+        new MeshArchiveFraming(0x20D0A1FF, null, creationGuid),
+        commonHeader,
+        sequence
+      );
+    }
+
     internal static byte[] RewriteStatic(
       StaticMeshAsset source,
       IReadOnlyDictionary<int, IReadOnlyList<CanonicalStaticVertex>> vertices,

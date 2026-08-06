@@ -23,6 +23,10 @@ using CanonicalBaseHeaderEncoder = EarthTool.MSH.Internal.CanonicalBaseHeaderEnc
 using CanonicalCannonRenderPosition = EarthTool.MSH.Internal.CanonicalCannonRenderPosition;
 using CanonicalOmniLight = EarthTool.MSH.Internal.CanonicalOmniLight;
 using CanonicalSpotLight = EarthTool.MSH.Internal.CanonicalSpotLight;
+using CanonicalStaticBaseHeaderInput = EarthTool.MSH.Internal.CanonicalStaticBaseHeaderInput;
+using CanonicalStaticMeshAssembler = EarthTool.MSH.Internal.CanonicalStaticMeshAssembler;
+using CanonicalStaticMeshAssemblyInput = EarthTool.MSH.Internal.CanonicalStaticMeshAssemblyInput;
+using CanonicalStaticRenderObjectSequenceEncoder = EarthTool.MSH.Internal.CanonicalStaticRenderObjectSequenceEncoder;
 
 namespace EarthTool.GLTF
 {
@@ -2900,16 +2904,53 @@ namespace EarthTool.GLTF
         );
       }
       var lineage = Guid.NewGuid();
-      var assembler = StaticMeshAssembler.CreateCanonical(
-        Guid.NewGuid(),
-        draft.Source,
-        footprint,
-        horizontalExtents!
+      var pivots = new Dictionary<CanonicalStaticRenderObject, System.Numerics.Vector3>();
+      AddNewModelPivots(draft, pivots);
+      var animationInputs = new Dictionary<
+        CanonicalStaticRenderObject,
+        StaticAnimationReplacement
+      >();
+      AddNewModelAnimations(animations, draft, animationInputs);
+      var attachmentRecords = new Dictionary<int, CanonicalAttachmentRecord>();
+      var cannonRenderPositions = new Dictionary<int, CanonicalCannonRenderPosition>();
+      var staticSpotLights = new Dictionary<int, CanonicalSpotLight>();
+      var staticOmniLights = new Dictionary<int, CanonicalOmniLight>();
+      AddNewModelBaseHeaderArtistObjects(
+        parsed,
+        options,
+        emitterOwnership,
+        attachmentRecords,
+        cannonRenderPositions,
+        staticSpotLights,
+        staticOmniLights
       );
-      ApplyNewModelPivots(draft, assembler);
-      ApplyNewModelAnimations(animations, draft, assembler);
-      ApplyNewModelBaseHeaderArtistObjects(parsed, assembler, options, emitterOwnership);
-      var committed = assembler.Commit(
+      var resourceBindings = new Dictionary<CanonicalStaticRenderObject, string?>();
+      AddNewModelResourceBindings(draft, resourceBindings);
+      var renderObjectOrdinals = CanonicalStaticRenderObjectSequenceEncoder
+        .GetCanonicalSequence(draft.Source)
+        .Select((renderObject, ordinal) => (renderObject, ordinal))
+        .ToDictionary(item => item.renderObject, item => item.ordinal);
+      var committed = CanonicalStaticMeshAssembler.Assemble(
+        new CanonicalStaticMeshAssemblyInput(
+          Guid.NewGuid(),
+          new CanonicalStaticBaseHeaderInput(
+            animations.Lengths,
+            resourceBindings.Keys.SelectMany(record => record.RenderVertices),
+            footprint,
+            horizontalExtents,
+            attachmentRecords: attachmentRecords,
+            cannonRenderPositions: cannonRenderPositions,
+            staticSpotLights: staticSpotLights,
+            staticOmniLights: staticOmniLights
+          ),
+          draft.Source,
+          pivots.ToDictionary(item => renderObjectOrdinals[item.Key], item => item.Value),
+          animationInputs.ToDictionary(item => renderObjectOrdinals[item.Key], item => item.Value),
+          resourceBindings.ToDictionary(
+            item => renderObjectOrdinals[item.Key],
+            item => item.Value
+          )
+        ),
         new MshOperationProfile(
           maxOutputBytes: profile.MaxOutputBytes,
           maxStaticVerticesPerObject: profile.MaxActiveRenderVertices,
@@ -3283,8 +3324,11 @@ namespace EarthTool.GLTF
       var normalTransform = System.Numerics.Matrix4x4.Transpose(inverse);
       var reverseWinding = authoredLinearTransform.GetDeterminant() < 0;
       var mesh = parsed.Meshes[node.MeshIndex.Value];
-      var renderObjects = mesh
-        .Primitives.Select(primitive => new CanonicalStaticRenderObject(
+      var renderObjects = new List<CanonicalStaticRenderObject>();
+      var resourceBindings = new Dictionary<CanonicalStaticRenderObject, string?>();
+      foreach (var primitive in mesh.Primitives)
+      {
+        var renderObject = new CanonicalStaticRenderObject(
           primitive.Vertices.Select(vertex =>
             TransformNewModelVertex(vertex, authoredLinearTransform, normalTransform)
           ),
@@ -3292,7 +3336,11 @@ namespace EarthTool.GLTF
             reverseWinding
               ? new CanonicalTriangle(triangle.Vertex0, triangle.Vertex2, triangle.Vertex1)
               : new CanonicalTriangle(triangle.Vertex0, triangle.Vertex1, triangle.Vertex2)
-          ),
+          )
+        );
+        renderObjects.Add(renderObject);
+        resourceBindings.Add(
+          renderObject,
           primitive.MaterialIndex.HasValue
           && options.TextureResourceBindings.TryGetValue(
             GetMaterialHandle(parsed, primitive.MaterialIndex.Value),
@@ -3300,8 +3348,8 @@ namespace EarthTool.GLTF
           )
             ? textureResourceKey
             : null
-        ))
-        .ToArray();
+        );
+      }
       var children = node
         .Children.SelectMany(child =>
           CreateNewModelSources(
@@ -3346,16 +3394,20 @@ namespace EarthTool.GLTF
             canonicalRole
           ),
           pivot,
+          resourceBindings,
           children
         ),
       };
     }
 
-    private static void ApplyNewModelBaseHeaderArtistObjects(
+    private static void AddNewModelBaseHeaderArtistObjects(
       ParsedGlb parsed,
-      StaticMeshAssembler assembler,
       GltfNewModelImportOptions options,
-      EmitterOwnershipPlan emitterOwnership
+      EmitterOwnershipPlan emitterOwnership,
+      IDictionary<int, CanonicalAttachmentRecord> attachmentRecords,
+      IDictionary<int, CanonicalCannonRenderPosition> cannonRenderPositions,
+      IDictionary<int, CanonicalSpotLight> staticSpotLights,
+      IDictionary<int, CanonicalOmniLight> staticOmniLights
     )
     {
       var nodes = parsed.Nodes.Select(node => (node, (MetadataEnvelope?)null)).ToArray();
@@ -3413,18 +3465,18 @@ namespace EarthTool.GLTF
       }
       foreach (var attachment in attachments)
       {
-        assembler.ReplaceCanonicalAttachmentRecord(
-          attachment.Key,
-          CreateCanonicalAttachmentRecord(transforms[attachment.Value], 0x80)
+        attachmentRecords[attachment.Key] = CreateCanonicalAttachmentRecord(
+          transforms[attachment.Value],
+          0x80
         );
       }
       foreach (var cannon in cannons)
       {
-        assembler.ReplaceCanonicalAttachmentRecord(
-          cannon.Key,
-          CreateCanonicalAttachmentRecord(transforms[cannon.Value], 0x80)
+        attachmentRecords[cannon.Key] = CreateCanonicalAttachmentRecord(
+          transforms[cannon.Value],
+          0x80
         );
-        assembler.ReplaceCanonicalCannonRenderPosition(
+        cannonRenderPositions.Add(
           cannon.Key,
           CreateCanonicalCannonRenderPosition(transforms[cannon.Value].Translation)
         );
@@ -3519,16 +3571,13 @@ namespace EarthTool.GLTF
         }
         var attachmentNumber =
           item.Key.Type == "spot" ? item.Key.Number + 12 : item.Key.Number + 16;
-        assembler.ReplaceCanonicalAttachmentRecord(
-          attachmentNumber,
-          CreateCanonicalStaticLightAttachmentRecord(
-            transforms[item.Value].Translation,
-            $"nodes[{item.Value}].translation"
-          )
+        attachmentRecords[attachmentNumber] = CreateCanonicalStaticLightAttachmentRecord(
+          transforms[item.Value].Translation,
+          $"nodes[{item.Value}].translation"
         );
         if (item.Key.Type == "spot")
         {
-          assembler.ReplaceCanonicalStaticSpotLight(
+          staticSpotLights.Add(
             item.Key.Number,
             CreateCanonicalSpotLight(
               parsed.Lights[node.LightIndex.Value],
@@ -3540,7 +3589,7 @@ namespace EarthTool.GLTF
         }
         else
         {
-          assembler.ReplaceCanonicalStaticOmniLight(
+          staticOmniLights.Add(
             item.Key.Number,
             CreateCanonicalOmniLight(
               parsed.Lights[node.LightIndex.Value],
@@ -3584,21 +3633,18 @@ namespace EarthTool.GLTF
       );
     }
 
-    private static void ApplyNewModelPivots(
+    private static void AddNewModelPivots(
       NewModelSourceDraft draft,
-      StaticMeshAssembler assembler
+      IDictionary<CanonicalStaticRenderObject, System.Numerics.Vector3> pivots
     )
     {
       if (draft.Pivot != System.Numerics.Vector3.Zero)
       {
-        assembler.ReplacePivot(
-          assembler.GetRenderObjectOrdinal(draft.Source.RenderObjects[0]),
-          draft.Pivot
-        );
+        pivots.Add(draft.Source.RenderObjects[0], draft.Pivot);
       }
       foreach (var child in draft.Children)
       {
-        ApplyNewModelPivots(child, assembler);
+        AddNewModelPivots(child, pivots);
       }
     }
 
@@ -3772,10 +3818,10 @@ namespace EarthTool.GLTF
         * System.Numerics.Matrix4x4.CreateTranslation(frame.Translation);
     }
 
-    private static void ApplyNewModelAnimations(
+    private static void AddNewModelAnimations(
       NewModelAnimationSet animations,
       NewModelSourceDraft draft,
-      StaticMeshAssembler assembler
+      IDictionary<CanonicalStaticRenderObject, StaticAnimationReplacement> animationInputs
     )
     {
       if (animations.Tracks.Count == 0)
@@ -3788,15 +3834,11 @@ namespace EarthTool.GLTF
       foreach (var animation in animations.Tracks)
       {
         var tracks = StaticAnimationProjection.CreateCanonicalTracks(animation.Frames);
-        assembler.ReplaceAnimation(
-          assembler.GetRenderObjectOrdinal(sources[animation.NodeIndex].RenderObjects[0]),
-          tracks.ScaleFrames,
-          tracks.TranslationFrames,
-          tracks.Matrices,
-          checked((uint)animation.ClassIndex)
+        animationInputs.Add(
+          sources[animation.NodeIndex].RenderObjects[0],
+          new StaticAnimationReplacement(tracks, checked((uint)animation.ClassIndex))
         );
       }
-      assembler.ReplaceAnimationLengths(animations.Lengths);
     }
 
     private static void AddNewModelSources(
@@ -3808,6 +3850,21 @@ namespace EarthTool.GLTF
       foreach (var child in draft.Children)
       {
         AddNewModelSources(child, result);
+      }
+    }
+
+    private static void AddNewModelResourceBindings(
+      NewModelSourceDraft draft,
+      IDictionary<CanonicalStaticRenderObject, string?> resourceBindings
+    )
+    {
+      foreach (var binding in draft.TextureResourceBindings)
+      {
+        resourceBindings.Add(binding.Key, binding.Value);
+      }
+      foreach (var child in draft.Children)
+      {
+        AddNewModelResourceBindings(child, resourceBindings);
       }
     }
 
@@ -3916,18 +3973,26 @@ namespace EarthTool.GLTF
 
       internal System.Numerics.Vector3 Pivot { get; }
 
+      internal IReadOnlyDictionary<
+        CanonicalStaticRenderObject,
+        string?
+      > TextureResourceBindings
+      { get; }
+
       internal IReadOnlyList<NewModelSourceDraft> Children { get; }
 
       internal NewModelSourceDraft(
         int nodeIndex,
         CanonicalStaticSourceObject source,
         System.Numerics.Vector3 pivot,
+        IReadOnlyDictionary<CanonicalStaticRenderObject, string?> textureResourceBindings,
         IReadOnlyList<NewModelSourceDraft> children
       )
       {
         NodeIndex = nodeIndex;
         Source = source;
         Pivot = pivot;
+        TextureResourceBindings = textureResourceBindings;
         Children = children;
       }
     }

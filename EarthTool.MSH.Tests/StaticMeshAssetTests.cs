@@ -166,17 +166,22 @@ public class StaticMeshAssetTests
   public void CanonicalAssemblerAuthorsFinalRepresentationsInOneCommit()
   {
     var root = new CanonicalStaticSourceObject([RenderObject()]);
-    var assembler = StaticMeshAssembler.CreateCanonical(
+    var input = new CanonicalStaticMeshAssemblyInput(
       new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+      new CanonicalStaticBaseHeaderInput(
+        new AnimationClassBytes(1, 0, 0, 0),
+        root.RenderObjects.SelectMany(record => record.RenderVertices),
+        new CanonicalStaticFootprint(0x8000, new float[16], new byte[16]),
+        new CanonicalHorizontalExtents(1, 2, 3, 4)
+      ),
       root,
-      new CanonicalStaticFootprint(0x8000, new float[16], new byte[16]),
-      new CanonicalHorizontalExtents(1, 2, 3, 4)
+      new Dictionary<int, Vector3>
+      {
+        [0] = new Vector3(5, 6, 7),
+      }
     );
-    var renderObjectOrdinal = assembler.GetRenderObjectOrdinal(root.RenderObjects[0]);
-    assembler.ReplacePivot(renderObjectOrdinal, new Vector3(5, 6, 7));
-    assembler.ReplaceAnimationLengths(new AnimationClassBytes(1, 0, 0, 0));
 
-    var result = assembler.Commit();
+    var result = CanonicalStaticMeshAssembler.Assemble(input);
 
     result.TryGetValue(out var asset).Should().BeTrue();
     asset!.Origin.Should().Be(MeshAssetOrigin.Canonical);

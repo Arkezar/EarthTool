@@ -16,13 +16,25 @@ namespace EarthTool.MSH.Internal
     private const int VertexBlockSize = 0xA0;
     private const int FixedRecordSize = 53;
 
+    internal static IReadOnlyList<CanonicalStaticRenderObject> GetCanonicalSequence(
+      CanonicalStaticSourceObject root
+    )
+    {
+      if (root is null)
+      {
+        throw new ArgumentNullException(nameof(root));
+      }
+      return Array.AsReadOnly(Flatten(root).Select(record => record.RenderObject).ToArray());
+    }
+
     internal static int GetSerializedLength(
       CanonicalStaticSourceObject root,
-      IReadOnlyDictionary<int, StaticAnimationReplacement>? animations = null
+      IReadOnlyDictionary<int, StaticAnimationReplacement>? animations = null,
+      IReadOnlyDictionary<int, string?>? textureResourceBindings = null
     )
     {
       animations ??= new Dictionary<int, StaticAnimationReplacement>();
-      return GetSerializedLength(Flatten(root), animations);
+      return GetSerializedLength(Flatten(root), animations, textureResourceBindings);
     }
 
     internal static long GetMinimumSerializedLength(
@@ -43,22 +55,28 @@ namespace EarthTool.MSH.Internal
     internal static byte[] Encode(
       CanonicalStaticSourceObject root,
       IReadOnlyDictionary<int, Vector3>? pivots = null,
-      IReadOnlyDictionary<int, StaticAnimationReplacement>? animations = null
+      IReadOnlyDictionary<int, StaticAnimationReplacement>? animations = null,
+      IReadOnlyDictionary<int, string?>? textureResourceBindings = null
     )
     {
       pivots ??= new Dictionary<int, Vector3>();
       animations ??= new Dictionary<int, StaticAnimationReplacement>();
       var records = Flatten(root);
-      var result = new byte[GetSerializedLength(records, animations)];
+      var result = new byte[GetSerializedLength(records, animations, textureResourceBindings)];
       var cursor = 0;
       WriteUInt32(result, cursor, checked((uint)records[^1].Depth + 1));
       cursor += sizeof(uint);
       for (var index = 0; index < records.Count; index++)
       {
         var record = records[index];
-        var texturePathBytes = record.RenderObject.TextureResourceKey is null
+        var textureResourceKey = GetTextureResourceKey(
+          record.RenderObject,
+          index,
+          textureResourceBindings
+        );
+        var texturePathBytes = textureResourceKey is null
           ? Array.Empty<byte>()
-          : Encoding.ASCII.GetBytes(record.RenderObject.TextureResourceKey);
+          : Encoding.ASCII.GetBytes(textureResourceKey);
         WriteRecord(
           result,
           ref cursor,
@@ -112,7 +130,8 @@ namespace EarthTool.MSH.Internal
 
     private static int GetSerializedLength(
       IReadOnlyList<CanonicalStaticRecord> records,
-      IReadOnlyDictionary<int, StaticAnimationReplacement> animations
+      IReadOnlyDictionary<int, StaticAnimationReplacement> animations,
+      IReadOnlyDictionary<int, string?>? textureResourceBindings
     )
     {
       var length = sizeof(uint);
@@ -120,9 +139,14 @@ namespace EarthTool.MSH.Internal
       {
         var record = records[index];
         var blocks = (record.RenderObject.RenderVertices.Count + 3) / 4;
-        var texturePathLength = record.RenderObject.TextureResourceKey is null
+        var textureResourceKey = GetTextureResourceKey(
+          record.RenderObject,
+          index,
+          textureResourceBindings
+        );
+        var texturePathLength = textureResourceKey is null
           ? 0
-          : Encoding.ASCII.GetByteCount(record.RenderObject.TextureResourceKey);
+          : Encoding.ASCII.GetByteCount(textureResourceKey);
         animations.TryGetValue(index, out var animation);
         length = checked(length + GetRecordLength(
           record.RenderObject.RenderVertices.Count,
@@ -132,6 +156,19 @@ namespace EarthTool.MSH.Internal
         ));
       }
       return length;
+    }
+
+    private static string? GetTextureResourceKey(
+      CanonicalStaticRenderObject renderObject,
+      int ordinal,
+      IReadOnlyDictionary<int, string?>? textureResourceBindings
+    )
+    {
+      return textureResourceBindings is null
+        ? renderObject.TextureResourceKey
+        : textureResourceBindings.TryGetValue(ordinal, out var binding)
+          ? binding
+          : null;
     }
 
     private static int GetRecordLength(
@@ -159,6 +196,10 @@ namespace EarthTool.MSH.Internal
     {
       var records = new List<CanonicalStaticRecord>();
       Flatten(root, 0, records);
+      if (records.Count == 0)
+      {
+        return records.AsReadOnly();
+      }
       var encounteredSources = new HashSet<CanonicalStaticSourceObject> { records[0].Source };
       for (var index = 1; index < records.Count; index++)
       {
@@ -189,6 +230,10 @@ namespace EarthTool.MSH.Internal
       ICollection<CanonicalStaticRecord> records
     )
     {
+      if (source.RenderObjects.Count == 0)
+      {
+        return;
+      }
       records.Add(
         new CanonicalStaticRecord(source, source.RenderObjects[0], depth)
         {

@@ -374,54 +374,7 @@ namespace EarthTool.MSH.Authoring
     /// <summary>Builds one immutable canonical snapshot.</summary>
     public MshBuildResult<StaticMeshAsset> Build(MshOperationProfile? profile = null)
     {
-      profile ??= MshOperationProfile.Default;
-      var failure = AuthoringValidation.ValidateStaticTree(_rootSourceObject, profile);
-      if (failure is not null)
-      {
-        return new MshBuildResult<StaticMeshAsset>(false, null, new[] { failure });
-      }
-
-      failure = AuthoringValidation.ValidateStaticHeader(
-        _rootSourceObject!,
-        _footprint,
-        _horizontalExtents
-      );
-      if (failure is not null)
-      {
-        return new MshBuildResult<StaticMeshAsset>(false, null, new[] { failure });
-      }
-
-      try
-      {
-        var bytes = MshCanonicalSerializer.CreateStatic(
-          _creationGuid,
-          _animationLengths,
-          _rootSourceObject!,
-          _footprint,
-          _horizontalExtents
-        );
-        if (bytes.Length > profile.MaxOutputBytes)
-        {
-          return new MshBuildResult<StaticMeshAsset>(
-            false,
-            null,
-            new[] { AuthoringValidation.ResourceLimit(bytes.Length, profile.MaxOutputBytes) }
-          );
-        }
-
-        var decoded = MshV1Decoder.Decode(
-          bytes,
-          profile,
-          CancellationToken.None,
-          MeshAssetOrigin.Canonical
-        );
-        return new MshBuildResult<StaticMeshAsset>(
-          true,
-          (StaticMeshAsset)decoded.Asset,
-          decoded.Diagnostics
-        );
-      }
-      catch (OverflowException)
+      if (_rootSourceObject is null)
       {
         return new MshBuildResult<StaticMeshAsset>(
           false,
@@ -429,17 +382,37 @@ namespace EarthTool.MSH.Authoring
           new[]
           {
             AuthoringValidation.Invalid(
-              "CommonBaseHeader",
-              "A derived fixed-point value is out of range."
+              "RootSourceObject",
+              "A canonical root source object is required."
             ),
           }
         );
       }
-      catch (MshContentException ex)
-      {
-        return new MshBuildResult<StaticMeshAsset>(false, null, new[] { ex.Diagnostic });
-      }
+
+      var renderObjects = CanonicalStaticRenderObjectSequenceEncoder
+        .GetCanonicalSequence(_rootSourceObject);
+      var resourceBindings = renderObjects
+        .Select((renderObject, ordinal) => (renderObject, ordinal))
+        .ToDictionary(item => item.ordinal, item => item.renderObject.TextureResourceKey);
+
+      return CanonicalStaticMeshAssembler.Assemble(
+        new CanonicalStaticMeshAssemblyInput(
+          _creationGuid,
+          new CanonicalStaticBaseHeaderInput(
+            _animationLengths,
+            _rootSourceObject.RenderObjects.SelectMany(renderObject =>
+              renderObject.RenderVertices
+            ),
+            _footprint,
+            _horizontalExtents
+          ),
+          _rootSourceObject,
+          textureResourceBindings: resourceBindings
+        ),
+        profile
+      );
     }
+
   }
 
   /// <summary>Describes one canonical dynamic object before it is accepted into an immutable asset.</summary>
@@ -731,22 +704,15 @@ namespace EarthTool.MSH.Authoring
     }
   }
 
-  /// <summary>Accumulates one atomic static assembly and emits one immutable snapshot.</summary>
+  /// <summary>Applies source-relative edits and emits one immutable snapshot.</summary>
   internal sealed class StaticMeshAssembler
   {
-    private readonly StaticMeshAsset? _source;
-    private readonly CanonicalStaticSourceObject? _canonicalRoot;
-    private readonly Guid? _canonicalCreationGuid;
-    private readonly CanonicalStaticFootprint? _canonicalFootprint;
-    private readonly CanonicalHorizontalExtents? _canonicalHorizontalExtents;
+    private readonly StaticMeshAsset _source;
     private readonly MeshAssetOrigin _origin;
     private readonly IReadOnlyList<StaticRenderObject> _sourceRenderObjects;
     private readonly IReadOnlyList<StaticSourceObject> _sourceObjects;
-    private readonly IReadOnlyList<CanonicalStaticRenderObject> _canonicalRenderObjects;
-    private readonly IReadOnlyList<CanonicalStaticSourceObject> _canonicalSourceObjects;
     private readonly Dictionary<StaticRenderObject, int> _sourceRenderObjectOrdinals;
     private readonly Dictionary<StaticSourceObject, int> _sourceObjectOrdinals;
-    private readonly Dictionary<CanonicalStaticRenderObject, int> _canonicalRenderObjectOrdinals;
     private readonly Dictionary<int, CanonicalTriangle[]> _replacementTriangles = new();
     private readonly Dictionary<int, CanonicalStaticVertex[]> _replacementVertices = new();
     private readonly Dictionary<int, Vector3> _replacementPivots = new();
@@ -757,13 +723,6 @@ namespace EarthTool.MSH.Authoring
     private readonly Dictionary<int, byte[]> _replacementCannonRenderPositions = new();
     private readonly Dictionary<int, byte[]> _replacementStaticSpotLights = new();
     private readonly Dictionary<int, byte[]> _replacementStaticOmniLights = new();
-    private readonly Dictionary<int, CanonicalAttachmentRecord> _canonicalAttachmentRecords = new();
-    private readonly Dictionary<
-      int,
-      CanonicalCannonRenderPosition
-    > _canonicalCannonRenderPositions = new();
-    private readonly Dictionary<int, CanonicalSpotLight> _canonicalStaticSpotLights = new();
-    private readonly Dictionary<int, CanonicalOmniLight> _canonicalStaticOmniLights = new();
     private readonly Dictionary<
       (StaticLightRecordKind Kind, int Number),
       HashSet<string>
@@ -785,57 +744,16 @@ namespace EarthTool.MSH.Authoring
 
     internal StaticMeshAssembler(StaticMeshAsset source)
     {
-      _source = source;
+      _source = source ?? throw new ArgumentNullException(nameof(source));
       _origin = source.Origin;
       _sourceRenderObjects = source.StaticRenderObjectSequence;
       _sourceObjects = FlattenSourceObjects(source.RootSourceObject).ToArray();
-      _canonicalRenderObjects = Array.Empty<CanonicalStaticRenderObject>();
-      _canonicalSourceObjects = Array.Empty<CanonicalStaticSourceObject>();
       _sourceRenderObjectOrdinals = _sourceRenderObjects
         .Select((renderObject, ordinal) => (renderObject, ordinal))
         .ToDictionary(item => item.renderObject, item => item.ordinal);
       _sourceObjectOrdinals = _sourceObjects
         .Select((sourceObject, ordinal) => (sourceObject, ordinal))
         .ToDictionary(item => item.sourceObject, item => item.ordinal);
-      _canonicalRenderObjectOrdinals = new Dictionary<CanonicalStaticRenderObject, int>();
-    }
-
-    private StaticMeshAssembler(
-      Guid creationGuid,
-      CanonicalStaticSourceObject rootSourceObject,
-      CanonicalStaticFootprint footprint,
-      CanonicalHorizontalExtents horizontalExtents
-    )
-    {
-      _canonicalRoot = rootSourceObject;
-      _canonicalCreationGuid = creationGuid;
-      _canonicalFootprint = footprint;
-      _canonicalHorizontalExtents = horizontalExtents;
-      _origin = MeshAssetOrigin.Canonical;
-      _sourceRenderObjects = Array.Empty<StaticRenderObject>();
-      _sourceObjects = Array.Empty<StaticSourceObject>();
-      _canonicalSourceObjects = FlattenCanonicalSourceObjects(rootSourceObject).ToArray();
-      _canonicalRenderObjects = FlattenCanonicalRenderObjects(rootSourceObject).ToArray();
-      _sourceRenderObjectOrdinals = new Dictionary<StaticRenderObject, int>();
-      _sourceObjectOrdinals = new Dictionary<StaticSourceObject, int>();
-      _canonicalRenderObjectOrdinals = _canonicalRenderObjects
-        .Select((renderObject, ordinal) => (renderObject, ordinal))
-        .ToDictionary(item => item.renderObject, item => item.ordinal);
-    }
-
-    internal static StaticMeshAssembler CreateCanonical(
-      Guid creationGuid,
-      CanonicalStaticSourceObject rootSourceObject,
-      CanonicalStaticFootprint footprint,
-      CanonicalHorizontalExtents horizontalExtents
-    )
-    {
-      return new StaticMeshAssembler(
-        creationGuid,
-        rootSourceObject,
-        footprint,
-        horizontalExtents
-      );
     }
 
     internal int GetRenderObjectOrdinal(StaticRenderObject renderObject)
@@ -844,16 +762,6 @@ namespace EarthTool.MSH.Authoring
         ? ordinal
         : throw new ArgumentException(
           "The render object does not belong to this assembly.",
-          nameof(renderObject)
-        );
-    }
-
-    internal int GetRenderObjectOrdinal(CanonicalStaticRenderObject renderObject)
-    {
-      return _canonicalRenderObjectOrdinals.TryGetValue(renderObject, out var ordinal)
-        ? ordinal
-        : throw new ArgumentException(
-          "The canonical render object does not belong to this assembly.",
           nameof(renderObject)
         );
     }
@@ -879,13 +787,9 @@ namespace EarthTool.MSH.Authoring
       );
     }
 
-    private int InitialRenderObjectCount => _source is null
-      ? _canonicalRenderObjects.Count
-      : _sourceRenderObjects.Count;
+    private int InitialRenderObjectCount => _sourceRenderObjects.Count;
 
-    private int InitialSourceObjectCount => _source is null
-      ? _canonicalSourceObjects.Count
-      : _sourceObjects.Count;
+    private int InitialSourceObjectCount => _sourceObjects.Count;
 
     private int RenderObjectCount => InitialRenderObjectCount + _additions.Count;
 
@@ -1090,7 +994,6 @@ namespace EarthTool.MSH.Authoring
     )
     {
       EnsureOpen();
-      EnsureLoadedRepresentationEdit();
       if (physicalNumber is < 1 or > 49)
       {
         throw new ArgumentOutOfRangeException(nameof(physicalNumber));
@@ -1107,28 +1010,12 @@ namespace EarthTool.MSH.Authoring
       _replacementAttachmentRecords[physicalNumber] = bytes;
     }
 
-    internal void ReplaceCanonicalAttachmentRecord(
-      int physicalNumber,
-      CanonicalAttachmentRecord record
-    )
-    {
-      EnsureOpen();
-      EnsureCanonicalBaseHeaderAuthoring();
-      if (physicalNumber is < 1 or > 49)
-      {
-        throw new ArgumentOutOfRangeException(nameof(physicalNumber));
-      }
-
-      _canonicalAttachmentRecords[physicalNumber] = record;
-    }
-
     internal void ReplaceCannonRenderPosition(
       int physicalNumber,
       IEnumerable<byte> record
     )
     {
       EnsureOpen();
-      EnsureLoadedRepresentationEdit();
       if (physicalNumber is < 1 or > 4)
       {
         throw new ArgumentOutOfRangeException(nameof(physicalNumber));
@@ -1145,21 +1032,6 @@ namespace EarthTool.MSH.Authoring
       _replacementCannonRenderPositions[physicalNumber] = bytes;
     }
 
-    internal void ReplaceCanonicalCannonRenderPosition(
-      int physicalNumber,
-      CanonicalCannonRenderPosition record
-    )
-    {
-      EnsureOpen();
-      EnsureCanonicalBaseHeaderAuthoring();
-      if (physicalNumber is < 1 or > 4)
-      {
-        throw new ArgumentOutOfRangeException(nameof(physicalNumber));
-      }
-
-      _canonicalCannonRenderPositions[physicalNumber] = record;
-    }
-
     internal void ReplaceStaticLightRecord(
       StaticLightRecordKind kind,
       int physicalNumber,
@@ -1168,7 +1040,6 @@ namespace EarthTool.MSH.Authoring
     )
     {
       EnsureOpen();
-      EnsureLoadedRepresentationEdit();
       if (physicalNumber is < 1 or > 4)
       {
         throw new ArgumentOutOfRangeException(nameof(physicalNumber));
@@ -1190,28 +1061,6 @@ namespace EarthTool.MSH.Authoring
       )[physicalNumber] = bytes;
       _staticLightFieldChanges[(kind, physicalNumber)] = new HashSet<string>(
         changedFields ?? throw new ArgumentNullException(nameof(changedFields)),
-        StringComparer.Ordinal
-      );
-    }
-
-    internal void ReplaceCanonicalStaticSpotLight(int physicalNumber, CanonicalSpotLight record)
-    {
-      EnsureOpen();
-      EnsureCanonicalStaticLightNumber(physicalNumber);
-      _canonicalStaticSpotLights[physicalNumber] = record;
-      _staticLightFieldChanges[(StaticLightRecordKind.Spot, physicalNumber)] = new HashSet<string>(
-        new[] { "NewStaticLight" },
-        StringComparer.Ordinal
-      );
-    }
-
-    internal void ReplaceCanonicalStaticOmniLight(int physicalNumber, CanonicalOmniLight record)
-    {
-      EnsureOpen();
-      EnsureCanonicalStaticLightNumber(physicalNumber);
-      _canonicalStaticOmniLights[physicalNumber] = record;
-      _staticLightFieldChanges[(StaticLightRecordKind.Omni, physicalNumber)] = new HashSet<string>(
-        new[] { "NewStaticLight" },
         StringComparer.Ordinal
       );
     }
@@ -1260,10 +1109,6 @@ namespace EarthTool.MSH.Authoring
       EnsureOpen();
       _committed = true;
       profile ??= MshOperationProfile.Default;
-      if (_source is null)
-      {
-        return CommitCanonical(profile);
-      }
 
       if (_invalidSequence || _replacementAdded && !_removed)
       {
@@ -1461,78 +1306,6 @@ namespace EarthTool.MSH.Authoring
       );
     }
 
-    private MshBuildResult<StaticMeshAsset> CommitCanonical(MshOperationProfile profile)
-    {
-      var treeFailure = AuthoringValidation.ValidateStaticTree(_canonicalRoot, profile);
-      if (treeFailure is not null)
-      {
-        return new MshBuildResult<StaticMeshAsset>(false, null, new[] { treeFailure });
-      }
-      var headerFailure = AuthoringValidation.ValidateStaticHeader(
-        _canonicalRoot!,
-        _canonicalFootprint,
-        _canonicalHorizontalExtents
-      );
-      if (headerFailure is not null)
-      {
-        return new MshBuildResult<StaticMeshAsset>(false, null, new[] { headerFailure });
-      }
-      if (
-        _replacementVertices.Count != 0
-        || _removedRenderObjects.Count != 0
-        || _additions.Count != 0
-        || _editedRootSourceObject is not null
-        || _replacementTexturePathBytes.Count != 0
-        || _replacementMarkerFlags.Count != 0
-      )
-      {
-        return FailedEdit(
-          "StaticRenderObjectSequence",
-          "Canonical assembly accepts final source geometry and representation overrides only."
-        );
-      }
-
-      var bytes = MshCanonicalSerializer.CreateStatic(
-        _canonicalCreationGuid!.Value,
-        _replacementAnimationLengths ?? default,
-        _canonicalRoot!,
-        _canonicalFootprint,
-        _replacementHorizontalExtents ?? _canonicalHorizontalExtents,
-        _replacementPivots,
-        _replacementAnimations,
-        _replacementAnimationFrameIndices,
-        _canonicalAttachmentRecords,
-        _canonicalCannonRenderPositions,
-        _canonicalStaticSpotLights,
-        _canonicalStaticOmniLights
-      );
-      if (bytes.Length > profile.MaxOutputBytes)
-      {
-        return new MshBuildResult<StaticMeshAsset>(
-          false,
-          null,
-          new[] { AuthoringValidation.ResourceLimit(bytes.Length, profile.MaxOutputBytes) }
-        );
-      }
-
-      MshDecodeResult decoded;
-      try
-      {
-        decoded = MshV1Decoder.Decode(bytes, profile, CancellationToken.None, _origin);
-      }
-      catch (MshContentException ex)
-      {
-        return new MshBuildResult<StaticMeshAsset>(false, null, new[] { ex.Diagnostic });
-      }
-      var authored = (StaticMeshAsset)decoded.Asset;
-      return new MshBuildResult<StaticMeshAsset>(
-        true,
-        authored,
-        decoded.Diagnostics
-      );
-    }
-
-
     private MshBuildResult<StaticMeshAsset> FailedEdit(string path, string message)
     {
       return new MshBuildResult<StaticMeshAsset>(
@@ -1540,35 +1313,6 @@ namespace EarthTool.MSH.Authoring
         null,
         new[] { AuthoringValidation.Invalid(path, message) }
       );
-    }
-
-    private void EnsureCanonicalStaticLightNumber(int physicalNumber)
-    {
-      EnsureCanonicalBaseHeaderAuthoring();
-      if (physicalNumber is < 1 or > 4)
-      {
-        throw new ArgumentOutOfRangeException(nameof(physicalNumber));
-      }
-    }
-
-    private void EnsureCanonicalBaseHeaderAuthoring()
-    {
-      if (_source is not null)
-      {
-        throw new InvalidOperationException(
-          "Canonical base-header values can only be supplied while authoring a canonical asset."
-        );
-      }
-    }
-
-    private void EnsureLoadedRepresentationEdit()
-    {
-      if (_source is null)
-      {
-        throw new InvalidOperationException(
-          "Exact base-header representations can only replace values on a loaded asset."
-        );
-      }
     }
 
     private void EnsureSourceOrdinal(int ordinal)
@@ -1616,18 +1360,16 @@ namespace EarthTool.MSH.Authoring
         ))
       );
       changes.AddRange(
-        _replacementAttachmentRecords.Keys.Concat(_canonicalAttachmentRecords.Keys)
-          .Select(number => new StaticMeshAssemblyChange(
-            StaticMeshAssemblyChangeKind.Attachment,
-            physicalNumber: number
-          ))
+        _replacementAttachmentRecords.Keys.Select(number => new StaticMeshAssemblyChange(
+          StaticMeshAssemblyChangeKind.Attachment,
+          physicalNumber: number
+        ))
       );
       changes.AddRange(
-        _replacementCannonRenderPositions.Keys.Concat(_canonicalCannonRenderPositions.Keys)
-          .Select(number => new StaticMeshAssemblyChange(
-            StaticMeshAssemblyChangeKind.CannonRenderPosition,
-            physicalNumber: number
-          ))
+        _replacementCannonRenderPositions.Keys.Select(number => new StaticMeshAssemblyChange(
+          StaticMeshAssemblyChangeKind.CannonRenderPosition,
+          physicalNumber: number
+        ))
       );
       changes.AddRange(
         _staticLightFieldChanges.Select(item => new StaticMeshAssemblyChange(
@@ -1680,7 +1422,7 @@ namespace EarthTool.MSH.Authoring
       var root = CreateFinalSourceObjectAssembly(
         _editedRootSourceObject
           ?? StaticSourceObjectAssembly.FromSource(
-            _source!.RootSourceObject,
+            _source.RootSourceObject,
             _sourceObjectOrdinals,
             _sourceRenderObjectOrdinals
           )
@@ -1841,38 +1583,6 @@ namespace EarthTool.MSH.Authoring
       }
     }
 
-    private static IEnumerable<CanonicalStaticSourceObject> FlattenCanonicalSourceObjects(
-      CanonicalStaticSourceObject source
-    )
-    {
-      yield return source;
-      foreach (var child in source.Children)
-      {
-        foreach (var descendant in FlattenCanonicalSourceObjects(child))
-        {
-          yield return descendant;
-        }
-      }
-    }
-
-    private static IEnumerable<CanonicalStaticRenderObject> FlattenCanonicalRenderObjects(
-      CanonicalStaticSourceObject source
-    )
-    {
-      yield return source.RenderObjects[0];
-      foreach (var child in source.Children)
-      {
-        foreach (var renderObject in FlattenCanonicalRenderObjects(child))
-        {
-          yield return renderObject;
-        }
-      }
-      foreach (var renderObject in source.RenderObjects.Skip(1))
-      {
-        yield return renderObject;
-      }
-    }
-
     private static bool IsFinite(Vector3 value)
     {
       return float.IsFinite(value.X) && float.IsFinite(value.Y) && float.IsFinite(value.Z);
@@ -2019,12 +1729,11 @@ namespace EarthTool.MSH.Authoring
     }
 
     internal static OperationDiagnostic? ValidateStaticHeader(
-      CanonicalStaticSourceObject root,
+      IReadOnlyList<CanonicalStaticVertex> vertices,
       CanonicalStaticFootprint? footprint,
       CanonicalHorizontalExtents? horizontalExtents
     )
     {
-      var vertices = root.RenderObjects.SelectMany(item => item.RenderVertices).ToArray();
       if (footprint is null)
       {
         var maximumZ = vertices.Max(vertex => vertex.Position.Z);
