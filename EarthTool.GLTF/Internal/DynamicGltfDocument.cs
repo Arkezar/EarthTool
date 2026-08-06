@@ -409,13 +409,7 @@ namespace EarthTool.GLTF.Internal
         ?? throw MalformedManifest("Dynamic source MSH metadata is null.");
       var sourceBytes = GlbDocument.DecodeBase64Url(sourceText, profile.MaxInputBytes).ToArray();
       var mshProfile = CreateMshProfile(profile);
-      var source = preserveMshLineage
-        ? MshExpert.CreateDynamic(
-          sourceBytes,
-          new MeshAssetLineageId(expectedBaseline.AssetLineageId),
-          mshProfile
-        )
-        : MshExpert.CreateDynamic(sourceBytes, mshProfile);
+      var source = MshExpert.CreateDynamic(sourceBytes, mshProfile);
       if (!source.TryGetValue(out var sourceAsset))
       {
         throw MalformedManifest("Dynamic source MSH metadata is invalid.");
@@ -1319,9 +1313,7 @@ namespace EarthTool.GLTF.Internal
       }
       var serializedRepresentation = output.ToArray();
       var mshProfile = CreateMshProfile(profile);
-      var built = preserveMshLineage
-        ? MshExpert.CreateDynamic(serializedRepresentation, sourceAsset.LineageId, mshProfile)
-        : MshExpert.CreateDynamic(serializedRepresentation, mshProfile);
+      var built = MshExpert.CreateDynamic(serializedRepresentation, mshProfile);
       if (!built.TryGetValue(out var asset))
       {
         throw new InvalidDataException(

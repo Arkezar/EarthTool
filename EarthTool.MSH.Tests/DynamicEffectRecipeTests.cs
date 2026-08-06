@@ -10,8 +10,6 @@ namespace EarthTool.MSH.Tests;
 public class DynamicEffectRecipeTests
 {
   private static readonly Guid _creationGuid = new("12345678-9abc-def0-1234-56789abcdef0");
-  private static readonly MeshAssetLineageId _lineageId = new(
-    new Guid("11111111-2222-3333-4444-555555555555"));
   private static readonly CanonicalDynamicFrameSequence _frames = new(2, 3, 4);
   private static readonly CanonicalDynamicSpriteSheet _sprite = new(_frames, 5, 2);
   private static readonly CanonicalDynamicEffectShape _shape = new(
@@ -199,7 +197,7 @@ public class DynamicEffectRecipeTests
 
   private static MshBuildResult<DynamicMeshAsset> Build(CanonicalDynamicObject root)
   {
-    return DynamicMeshBuilder.Create(_creationGuid, _lineageId).SetRoot(root).Build();
+    return DynamicMeshBuilder.Create(_creationGuid).SetRoot(root).Build();
   }
 
   private static async Task<byte[]> WriteAsync(MeshAsset asset)

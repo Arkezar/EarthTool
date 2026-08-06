@@ -127,8 +127,6 @@ internal static class OfficialCorpusQualification
     writer.Write(asset.StaticRenderObjectSequence.Count);
     foreach (var item in asset.StaticRenderObjectSequence)
     {
-      writer.Write(item.LocalId);
-      writer.Write(item.SourceObjectId.Value);
       writer.Write(item.RenderVertices.Count);
       foreach (var vertex in item.RenderVertices)
       {
@@ -179,21 +177,27 @@ internal static class OfficialCorpusQualification
       writer.Write(item.BarrelMaximumAngle);
       writer.Write(item.NextRecordMarker);
     }
-    WriteSourceObject(writer, asset.RootSourceObject);
+    var renderObjectOrdinals = asset.StaticRenderObjectSequence
+      .Select((renderObject, ordinal) => (renderObject, ordinal))
+      .ToDictionary(item => item.renderObject, item => item.ordinal);
+    WriteSourceObject(writer, asset.RootSourceObject, renderObjectOrdinals);
   }
 
-  private static void WriteSourceObject(BinaryWriter writer, StaticSourceObject source)
+  private static void WriteSourceObject(
+    BinaryWriter writer,
+    StaticSourceObject source,
+    IReadOnlyDictionary<StaticRenderObject, int> renderObjectOrdinals
+  )
   {
-    writer.Write(source.Id.Value);
-    writer.Write(source.StaticRenderObjectIds.Count);
-    foreach (var id in source.StaticRenderObjectIds)
+    writer.Write(source.StaticRenderObjects.Count);
+    foreach (var renderObject in source.StaticRenderObjects)
     {
-      writer.Write(id.Value);
+      writer.Write(renderObjectOrdinals[renderObject]);
     }
     writer.Write(source.Children.Count);
     foreach (var child in source.Children)
     {
-      WriteSourceObject(writer, child);
+      WriteSourceObject(writer, child, renderObjectOrdinals);
     }
   }
 

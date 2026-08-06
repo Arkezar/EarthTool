@@ -13,20 +13,20 @@ namespace EarthTool.MSH.Internal
 {
   internal sealed class StaticSourceObjectSerializationPlan
   {
-    internal int SourceObjectLocalId { get; }
+    internal int SourceObjectOrdinal { get; }
 
-    internal IReadOnlyList<int> RenderObjectLocalIds { get; }
+    internal IReadOnlyList<int> RenderObjectOrdinals { get; }
 
     internal IReadOnlyList<StaticSourceObjectSerializationPlan> Children { get; }
 
     internal StaticSourceObjectSerializationPlan(
-      int sourceObjectLocalId,
-      IEnumerable<int> renderObjectLocalIds,
+      int sourceObjectOrdinal,
+      IEnumerable<int> renderObjectOrdinals,
       IEnumerable<StaticSourceObjectSerializationPlan> children
     )
     {
-      SourceObjectLocalId = sourceObjectLocalId;
-      RenderObjectLocalIds = Array.AsReadOnly(renderObjectLocalIds.ToArray());
+      SourceObjectOrdinal = sourceObjectOrdinal;
+      RenderObjectOrdinals = Array.AsReadOnly(renderObjectOrdinals.ToArray());
       Children = Array.AsReadOnly(children.ToArray());
     }
   }
@@ -147,7 +147,7 @@ namespace EarthTool.MSH.Internal
       var archiveHeader = CreateArchiveHeader(source.ArchiveFraming);
       var removed = new HashSet<int>(removedRenderObjects ?? Array.Empty<int>());
       additions ??= Array.Empty<StaticRenderObjectAddition>();
-      rootSourceObject ??= CreateOutputIdentityAssembly(source.RootSourceObject);
+      rootSourceObject ??= CreateOutputAssembly(source);
       pivots ??= new Dictionary<int, Vector3>();
       texturePathBytes ??= new Dictionary<int, byte[]>();
       markerFlags ??= new Dictionary<int, StaticRenderObjectFlags>();
@@ -156,34 +156,36 @@ namespace EarthTool.MSH.Internal
       cannonRenderPositions ??= new Dictionary<int, byte[]>();
       staticSpotLights ??= new Dictionary<int, byte[]>();
       staticOmniLights ??= new Dictionary<int, byte[]>();
-      var sourceRecords = source.StaticRenderObjectSequence.ToDictionary(record => record.LocalId);
-      var addedRecords = additions.ToDictionary(addition => addition.LocalId);
+      var sourceRecords = source.StaticRenderObjectSequence
+        .Select((record, ordinal) => (record, ordinal))
+        .ToDictionary(item => item.ordinal, item => item.record);
+      var addedRecords = additions.ToDictionary(addition => addition.Ordinal);
       var finalRecordSources = new Dictionary<int, int>();
       AddRecordSources(rootSourceObject, finalRecordSources);
       var recordList = new List<RewrittenStaticRecord>();
-      var plan = explicitSequence ?? PlanStaticRenderObjectLocalIds(source, removed, additions);
-      foreach (var id in plan)
+      var plan = explicitSequence ?? PlanStaticRenderObjectOrdinals(source, removed, additions);
+      foreach (var ordinal in plan)
       {
-        if (sourceRecords.TryGetValue(id, out var record))
+        if (sourceRecords.TryGetValue(ordinal, out var record))
         {
-          var pivot = pivots.TryGetValue(record.LocalId, out var replacementPivot)
+          var pivot = pivots.TryGetValue(ordinal, out var replacementPivot)
             ? replacementPivot
             : record.Pivot;
           var hasReplacementTexturePath = texturePathBytes.TryGetValue(
-            record.LocalId,
+            ordinal,
             out var replacementTexturePath
           );
           var hasReplacementAnimation = animations.TryGetValue(
-            record.LocalId,
+            ordinal,
             out var replacementAnimation
           );
           recordList.Add(
             new RewrittenStaticRecord(
-              vertices.TryGetValue(record.LocalId, out var replacementVertices)
+              vertices.TryGetValue(ordinal, out var replacementVertices)
                 ? RewriteStaticRecord(
                   record,
                   replacementVertices,
-                  triangles[record.LocalId],
+                  triangles[ordinal],
                   pivot,
                   hasReplacementTexturePath ? replacementTexturePath : record.TexturePathBytes,
                   hasReplacementAnimation ? replacementAnimation!.Tracks : record.AnimationTracks,
@@ -194,28 +196,28 @@ namespace EarthTool.MSH.Internal
                 : RewriteStaticRecordRepresentations(
                   record,
                   pivot,
-                  pivots.ContainsKey(record.LocalId),
+                  pivots.ContainsKey(ordinal),
                   hasReplacementTexturePath ? replacementTexturePath : null,
                   hasReplacementAnimation ? replacementAnimation : null
                 ),
-              finalRecordSources[id]
+              finalRecordSources[ordinal]
             )
           );
           continue;
         }
 
-        var addition = addedRecords[id];
+        var addition = addedRecords[ordinal];
         recordList.Add(
           new RewrittenStaticRecord(
             CreateStaticRecord(
               addition.Vertices,
               addition.Triangles,
               addition.TexturePathBytes,
-              pivots.TryGetValue(addition.LocalId, out var additionPivot)
+              pivots.TryGetValue(addition.Ordinal, out var additionPivot)
                 ? additionPivot
                 : Vector3.Zero
             ),
-            addition.SourceObjectLocalId
+            addition.SourceObjectOrdinal
           )
         );
       }
@@ -307,9 +309,9 @@ namespace EarthTool.MSH.Internal
       IDictionary<int, int> recordSources
     )
     {
-      foreach (var id in source.RenderObjectLocalIds)
+      foreach (var ordinal in source.RenderObjectOrdinals)
       {
-        recordSources.Add(id, source.SourceObjectLocalId);
+        recordSources.Add(ordinal, source.SourceObjectOrdinal);
       }
       foreach (var child in source.Children)
       {
@@ -317,14 +319,33 @@ namespace EarthTool.MSH.Internal
       }
     }
 
-    private static StaticSourceObjectSerializationPlan CreateOutputIdentityAssembly(
-      StaticSourceObject source
+    private static StaticSourceObjectSerializationPlan CreateOutputAssembly(StaticMeshAsset asset)
+    {
+      var renderObjectOrdinals = asset.StaticRenderObjectSequence
+        .Select((renderObject, ordinal) => (renderObject, ordinal))
+        .ToDictionary(item => item.renderObject, item => item.ordinal);
+      var sourceObjectOrdinals = EnumerateSourceObjects(asset.RootSourceObject)
+        .Select((sourceObject, ordinal) => (sourceObject, ordinal))
+        .ToDictionary(item => item.sourceObject, item => item.ordinal);
+      return CreateOutputAssembly(
+        asset.RootSourceObject,
+        sourceObjectOrdinals,
+        renderObjectOrdinals
+      );
+    }
+
+    private static StaticSourceObjectSerializationPlan CreateOutputAssembly(
+      StaticSourceObject source,
+      IReadOnlyDictionary<StaticSourceObject, int> sourceOrdinals,
+      IReadOnlyDictionary<StaticRenderObject, int> renderObjectOrdinals
     )
     {
       return new StaticSourceObjectSerializationPlan(
-        source.Id.Value,
-        source.StaticRenderObjects.Select(renderObject => renderObject.LocalId),
-        source.Children.Select(CreateOutputIdentityAssembly)
+        sourceOrdinals[source],
+        source.StaticRenderObjects.Select(renderObject => renderObjectOrdinals[renderObject]),
+        source.Children.Select(child =>
+          CreateOutputAssembly(child, sourceOrdinals, renderObjectOrdinals)
+        )
       );
     }
 
@@ -339,45 +360,51 @@ namespace EarthTool.MSH.Internal
     {
       var oldStarts = new Dictionary<int, int>();
       var oldCursor = 0;
-      foreach (var record in source.StaticRenderObjectSequence)
+      for (var ordinal = 0; ordinal < source.StaticRenderObjectSequence.Count; ordinal++)
       {
-        oldStarts.Add(record.LocalId, oldCursor);
+        var record = source.StaticRenderObjectSequence[ordinal];
+        oldStarts.Add(ordinal, oldCursor);
         oldCursor = checked(oldCursor + record.RenderVertices.Count);
       }
 
-      var sourceRecords = source.StaticRenderObjectSequence.ToDictionary(record => record.LocalId);
-      var addedRecords = additions.ToDictionary(addition => addition.LocalId);
+      var sourceRecords = source.StaticRenderObjectSequence
+        .Select((record, ordinal) => (record, ordinal))
+        .ToDictionary(item => item.ordinal, item => item.record);
+      var addedRecords = additions.ToDictionary(addition => addition.Ordinal);
       var newStarts = new Dictionary<int, int>();
       var newCursor = 0;
-      foreach (var id in plan)
+      foreach (var ordinal in plan)
       {
-        newStarts.Add(id, newCursor);
-        var count = sourceRecords.TryGetValue(id, out var sourceRecord)
-          ? replacements.TryGetValue(id, out var replacement)
+        newStarts.Add(ordinal, newCursor);
+        var count = sourceRecords.TryGetValue(ordinal, out var sourceRecord)
+          ? replacements.TryGetValue(ordinal, out var replacement)
             ? replacement.Count
             : sourceRecord.RenderVertices.Count
-          : addedRecords[id].Vertices.Count;
+          : addedRecords[ordinal].Vertices.Count;
         newCursor = checked(newCursor + count);
       }
 
       var targetMap = new Dictionary<int, int?>();
-      foreach (var sourceRecord in source.StaticRenderObjectSequence)
+      for (var ordinal = 0; ordinal < source.StaticRenderObjectSequence.Count; ordinal++)
       {
-        var invalidated =
-          removed.Contains(sourceRecord.LocalId) || replacements.ContainsKey(sourceRecord.LocalId);
+        var sourceRecord = source.StaticRenderObjectSequence[ordinal];
+        var invalidated = removed.Contains(ordinal) || replacements.ContainsKey(ordinal);
         for (var localIndex = 0; localIndex < sourceRecord.RenderVertices.Count; localIndex++)
         {
           targetMap.Add(
-            oldStarts[sourceRecord.LocalId] + localIndex,
-            invalidated ? null : newStarts[sourceRecord.LocalId] + localIndex
+            oldStarts[ordinal] + localIndex,
+            invalidated ? null : newStarts[ordinal] + localIndex
           );
         }
       }
 
       for (var recordIndex = 0; recordIndex < plan.Count; recordIndex++)
       {
-        var id = plan[recordIndex];
-        if (!sourceRecords.TryGetValue(id, out var sourceRecord) || replacements.ContainsKey(id))
+        var ordinal = plan[recordIndex];
+        if (
+          !sourceRecords.TryGetValue(ordinal, out var sourceRecord)
+          || replacements.ContainsKey(ordinal)
+        )
         {
           continue;
         }
@@ -422,7 +449,7 @@ namespace EarthTool.MSH.Internal
       );
     }
 
-    internal static IReadOnlyList<int> PlanStaticRenderObjectLocalIds(
+    internal static IReadOnlyList<int> PlanStaticRenderObjectOrdinals(
       StaticMeshAsset source,
       IEnumerable<int> removedRenderObjects,
       IReadOnlyList<StaticRenderObjectAddition> additions
@@ -430,27 +457,39 @@ namespace EarthTool.MSH.Internal
     {
       var removed = new HashSet<int>(removedRenderObjects);
       var additionsBySource = additions
-        .GroupBy(item => item.SourceObjectLocalId)
+        .GroupBy(item => item.SourceObjectOrdinal)
         .ToDictionary(group => group.Key, group => group.ToArray());
-      var lastRetainedBySource = source
-        .StaticRenderObjectSequence.Where(record => !removed.Contains(record.LocalId))
-        .GroupBy(record => record.SourceObjectId.Value)
-        .ToDictionary(group => group.Key, group => group.Last().LocalId);
+      var sourceOrdinals = EnumerateSourceObjects(source.RootSourceObject)
+        .Select((sourceObject, ordinal) => (sourceObject, ordinal))
+        .ToDictionary(item => item.sourceObject, item => item.ordinal);
+      var sourceByRecord = sourceOrdinals
+        .SelectMany(item =>
+          item.Key.StaticRenderObjects.Select(record => (record, sourceOrdinal: item.Value))
+        )
+        .ToDictionary(item => item.record, item => item.sourceOrdinal);
+      var records = source.StaticRenderObjectSequence
+        .Select((record, ordinal) => (record, ordinal))
+        .ToArray();
+      var lastRetainedBySource = records
+        .Where(item => !removed.Contains(item.ordinal))
+        .GroupBy(item => sourceByRecord[item.record])
+        .ToDictionary(group => group.Key, group => group.Last().ordinal);
       var result = new List<int>();
-      foreach (var record in source.StaticRenderObjectSequence)
+      foreach (var item in records)
       {
-        if (removed.Contains(record.LocalId))
+        if (removed.Contains(item.ordinal))
         {
           continue;
         }
 
-        result.Add(record.LocalId);
+        result.Add(item.ordinal);
+        var sourceOrdinal = sourceByRecord[item.record];
         if (
-          lastRetainedBySource[record.SourceObjectId.Value] == record.LocalId
-          && additionsBySource.TryGetValue(record.SourceObjectId.Value, out var sourceAdditions)
+          lastRetainedBySource[sourceOrdinal] == item.ordinal
+          && additionsBySource.TryGetValue(sourceOrdinal, out var sourceAdditions)
         )
         {
-          result.AddRange(sourceAdditions.Select(addition => addition.LocalId));
+          result.AddRange(sourceAdditions.Select(addition => addition.Ordinal));
         }
       }
 
@@ -465,16 +504,16 @@ namespace EarthTool.MSH.Internal
       var parents = new Dictionary<int, int?>();
       var depths = new Dictionary<int, int>();
       AddSourceHierarchy(root, null, 0, parents, depths);
-      var established = new HashSet<int> { root.SourceObjectLocalId };
-      var current = root.SourceObjectLocalId;
+      var established = new HashSet<int> { root.SourceObjectOrdinal };
+      var current = root.SourceObjectOrdinal;
       for (var index = 0; index < records.Count; index++)
       {
-        var target = records[index].SourceObjectLocalId;
+        var target = records[index].SourceObjectOrdinal;
         var unwind = 0;
         var beginsNested = false;
         if (index == 0)
         {
-          if (target != root.SourceObjectLocalId)
+          if (target != root.SourceObjectOrdinal)
           {
             throw new InvalidOperationException(
               "The first retained partition must belong to the root source object."
@@ -547,11 +586,11 @@ namespace EarthTool.MSH.Internal
       IDictionary<int, int> depths
     )
     {
-      parents.Add(source.SourceObjectLocalId, parent);
-      depths.Add(source.SourceObjectLocalId, depth);
+      parents.Add(source.SourceObjectOrdinal, parent);
+      depths.Add(source.SourceObjectOrdinal, depth);
       foreach (var child in source.Children)
       {
-        AddSourceHierarchy(child, source.SourceObjectLocalId, depth + 1, parents, depths);
+        AddSourceHierarchy(child, source.SourceObjectOrdinal, depth + 1, parents, depths);
       }
     }
 
@@ -1230,6 +1269,20 @@ namespace EarthTool.MSH.Internal
       return Vector3.Normalize(cross).Z > 0.5f ? (ushort)3 : (ushort)1;
     }
 
+    private static IEnumerable<StaticSourceObject> EnumerateSourceObjects(
+      StaticSourceObject source
+    )
+    {
+      yield return source;
+      foreach (var child in source.Children)
+      {
+        foreach (var descendant in EnumerateSourceObjects(child))
+        {
+          yield return descendant;
+        }
+      }
+    }
+
     private sealed class CanonicalStaticRecord
     {
       internal CanonicalStaticSourceObject Source { get; }
@@ -1253,12 +1306,12 @@ namespace EarthTool.MSH.Internal
     {
       internal byte[] Bytes { get; }
 
-      internal int SourceObjectLocalId { get; }
+      internal int SourceObjectOrdinal { get; }
 
-      internal RewrittenStaticRecord(byte[] bytes, int sourceObjectLocalId)
+      internal RewrittenStaticRecord(byte[] bytes, int sourceObjectOrdinal)
       {
         Bytes = bytes;
-        SourceObjectLocalId = sourceObjectLocalId;
+        SourceObjectOrdinal = sourceObjectOrdinal;
       }
     }
 

@@ -68,7 +68,9 @@ namespace EarthTool.GLTF
           options.AssetLineageId ?? Guid.NewGuid(),
           options.DocumentId ?? Guid.NewGuid()
         );
-        var animationDiagnostics = CreateAnimationDiagnostics(asset, baseline);
+        var identityMap = options.StaticIdentityMap
+          ?? GltfStaticIdentityMap.CreateSequential(asset);
+        var animationDiagnostics = CreateAnimationDiagnostics(asset, baseline, identityMap);
         var projectionDiagnostics = animationDiagnostics
           .Concat(CreateCannonRenderPositionDiagnostics(asset))
           .Concat(CreateStaticLightDiagnostics(asset))
@@ -79,7 +81,8 @@ namespace EarthTool.GLTF
           baseline,
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
-          options.ArtistObjectLocalIds
+          options.ArtistObjectLocalIds,
+          identityMap
         );
         if (metadataLength > profile.MaxMetadataBytes)
         {
@@ -94,6 +97,7 @@ namespace EarthTool.GLTF
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
           options.ArtistObjectLocalIds,
+          identityMap,
           true
         );
         if (minimumOutputLength > profile.MaxOutputBytes)
@@ -106,7 +110,8 @@ namespace EarthTool.GLTF
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
           options.ArtistObjectLocalIds,
-          new Dictionary<StaticRenderObjectId, TexPreview>(),
+          identityMap,
+          new Dictionary<StaticRenderObject, TexPreview>(),
           options.SourceBaseName,
           out var fingerprint
         );
@@ -141,6 +146,7 @@ namespace EarthTool.GLTF
               options.PreservedUnknownMetadata,
               options.MetadataNextIds,
               options.ArtistObjectLocalIds,
+              identityMap,
               previewResult.Previews,
               options.SourceBaseName,
               out fingerprint
@@ -257,7 +263,9 @@ namespace EarthTool.GLTF
           options.AssetLineageId ?? Guid.NewGuid(),
           options.DocumentId ?? Guid.NewGuid()
         );
-        var animationDiagnostics = CreateAnimationDiagnostics(asset, baseline);
+        var identityMap = options.StaticIdentityMap
+          ?? GltfStaticIdentityMap.CreateSequential(asset);
+        var animationDiagnostics = CreateAnimationDiagnostics(asset, baseline, identityMap);
         var projectionDiagnostics = animationDiagnostics
           .Concat(CreateCannonRenderPositionDiagnostics(asset))
           .Concat(CreateStaticLightDiagnostics(asset))
@@ -268,7 +276,8 @@ namespace EarthTool.GLTF
           baseline,
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
-          options.ArtistObjectLocalIds
+          options.ArtistObjectLocalIds,
+          identityMap
         );
         if (metadataLength > profile.MaxMetadataBytes)
         {
@@ -283,6 +292,7 @@ namespace EarthTool.GLTF
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
           options.ArtistObjectLocalIds,
+          identityMap,
           false
         );
         if (minimumOutputLength > profile.MaxOutputBytes)
@@ -295,7 +305,8 @@ namespace EarthTool.GLTF
           options.PreservedUnknownMetadata,
           options.MetadataNextIds,
           options.ArtistObjectLocalIds,
-          new Dictionary<StaticRenderObjectId, TexPreview>(),
+          identityMap,
+          new Dictionary<StaticRenderObject, TexPreview>(),
           options.SourceBaseName,
           out var fingerprint
         );
@@ -333,6 +344,7 @@ namespace EarthTool.GLTF
               options.PreservedUnknownMetadata,
               options.MetadataNextIds,
               options.ArtistObjectLocalIds,
+              identityMap,
               previewResult.Previews,
               options.SourceBaseName,
               out fingerprint
@@ -1011,13 +1023,13 @@ namespace EarthTool.GLTF
       var manifest = GlbDocument.ParseMetadata(parsed.ManifestMetadata!, profile);
       var baseline = new InterchangeBaseline(manifest.AssetLineageId, manifest.DocumentId);
       var metadataBacked = await ImportParsedAsync(
-            parsed,
-            baseline,
-            new GltfEditImportOptions(),
-            profile,
-            cancellationToken
-          )
-          .ConfigureAwait(false);
+          parsed,
+          baseline,
+          new GltfEditImportOptions(),
+          profile,
+          cancellationToken
+        )
+        .ConfigureAwait(false);
       if (!metadataBacked.Succeeded && metadataBacked.Diagnostics.Any(IsMetadataDiagnostic))
       {
         return CreateCanonicalFallback(
@@ -1083,16 +1095,16 @@ namespace EarthTool.GLTF
     )
     {
       var operations = trace.Changes;
-      var geometry = LocalIds(StaticMeshAssemblyChangeKind.Geometry);
-      var pivots = LocalIds(StaticMeshAssemblyChangeKind.Pivot);
-      var textures = LocalIds(StaticMeshAssemblyChangeKind.TexturePath);
-      var animations = LocalIds(StaticMeshAssemblyChangeKind.Animation);
-      var markerFlags = LocalIds(StaticMeshAssemblyChangeKind.MarkerFlags);
-      var removed = LocalIds(StaticMeshAssemblyChangeKind.RemovedRenderObject);
-      var additions = LocalIds(StaticMeshAssemblyChangeKind.AddedRenderObject);
-      var resultIndexByLocalId = trace
-        .ResultRenderObjectLocalIds.Select((localId, index) => (localId, index))
-        .ToDictionary(item => item.localId, item => item.index);
+      var geometry = Ordinals(StaticMeshAssemblyChangeKind.Geometry);
+      var pivots = Ordinals(StaticMeshAssemblyChangeKind.Pivot);
+      var textures = Ordinals(StaticMeshAssemblyChangeKind.TexturePath);
+      var animations = Ordinals(StaticMeshAssemblyChangeKind.Animation);
+      var markerFlags = Ordinals(StaticMeshAssemblyChangeKind.MarkerFlags);
+      var removed = Ordinals(StaticMeshAssemblyChangeKind.RemovedRenderObject);
+      var additions = Ordinals(StaticMeshAssemblyChangeKind.AddedRenderObject);
+      var resultIndexByOrdinal = trace
+        .ResultRenderObjectOrdinals.Select((ordinal, index) => (ordinal, index))
+        .ToDictionary(item => item.ordinal, item => item.index);
       var hierarchyChanged = Has(StaticMeshAssemblyChangeKind.Hierarchy);
       var headerChanged = operations.Any(operation =>
         operation.Kind
@@ -1218,9 +1230,9 @@ namespace EarthTool.GLTF
         );
       }
 
-      foreach (var localId in markerFlags.OrderBy(value => value))
+      foreach (var ordinal in markerFlags.OrderBy(value => value))
       {
-        if (resultIndexByLocalId.TryGetValue(localId, out var index))
+        if (resultIndexByOrdinal.TryGetValue(ordinal, out var index))
         {
           changes.Add(
             CreationChange(
@@ -1260,8 +1272,7 @@ namespace EarthTool.GLTF
       {
         for (var index = 0; index < source.StaticRenderObjectSequence.Count; index++)
         {
-          var record = source.StaticRenderObjectSequence[index];
-          if (removed.Contains(record.LocalId))
+          if (removed.Contains(index))
           {
             changes.Add(
               CreationChange(
@@ -1272,11 +1283,11 @@ namespace EarthTool.GLTF
             );
             continue;
           }
-          if (!resultIndexByLocalId.TryGetValue(record.LocalId, out var resultIndex))
+          if (!resultIndexByOrdinal.TryGetValue(index, out var resultIndex))
           {
             continue;
           }
-          if (geometry.Contains(record.LocalId))
+          if (geometry.Contains(index))
           {
             changes.Add(
               CreationChange(
@@ -1300,7 +1311,7 @@ namespace EarthTool.GLTF
               )
             );
           }
-          if (pivots.Contains(record.LocalId))
+          if (pivots.Contains(index))
           {
             changes.Add(
               CreationChange(
@@ -1313,13 +1324,13 @@ namespace EarthTool.GLTF
           changes.Add(
             CreationChange(
               $"StaticRenderObjectSequence[{resultIndex}].TexturePathBytes",
-              textures.Contains(record.LocalId)
+              textures.Contains(index)
                 ? PreservationDisposition.Regenerated
                 : PreservationDisposition.Retained,
-              textures.Contains(record.LocalId) ? "MaterialBindingEdit" : "MaterialBindingReaffirmed"
+              textures.Contains(index) ? "MaterialBindingEdit" : "MaterialBindingReaffirmed"
             )
           );
-          if (animations.Contains(record.LocalId))
+          if (animations.Contains(index))
           {
             changes.Add(
               CreationChange(
@@ -1345,9 +1356,9 @@ namespace EarthTool.GLTF
           }
         }
 
-        foreach (var localId in additions.OrderBy(value => value))
+        foreach (var ordinal in additions.OrderBy(value => value))
         {
-          var resultIndex = resultIndexByLocalId[localId];
+          var resultIndex = resultIndexByOrdinal[ordinal];
           changes.Add(
             CreationChange(
               $"StaticRenderObjectSequence[{resultIndex}]",
@@ -1364,14 +1375,15 @@ namespace EarthTool.GLTF
           );
         }
 
-        var sourceByLocalId = source.StaticRenderObjectSequence.ToDictionary(item => item.LocalId);
         for (var resultIndex = 0; resultIndex < assembled.StaticRenderObjectSequence.Count; resultIndex++)
         {
           var resultRecord = assembled.StaticRenderObjectSequence[resultIndex];
-          if (!sourceByLocalId.TryGetValue(resultRecord.LocalId, out var sourceRecord))
+          var sourceOrdinal = trace.ResultRenderObjectOrdinals[resultIndex];
+          if (sourceOrdinal >= source.StaticRenderObjectSequence.Count)
           {
             continue;
           }
+          var sourceRecord = source.StaticRenderObjectSequence[sourceOrdinal];
           if (sourceRecord.ObjectFlags != resultRecord.ObjectFlags)
           {
             changes.Add(
@@ -1392,7 +1404,7 @@ namespace EarthTool.GLTF
               )
             );
           }
-          if (geometry.Contains(sourceRecord.LocalId))
+          if (geometry.Contains(sourceOrdinal))
           {
             continue;
           }
@@ -1437,11 +1449,11 @@ namespace EarthTool.GLTF
       );
       return new PreservationReport(changes);
 
-      HashSet<int> LocalIds(StaticMeshAssemblyChangeKind kind)
+      HashSet<int> Ordinals(StaticMeshAssemblyChangeKind kind)
       {
         return operations
-          .Where(item => item.Kind == kind && item.LocalId.HasValue)
-          .Select(item => item.LocalId!.Value)
+          .Where(item => item.Kind == kind && item.RenderObjectOrdinal.HasValue)
+          .Select(item => item.RenderObjectOrdinal!.Value)
           .ToHashSet();
       }
 
@@ -2028,9 +2040,9 @@ namespace EarthTool.GLTF
                   options.ConflictResolutions.Where(resolution =>
                     !ReferenceEquals(resolution, scopeResolution.Resolution)
                   )
-                ),
-                profile,
-                cancellationToken
+             ),
+                  profile,
+                  cancellationToken
               )
               .ConfigureAwait(false);
             return WithAppliedResolution(retried, scopeResolution.Resolution);
@@ -2270,9 +2282,9 @@ namespace EarthTool.GLTF
                   options.ConflictResolutions.Where(resolution =>
                     !ReferenceEquals(resolution, scopeResolution.Resolution)
                   )
-                ),
-                profile,
-                cancellationToken
+             ),
+                  profile,
+                  cancellationToken
               )
               .ConfigureAwait(false);
             return WithAppliedResolution(retried, scopeResolution.Resolution);
@@ -2882,10 +2894,9 @@ namespace EarthTool.GLTF
           InvalidGeometry("CommonBaseHeader.HorizontalExtents", rangeFailure!)
         );
       }
-      var lineage = new MeshAssetLineageId(Guid.NewGuid());
+      var lineage = Guid.NewGuid();
       var assembler = StaticMeshAssembler.CreateCanonical(
         Guid.NewGuid(),
-        lineage,
         draft.Source,
         footprint,
         horizontalExtents!
@@ -2908,7 +2919,7 @@ namespace EarthTool.GLTF
         );
       }
 
-      var baseline = new InterchangeBaseline(lineage.Value, Guid.NewGuid());
+      var baseline = new InterchangeBaseline(lineage, Guid.NewGuid());
       return new OperationResult<GltfNewModelImportResult>(
         OperationStatus.Succeeded,
         new GltfNewModelImportResult(
@@ -3986,6 +3997,7 @@ namespace EarthTool.GLTF
       }
 
       StaticMeshAsset asset;
+      GltfStaticIdentityMap identityMap;
       try
       {
         using var sourceMshStream = new MemoryStream(sourceMsh, writable: false);
@@ -4001,17 +4013,11 @@ namespace EarthTool.GLTF
         {
           throw new InvalidDataException("Preserved MSH state is not static.");
         }
-        var lineageId = new MeshAssetLineageId(manifest.AssetLineageId);
-        asset = EarthTool.MSH.Internal.MeshAssetRebinder.RebindStatic(
-          decodedStaticAsset,
-          MeshAssetOrigin.Loaded,
-          EarthTool.MSH.Internal.StaticMeshIdentityState.FromLocalIds(
-            lineageId,
-            manifest.StaticRenderObjectLocalIds,
-            manifest.SourceObjectLocalIds,
-            manifest.NextStaticRenderObjectLocalId,
-            manifest.NextSourceObjectLocalId
-          )
+        asset = decodedStaticAsset;
+        identityMap = GltfStaticIdentityMap.Create(
+          asset,
+          manifest.StaticRenderObjectLocalIds,
+          manifest.SourceObjectLocalIds
         );
       }
       catch (Exception ex) when (ex is ArgumentException || ex is InvalidDataException)
@@ -4091,7 +4097,14 @@ namespace EarthTool.GLTF
           matching.Data["carrierType"] == "material"
             ? RestoreDeletedMaterialScope(parsed, matching, metadataBaseline, profile)
           : matching.Data["carrierType"] == "mesh"
-            ? RestoreDeletedMeshScope(parsed, matching, metadataBaseline, asset, profile)
+            ? RestoreDeletedMeshScope(
+              parsed,
+              matching,
+              metadataBaseline,
+              asset,
+              identityMap,
+              profile
+            )
           : AcceptDeletedNativeScope(parsed, matching, profile);
         var retried = await ImportParsedAsync(
             accepted,
@@ -4100,9 +4113,9 @@ namespace EarthTool.GLTF
               options.ConflictResolutions.Where(resolution =>
                 !ReferenceEquals(resolution, deletionResolution)
               )
-            ),
-            profile,
-            cancellationToken
+             ),
+             profile,
+             cancellationToken
           )
           .ConfigureAwait(false);
         return WithAppliedResolution(retried, deletionResolution);
@@ -4151,9 +4164,9 @@ namespace EarthTool.GLTF
                 options.ConflictResolutions.Where(resolution =>
                   !ReferenceEquals(resolution, guardResolution)
                 )
-              ),
-              profile,
-              cancellationToken
+             ),
+             profile,
+             cancellationToken
             )
             .ConfigureAwait(false);
           return WithAppliedResolution(retried, guardResolution);
@@ -4291,13 +4304,48 @@ namespace EarthTool.GLTF
         })
         .ToArray();
       var assembler = new StaticMeshAssembler(asset);
+      var renderObjectOrdinalByLocalId = asset.StaticRenderObjectSequence
+        .Select((renderObject, ordinal) =>
+          (localId: identityMap.GetRenderObjectId(renderObject), ordinal)
+        )
+        .ToDictionary(item => item.localId, item => item.ordinal);
+      var renderObjectLocalIdByOrdinal = renderObjectOrdinalByLocalId.ToDictionary(
+        item => item.Value,
+        item => item.Key
+      );
+      var sourceObjectOrdinalByLocalId = StaticSourceObjectTraversal
+        .Flatten(asset.RootSourceObject)
+        .Select((sourceObject, ordinal) =>
+          (localId: identityMap.GetSourceObjectId(sourceObject), ordinal)
+        )
+        .ToDictionary(item => item.localId, item => item.ordinal);
+      var sourceObjectLocalIdByOrdinal = sourceObjectOrdinalByLocalId.ToDictionary(
+        item => item.Value,
+        item => item.Key
+      );
+      var nextRenderObjectLocalId = manifest.NextStaticRenderObjectLocalId
+        ?? checked(renderObjectOrdinalByLocalId.Keys.Max() + 1);
+      var nextSourceObjectLocalId = Math.Max(
+        manifest.NextSourceObjectLocalId
+          ?? checked(sourceObjectOrdinalByLocalId.Keys.DefaultIfEmpty(0).Max() + 1),
+        manifest.ScopeNextIds.TryGetValue("object", out var nextObjectLocalId)
+          ? nextObjectLocalId
+          : 1
+      );
       var hierarchy = ReconcileHierarchy(
         parsed,
         nodes.Select(node => (node.Parsed, node.Metadata)).ToArray(),
         meshes.Select(mesh => (mesh.Parsed, mesh.Metadata)).ToArray(),
         asset,
         reconciliationBaseline,
-        assembler
+        assembler,
+        identityMap,
+        sourceObjectOrdinalByLocalId,
+        sourceObjectLocalIdByOrdinal,
+        renderObjectOrdinalByLocalId,
+        renderObjectLocalIdByOrdinal,
+        ref nextSourceObjectLocalId,
+        ref nextRenderObjectLocalId
       );
       var artistObjects = ReconcileBaseHeaderArtistObjects(
         parsed,
@@ -4306,8 +4354,11 @@ namespace EarthTool.GLTF
         asset,
         hierarchy,
         reconciliationBaseline,
-        manifest.ScopeNextIds,
-        assembler
+        nextSourceObjectLocalId,
+        assembler,
+        identityMap,
+        sourceObjectLocalIdByOrdinal,
+        renderObjectLocalIdByOrdinal
       );
       try
       {
@@ -4326,11 +4377,12 @@ namespace EarthTool.GLTF
             .ToArray(),
           asset,
           reconciliationBaseline,
+          identityMap,
           profile.MaxOutputBytes
         );
         var sourcesByLocalId = StaticSourceObjectTraversal
           .Flatten(asset.RootSourceObject)
-          .ToDictionary(source => source.Id.Value);
+          .ToDictionary(identityMap.GetSourceObjectId);
         foreach (var replacement in animationPlan.Replacements)
         {
           var tracks = StaticAnimationProjection.CreateCanonicalTracks(replacement.Frames);
@@ -4377,7 +4429,8 @@ namespace EarthTool.GLTF
             .Select(mesh => (mesh.Parsed, Metadata: mesh.Metadata!, mesh.Discarded))
             .ToArray(),
           asset,
-          reconciliationBaseline
+          reconciliationBaseline,
+          identityMap
         );
         partitionMatches = partitionMatches
           .Select(match =>
@@ -4413,11 +4466,8 @@ namespace EarthTool.GLTF
         .Where(match => !match.Added)
         .Select(match => match.Partition.LocalId)
         .ToHashSet();
-      foreach (
-        var removed in asset.StaticRenderObjectSequence.Where(record =>
-          !matchedLocalIds.Contains(record.LocalId)
-        )
-      )
+      foreach (var removed in asset.StaticRenderObjectSequence.Where(record =>
+        !matchedLocalIds.Contains(identityMap.GetRenderObjectId(record))))
       {
         assembler.RemoveRenderObject(assembler.GetRenderObjectOrdinal(removed));
       }
@@ -4435,19 +4485,19 @@ namespace EarthTool.GLTF
         if (match.Added)
         {
           var addedOrdinal = assembler.AddRenderObject(
-            assembler.GetSourceObjectOrdinalByOutputLocalId(match.SourceObjectLocalId),
+            sourceObjectOrdinalByLocalId[match.SourceObjectLocalId],
             vertices,
             triangles
           );
-          match.Partition.AssignLocalId(assembler.GetOutputRenderObjectLocalId(addedOrdinal));
+          var addedLocalId = nextRenderObjectLocalId++;
+          renderObjectLocalIdByOrdinal.Add(addedOrdinal, addedLocalId);
+          renderObjectOrdinalByLocalId.Add(addedLocalId, addedOrdinal);
+          match.Partition.AssignLocalId(addedLocalId);
         }
         else
         {
-          var renderObject = asset.StaticRenderObjectSequence.Single(record =>
-            record.LocalId == match.Partition.LocalId
-          );
           assembler.ReplaceGeometry(
-            assembler.GetRenderObjectOrdinal(renderObject),
+            renderObjectOrdinalByLocalId[match.Partition.LocalId],
             vertices,
             triangles
           );
@@ -4459,7 +4509,10 @@ namespace EarthTool.GLTF
         finalHierarchyRoot,
         partitionMatches,
         artistObjects,
-        assembler
+        assembler,
+        sourceObjectLocalIdByOrdinal,
+        renderObjectLocalIdByOrdinal,
+        renderObjectOrdinalByLocalId
       );
       ApplyMaterialBindings(
         parsed,
@@ -4470,23 +4523,18 @@ namespace EarthTool.GLTF
           .Concat(hierarchy.AddedPartitions)
           .ToArray(),
         assembler,
+        identityMap,
+        renderObjectOrdinalByLocalId,
         profile
       );
 
       var sourceEffectivePositions = CreateEffectivePositions(
         asset.RootSourceObject,
         source =>
-          source.StaticRenderObjectIds.SelectMany(renderObjectId =>
-            asset
-              .StaticRenderObjectSequence.Single(record => record.Id.Equals(renderObjectId))
-              .RenderVertices.Select(vertex => vertex.Position)
+          source.StaticRenderObjects.SelectMany(renderObject =>
+            renderObject.RenderVertices.Select(vertex => vertex.Position)
           ),
-        source =>
-          asset
-            .StaticRenderObjectSequence.Single(record =>
-              record.Id.Equals(source.StaticRenderObjectIds[0])
-            )
-            .Pivot,
+        source => source.StaticRenderObjects[0].Pivot,
         source => source.Children
       );
       var partitionsByLocalId = partitionMatches
@@ -4494,14 +4542,14 @@ namespace EarthTool.GLTF
         .Concat(hierarchy.AddedPartitions)
         .ToDictionary(partition => partition.LocalId);
       var sourceRecordsByLocalId = asset.StaticRenderObjectSequence.ToDictionary(record =>
-        record.LocalId
+        identityMap.GetRenderObjectId(record)
       );
       var currentEffectivePositions = CreateEffectivePositions(
         finalHierarchyRoot,
         source =>
           source.StaticRenderObjectOrdinals.SelectMany(renderObjectOrdinal =>
           {
-            var renderObjectLocalId = assembler.GetOutputRenderObjectLocalId(renderObjectOrdinal);
+            var renderObjectLocalId = renderObjectLocalIdByOrdinal[renderObjectOrdinal];
             return partitionsByLocalId.TryGetValue(renderObjectLocalId, out var partition)
               ? partition.Vertices.Select(vertex => ToCanonicalPosition(vertex.Position))
               : Enumerable.Empty<System.Numerics.Vector3>();
@@ -4509,7 +4557,7 @@ namespace EarthTool.GLTF
         source =>
           hierarchy.Pivots.TryGetValue(source.StaticRenderObjectOrdinals[0], out var pivot) ? pivot
           : sourceRecordsByLocalId.TryGetValue(
-            assembler.GetOutputRenderObjectLocalId(source.StaticRenderObjectOrdinals[0]),
+            renderObjectLocalIdByOrdinal[source.StaticRenderObjectOrdinals[0]],
             out var record
           )
             ? record.Pivot
@@ -4581,13 +4629,22 @@ namespace EarthTool.GLTF
         reconciled,
         assembler.Trace
       );
+      var resultIdentityMap = GltfStaticIdentityMap.Create(
+        reconciled,
+        assembler.Trace.ResultRenderObjectOrdinals.Select(ordinal =>
+          renderObjectLocalIdByOrdinal[ordinal]
+        ),
+        FlattenSourceAssemblies(finalHierarchyRoot).Select(source =>
+          sourceObjectLocalIdByOrdinal[source.Ordinal]
+        )
+      );
 
       var nextBaseline = new InterchangeBaseline(
         reconciliationBaseline.AssetLineageId,
         Guid.NewGuid()
       );
-      var changedRecordPaths = committed
-        .Preservation.Changes.Where(change =>
+      var changedRecordPaths = creationPreservation
+        .Changes.Where(change =>
           change.Disposition != PreservationDisposition.Retained
         )
         .Select(change => change.FieldPath)
@@ -4597,7 +4654,7 @@ namespace EarthTool.GLTF
         .Select(match =>
           asset
             .StaticRenderObjectSequence.Select((record, index) => (record, index))
-            .Single(item => item.record.LocalId == match.Partition.LocalId)
+            .Single(item => identityMap.GetRenderObjectId(item.record) == match.Partition.LocalId)
             .index
         )
         .Where(index =>
@@ -4664,8 +4721,22 @@ namespace EarthTool.GLTF
         pair => pair.Value,
         StringComparer.Ordinal
       );
+      nextMetadataIds["material"] = Math.Max(
+        nextMetadataIds.TryGetValue("material", out var existingNextMaterialLocalId)
+          ? existingNextMaterialLocalId
+          : 1,
+        nextRenderObjectLocalId
+      );
+      nextMetadataIds["mesh"] = Math.Max(
+        nextMetadataIds.TryGetValue("mesh", out var existingNextMeshLocalId)
+          ? existingNextMeshLocalId
+          : 1,
+        nextSourceObjectLocalId
+      );
       nextMetadataIds["object"] = Math.Max(
-        nextMetadataIds.TryGetValue("object", out var nextObjectLocalId) ? nextObjectLocalId : 1,
+        nextMetadataIds.TryGetValue("object", out var existingNextObjectLocalId)
+          ? existingNextObjectLocalId
+          : 1,
         artistObjects.NextObjectLocalId
       );
       return new OperationResult<GltfEditImportResult>(
@@ -4674,7 +4745,7 @@ namespace EarthTool.GLTF
           reconciled,
           nextBaseline,
           fingerprint,
-          committed.Preservation,
+          creationPreservation,
           restoredPaths,
           CollectUnknownMetadata(
             new[] { manifest }
@@ -4692,7 +4763,8 @@ namespace EarthTool.GLTF
             ? GltfMetadataLineageDisposition.BranchAccepted
             : GltfMetadataLineageDisposition.Retained,
           conflictResolution.Applied,
-          creationPreservation
+          creationPreservation,
+          resultIdentityMap
         ),
         sceneLightDiagnostics
           .Concat(CreateIgnoredInertDataDiagnostics(parsed))
@@ -5145,6 +5217,7 @@ namespace EarthTool.GLTF
       OperationDiagnostic conflict,
       InterchangeBaseline baseline,
       StaticMeshAsset asset,
+      GltfStaticIdentityMap identityMap,
       GltfOperationProfile profile
     )
     {
@@ -5159,9 +5232,9 @@ namespace EarthTool.GLTF
       );
       var source = StaticSourceObjectTraversal
         .Flatten(asset.RootSourceObject)
-        .Single(item => item.Id.Value == localId);
+        .Single(item => identityMap.GetSourceObjectId(item) == localId);
       var primitives = parsed.Meshes[meshIndex].Primitives;
-      if (primitives.Count != source.StaticRenderObjectIds.Count)
+      if (primitives.Count != source.StaticRenderObjects.Count)
       {
         throw new InvalidDataException(
           "Deletion acceptance requires one native partition per source render object."
@@ -5171,7 +5244,7 @@ namespace EarthTool.GLTF
         .Select(
           (primitive, index) =>
             new GeometryPartition(
-              source.StaticRenderObjectIds[index].Value,
+              identityMap.GetRenderObjectId(source.StaticRenderObjects[index]),
               primitive.Vertices,
               primitive.Triangles
             )
@@ -5386,7 +5459,9 @@ namespace EarthTool.GLTF
           value.NextExportOptions.MetadataNextIds,
           value.NextExportOptions.ArtistObjectLocalIds,
           value.LineageDisposition,
-          new[] { resolution }.Concat(value.AppliedConflictResolutions)
+          new[] { resolution }.Concat(value.AppliedConflictResolutions),
+          value.CreationPreservation,
+          value.NextExportOptions.StaticIdentityMap
         ),
         result.Diagnostics
       );
@@ -5548,6 +5623,8 @@ namespace EarthTool.GLTF
       InterchangeBaseline expectedBaseline,
       IReadOnlyList<GeometryPartition> partitions,
       StaticMeshAssembler assembler,
+      GltfStaticIdentityMap identityMap,
+      IReadOnlyDictionary<int, int> renderObjectOrdinalByLocalId,
       GltfOperationProfile profile
     )
     {
@@ -5575,7 +5652,7 @@ namespace EarthTool.GLTF
           throw new MalformedMetadataException("The material metadata envelope is malformed.");
         }
         var origin = asset.StaticRenderObjectSequence.SingleOrDefault(record =>
-          record.LocalId == material.LocalId
+          identityMap.GetRenderObjectId(record) == material.LocalId
         );
         if (
           (origin is null || !origin.TexturePathBytes.SequenceEqual(material.TextureBinding))
@@ -5601,14 +5678,14 @@ namespace EarthTool.GLTF
         }
         var binding = materials[materialIndex].TextureBinding!;
         var record = asset.StaticRenderObjectSequence.SingleOrDefault(item =>
-          item.LocalId == partition.LocalId
+          identityMap.GetRenderObjectId(item) == partition.LocalId
         );
         if (record is not null && record.TexturePathBytes.SequenceEqual(binding))
         {
           continue;
         }
         assembler.ReplaceTexturePathBytes(
-          assembler.GetRenderObjectOrdinalByOutputLocalId(partition.LocalId),
+          renderObjectOrdinalByLocalId[partition.LocalId],
           binding
         );
       }
@@ -5634,8 +5711,13 @@ namespace EarthTool.GLTF
         return Unsupported("StaticRenderObjectSequence");
       }
 
-      foreach (var renderObject in asset.StaticRenderObjectSequence)
+      for (
+        var renderObjectIndex = 0;
+        renderObjectIndex < asset.StaticRenderObjectSequence.Count;
+        renderObjectIndex++
+      )
       {
+        var renderObject = asset.StaticRenderObjectSequence[renderObjectIndex];
         if (
           renderObject.RenderVertices.Count == 0
           || renderObject.RenderVertices.Count > profile.MaxActiveRenderVertices
@@ -5644,12 +5726,12 @@ namespace EarthTool.GLTF
         {
           return renderObject.RenderVertices.Count > profile.MaxActiveRenderVertices
             ? Limit(
-              $"StaticRenderObjectSequence[{renderObject.LocalId}].RenderVertices",
+              $"StaticRenderObjectSequence[{renderObjectIndex}].RenderVertices",
               renderObject.RenderVertices.Count,
               profile.MaxActiveRenderVertices
             )
             : InvalidGeometry(
-              $"StaticRenderObjectSequence[{renderObject.LocalId}]",
+              $"StaticRenderObjectSequence[{renderObjectIndex}]",
               "Static geometry must contain vertices and triangles."
             );
         }
@@ -5661,7 +5743,7 @@ namespace EarthTool.GLTF
         )
         {
           return InvalidGeometry(
-            $"StaticRenderObjectSequence[{renderObject.LocalId}].RenderVertices",
+            $"StaticRenderObjectSequence[{renderObjectIndex}].RenderVertices",
             "Static geometry positions and normals must be finite."
           );
         }
@@ -5675,7 +5757,7 @@ namespace EarthTool.GLTF
         )
         {
           return InvalidGeometry(
-            $"StaticRenderObjectSequence[{renderObject.LocalId}].Triangles",
+            $"StaticRenderObjectSequence[{renderObjectIndex}].Triangles",
             "Triangle index is outside the active render-vertex range."
           );
         }
@@ -5687,7 +5769,7 @@ namespace EarthTool.GLTF
         )
         {
           return InvalidGeometry(
-            $"StaticRenderObjectSequence[{renderObject.LocalId}].RenderVertices",
+            $"StaticRenderObjectSequence[{renderObjectIndex}].RenderVertices",
             "Static geometry texture coordinates must be finite."
           );
         }
@@ -5774,6 +5856,7 @@ namespace EarthTool.GLTF
       IReadOnlyList<MetadataEnvelope?> nodes,
       StaticMeshAsset asset,
       InterchangeBaseline baseline,
+      GltfStaticIdentityMap identityMap,
       int maximumOutputLength
     )
     {
@@ -5782,7 +5865,7 @@ namespace EarthTool.GLTF
       {
         throw new ResourceLimitException(estimatedOutputLength, maximumOutputLength);
       }
-      var expected = StaticAnimationProjection.Create(asset, baseline);
+      var expected = StaticAnimationProjection.Create(asset, baseline, identityMap);
       if (
         !manifest.AnimationLengths.HasValue
         || !manifest.AnimationLengths.Value.Equals(asset.CommonBaseHeader.AnimationLengths)
@@ -6142,12 +6225,13 @@ namespace EarthTool.GLTF
     private static IReadOnlyList<PartitionMatch> MatchPartitions(
       IReadOnlyList<(ParsedGltfMesh Parsed, MetadataEnvelope Metadata, bool Discarded)> meshes,
       StaticMeshAsset asset,
-      InterchangeBaseline expected
+      InterchangeBaseline expected,
+      GltfStaticIdentityMap identityMap
     )
     {
       var sources = StaticSourceObjectTraversal
         .Flatten(asset.RootSourceObject)
-        .ToDictionary(source => source.Id.Value);
+        .ToDictionary(identityMap.GetSourceObjectId);
       if (meshes.Select(mesh => mesh.Metadata.LocalId).Distinct().Count() != meshes.Count)
       {
         throw new MalformedMetadataException(
@@ -6168,30 +6252,28 @@ namespace EarthTool.GLTF
           || metadata.AssetLineageId != expected.AssetLineageId
           || metadata.DocumentId != expected.DocumentId
           || !sources.TryGetValue(metadata.LocalId, out var source)
-          || metadata.Partitions.Count != source.StaticRenderObjectIds.Count
+          || metadata.Partitions.Count != source.StaticRenderObjects.Count
           || metadata.Partitions.Select(partition => partition.LocalId).Distinct().Count()
             != metadata.Partitions.Count
           || !metadata
             .Partitions.Select(partition => partition.LocalId)
             .OrderBy(value => value)
             .SequenceEqual(
-              source.StaticRenderObjectIds.Select(id => id.Value).OrderBy(value => value)
+              source.StaticRenderObjects
+                .Select(identityMap.GetRenderObjectId)
+                .OrderBy(value => value)
             )
         )
         {
           throw new MalformedMetadataException("The mesh metadata envelope is malformed.");
         }
 
-        var sourceRecords = source
-          .StaticRenderObjectIds.Select(id =>
-            asset.StaticRenderObjectSequence.Single(record => record.Id.Equals(id))
-          )
-          .ToArray();
+        var sourceRecords = source.StaticRenderObjects.ToArray();
         var sourceGeometry = sourceRecords
           .Select(
             (record, index) =>
               new GeometryPartition(
-                record.LocalId,
+                identityMap.GetRenderObjectId(record),
                 record.RenderVertices.Select(GlbDocument.ProjectToGltf).ToArray(),
                 record.Triangles,
                 index < mesh.Parsed.Primitives.Count
@@ -6226,7 +6308,7 @@ namespace EarthTool.GLTF
                     partition.Triangles,
                     partition.MaterialIndex
                   ),
-                  source.Id.Value,
+                  identityMap.GetSourceObjectId(source),
                   retained: false,
                   added: false
                 )
@@ -6262,7 +6344,7 @@ namespace EarthTool.GLTF
                   partition.Triangles,
                   materialIndices[0]
                 ),
-                source.Id.Value,
+                identityMap.GetSourceObjectId(source),
                 true,
                 false
               ))
@@ -6295,7 +6377,7 @@ namespace EarthTool.GLTF
                   current.Triangles,
                   current.MaterialIndex
                 ),
-                source.Id.Value,
+                identityMap.GetSourceObjectId(source),
                 true,
                 false
               )
@@ -6368,7 +6450,7 @@ namespace EarthTool.GLTF
                     primitive.Triangles,
                     primitive.MaterialIndex
                   ),
-                   source.Id.Value,
+                  identityMap.GetSourceObjectId(source),
                   true,
                   false
                 )
@@ -6416,7 +6498,7 @@ namespace EarthTool.GLTF
                   primitive.Triangles,
                   primitive.MaterialIndex
                 ),
-                 source.Id.Value,
+                identityMap.GetSourceObjectId(source),
                 true,
                 false
               )
@@ -6439,7 +6521,7 @@ namespace EarthTool.GLTF
                   item.Primitive.Triangles,
                   item.Primitive.MaterialIndex
                 ),
-                source.Id.Value,
+                identityMap.GetSourceObjectId(source),
                 false,
                 true
               ))
@@ -6462,7 +6544,7 @@ namespace EarthTool.GLTF
                   primitive.Triangles,
                   primitive.MaterialIndex
                 ),
-                 source.Id.Value,
+                identityMap.GetSourceObjectId(source),
                 false,
                 false
               )
@@ -6635,8 +6717,11 @@ namespace EarthTool.GLTF
       StaticMeshAsset asset,
       StaticHierarchyPlan hierarchy,
       InterchangeBaseline expected,
-      IReadOnlyDictionary<string, int> metadataNextIds,
-      StaticMeshAssembler assembler
+      int nextObjectLocalId,
+      StaticMeshAssembler assembler,
+      GltfStaticIdentityMap identityMap,
+      IReadOnlyDictionary<int, int> sourceObjectLocalIdByOrdinal,
+      IReadOnlyDictionary<int, int> renderObjectLocalIdByOrdinal
     )
     {
       var attachmentCandidates = new Dictionary<int, List<int>>();
@@ -6697,20 +6782,6 @@ namespace EarthTool.GLTF
           $"nodes[{duplicate.Value[0]}]"
         );
       }
-      var nextObjectLocalId = metadataNextIds.TryGetValue("object", out var nextObject)
-        ? nextObject
-        : checked(
-          nodes
-            .Select(node => node.Metadata?.LocalId)
-            .OfType<int>()
-            .Concat(
-              StaticSourceObjectTraversal
-                .Flatten(asset.RootSourceObject)
-                .Select(source => source.Id.Value)
-            )
-            .DefaultIfEmpty(0)
-            .Max() + 1
-        );
       var attachmentArtistObjectLocalIds = new Dictionary<int, int>();
       var cannonArtistObjectLocalIds = new Dictionary<int, int>();
       foreach (var candidate in attachmentCandidates)
@@ -6758,11 +6829,11 @@ namespace EarthTool.GLTF
           throw new UnsupportedGltfDomainException("EmitterMarkerHierarchy", $"nodes[{nodeIndex}]");
         }
         var owner = hierarchy.SourceByNode[ownerNodeIndex];
-        var ownerLocalId = assembler.GetOutputSourceObjectLocalId(owner.Ordinal);
+        var ownerLocalId = sourceObjectLocalIdByOrdinal[owner.Ordinal];
         var ownershipChanged =
           nodes[nodeIndex].Metadata is null
           || sourcePhysicalNumber != candidate.Key
-          || ownerLocalId != expectedParent.Id.Value;
+          || ownerLocalId != identityMap.GetSourceObjectId(expectedParent);
         if (ownershipChanged)
         {
           markerOwnershipChanges.Add(candidate.Key - 4, ownerLocalId);
@@ -6776,7 +6847,7 @@ namespace EarthTool.GLTF
               ownerLocalId,
               asset
                 .StaticRenderObjectSequence.Where(record => (record.KnownFlags & flag) != 0)
-                .Select(record => record.LocalId)
+                .Select(identityMap.GetRenderObjectId)
                 .ToArray()
             )
           );
@@ -7034,18 +7105,23 @@ namespace EarthTool.GLTF
       StaticSourceObjectAssembly hierarchyRoot,
       IReadOnlyList<PartitionMatch> partitions,
       EditArtistObjectPlan ownership,
-      StaticMeshAssembler assembler
+      StaticMeshAssembler assembler,
+      IReadOnlyDictionary<int, int> sourceObjectLocalIdByOrdinal,
+      IReadOnlyDictionary<int, int> renderObjectLocalIdByOrdinal,
+      IReadOnlyDictionary<int, int> renderObjectOrdinalByLocalId
     )
     {
       const StaticRenderObjectFlags markerMask = StaticRenderObjectFlagMasks.MarkerAttachments;
-      var sourceRecords = asset.StaticRenderObjectSequence.ToDictionary(record => record.LocalId);
+      var sourceRecords = asset.StaticRenderObjectSequence
+        .Select((record, ordinal) => (record, localId: renderObjectLocalIdByOrdinal[ordinal]))
+        .ToDictionary(item => item.localId, item => item.record);
       var sources = FlattenSourceAssemblies(hierarchyRoot).ToArray();
       var partitionIds = partitions
         .Select(partition => partition.Partition.LocalId)
         .ToArray();
       var finalRecordIds = sources
         .SelectMany(source =>
-          source.StaticRenderObjectOrdinals.Select(assembler.GetOutputRenderObjectLocalId)
+          source.StaticRenderObjectOrdinals.Select(ordinal => renderObjectLocalIdByOrdinal[ordinal])
         )
         .Where(id => !sourceRecords.ContainsKey(id) || partitionIds.Contains(id))
         .Concat(partitionIds)
@@ -7083,17 +7159,17 @@ namespace EarthTool.GLTF
         if (change.Value is not null)
         {
           var source = sources.Single(item =>
-            assembler.GetOutputSourceObjectLocalId(item.Ordinal) == change.Value.Value
+            sourceObjectLocalIdByOrdinal[item.Ordinal] == change.Value.Value
           );
           var first = source
-            .StaticRenderObjectOrdinals.Select(assembler.GetOutputRenderObjectLocalId)
+            .StaticRenderObjectOrdinals.Select(ordinal => renderObjectLocalIdByOrdinal[ordinal])
             .FirstOrDefault(finalRecordIds.Contains);
           if (first == default)
           {
             var localId = partitions
               .First(partition =>
                 partition.SourceObjectLocalId
-                == assembler.GetOutputSourceObjectLocalId(source.Ordinal)
+                == sourceObjectLocalIdByOrdinal[source.Ordinal]
               )
               .Partition.LocalId;
             first = localId;
@@ -7109,7 +7185,7 @@ namespace EarthTool.GLTF
         if (replacement.Value != sourceFlags)
         {
           assembler.ReplaceMarkerAttachmentFlags(
-            assembler.GetRenderObjectOrdinalByOutputLocalId(replacement.Key),
+            renderObjectOrdinalByLocalId[replacement.Key],
             replacement.Value
           );
         }
@@ -8345,12 +8421,19 @@ namespace EarthTool.GLTF
       IReadOnlyList<(ParsedGltfMesh Parsed, MetadataEnvelope? Metadata)> meshes,
       StaticMeshAsset asset,
       InterchangeBaseline expected,
-      StaticMeshAssembler assembler
+      StaticMeshAssembler assembler,
+      GltfStaticIdentityMap identityMap,
+      IDictionary<int, int> sourceObjectOrdinalByLocalId,
+      IDictionary<int, int> sourceObjectLocalIdByOrdinal,
+      IDictionary<int, int> renderObjectOrdinalByLocalId,
+      IDictionary<int, int> renderObjectLocalIdByOrdinal,
+      ref int nextSourceObjectLocalId,
+      ref int nextRenderObjectLocalId
     )
     {
       var sources = StaticSourceObjectTraversal
         .Flatten(asset.RootSourceObject)
-        .ToDictionary(source => source.Id.Value);
+        .ToDictionary(identityMap.GetSourceObjectId);
       if (
         nodes.Any(node =>
           !node.Parsed.MeshIndex.HasValue
@@ -8488,12 +8571,9 @@ namespace EarthTool.GLTF
           sourceByNode.Add(nodeIndex, assembler.CreateSourceObjectAssembly(originalSource!));
           if (hasLinearTransform)
           {
-            transforms.Add(originalSource!.Id.Value, linearTransform);
+            transforms.Add(identityMap.GetSourceObjectId(originalSource!), linearTransform);
           }
-          var pivotRecordLocalId = originalSource!.StaticRenderObjects[0].LocalId;
-          var sourcePivot = asset
-            .StaticRenderObjectSequence.Single(record => record.LocalId == pivotRecordLocalId)
-            .Pivot;
+          var sourcePivot = originalSource!.StaticRenderObjects[0].Pivot;
           if (pivot != sourcePivot)
           {
             pivots.Add(
@@ -8505,7 +8585,9 @@ namespace EarthTool.GLTF
         }
 
         var sourceOrdinal = assembler.AllocateSourceObjectOrdinal();
-        var sourceLocalId = assembler.GetOutputSourceObjectLocalId(sourceOrdinal);
+        var sourceLocalId = nextSourceObjectLocalId++;
+        sourceObjectOrdinalByLocalId.Add(sourceLocalId, sourceOrdinal);
+        sourceObjectLocalIdByOrdinal.Add(sourceOrdinal, sourceLocalId);
         var renderObjectOrdinals = new List<int>();
         foreach (var primitive in meshes[node.Parsed.MeshIndex.Value].Parsed.Primitives)
         {
@@ -8531,7 +8613,10 @@ namespace EarthTool.GLTF
             ))
             .ToArray();
           var renderObjectOrdinal = assembler.AddRenderObject(sourceOrdinal, vertices, triangles);
-          partition.AssignLocalId(assembler.GetOutputRenderObjectLocalId(renderObjectOrdinal));
+          var renderObjectLocalId = nextRenderObjectLocalId++;
+          renderObjectOrdinalByLocalId.Add(renderObjectLocalId, renderObjectOrdinal);
+          renderObjectLocalIdByOrdinal.Add(renderObjectOrdinal, renderObjectLocalId);
+          partition.AssignLocalId(renderObjectLocalId);
           renderObjectOrdinals.Add(renderObjectOrdinal);
           addedPartitions.Add(partition);
         }
@@ -9427,24 +9512,25 @@ namespace EarthTool.GLTF
 
     private static IReadOnlyList<OperationDiagnostic> CreateAnimationDiagnostics(
       StaticMeshAsset asset,
-      InterchangeBaseline baseline
+      InterchangeBaseline baseline,
+      GltfStaticIdentityMap identityMap
     )
     {
       var sources = StaticSourceObjectTraversal
         .Flatten(asset.RootSourceObject)
-        .ToDictionary(source => source.Id.Value);
+        .ToDictionary(identityMap.GetSourceObjectId);
       var indices = asset
-        .StaticRenderObjectSequence.Select((record, index) => new { record.Id, Index = index })
-        .ToDictionary(item => item.Id, item => item.Index);
+        .StaticRenderObjectSequence.Select((record, index) => new { record, Index = index })
+        .ToDictionary(item => item.record, item => item.Index);
       var diagnostics = new List<OperationDiagnostic>();
       foreach (
         var item in StaticAnimationProjection
-          .Create(asset, baseline)
+          .Create(asset, baseline, identityMap)
           .Objects.OrderBy(item => item.ClassIndex)
           .ThenBy(item => item.SourceObjectLocalId)
       )
       {
-        var recordIndex = indices[sources[item.SourceObjectLocalId].StaticRenderObjectIds[0]];
+        var recordIndex = indices[sources[item.SourceObjectLocalId].StaticRenderObjects[0]];
         var commonData = new Dictionary<string, string>
         {
           ["sourceObject"] = item.SourceObjectLocalId.ToString(

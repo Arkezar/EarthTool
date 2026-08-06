@@ -14,9 +14,6 @@ namespace EarthTool.MSH.Tests;
 public class DynamicMeshAssetTests
 {
   private static readonly Guid CreationGuid = new("12345678-9abc-def0-1234-56789abcdef0");
-  private static readonly MeshAssetLineageId LineageId = new(
-    new Guid("11111111-2222-3333-4444-555555555555")
-  );
 
   [Fact]
   public async Task PublicOperationsPreserveCompleteOrderedDynamicTreeExactly()
@@ -117,7 +114,7 @@ public class DynamicMeshAssetTests
   [Fact]
   public async Task PublicReaderDiagnosesAndPreservesExactNoncanonicalDynamicBaseHeader()
   {
-    var build = DynamicMeshBuilder.Create(CreationGuid, LineageId).Build();
+    var build = DynamicMeshBuilder.Create(CreationGuid).Build();
     build.TryGetValue(out var canonical).Should().BeTrue();
     var fixture = await WriteAsync(canonical!);
     fixture[0x18 + 0x0C] = 1;
@@ -144,7 +141,7 @@ public class DynamicMeshAssetTests
   {
     var fixture = CreateFixture(CreateDynamicRecord(uint.MaxValue, 7));
 
-    var build = MshExpert.CreateDynamic(fixture, LineageId);
+    var build = MshExpert.CreateDynamic(fixture);
 
     build.TryGetValue(out var asset).Should().BeTrue();
     asset!.RootDynamicObject.Extension.EffectType.Should().Be(uint.MaxValue);
@@ -210,13 +207,13 @@ public class DynamicMeshAssetTests
   [Fact]
   public async Task ExpertGroupPreservesAndDiagnosesCanonicalValuedInertRepresentations()
   {
-    var canonical = DynamicMeshBuilder.Create(CreationGuid, LineageId).Build();
+    var canonical = DynamicMeshBuilder.Create(CreationGuid).Build();
     canonical.TryGetValue(out var canonicalAsset).Should().BeTrue();
     var fixture = await WriteAsync(canonicalAsset!);
     WriteUInt32(fixture, 0x18 + 0x3B8, 1);
     WriteInt32(fixture, 0x18 + 0x3D8, 1);
 
-    var build = MshExpert.CreateDynamic(fixture, LineageId);
+    var build = MshExpert.CreateDynamic(fixture);
 
     build.TryGetValue(out var asset).Should().BeTrue();
     build
@@ -329,19 +326,19 @@ public class DynamicMeshAssetTests
   {
     var cycle = DynamicEffectRecipes.Group();
     cycle.AddChild(cycle);
-    var cycleBuild = DynamicMeshBuilder.Create(CreationGuid, LineageId).SetRoot(cycle).Build();
+    var cycleBuild = DynamicMeshBuilder.Create(CreationGuid).SetRoot(cycle).Build();
     var indirectRoot = DynamicEffectRecipes.Group();
     var indirectChild = DynamicEffectRecipes.Group();
     indirectRoot.AddChild(indirectChild);
     indirectChild.AddChild(indirectRoot);
     var indirectBuild = DynamicMeshBuilder
-      .Create(CreationGuid, LineageId)
+      .Create(CreationGuid)
       .SetRoot(indirectRoot)
       .Build();
     var shared = CreateRecipe(DynamicEffectType.Smoke);
     var reusedRoot = DynamicEffectRecipes.Group([shared, shared]);
     var reusedBuild = DynamicMeshBuilder
-      .Create(CreationGuid, LineageId)
+      .Create(CreationGuid)
       .SetRoot(reusedRoot)
       .Build();
 
@@ -378,7 +375,7 @@ public class DynamicMeshAssetTests
       CreateRecipe(DynamicEffectType.Smoke),
     };
     var root = DynamicEffectRecipes.Group(sourceChildren);
-    var build = DynamicMeshBuilder.Create(CreationGuid, LineageId).SetRoot(root).Build();
+    var build = DynamicMeshBuilder.Create(CreationGuid).SetRoot(root).Build();
 
     sourceChildren.Clear();
     root.AddChild(CreateRecipe(DynamicEffectType.Keelwater));
@@ -401,7 +398,7 @@ public class DynamicMeshAssetTests
     var root = DynamicEffectRecipes.Group([shared, shared, shared]);
 
     var build = DynamicMeshBuilder
-      .Create(CreationGuid, LineageId)
+      .Create(CreationGuid)
       .SetRoot(root)
       .Build(new MshOperationProfile(maxDiagnostics: 1));
 

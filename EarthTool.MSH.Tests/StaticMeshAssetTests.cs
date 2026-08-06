@@ -25,8 +25,10 @@ public class StaticMeshAssetTests
     var asset = result.Value.Should().BeOfType<StaticMeshAsset>().Subject;
     asset.StaticRenderObjectSequence.Should().ContainSingle();
     asset
-      .RootSourceObject.StaticRenderObjectIds.Should()
-      .Equal(asset.StaticRenderObjectSequence[0].Id);
+      .RootSourceObject.StaticRenderObjects.Should()
+      .ContainSingle()
+      .Subject.Should()
+      .BeSameAs(asset.StaticRenderObjectSequence[0]);
     asset.RootSourceObject.Children.Should().BeEmpty();
     asset.StoredTrailingHierarchyUnwindCount.Should().Be(1);
   }
@@ -53,17 +55,17 @@ public class StaticMeshAssetTests
         "Textures\\rotor.tex"
       );
     asset
-      .RootSourceObject.StaticRenderObjectIds.Should()
-      .Equal(asset.StaticRenderObjectSequence[0].Id, asset.StaticRenderObjectSequence[2].Id);
+      .RootSourceObject.StaticRenderObjects.Should()
+      .Equal(asset.StaticRenderObjectSequence[0], asset.StaticRenderObjectSequence[2]);
     asset.RootSourceObject.Children.Should().HaveCount(2);
     asset
       .RootSourceObject.Children[0]
-      .StaticRenderObjectIds.Should()
-      .Equal(asset.StaticRenderObjectSequence[1].Id);
+      .StaticRenderObjects.Should()
+      .Equal(asset.StaticRenderObjectSequence[1]);
     asset
       .RootSourceObject.Children[1]
-      .StaticRenderObjectIds.Should()
-      .Equal(asset.StaticRenderObjectSequence[3].Id);
+      .StaticRenderObjects.Should()
+      .Equal(asset.StaticRenderObjectSequence[3]);
     asset
       .RootSourceObject.StaticRenderObjects[0]
       .Should()
@@ -128,10 +130,7 @@ public class StaticMeshAssetTests
       ]
     );
     var build = StaticMeshBuilder
-      .Create(
-        new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
-        new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"))
-      )
+      .Create(new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))
       .SetRootSourceObject(root)
       .Build();
 
@@ -156,7 +155,7 @@ public class StaticMeshAssetTests
 
     var first = await WriteAsync(asset);
     var secondBuild = StaticMeshBuilder
-      .Create(new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"), asset.LineageId)
+      .Create(new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))
       .SetRootSourceObject(root)
       .Build();
     secondBuild.TryGetValue(out var second).Should().BeTrue();
@@ -167,10 +166,8 @@ public class StaticMeshAssetTests
   public void CanonicalAssemblerAuthorsFinalRepresentationsInOneCommit()
   {
     var root = new CanonicalStaticSourceObject([RenderObject()]);
-    var lineage = new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"));
     var assembler = StaticMeshAssembler.CreateCanonical(
       new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
-      lineage,
       root,
       new CanonicalStaticFootprint(0x8000, new float[16], new byte[16]),
       new CanonicalHorizontalExtents(1, 2, 3, 4)
@@ -188,23 +185,13 @@ public class StaticMeshAssetTests
   }
 
   [Fact]
-  public async Task AssemblerUsesSequenceOrdinalsWhenPersistedLocalIdsAreSparse()
+  public async Task AssemblerUsesSequenceOrdinalsAndLeavesSourceReferencesUnchanged()
   {
     await using var stream = new MemoryStream(StaticMeshSequenceFixture.CreateInterleaved().Data);
     var read = await new MshReader().ReadAsync(stream);
-    var decoded = read.Value.Should().BeOfType<StaticMeshAsset>().Subject;
-    var lineage = new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"));
-    var source = MeshAssetRebinder.RebindStatic(
-      decoded,
-      MeshAssetOrigin.Loaded,
-      StaticMeshIdentityState.FromLocalIds(
-        lineage,
-        [101, 205, 409, 817],
-        [31, 47, 63],
-        1000,
-        100
-      )
-    );
+    var source = read.Value.Should().BeOfType<StaticMeshAsset>().Subject;
+    var sourceSequence = source.StaticRenderObjectSequence.ToArray();
+    var sourceTextureOrder = sourceSequence.Select(TexturePath).ToArray();
     var assembler = new StaticMeshAssembler(source);
     var target = source.StaticRenderObjectSequence[1];
     var ordinal = assembler.GetRenderObjectOrdinal(target);
@@ -213,45 +200,13 @@ public class StaticMeshAssetTests
     var result = assembler.Commit();
 
     result.TryGetValue(out var asset).Should().BeTrue();
-    asset!.StaticRenderObjectSequence.Select(item => item.LocalId).Should().Equal(101, 205, 409, 817);
+    source.StaticRenderObjectSequence.Should().Equal(sourceSequence);
+    source.StaticRenderObjectSequence[1].Should().BeSameAs(target);
+    asset!.StaticRenderObjectSequence.Select(TexturePath)
+      .Should().Equal(sourceTextureOrder);
     asset.StaticRenderObjectSequence[1].Pivot.Should().Be(new Vector3(9, 8, 7));
     asset.StaticRenderObjectSequence[0].Pivot.Should().NotBe(new Vector3(9, 8, 7));
-  }
-
-  [Fact]
-  public void LegacyHierarchyAdapterMapsSparseAndAllocatedIdentitiesToOrdinals()
-  {
-    var build = StaticMeshBuilder
-      .Create()
-      .SetRootSourceObject(new CanonicalStaticSourceObject([RenderObject()]))
-      .Build();
-    build.TryGetValue(out var canonical).Should().BeTrue();
-    var lineage = new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"));
-    var source = MeshAssetRebinder.RebindStatic(
-      canonical!,
-      MeshAssetOrigin.Loaded,
-      StaticMeshIdentityState.FromLocalIds(lineage, [101], [31], 1000, 100)
-    );
-    var session = source.Edit();
-    var childId = session.AllocateSourceObjectId();
-    var childRenderObjectId = session.AddRenderObject(childId, Vertices(), Triangles());
-    var editedRoot = new StaticSourceObject(
-      source.RootSourceObject.Id,
-      source.RootSourceObject.StaticRenderObjectIds,
-      [new StaticSourceObject(childId, [childRenderObjectId], Array.Empty<StaticSourceObject>())]
-    );
-    session.ApplyHierarchy(
-      editedRoot,
-      [source.StaticRenderObjectSequence[0].Id, childRenderObjectId]
-    );
-
-    var result = session.Commit();
-
-    result.TryGetValue(out var edited).Should().BeTrue();
-    edited!.StaticRenderObjectSequence.Select(item => item.LocalId).Should().Equal(101, 1000);
-    edited.RootSourceObject.Id.Value.Should().Be(31);
-    edited.RootSourceObject.Children.Should().ContainSingle().Subject.Id.Value.Should().Be(100);
-    edited.RootSourceObject.Children[0].StaticRenderObjectIds.Should().Equal(childRenderObjectId);
+    assembler.Trace.ResultRenderObjectOrdinals.Should().Equal(0, 1, 2, 3);
   }
 
   [Fact]
@@ -271,41 +226,40 @@ public class StaticMeshAssetTests
       .Build();
     build.TryGetValue(out var source).Should().BeTrue();
     var root = source!.RootSourceObject;
-    var session = source.Edit();
-    session.RemoveRenderObject(root.StaticRenderObjectIds[0]);
-    var additionId = session.AddRenderObject(root.Id, Vertices(), Triangles());
-    var reorderedRoot = new StaticSourceObject(
-      root.Id,
-      root.StaticRenderObjectIds,
-      root.Children.Reverse()
+    var assembler = new StaticMeshAssembler(source);
+    var rootOrdinal = assembler.GetSourceObjectOrdinal(root);
+    var rootRenderObjectOrdinals = root.StaticRenderObjects
+      .Select(assembler.GetRenderObjectOrdinal)
+      .ToArray();
+    assembler.RemoveRenderObject(rootRenderObjectOrdinals[0]);
+    var additionOrdinal = assembler.AddRenderObject(rootOrdinal, Vertices(), Triangles());
+    var reorderedRoot = new StaticSourceObjectAssembly(
+      rootOrdinal,
+      rootRenderObjectOrdinals,
+      root.Children.Reverse().Select(assembler.CreateSourceObjectAssembly)
     );
-    session.ApplyHierarchy(
+    var finalSequence = new[]
+    {
+      rootRenderObjectOrdinals[1],
+      assembler.GetRenderObjectOrdinal(root.Children[1].StaticRenderObjects[0]),
+      assembler.GetRenderObjectOrdinal(root.Children[0].StaticRenderObjects[0]),
+      additionOrdinal,
+    };
+    assembler.ApplyHierarchy(
       reorderedRoot,
-      [
-        root.StaticRenderObjectIds[1],
-        root.Children[1].StaticRenderObjectIds[0],
-        root.Children[0].StaticRenderObjectIds[0],
-        additionId,
-      ]
+      finalSequence
     );
 
-    var result = session.Commit();
+    var result = assembler.Commit();
 
     result.TryGetValue(out var edited).Should().BeTrue();
-    edited!
-      .StaticRenderObjectSequence.Select(record => record.LocalId)
-      .Should()
-      .Equal(
-        root.StaticRenderObjectIds[1].Value,
-        root.Children[1].StaticRenderObjectIds[0].Value,
-        root.Children[0].StaticRenderObjectIds[0].Value,
-        additionId.Value
-      );
-    edited.RootSourceObject.StaticRenderObjectIds.Should().Equal(root.StaticRenderObjectIds[1], additionId);
-    edited.RootSourceObject.Children.Select(child => child.Id).Should().Equal(
-      root.Children[1].Id,
-      root.Children[0].Id
-    );
+    assembler.Trace.ResultRenderObjectOrdinals.Should().Equal(finalSequence);
+    edited!.RootSourceObject.StaticRenderObjects.Should()
+      .Equal(edited.StaticRenderObjectSequence[0], edited.StaticRenderObjectSequence[3]);
+    edited.RootSourceObject.Children[0].StaticRenderObjects.Should()
+      .Equal(edited.StaticRenderObjectSequence[1]);
+    edited.RootSourceObject.Children[1].StaticRenderObjects.Should()
+      .Equal(edited.StaticRenderObjectSequence[2]);
   }
 
   [Fact]
@@ -314,14 +268,22 @@ public class StaticMeshAssetTests
     await using var stream = new MemoryStream(StaticMeshSequenceFixture.CreateInterleaved().Data);
     var read = await new MshReader().ReadAsync(stream);
     var source = read.Value.Should().BeOfType<StaticMeshAsset>().Subject;
-    var authoritativeSequence = source.StaticRenderObjectSequence.Select(record => record.Id).ToArray();
-    var session = source.Edit();
-    session.ApplyHierarchy(source.RootSourceObject, authoritativeSequence);
+    var sourceSequence = source.StaticRenderObjectSequence.ToArray();
+    var expectedTextureOrder = sourceSequence.Select(TexturePath).ToArray();
+    var assembler = new StaticMeshAssembler(source);
+    var authoritativeSequence = sourceSequence.Select(assembler.GetRenderObjectOrdinal).ToArray();
+    assembler.ApplyHierarchy(
+      assembler.CreateSourceObjectAssembly(source.RootSourceObject),
+      authoritativeSequence
+    );
 
-    var result = session.Commit();
+    var result = assembler.Commit();
 
     result.TryGetValue(out var edited).Should().BeTrue();
-    edited!.StaticRenderObjectSequence.Select(record => record.Id).Should().Equal(authoritativeSequence);
+    source.StaticRenderObjectSequence.Should().Equal(sourceSequence);
+    assembler.Trace.ResultRenderObjectOrdinals.Should().Equal(authoritativeSequence);
+    edited!.StaticRenderObjectSequence.Select(TexturePath)
+      .Should().Equal(expectedTextureOrder);
   }
 
   [Theory]
@@ -334,21 +296,25 @@ public class StaticMeshAssetTests
     await using var stream = new MemoryStream(StaticMeshSequenceFixture.CreateInterleaved().Data);
     var read = await new MshReader().ReadAsync(stream);
     var source = read.Value.Should().BeOfType<StaticMeshAsset>().Subject;
-    var sourceSequence = source.StaticRenderObjectSequence.Select(record => record.Id).ToArray();
+    var sourceSequence = source.StaticRenderObjectSequence.ToArray();
+    var assembler = new StaticMeshAssembler(source);
+    var sourceOrdinals = sourceSequence.Select(assembler.GetRenderObjectOrdinal).ToArray();
     var invalidSequence = invalidity == "duplicate"
-      ? sourceSequence.Take(sourceSequence.Length - 1).Append(sourceSequence[0]).ToArray()
-      : sourceSequence.Take(sourceSequence.Length - 1).ToArray();
-    var session = source.Edit();
-    session.ApplyHierarchy(source.RootSourceObject, invalidSequence);
+      ? sourceOrdinals.Take(sourceOrdinals.Length - 1).Append(sourceOrdinals[0]).ToArray()
+      : sourceOrdinals.Take(sourceOrdinals.Length - 1).ToArray();
+    assembler.ApplyHierarchy(
+      assembler.CreateSourceObjectAssembly(source.RootSourceObject),
+      invalidSequence
+    );
 
-    var result = session.Commit();
+    var result = assembler.Commit();
 
     result.TryGetValue(out _).Should().BeFalse();
     result.Diagnostics.Should()
       .ContainSingle()
       .Subject.Code.Should()
-      .Be(MshDiagnosticCodes.InvalidEdit);
-    source.StaticRenderObjectSequence.Select(record => record.Id).Should().Equal(sourceSequence);
+      .Be(MshDiagnosticCodes.InvalidAuthoringInput);
+    source.StaticRenderObjectSequence.Should().Equal(sourceSequence);
   }
 
   [Fact]
@@ -359,20 +325,28 @@ public class StaticMeshAssetTests
       .SetRootSourceObject(new CanonicalStaticSourceObject([RenderObject(), RenderObject()]))
       .Build();
     build.TryGetValue(out var source).Should().BeTrue();
-    var sourceSequence = source!.StaticRenderObjectSequence.Select(record => record.Id).ToArray();
-    var session = source.Edit();
-    session.RemoveRenderObject(sourceSequence[0]);
-    session.AddRenderObject(source.RootSourceObject.Id, Vertices(), Triangles());
-    session.ApplyHierarchy(source.RootSourceObject, sourceSequence);
+    var sourceSequence = source!.StaticRenderObjectSequence.ToArray();
+    var assembler = new StaticMeshAssembler(source);
+    var sourceOrdinals = sourceSequence.Select(assembler.GetRenderObjectOrdinal).ToArray();
+    assembler.RemoveRenderObject(sourceOrdinals[0]);
+    assembler.AddRenderObject(
+      assembler.GetSourceObjectOrdinal(source.RootSourceObject),
+      Vertices(),
+      Triangles()
+    );
+    assembler.ApplyHierarchy(
+      assembler.CreateSourceObjectAssembly(source.RootSourceObject),
+      sourceOrdinals
+    );
 
-    var result = session.Commit();
+    var result = assembler.Commit();
 
     result.TryGetValue(out _).Should().BeFalse();
     result.Diagnostics.Should()
       .ContainSingle()
       .Subject.Code.Should()
-      .Be(MshDiagnosticCodes.InvalidEdit);
-    source.StaticRenderObjectSequence.Select(record => record.Id).Should().Equal(sourceSequence);
+      .Be(MshDiagnosticCodes.InvalidAuthoringInput);
+    source.StaticRenderObjectSequence.Should().Equal(sourceSequence);
   }
 
   [Theory]
@@ -459,50 +433,47 @@ public class StaticMeshAssetTests
   }
 
   [Fact]
-  public void GeometryEditRetainsSequenceAndLineageScopedIdentities()
+  public void GeometryAssemblyRetainsSequenceOrderAndSourceMemberships()
   {
     var fixture = StaticMeshSequenceFixture.CreateInterleaved();
-    var build = EarthTool.MSH.Expert.MshExpert.CreateStatic(
-      fixture.Data,
-      new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"))
-    );
+    var build = EarthTool.MSH.Expert.MshExpert.CreateStatic(fixture.Data);
     build.TryGetValue(out var source).Should().BeTrue();
-    var retainedIds = source!.StaticRenderObjectSequence.Select(item => item.Id).ToArray();
-    var retainedSourceIds = SourceIds(source.RootSourceObject).ToArray();
+    var sourceSequence = source!.StaticRenderObjectSequence.ToArray();
+    var sourceTextureOrder = sourceSequence.Select(TexturePath).ToArray();
+    var sourceMemberships = SourceObjectMemberships(source).ToArray();
     var replacement = source.StaticRenderObjectSequence[1];
+    var assembler = new StaticMeshAssembler(source);
+    var replacementOrdinal = assembler.GetRenderObjectOrdinal(replacement);
 
-    var edit = source.Edit().ReplaceGeometry(replacement.Id, Vertices(), Triangles()).Commit();
+    assembler.ReplaceGeometry(replacementOrdinal, Vertices(), Triangles());
+    var edit = assembler.Commit();
 
     edit.TryGetValue(out var edited).Should().BeTrue();
-    edited!.StaticRenderObjectSequence.Select(item => item.Id).Should().Equal(retainedIds);
-    SourceIds(edited.RootSourceObject).Should().Equal(retainedSourceIds);
-    edited
-      .StaticRenderObjectSequence.Select(item => item.SourceObjectId)
-      .Should()
-      .Equal(source.StaticRenderObjectSequence.Select(item => item.SourceObjectId));
-    edit.Preservation.Changes.Should()
-      .Contain(change =>
-        change.FieldPath == "StaticRenderObjectSequence[1].Id"
-        && change.Disposition == PreservationDisposition.Retained
-      );
+    source.StaticRenderObjectSequence.Should().Equal(sourceSequence);
+    source.StaticRenderObjectSequence[1].Should().BeSameAs(replacement);
+    edited!.StaticRenderObjectSequence.Select(TexturePath)
+      .Should().Equal(sourceTextureOrder);
+    SourceObjectMemberships(edited).Should().Equal(sourceMemberships);
+    assembler.Trace.Changes.Should().ContainSingle(change =>
+      change.Kind == StaticMeshAssemblyChangeKind.Geometry
+      && change.RenderObjectOrdinal == replacementOrdinal
+    );
   }
 
   [Fact]
   public void GeometryEditCanonicalizesLaterLinkIntoRegeneratedTopology()
   {
     var fixture = StaticMeshSequenceFixture.CreateInterleaved();
-    var build = EarthTool.MSH.Expert.MshExpert.CreateStatic(
-      fixture.Data,
-      new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"))
-    );
+    var build = EarthTool.MSH.Expert.MshExpert.CreateStatic(fixture.Data);
     build.TryGetValue(out var source).Should().BeTrue();
     var vertices = Vertices()
       .Append(new CanonicalStaticVertex(Vector3.One, Vector3.UnitZ, Vector2.One));
+    var sourceAsset = source!;
+    var assembler = new StaticMeshAssembler(sourceAsset);
+    var replacedOrdinal = assembler.GetRenderObjectOrdinal(sourceAsset.StaticRenderObjectSequence[0]);
 
-    var edit = source!
-      .Edit()
-      .ReplaceGeometry(source.StaticRenderObjectSequence[0].Id, vertices, Triangles())
-      .Commit();
+    assembler.ReplaceGeometry(replacedOrdinal, vertices, Triangles());
+    var edit = assembler.Commit();
 
     edit.TryGetValue(out var edited).Should().BeTrue();
     edited!
@@ -510,19 +481,19 @@ public class StaticMeshAssetTests
       .RenderVertices[0]
       .NormalSharingIndex.Should()
       .Be(ushort.MaxValue);
-    edit.Preservation.Changes.Should()
-      .Contain(change =>
-        change.FieldPath == "StaticRenderObjectSequence[1].RenderVertices[0].NormalSharingIndex"
-        && change.Disposition == PreservationDisposition.Canonicalized
-      );
+    sourceAsset.StaticRenderObjectSequence[1].RenderVertices[0].NormalSharingIndex.Should()
+      .NotBe(ushort.MaxValue);
+    assembler.Trace.Changes.Should().ContainSingle(change =>
+      change.Kind == StaticMeshAssemblyChangeKind.Geometry
+      && change.RenderObjectOrdinal == replacedOrdinal
+    );
   }
 
   [Fact]
   public void PartitionDeletionRebasesLaterLinkToRetainedTopology()
   {
-    var lineage = new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"));
     var build = StaticMeshBuilder
-      .Create(new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"), lineage)
+      .Create(new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))
       .SetRootSourceObject(
         new CanonicalStaticSourceObject([RenderObject(), RenderObject(), RenderObject()])
       )
@@ -535,28 +506,28 @@ public class StaticMeshAssetTests
       bytes.AsSpan(firstRecordOffset + (2 * canonicalRecordLength) + 8 + 0x90),
       3
     );
-    var expert = EarthTool.MSH.Expert.MshExpert.CreateStatic(bytes, lineage);
+    var expert = EarthTool.MSH.Expert.MshExpert.CreateStatic(bytes);
     expert.TryGetValue(out var source).Should().BeTrue();
+    var sourceAsset = source!;
+    var assembler = new StaticMeshAssembler(sourceAsset);
+    var removedOrdinal = assembler.GetRenderObjectOrdinal(sourceAsset.StaticRenderObjectSequence[0]);
 
-    var edit = source!.Edit().RemoveRenderObject(source.StaticRenderObjectSequence[0].Id).Commit();
+    assembler.RemoveRenderObject(removedOrdinal);
+    var edit = assembler.Commit();
 
     edit.TryGetValue(out var edited).Should().BeTrue();
     edited!.StaticRenderObjectSequence[1].RenderVertices[0].NormalSharingIndex.Should().Be(0);
-    edit.Preservation.Changes.Should()
-      .Contain(change =>
-        change.FieldPath == "StaticRenderObjectSequence[1].RenderVertices[0].NormalSharingIndex"
-        && change.Disposition == PreservationDisposition.Regenerated
-      );
+    assembler.Trace.Changes.Should().ContainSingle(change =>
+      change.Kind == StaticMeshAssemblyChangeKind.RemovedRenderObject
+      && change.RenderObjectOrdinal == removedOrdinal
+    );
   }
 
   [Fact]
   public void PartitionDeletionTransfersNestedSourceHierarchyMarker()
   {
     var build = StaticMeshBuilder
-      .Create(
-        new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
-        new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"))
-      )
+      .Create(new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))
       .SetRootSourceObject(
         new CanonicalStaticSourceObject(
           [RenderObject()],
@@ -565,13 +536,17 @@ public class StaticMeshAssetTests
       )
       .Build();
     build.TryGetValue(out var source).Should().BeTrue();
-    var retainedChildId = source!.StaticRenderObjectSequence[2].Id;
+    var retainedChild = source!.StaticRenderObjectSequence[2];
+    var assembler = new StaticMeshAssembler(source);
+    var removedOrdinal = assembler.GetRenderObjectOrdinal(source.StaticRenderObjectSequence[1]);
 
-    var edit = source.Edit().RemoveRenderObject(source.StaticRenderObjectSequence[1].Id).Commit();
+    assembler.RemoveRenderObject(removedOrdinal);
+    var edit = assembler.Commit();
 
     edit.TryGetValue(out var edited).Should().BeTrue();
     edited!.StaticRenderObjectSequence.Should().HaveCount(2);
-    edited.StaticRenderObjectSequence[1].Id.Should().Be(retainedChildId);
+    source.StaticRenderObjectSequence[2].Should().BeSameAs(retainedChild);
+    edited.StaticRenderObjectSequence[1].Should().NotBeSameAs(retainedChild);
     edited
       .StaticRenderObjectSequence[1]
       .KnownFlags.Should()
@@ -579,46 +554,12 @@ public class StaticMeshAssetTests
     edited
       .RootSourceObject.Children.Should()
       .ContainSingle()
-      .Subject.StaticRenderObjectIds.Should()
-      .Equal(retainedChildId);
-    edit.Preservation.Changes.Should()
-      .Contain(change =>
-        change.FieldPath == "StaticRenderObjectSequence[1].ObjectFlags"
-        && change.Disposition == PreservationDisposition.Regenerated
-      );
-  }
-
-  [Fact]
-  public void PartitionAdditionFailsWhenLineageLocalIdentityRangeIsExhausted()
-  {
-    var decoded = MshV1Decoder.Decode(
-      StaticMeshSequenceFixture.CreateSingle().Data,
-      MshOperationProfile.Default,
-      CancellationToken.None
+      .Subject.StaticRenderObjects.Should()
+      .Equal(edited.StaticRenderObjectSequence[1]);
+    assembler.Trace.Changes.Should().ContainSingle(change =>
+      change.Kind == StaticMeshAssemblyChangeKind.RemovedRenderObject
+      && change.RenderObjectOrdinal == removedOrdinal
     );
-    var decodedAsset = (StaticMeshAsset)decoded.Asset;
-    var lineage = new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"));
-    var source = MeshAssetRebinder.RebindStatic(
-      decodedAsset,
-      MeshAssetOrigin.Loaded,
-      new StaticMeshIdentityState(
-        lineage,
-        [new StaticRenderObjectId(lineage, int.MaxValue)],
-        [new SourceObjectId(lineage, 1)],
-        null,
-        2
-      )
-    );
-    var session = source.Edit();
-
-    Action add = () => session.AddRenderObject(source.RootSourceObjectId, Vertices(), Triangles());
-
-    add.Should().Throw<InvalidOperationException>();
-    source
-      .StaticRenderObjectSequence.Should()
-      .ContainSingle()
-      .Subject.LocalId.Should()
-      .Be(int.MaxValue);
   }
 
   [Fact]
@@ -648,16 +589,15 @@ public class StaticMeshAssetTests
   }
 
   [Fact]
-  public void EditCommitReturnsProfileFailureWithoutThrowing()
+  public void AssemblyCommitReturnsProfileFailureWithoutThrowing()
   {
     var fixture = StaticMeshSequenceFixture.CreateInterleaved();
-    var build = EarthTool.MSH.Expert.MshExpert.CreateStatic(
-      fixture.Data,
-      new MeshAssetLineageId(new Guid("11111111-2222-3333-4444-555555555555"))
-    );
+    var build = EarthTool.MSH.Expert.MshExpert.CreateStatic(fixture.Data);
     build.TryGetValue(out var source).Should().BeTrue();
 
-    var edit = source!.Edit().Commit(new MshOperationProfile(maxStaticRenderObjects: 3));
+    var edit = new StaticMeshAssembler(source!).Commit(
+      new MshOperationProfile(maxStaticRenderObjects: 3)
+    );
 
     edit.TryGetValue(out _).Should().BeFalse();
     edit.Diagnostics.Should()
@@ -686,16 +626,41 @@ public class StaticMeshAssetTests
     return [new CanonicalTriangle(0, 1, 2)];
   }
 
-  private static IEnumerable<SourceObjectId> SourceIds(StaticSourceObject source)
+  private static IEnumerable<string> SourceObjectMemberships(StaticMeshAsset asset)
   {
-    yield return source.Id;
+    return SourceObjectMemberships(asset.RootSourceObject, asset.StaticRenderObjectSequence);
+  }
+
+  private static IEnumerable<string> SourceObjectMemberships(
+    StaticSourceObject source,
+    IReadOnlyList<StaticRenderObject> sequence
+  )
+  {
+    yield return string.Join(",", source.StaticRenderObjects
+      .Select(renderObject => ReferenceIndexOf(sequence, renderObject)));
     foreach (var child in source.Children)
     {
-      foreach (var id in SourceIds(child))
+      foreach (var membership in SourceObjectMemberships(child, sequence))
       {
-        yield return id;
+        yield return membership;
       }
     }
+  }
+
+  private static string TexturePath(StaticRenderObject renderObject)
+  {
+    return Encoding.ASCII.GetString(renderObject.TexturePathBytes.ToArray());
+  }
+
+  private static int ReferenceIndexOf(
+    IReadOnlyList<StaticRenderObject> sequence,
+    StaticRenderObject renderObject
+  )
+  {
+    return sequence
+      .Select((candidate, index) => (candidate, index))
+      .Single(item => ReferenceEquals(item.candidate, renderObject))
+      .index;
   }
 
   private static async Task<byte[]> WriteAsync(MeshAsset asset)

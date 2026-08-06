@@ -213,13 +213,13 @@ format `earthtool.msh.cli-report`. `GltfImportPlanFormat` and
 one protocol does not reinterpret either of the others.
 
 `GltfImportPlanSerializer` accepts only the closed typed values represented by
-`GltfNewModelImportOptions` or `GltfEditImportOptions`. New-model plans may carry
+`GltfNewModelImportOptions`. New-model plans may carry
 TEX bindings, footprint and extent values, non-marker object roles, barrel angle,
 and MSH-only static-light values. Canonical `ET_...` authoring identifiers on
 nodes and punctual-light definitions author helpers, and `EarthTool A` through
 `EarthTool D` authoring identifiers on clips author animation classes.
-Edit plans may carry exact baseline-bound conflict actions. Unknown members and
-raw metadata, MSH bytes, adapter objects, guards, and expert state are rejected.
+Unknown members and raw metadata, MSH bytes, adapter objects, guards, and expert
+state are rejected.
 Version 1 plans must be regenerated; version 2 rejects removed `helperBindings`,
 `animationClasses`, and marker-role inputs with `ETG3005` migration diagnostics.
 A plan also binds its
@@ -361,8 +361,8 @@ declaration fail with `ETG2016`. A finite affine frame that cannot be decomposed
 and recomposed within the binary32 tolerance remains metadata-only for that one
 object/class and reports `ETG1014`; other objects and classes still export.
 
-`ImportEditGlbAsync` and `ImportEditGltfFileAsync` require the expected lineage
-and document identities. They validate metadata carriers, object and mesh
+EarthTool's internal baseline-backed reconciliation path requires the expected
+lineage and document identities. It validates metadata carriers, object and mesh
 ownership, the complete scope inventory, native hierarchy, projection name and version, and partition
 fingerprints before reconciling serialized MSH state. Applicable metadata
 restores exact topology and guarded state, including duplicate or unreferenced
@@ -392,9 +392,9 @@ flags. Duplicate object or mesh metadata blocks until an explicit fork
 resolution removes the old identity. An untagged object is new only when it
 cannot be confused with a missing expected scope. Ambiguous identity blocks
 with `ETG2012`.
-A successful import retains the asset lineage and rotates the document
-identity. `GltfEditImportResult.Preservation` reports retained, regenerated,
-invalidated, and canonicalized MSH paths.
+A successful reconciliation retains the interchange lineage and rotates the
+document identity. Public mesh creation results report retained, regenerated,
+invalidated, and canonicalized MSH paths through `Preservation`.
 
 New-model import admits animation only through unique `EarthTool A` through
 `EarthTool D` names. One mesh object may participate in at most one class. Each
@@ -419,33 +419,22 @@ metadata. `MaxMetadataConflicts` bounds the stable pre-reconciliation conflict
 inventory. If additional conflicts would be hidden, the final retained entry is
 `ETG2019`. Metadata exhaustion reports `ETG2005` before reconciliation.
 Malformed carriers, envelopes, identities, kinds, duplicates, and inventories
-use their assigned `ETG2000` through `ETG2020` conflicts. Diagnostics expose a
-deterministic conflict key and the complete allowed action identifiers from
-`GltfMetadataConflictCatalog`. Pass exact keyed
-`GltfMetadataConflictResolution` values through `GltfEditImportOptions` to
-`ImportEditGlbWithResolutionsAsync` or `ImportEditGltfFileWithResolutionsAsync`
-and retry the same input. Keys bind the complete conflict and caller-expected
+use their assigned `ETG2000` through `ETG2020` conflicts. Internal CLI
+reconciliation binds conflict actions to the complete conflict and expected
 baseline; stale, duplicate, mismatched, disallowed, incomplete, or replayed
-resolutions fail before an edit session is opened. Scope mapping requires an
-explicit native carrier path. Forking drops identity-bound metadata and lets
-native-addition reconciliation allocate fresh IDs. Branch acceptance retains
-lineage, while adopt-as-new and discard-lineage remove all metadata authority
-and canonically admit native content under fresh identities. `abort`,
-`retryWithMetadata`, and `repairNativeExternally` remain non-committing
-instructions until the caller supplies changed input. Successful results report
-applied actions and lineage disposition; `AppliedFingerprint` is null when the
-old lineage was discarded.
-Unknown additive version-1 members retain their
-exact raw JSON tokens in `GltfEditImportResult.PreservedUnknownMetadata` but do
-not gain identity, guard, reference, action, or trust semantics. Passing
-`NextExportOptions` to the next export rewrites those tokens into the rotated
-baseline. Dictionary keys combine scope identity with an escaped JSON Pointer
-to the additive member. Unsupported versions remain opaque and are never
-partially salvaged. Missing expected scopes, dangling references, unsupported
-or stale guards, and ambiguous native correspondence are inventoried before an
-edit session is opened, so any conflict returns no partial MSH asset. Native
-projection normalization remains domain-specific; no global floating-point
-epsilon is applied.
+actions fail before MSH creation. Scope mapping requires an explicit native
+carrier path. Forking drops identity-bound metadata and lets native-addition
+reconciliation allocate fresh IDs. Branch acceptance retains lineage, while
+adopt-as-new and discard-lineage remove metadata authority and canonically admit
+native content under fresh identities.
+Unknown additive version-1 members retain their exact raw JSON tokens internally
+but do not gain identity, guard, reference, action, or trust semantics. Dictionary
+keys combine scope identity with an escaped JSON Pointer to the additive member.
+Unsupported versions remain opaque and are never partially salvaged. Missing
+expected scopes, dangling references, unsupported or stale guards, and ambiguous
+native correspondence are inventoried before MSH creation, so any conflict
+returns no partial asset. Native projection normalization remains domain-specific;
+no global floating-point epsilon is applied.
 
 Path-based exports stage sibling temporary files and replace the destination
 only after conversion and validation succeed. SharpGLTF strict validation runs

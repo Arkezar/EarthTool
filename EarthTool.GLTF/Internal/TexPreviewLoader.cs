@@ -30,7 +30,7 @@ namespace EarthTool.GLTF.Internal
 
   internal sealed class TexPreviewLoadResult
   {
-    internal IReadOnlyDictionary<StaticRenderObjectId, TexPreview> Previews { get; }
+    internal IReadOnlyDictionary<StaticRenderObject, TexPreview> Previews { get; }
 
     internal IReadOnlyList<OperationDiagnostic> Diagnostics { get; }
 
@@ -38,7 +38,7 @@ namespace EarthTool.GLTF.Internal
       diagnostic.Severity == DiagnosticSeverity.Error);
 
     internal TexPreviewLoadResult(
-      IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
+      IReadOnlyDictionary<StaticRenderObject, TexPreview> previews,
       IReadOnlyList<OperationDiagnostic> diagnostics)
     {
       Previews = previews;
@@ -79,7 +79,7 @@ namespace EarthTool.GLTF.Internal
           options.TextureSearchRoots.Count,
           profile.MaxTextureSearchRoots);
       }
-      var previews = new Dictionary<StaticRenderObjectId, TexPreview>();
+      var previews = new Dictionary<StaticRenderObject, TexPreview>();
       var diagnostics = new List<OperationDiagnostic>();
       var cache = new Dictionary<string, PreviewResolution>(StringComparer.OrdinalIgnoreCase);
       var previewOutputBytes = 0;
@@ -132,7 +132,7 @@ namespace EarthTool.GLTF.Internal
             previewOutputBytes += preview.Png.Length;
           }
           AddDiagnostics(diagnostics, resolution, recordIndex, true);
-          previews.Add(record.Id, preview);
+          previews.Add(record, preview);
         }
         else
         {

@@ -1,6 +1,5 @@
 ﻿#nullable enable
 
-using EarthTool.MSH.Authoring;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -32,107 +31,6 @@ namespace EarthTool.MSH.Assets
     Expert = 2,
   }
 
-  /// <summary>Scopes nonserialized object identities to one mesh lineage.</summary>
-  public readonly struct MeshAssetLineageId : IEquatable<MeshAssetLineageId>
-  {
-    /// <summary>Gets the lineage UUID.</summary>
-    public Guid Value { get; }
-
-    /// <summary>Initializes a lineage identity.</summary>
-    public MeshAssetLineageId(Guid value)
-    {
-      Value = value;
-    }
-
-    /// <inheritdoc />
-    public bool Equals(MeshAssetLineageId other)
-    {
-      return Value.Equals(other.Value);
-    }
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj)
-    {
-      return obj is MeshAssetLineageId other && Equals(other);
-    }
-
-    /// <inheritdoc />
-    public override int GetHashCode()
-    {
-      return Value.GetHashCode();
-    }
-  }
-
-  /// <summary>Identifies one static render object within an asset lineage.</summary>
-  public readonly struct StaticRenderObjectId : IEquatable<StaticRenderObjectId>
-  {
-    /// <summary>Gets the owning lineage.</summary>
-    public MeshAssetLineageId Lineage { get; }
-
-    /// <summary>Gets the lineage-local value.</summary>
-    public int Value { get; }
-
-    /// <summary>Initializes a static render-object identity.</summary>
-    public StaticRenderObjectId(MeshAssetLineageId lineage, int value)
-    {
-      Lineage = lineage;
-      Value = value;
-    }
-
-    /// <inheritdoc />
-    public bool Equals(StaticRenderObjectId other)
-    {
-      return Lineage.Equals(other.Lineage) && Value == other.Value;
-    }
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj)
-    {
-      return obj is StaticRenderObjectId other && Equals(other);
-    }
-
-    /// <inheritdoc />
-    public override int GetHashCode()
-    {
-      return (Lineage, Value).GetHashCode();
-    }
-  }
-
-  /// <summary>Identifies one source object within an asset lineage.</summary>
-  public readonly struct SourceObjectId : IEquatable<SourceObjectId>
-  {
-    /// <summary>Gets the owning lineage.</summary>
-    public MeshAssetLineageId Lineage { get; }
-
-    /// <summary>Gets the lineage-local value.</summary>
-    public int Value { get; }
-
-    /// <summary>Initializes a source-object identity.</summary>
-    public SourceObjectId(MeshAssetLineageId lineage, int value)
-    {
-      Lineage = lineage;
-      Value = value;
-    }
-
-    /// <inheritdoc />
-    public bool Equals(SourceObjectId other)
-    {
-      return Lineage.Equals(other.Lineage) && Value == other.Value;
-    }
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj)
-    {
-      return obj is SourceObjectId other && Equals(other);
-    }
-
-    /// <inheritdoc />
-    public override int GetHashCode()
-    {
-      return (Lineage, Value).GetHashCode();
-    }
-  }
-
   /// <summary>Preserves the independently serialized top-level MSH framing declaration.</summary>
   public sealed class MeshArchiveFraming
   {
@@ -158,9 +56,6 @@ namespace EarthTool.MSH.Assets
   {
     private readonly byte[] _serializedRepresentation;
 
-    /// <summary>Gets the lineage that scopes nonserialized object identities.</summary>
-    public MeshAssetLineageId LineageId { get; }
-
     /// <summary>Gets how this snapshot was constructed.</summary>
     public MeshAssetOrigin Origin { get; }
 
@@ -177,7 +72,6 @@ namespace EarthTool.MSH.Assets
     public IReadOnlyList<byte> RootTrailingBytes { get; }
 
     internal MeshAsset(
-      MeshAssetLineageId lineageId,
       MeshArchiveFraming archiveFraming,
       CommonMeshBaseHeader commonBaseHeader,
       byte[] rootTrailingBytes,
@@ -185,7 +79,6 @@ namespace EarthTool.MSH.Assets
       byte[] serializedRepresentation
     )
     {
-      LineageId = lineageId;
       ArchiveFraming = archiveFraming;
       CommonBaseHeader = commonBaseHeader;
       RootTrailingBytes = Array.AsReadOnly((byte[])rootTrailingBytes.Clone());
@@ -278,9 +171,6 @@ namespace EarthTool.MSH.Assets
     /// <inheritdoc />
     public override MeshAssetKind Kind => MeshAssetKind.Static;
 
-    /// <summary>Gets the root source-object identity.</summary>
-    public SourceObjectId RootSourceObjectId { get; }
-
     /// <summary>Gets the source-object grouping view reconstructed from the authoritative sequence.</summary>
     public StaticSourceObject RootSourceObject { get; }
 
@@ -293,12 +183,7 @@ namespace EarthTool.MSH.Assets
     /// <summary>Gets the trailing hierarchy unwind derived from the reconstructed final source depth.</summary>
     public uint ExpectedTrailingHierarchyUnwindCount { get; }
 
-    internal int? NextStaticRenderObjectLocalId { get; }
-
-    internal int? NextSourceObjectLocalId { get; }
-
     internal StaticMeshAsset(
-      MeshAssetLineageId lineageId,
       MeshArchiveFraming archiveFraming,
       CommonMeshBaseHeader commonBaseHeader,
       byte[] rootTrailingBytes,
@@ -307,12 +192,9 @@ namespace EarthTool.MSH.Assets
       MeshAssetOrigin origin,
       StaticSourceObject rootSourceObject,
       uint storedTrailingHierarchyUnwindCount,
-      uint expectedTrailingHierarchyUnwindCount,
-      int? nextStaticRenderObjectLocalId,
-      int? nextSourceObjectLocalId
+      uint expectedTrailingHierarchyUnwindCount
     )
       : base(
-        lineageId,
         archiveFraming,
         commonBaseHeader,
         rootTrailingBytes,
@@ -323,31 +205,9 @@ namespace EarthTool.MSH.Assets
       StaticRenderObjectSequence = Array.AsReadOnly(
         new List<StaticRenderObject>(staticRenderObjectSequence).ToArray()
       );
-      var renderObjectsById = StaticRenderObjectSequence.ToDictionary(item => item.Id);
-      RootSourceObject = BindRenderObjects(rootSourceObject, renderObjectsById);
-      RootSourceObjectId = rootSourceObject.Id;
+      RootSourceObject = rootSourceObject;
       StoredTrailingHierarchyUnwindCount = storedTrailingHierarchyUnwindCount;
       ExpectedTrailingHierarchyUnwindCount = expectedTrailingHierarchyUnwindCount;
-      NextStaticRenderObjectLocalId = nextStaticRenderObjectLocalId;
-      NextSourceObjectLocalId = nextSourceObjectLocalId;
-    }
-
-    private static StaticSourceObject BindRenderObjects(
-      StaticSourceObject source,
-      IReadOnlyDictionary<StaticRenderObjectId, StaticRenderObject> renderObjects
-    )
-    {
-      return new StaticSourceObject(
-        source.Id,
-        source.StaticRenderObjectIds.Select(item => renderObjects[item]),
-        source.Children.Select(child => BindRenderObjects(child, renderObjects))
-      );
-    }
-
-    /// <summary>Starts a one-shot edit session for this snapshot.</summary>
-    public StaticMeshEditSession Edit()
-    {
-      return new StaticMeshEditSession(this);
     }
 
     /// <inheritdoc />
@@ -430,40 +290,19 @@ namespace EarthTool.MSH.Assets
   /// <summary>Groups render objects belonging to one reconstructed source object.</summary>
   public sealed class StaticSourceObject
   {
-    /// <summary>Gets the lineage-scoped source-object identity.</summary>
-    public SourceObjectId Id { get; }
-
     /// <summary>Gets render-object references in authoritative sequence order.</summary>
     public IReadOnlyList<StaticRenderObject> StaticRenderObjects { get; }
-
-    /// <summary>Gets lineage-scoped render-object identities in authoritative sequence order.</summary>
-    public IReadOnlyList<StaticRenderObjectId> StaticRenderObjectIds { get; }
 
     /// <summary>Gets nested source objects in first-seen sequence order.</summary>
     public IReadOnlyList<StaticSourceObject> Children { get; }
 
     internal StaticSourceObject(
-      SourceObjectId id,
-      IEnumerable<StaticRenderObjectId> staticRenderObjectIds,
-      IEnumerable<StaticSourceObject> children
-    )
-    {
-      Id = id;
-      StaticRenderObjects = Array.Empty<StaticRenderObject>();
-      StaticRenderObjectIds = Array.AsReadOnly(staticRenderObjectIds.ToArray());
-      Children = Array.AsReadOnly(children.ToArray());
-    }
-
-    internal StaticSourceObject(
-      SourceObjectId id,
       IEnumerable<StaticRenderObject> staticRenderObjects,
       IEnumerable<StaticSourceObject> children
     )
     {
-      Id = id;
       var renderObjects = staticRenderObjects.ToArray();
       StaticRenderObjects = Array.AsReadOnly(renderObjects);
-      StaticRenderObjectIds = Array.AsReadOnly(renderObjects.Select(item => item.Id).ToArray());
       Children = Array.AsReadOnly(children.ToArray());
     }
   }
@@ -496,15 +335,6 @@ namespace EarthTool.MSH.Assets
   public sealed class StaticRenderObject
   {
     private readonly byte[] _serializedRepresentation;
-
-    /// <summary>Gets the lineage-scoped render-object identity.</summary>
-    public StaticRenderObjectId Id { get; }
-
-    /// <summary>Gets the lineage-local render-object identity.</summary>
-    public int LocalId => Id.Value;
-
-    /// <summary>Gets the source object that groups this render object.</summary>
-    public SourceObjectId SourceObjectId { get; }
 
     /// <summary>Gets the ordered active render vertices.</summary>
     public IReadOnlyList<RenderVertex> RenderVertices { get; }
@@ -554,8 +384,6 @@ namespace EarthTool.MSH.Assets
     public uint NextRecordMarker { get; }
 
     internal StaticRenderObject(
-      StaticRenderObjectId id,
-      SourceObjectId sourceObjectId,
       IEnumerable<RenderVertex> renderVertices,
       IEnumerable<StaticTriangle> triangles,
       uint vertexBlockCount,
@@ -570,8 +398,6 @@ namespace EarthTool.MSH.Assets
       byte[] serializedRepresentation
     )
     {
-      Id = id;
-      SourceObjectId = sourceObjectId;
       RenderVertices = Array.AsReadOnly(new List<RenderVertex>(renderVertices).ToArray());
       Triangles = Array.AsReadOnly(new List<StaticTriangle>(triangles).ToArray());
       VertexBlockCount = vertexBlockCount;
@@ -946,7 +772,6 @@ namespace EarthTool.MSH.Assets
     public DynamicObject RootDynamicObject { get; }
 
     internal DynamicMeshAsset(
-      MeshAssetLineageId lineageId,
       MeshArchiveFraming archiveFraming,
       CommonMeshBaseHeader commonBaseHeader,
       DynamicObject rootDynamicObject,
@@ -955,7 +780,6 @@ namespace EarthTool.MSH.Assets
       MeshAssetOrigin origin
     )
       : base(
-        lineageId,
         archiveFraming,
         commonBaseHeader,
         rootTrailingBytes,

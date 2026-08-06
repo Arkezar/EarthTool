@@ -17,7 +17,7 @@ namespace EarthTool.MSH.Internal
       MshDecodeContext context,
       MeshArchiveFraming framing,
       int baseOffset,
-      MeshAssetLineageId lineageId
+      MeshAssetOrigin origin
     )
     {
       var objectCount = 0;
@@ -59,13 +59,12 @@ namespace EarthTool.MSH.Internal
       }
 
       var asset = new DynamicMeshAsset(
-        lineageId,
         framing,
         rootDynamicObject.CommonBaseHeader,
         rootDynamicObject,
         rootTrailingBytes,
         context.Source,
-        MeshAssetOrigin.Loaded
+        origin
       );
       return context.Complete(asset);
     }

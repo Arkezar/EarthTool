@@ -43,7 +43,7 @@ public class OfficialCorpusQualificationTests
       var import = await interchange.CreateMeshAsync(new MemoryStream(glb.ToArray()));
       if (import.Value!.Preservation.Changes.Any(change =>
         change.FieldPath.EndsWith(".Direction", StringComparison.Ordinal)
-        && change.Disposition != EarthTool.MSH.Authoring.PreservationDisposition.Retained))
+        && change.Disposition != PreservationDisposition.Retained))
       {
         changedHeadings.Add((byte)heading);
       }
@@ -78,7 +78,7 @@ public class OfficialCorpusQualificationTests
 
     import.Succeeded.Should().BeTrue();
     import.Value!.Preservation.Changes.Should().OnlyContain(change =>
-      change.Disposition == EarthTool.MSH.Authoring.PreservationDisposition.Retained);
+      change.Disposition == PreservationDisposition.Retained);
     import.Value.Asset.GetSerializedRepresentation().Should().Equal(source);
   }
 

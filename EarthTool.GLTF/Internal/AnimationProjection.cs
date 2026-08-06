@@ -124,13 +124,21 @@ namespace EarthTool.GLTF.Internal
 
     internal static AnimationProjectionSet Create(
       StaticMeshAsset asset,
-      InterchangeBaseline baseline)
+      InterchangeBaseline baseline
+    )
     {
-      var records = asset.StaticRenderObjectSequence.ToDictionary(record => record.Id);
+      return Create(asset, baseline, GltfStaticIdentityMap.CreateSequential(asset));
+    }
+
+    internal static AnimationProjectionSet Create(
+      StaticMeshAsset asset,
+      InterchangeBaseline baseline,
+      GltfStaticIdentityMap identityMap)
+    {
       var objects = new List<ProjectedAnimationObject>();
       foreach (var source in StaticSourceObjectTraversal.Flatten(asset.RootSourceObject))
       {
-        var record = records[source.StaticRenderObjectIds[0]];
+        var record = source.StaticRenderObjects[0];
         var tracks = record.AnimationTracks;
         var hasSourceTracks = tracks.ScaleFrames.Count > 0
           || tracks.TranslationFrames.Count > 0
@@ -155,7 +163,7 @@ namespace EarthTool.GLTF.Internal
           ? null
           : AnimationProjectionFingerprint.CreateObject(
             baseline,
-            source.Id.Value,
+            identityMap.GetSourceObjectId(source),
             classIndex,
             declaredLength,
             frames.Select(frame => Canonicalize(
@@ -163,7 +171,7 @@ namespace EarthTool.GLTF.Internal
               frame.Rotation,
               frame.Scale)).ToArray());
         objects.Add(new ProjectedAnimationObject(
-          source.Id.Value,
+          identityMap.GetSourceObjectId(source),
           record.AnimationClassValue,
           classIndex,
           declaredLength,

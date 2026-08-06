@@ -740,7 +740,8 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyDictionary<string, string> unknownMetadata,
       IReadOnlyDictionary<string, int> metadataNextIds,
       GltfArtistObjectLocalIds artistObjectLocalIds,
-      IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
+      GltfStaticIdentityMap identityMap,
+      IReadOnlyDictionary<StaticRenderObject, TexPreview> previews,
       string? sourceBaseName,
       out NativeProjectionFingerprint fingerprint)
     {
@@ -750,6 +751,7 @@ namespace EarthTool.GLTF.Internal
         unknownMetadata,
         metadataNextIds,
         artistObjectLocalIds,
+        identityMap,
         false,
         previews,
         sourceBaseName,
@@ -763,7 +765,8 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyDictionary<string, string> unknownMetadata,
       IReadOnlyDictionary<string, int> metadataNextIds,
       GltfArtistObjectLocalIds artistObjectLocalIds,
-      IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
+      GltfStaticIdentityMap identityMap,
+      IReadOnlyDictionary<StaticRenderObject, TexPreview> previews,
       string? sourceBaseName,
       out NativeProjectionFingerprint fingerprint)
     {
@@ -773,6 +776,7 @@ namespace EarthTool.GLTF.Internal
         unknownMetadata,
         metadataNextIds,
         artistObjectLocalIds,
+        identityMap,
         true,
         previews,
         sourceBaseName,
@@ -784,9 +788,10 @@ namespace EarthTool.GLTF.Internal
       InterchangeBaseline baseline,
       IReadOnlyDictionary<string, string> unknownMetadata,
       IReadOnlyDictionary<string, int> metadataNextIds,
-      GltfArtistObjectLocalIds artistObjectLocalIds)
+      GltfArtistObjectLocalIds artistObjectLocalIds,
+      GltfStaticIdentityMap identityMap)
     {
-      var animations = StaticAnimationProjection.Create(asset, baseline);
+      var animations = StaticAnimationProjection.Create(asset, baseline, identityMap);
       var empty = CreateMetadata(
         baseline,
         "manifest",
@@ -796,6 +801,7 @@ namespace EarthTool.GLTF.Internal
         unknownMetadata,
         metadataNextIds,
         artistObjectLocalIds,
+        identityMap,
         asset,
         animations);
       var base64Length = checked(((asset.SerializedLength + 2) / 3) * 4);
@@ -805,14 +811,15 @@ namespace EarthTool.GLTF.Internal
         var metadata = CreateMetadata(
           baseline,
           "object",
-          source.Id.Value,
+          identityMap.GetSourceObjectId(source),
           null,
           null,
           unknownMetadata,
           metadataNextIds,
           artistObjectLocalIds,
+          identityMap,
           animationProjection: animations.Objects.SingleOrDefault(item =>
-            item.SourceObjectLocalId == source.Id.Value));
+            item.SourceObjectLocalId == identityMap.GetSourceObjectId(source)));
         maximum = Math.Max(maximum, Encoding.UTF8.GetByteCount(metadata));
       }
       foreach (var attachment in ProjectAttachments(asset, artistObjectLocalIds))
@@ -841,6 +848,7 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyDictionary<string, string> unknownMetadata,
       IReadOnlyDictionary<string, int> metadataNextIds,
       GltfArtistObjectLocalIds artistObjectLocalIds,
+      GltfStaticIdentityMap identityMap,
       bool glb)
     {
       long binaryLength = 0;
@@ -856,7 +864,7 @@ namespace EarthTool.GLTF.Internal
         binaryLength = (binaryLength + 3) & ~3L;
       }
 
-      var animations = StaticAnimationProjection.Create(asset, baseline);
+      var animations = StaticAnimationProjection.Create(asset, baseline, identityMap);
       foreach (var clip in animations.Clips)
       {
         binaryLength = checked(binaryLength
@@ -872,7 +880,8 @@ namespace EarthTool.GLTF.Internal
           baseline,
           unknownMetadata,
           metadataNextIds,
-          artistObjectLocalIds)
+          artistObjectLocalIds,
+          identityMap)
         + containerBytes));
     }
 
@@ -882,8 +891,9 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyDictionary<string, string> unknownMetadata,
       IReadOnlyDictionary<string, int> metadataNextIds,
       GltfArtistObjectLocalIds artistObjectLocalIds,
+      GltfStaticIdentityMap identityMap,
       bool separate,
-      IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
+      IReadOnlyDictionary<StaticRenderObject, TexPreview> previews,
       string? sourceBaseName,
       out NativeProjectionFingerprint fingerprint)
     {
@@ -892,7 +902,7 @@ namespace EarthTool.GLTF.Internal
           item,
           item.RenderVertices.Select(ProjectToGltf).ToArray()))
         .ToArray();
-      var animations = StaticAnimationProjection.Create(asset, baseline);
+      var animations = StaticAnimationProjection.Create(asset, baseline, identityMap);
       var binary = CreateBinary(
         partitions,
         animations,
@@ -902,7 +912,7 @@ namespace EarthTool.GLTF.Internal
         out var previewLayouts,
         out var animationLayouts);
       var bufferFileName = separate ? Hash(binary) + ".bin" : null;
-      fingerprint = StaticGeometryFingerprint.Create(baseline, partitions);
+      fingerprint = StaticGeometryFingerprint.Create(baseline, partitions, identityMap);
       var manifest = CreateMetadata(
         baseline,
         "manifest",
@@ -912,6 +922,7 @@ namespace EarthTool.GLTF.Internal
         unknownMetadata,
         metadataNextIds,
         artistObjectLocalIds,
+        identityMap,
         asset,
         animations);
       var json = CreateJson(
@@ -923,6 +934,7 @@ namespace EarthTool.GLTF.Internal
         unknownMetadata,
         metadataNextIds,
         artistObjectLocalIds,
+        identityMap,
         previewLayouts,
         animations,
         animationLayouts,
@@ -2605,15 +2617,15 @@ namespace EarthTool.GLTF.Internal
     private static byte[] CreateBinary(
       IReadOnlyList<ProjectedPartition> partitions,
       AnimationProjectionSet animations,
-      IReadOnlyDictionary<StaticRenderObjectId, TexPreview> previews,
+      IReadOnlyDictionary<StaticRenderObject, TexPreview> previews,
       bool embedPreviews,
-      out IReadOnlyDictionary<StaticRenderObjectId, PartitionLayout> layouts,
-      out IReadOnlyDictionary<StaticRenderObjectId, PreviewLayout> previewLayouts,
+      out IReadOnlyDictionary<StaticRenderObject, PartitionLayout> layouts,
+      out IReadOnlyDictionary<StaticRenderObject, PreviewLayout> previewLayouts,
       out IReadOnlyList<AnimationLayout> animationLayouts)
     {
       using var stream = new MemoryStream();
       using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
-      var createdLayouts = new Dictionary<StaticRenderObjectId, PartitionLayout>();
+      var createdLayouts = new Dictionary<StaticRenderObject, PartitionLayout>();
       foreach (var partition in partitions)
       {
         var positionOffset = checked((int)stream.Position);
@@ -2663,7 +2675,7 @@ namespace EarthTool.GLTF.Internal
         var indexLength = checked(partition.RenderObject.Triangles.Count * 3
           * (indexComponentType == 5125 ? sizeof(uint) : sizeof(ushort)));
         createdLayouts.Add(
-          partition.RenderObject.Id,
+          partition.RenderObject,
           new PartitionLayout(
             partition,
             positionOffset,
@@ -2678,12 +2690,12 @@ namespace EarthTool.GLTF.Internal
         }
       }
 
-      var createdPreviewLayouts = new Dictionary<StaticRenderObjectId, PreviewLayout>();
+      var createdPreviewLayouts = new Dictionary<StaticRenderObject, PreviewLayout>();
       var sharedPreviewLayouts = new Dictionary<string, PreviewLayout>(StringComparer.Ordinal);
       foreach (var partition in partitions.Where(partition => previews.ContainsKey(
-        partition.RenderObject.Id)))
+        partition.RenderObject)))
       {
-        var preview = previews[partition.RenderObject.Id];
+        var preview = previews[partition.RenderObject];
         if (!sharedPreviewLayouts.TryGetValue(preview.ContentAddress, out var previewLayout))
         {
           if (embedPreviews)
@@ -2706,7 +2718,7 @@ namespace EarthTool.GLTF.Internal
           }
           sharedPreviewLayouts.Add(preview.ContentAddress, previewLayout);
         }
-        createdPreviewLayouts.Add(partition.RenderObject.Id, previewLayout);
+        createdPreviewLayouts.Add(partition.RenderObject, previewLayout);
       }
 
       var createdAnimationLayouts = new List<AnimationLayout>();
@@ -2764,14 +2776,15 @@ namespace EarthTool.GLTF.Internal
 
     private static byte[] CreateJson(
       StaticMeshAsset asset,
-      IReadOnlyDictionary<StaticRenderObjectId, PartitionLayout> layouts,
+      IReadOnlyDictionary<StaticRenderObject, PartitionLayout> layouts,
       int binaryLength,
       InterchangeBaseline baseline,
       string manifest,
       IReadOnlyDictionary<string, string> unknownMetadata,
       IReadOnlyDictionary<string, int> metadataNextIds,
       GltfArtistObjectLocalIds artistObjectLocalIds,
-      IReadOnlyDictionary<StaticRenderObjectId, PreviewLayout> previewLayouts,
+      GltfStaticIdentityMap identityMap,
+      IReadOnlyDictionary<StaticRenderObject, PreviewLayout> previewLayouts,
       AnimationProjectionSet animations,
       IReadOnlyList<AnimationLayout> animationLayouts,
       string? bufferFileName,
@@ -2807,25 +2820,32 @@ namespace EarthTool.GLTF.Internal
         .Select(physicalNumber => attachmentNodeIndices[physicalNumber])
         .ToHashSet();
       var nodeIndices = sources
-        .Select((source, index) => new { source.Id, Index = index })
-        .ToDictionary(item => item.Id, item => item.Index);
+        .Select((source, index) => (source, index))
+        .ToDictionary(item => item.source, item => item.index);
       var nodeIndicesByLocalId = sources
-        .Select((source, index) => new { LocalId = source.Id.Value, Index = index })
+        .Select((source, index) => new
+        {
+          LocalId = identityMap.GetSourceObjectId(source),
+          Index = index,
+        })
         .ToDictionary(item => item.LocalId, item => item.Index);
-      var orderedLayouts = sources
-        .SelectMany(source => source.StaticRenderObjectIds)
-        .Select(id => layouts[id])
+      var orderedLayouts = asset.StaticRenderObjectSequence
+        .Select(renderObject => layouts[renderObject])
         .ToArray();
       var accessorIndices = orderedLayouts
-        .Select((layout, index) => new { layout.Partition.RenderObject.Id, Index = index * 4 })
-        .ToDictionary(item => item.Id, item => item.Index);
+        .Select((layout, index) => (layout.Partition.RenderObject, Index: index * 4))
+        .ToDictionary(item => item.RenderObject, item => item.Index);
       var materialIndices = orderedLayouts
-        .Select((layout, index) => new { layout.Partition.RenderObject.Id, Index = index })
-        .ToDictionary(item => item.Id, item => item.Index);
+        .Select((layout, index) => (layout.Partition.RenderObject, Index: index))
+        .ToDictionary(item => item.RenderObject, item => item.Index);
       var orderedPreviewLayouts = orderedLayouts
-        .Where(layout => previewLayouts.ContainsKey(layout.Partition.RenderObject.Id))
-        .Select(layout => (RenderObjectId: layout.Partition.RenderObject.Id,
-          Layout: previewLayouts[layout.Partition.RenderObject.Id]))
+        .Where(layout => previewLayouts.ContainsKey(layout.Partition.RenderObject))
+        .Select(layout =>
+          (
+            RenderObject: layout.Partition.RenderObject,
+            Layout: previewLayouts[layout.Partition.RenderObject]
+          )
+        )
         .ToArray();
       var uniquePreviewLayouts = orderedPreviewLayouts
         .GroupBy(preview => preview.Layout.ContentAddress, StringComparer.Ordinal)
@@ -2837,10 +2857,10 @@ namespace EarthTool.GLTF.Internal
       var previewIndices = orderedPreviewLayouts
         .Select(preview => new
         {
-          preview.RenderObjectId,
+          preview.RenderObject,
           Index = imageIndices[preview.Layout.ContentAddress]
         })
-        .ToDictionary(item => item.RenderObjectId, item => item.Index);
+        .ToDictionary(item => item.RenderObject, item => item.Index);
       using var stream = new MemoryStream();
       using (var writer = new Utf8JsonWriter(stream))
       {
@@ -2898,12 +2918,13 @@ namespace EarthTool.GLTF.Internal
         writer.WriteStartArray("nodes");
         foreach (var source in sources)
         {
+          var sourceLocalId = identityMap.GetSourceObjectId(source);
           writer.WriteStartObject();
           writer.WriteString("name", sourceBaseName is null
-            ? $"Source object {source.Id.Value}"
-            : $"{sourceBaseName}_{source.Id.Value}");
-          writer.WriteNumber("mesh", nodeIndices[source.Id]);
-          var effectivePivot = layouts[source.StaticRenderObjectIds[0]].Partition.RenderObject.Pivot;
+            ? $"Source object {sourceLocalId}"
+            : $"{sourceBaseName}_{sourceLocalId}");
+          writer.WriteNumber("mesh", nodeIndices[source]);
+          var effectivePivot = layouts[source.StaticRenderObjects[0]].Partition.RenderObject.Pivot;
           var translation = ProjectToGltf(effectivePivot);
           if (translation != Vector3.Zero)
           {
@@ -2913,9 +2934,9 @@ namespace EarthTool.GLTF.Internal
             writer.WriteNumberValue(translation.Z);
             writer.WriteEndArray();
           }
-          var isRoot = source.Id.Equals(rootSourceObject.Id);
+          var isRoot = ReferenceEquals(source, rootSourceObject);
           var emitterChildren = parentedEmitters
-            .Where(item => item.Value.Id.Equals(source.Id))
+            .Where(item => ReferenceEquals(item.Value, source))
             .Select(item => attachmentNodeIndices[item.Key])
             .ToArray();
           if (source.Children.Count > 0 || emitterChildren.Length > 0 || isRoot && (attachments.Count > 0
@@ -2925,7 +2946,7 @@ namespace EarthTool.GLTF.Internal
             writer.WriteStartArray("children");
             foreach (var child in source.Children)
             {
-              writer.WriteNumberValue(nodeIndices[child.Id]);
+              writer.WriteNumberValue(nodeIndices[child]);
             }
             foreach (var emitterChild in emitterChildren)
             {
@@ -2952,14 +2973,15 @@ namespace EarthTool.GLTF.Internal
           WriteExtras(writer, CreateMetadata(
             baseline,
             "object",
-            source.Id.Value,
+            sourceLocalId,
             null,
             null,
             unknownMetadata,
             metadataNextIds,
             artistObjectLocalIds,
+            identityMap,
             animationProjection: animations.Objects.SingleOrDefault(item =>
-              item.SourceObjectLocalId == source.Id.Value)));
+              item.SourceObjectLocalId == sourceLocalId)));
           writer.WriteEndObject();
         }
         foreach (var attachment in attachments)
@@ -2968,7 +2990,7 @@ namespace EarthTool.GLTF.Internal
           writer.WriteString("name", GetAttachmentHelperName(attachment.PhysicalNumber));
           if (parentedEmitters.TryGetValue(attachment.PhysicalNumber, out var sourceObject))
           {
-            var relative = CreateRelativeTransform(attachment, sourceObjectTransforms[sourceObject.Id]);
+            var relative = CreateRelativeTransform(attachment, sourceObjectTransforms[sourceObject]);
             WriteTransform(writer, relative.Translation, relative.Rotation);
           }
           else
@@ -3015,14 +3037,15 @@ namespace EarthTool.GLTF.Internal
         writer.WriteStartArray("meshes");
         foreach (var source in sources)
         {
+          var sourceLocalId = identityMap.GetSourceObjectId(source);
           writer.WriteStartObject();
           writer.WriteString("name", sourceBaseName is null
-            ? $"Static mesh {source.Id.Value}"
-            : $"{sourceBaseName}_{source.Id.Value}_Mesh");
+            ? $"Static mesh {sourceLocalId}"
+            : $"{sourceBaseName}_{sourceLocalId}_Mesh");
           writer.WriteStartArray("primitives");
-          foreach (var renderObjectId in source.StaticRenderObjectIds)
+          foreach (var renderObject in source.StaticRenderObjects)
           {
-            var firstAccessor = accessorIndices[renderObjectId];
+            var firstAccessor = accessorIndices[renderObject];
             writer.WriteStartObject();
             writer.WriteStartObject("attributes");
             writer.WriteNumber("POSITION", firstAccessor);
@@ -3031,7 +3054,7 @@ namespace EarthTool.GLTF.Internal
             writer.WriteEndObject();
             writer.WriteNumber("indices", firstAccessor + 3);
             writer.WriteNumber("mode", 4);
-            writer.WriteNumber("material", materialIndices[renderObjectId]);
+            writer.WriteNumber("material", materialIndices[renderObject]);
             writer.WriteEndObject();
           }
 
@@ -3040,6 +3063,7 @@ namespace EarthTool.GLTF.Internal
             baseline,
             source,
             layouts,
+            identityMap,
             unknownMetadata));
           writer.WriteEndObject();
         }
@@ -3049,8 +3073,9 @@ namespace EarthTool.GLTF.Internal
         foreach (var layout in orderedLayouts)
         {
           var renderObject = layout.Partition.RenderObject;
+          var renderObjectLocalId = identityMap.GetRenderObjectId(renderObject);
           writer.WriteStartObject();
-          writer.WriteString("name", $"TEX preview {renderObject.LocalId}");
+          writer.WriteString("name", $"TEX preview {renderObjectLocalId}");
           writer.WriteStartObject("pbrMetallicRoughness");
           writer.WriteStartArray("baseColorFactor");
           writer.WriteNumberValue(1);
@@ -3060,7 +3085,7 @@ namespace EarthTool.GLTF.Internal
           writer.WriteEndArray();
           writer.WriteNumber("metallicFactor", 0);
           writer.WriteNumber("roughnessFactor", 1);
-          if (previewIndices.TryGetValue(renderObject.Id, out var previewIndex))
+          if (previewIndices.TryGetValue(renderObject, out var previewIndex))
           {
             writer.WriteStartObject("baseColorTexture");
             writer.WriteNumber("index", previewIndex);
@@ -3071,7 +3096,15 @@ namespace EarthTool.GLTF.Internal
           writer.WriteStartObject("KHR_materials_unlit");
           writer.WriteEndObject();
           writer.WriteEndObject();
-          WriteExtras(writer, CreateMaterialMetadata(baseline, renderObject, unknownMetadata));
+          WriteExtras(
+            writer,
+            CreateMaterialMetadata(
+              baseline,
+              renderObject,
+              renderObjectLocalId,
+              unknownMetadata
+            )
+          );
           writer.WriteEndObject();
         }
         writer.WriteEndArray();
@@ -3377,6 +3410,7 @@ namespace EarthTool.GLTF.Internal
       IReadOnlyDictionary<string, string> unknownMetadata,
       IReadOnlyDictionary<string, int> metadataNextIds,
       GltfArtistObjectLocalIds artistObjectLocalIds,
+      GltfStaticIdentityMap identityMap,
       StaticMeshAsset? sourceAsset = null,
       AnimationProjectionSet? animations = null,
       ProjectedAnimationObject? animationProjection = null)
@@ -3430,37 +3464,36 @@ namespace EarthTool.GLTF.Internal
           writer.WriteStartArray("staticRenderObjectLocalIds");
           foreach (var record in sourceAsset.StaticRenderObjectSequence)
           {
-            writer.WriteNumberValue(record.LocalId);
+            writer.WriteNumberValue(identityMap.GetRenderObjectId(record));
           }
           writer.WriteEndArray();
           writer.WriteStartArray("sourceObjectLocalIds");
           foreach (var source in StaticSourceObjectTraversal.Flatten(sourceAsset.RootSourceObject))
           {
-            writer.WriteNumberValue(source.Id.Value);
+            writer.WriteNumberValue(identityMap.GetSourceObjectId(source));
           }
           writer.WriteEndArray();
           writer.WriteStartArray("staticRenderObjectInventory");
-          foreach (var record in sourceAsset.StaticRenderObjectSequence.OrderBy(record => record.LocalId))
+          foreach (var id in identityMap.RenderObjectIds.OrderBy(id => id))
           {
-            writer.WriteNumberValue(record.LocalId);
+            writer.WriteNumberValue(id);
           }
           writer.WriteEndArray();
           writer.WriteStartArray("sourceObjectInventory");
-          foreach (var source in StaticSourceObjectTraversal.Flatten(sourceAsset.RootSourceObject)
-            .OrderBy(source => source.Id.Value))
+          foreach (var id in identityMap.SourceObjectIds.OrderBy(id => id))
           {
-            writer.WriteNumberValue(source.Id.Value);
+            writer.WriteNumberValue(id);
           }
           writer.WriteEndArray();
-          if (sourceAsset.NextStaticRenderObjectLocalId.HasValue)
+          if (metadataNextIds.TryGetValue("material", out var nextRenderObjectId))
           {
             writer.WriteNumber(
               "nextStaticRenderObjectLocalId",
-              sourceAsset.NextStaticRenderObjectLocalId.Value);
+              nextRenderObjectId);
           }
-          if (sourceAsset.NextSourceObjectLocalId.HasValue)
+          if (metadataNextIds.TryGetValue("mesh", out var nextSourceObjectId))
           {
-            writer.WriteNumber("nextSourceObjectLocalId", sourceAsset.NextSourceObjectLocalId.Value);
+            writer.WriteNumber("nextSourceObjectLocalId", nextSourceObjectId);
           }
           if (animations is not null)
           {
@@ -3517,6 +3550,7 @@ namespace EarthTool.GLTF.Internal
             sourceAsset,
             metadataNextIds,
             artistObjectLocalIds,
+            identityMap,
             unknownMetadata);
         }
         else if (sourceMsh is not null)
@@ -3584,26 +3618,28 @@ namespace EarthTool.GLTF.Internal
     private static string CreateMeshMetadata(
       InterchangeBaseline baseline,
       StaticSourceObject source,
-      IReadOnlyDictionary<StaticRenderObjectId, PartitionLayout> layouts,
+      IReadOnlyDictionary<StaticRenderObject, PartitionLayout> layouts,
+      GltfStaticIdentityMap identityMap,
       IReadOnlyDictionary<string, string> unknownMetadata)
     {
-      var partitions = source.StaticRenderObjectIds.Select(renderObjectId =>
+      var sourceLocalId = identityMap.GetSourceObjectId(source);
+      var partitions = source.StaticRenderObjects.Select(renderObject =>
       {
-        var layout = layouts[renderObjectId];
+        var layout = layouts[renderObject];
         return new GeometryPartition(
-          renderObjectId.Value,
+          identityMap.GetRenderObjectId(renderObject),
           layout.Partition.Vertices,
           layout.Partition.RenderObject.Triangles);
       }).ToArray();
       var fingerprint = StaticGeometryFingerprint.CreateMesh(
         baseline,
-        source.Id.Value,
+        sourceLocalId,
         partitions);
       using var stream = new MemoryStream();
       using (var writer = new Utf8JsonWriter(stream))
       {
-        WriteMetadataStart(writer, baseline, "mesh", source.Id.Value);
-        WriteUnknownMetadata(writer, unknownMetadata, "mesh", source.Id.Value, false);
+        WriteMetadataStart(writer, baseline, "mesh", sourceLocalId);
+        WriteUnknownMetadata(writer, unknownMetadata, "mesh", sourceLocalId, false);
         writer.WriteStartObject("guards");
         WriteGuard(
           writer,
@@ -3613,35 +3649,36 @@ namespace EarthTool.GLTF.Internal
           fingerprint.Sha256,
           unknownMetadata,
           "mesh",
-          source.Id.Value);
-        WriteUnknownMetadata(writer, unknownMetadata, "mesh", source.Id.Value, "/guards/");
+          sourceLocalId);
+        WriteUnknownMetadata(writer, unknownMetadata, "mesh", sourceLocalId, "/guards/");
         writer.WriteEndObject();
         writer.WriteStartObject("payload");
         writer.WriteStartArray("partitions");
         var partitionIndex = 0;
-        foreach (var renderObjectId in source.StaticRenderObjectIds)
+        foreach (var renderObject in source.StaticRenderObjects)
         {
-          var layout = layouts[renderObjectId];
+          var renderObjectLocalId = identityMap.GetRenderObjectId(renderObject);
+          var layout = layouts[renderObject];
           writer.WriteStartObject();
-          writer.WriteNumber("localId", renderObjectId.Value);
+          writer.WriteNumber("localId", renderObjectLocalId);
           writer.WriteString(
             "sha256",
             StaticGeometryFingerprint.CreatePartition(
               baseline,
-              renderObjectId.Value,
+              renderObjectLocalId,
               layout.Partition.Vertices,
               layout.Partition.RenderObject.Triangles));
           WriteUnknownMetadata(
             writer,
             unknownMetadata,
             "mesh",
-            source.Id.Value,
+            sourceLocalId,
             $"/payload/partitions/{partitionIndex++}/");
           writer.WriteEndObject();
         }
 
         writer.WriteEndArray();
-        WriteUnknownMetadata(writer, unknownMetadata, "mesh", source.Id.Value, true);
+        WriteUnknownMetadata(writer, unknownMetadata, "mesh", sourceLocalId, true);
         writer.WriteEndObject();
         writer.WriteEndObject();
       }
@@ -3652,21 +3689,22 @@ namespace EarthTool.GLTF.Internal
     private static string CreateMaterialMetadata(
       InterchangeBaseline baseline,
       StaticRenderObject renderObject,
+      int renderObjectLocalId,
       IReadOnlyDictionary<string, string> unknownMetadata)
     {
       using var stream = new MemoryStream();
       using (var writer = new Utf8JsonWriter(stream))
       {
-        WriteMetadataStart(writer, baseline, "material", renderObject.LocalId);
-        WriteUnknownMetadata(writer, unknownMetadata, "material", renderObject.LocalId, false);
+        WriteMetadataStart(writer, baseline, "material", renderObjectLocalId);
+        WriteUnknownMetadata(writer, unknownMetadata, "material", renderObjectLocalId, false);
         writer.WriteStartObject("guards");
-        WriteUnknownMetadata(writer, unknownMetadata, "material", renderObject.LocalId, "/guards/");
+        WriteUnknownMetadata(writer, unknownMetadata, "material", renderObjectLocalId, "/guards/");
         writer.WriteEndObject();
         writer.WriteStartObject("payload");
         writer.WriteString(
           "textureBinding",
           EncodeBase64Url(renderObject.TexturePathBytes.ToArray()));
-        WriteUnknownMetadata(writer, unknownMetadata, "material", renderObject.LocalId, true);
+        WriteUnknownMetadata(writer, unknownMetadata, "material", renderObjectLocalId, true);
         writer.WriteEndObject();
         writer.WriteEndObject();
       }
@@ -4158,10 +4196,11 @@ namespace EarthTool.GLTF.Internal
       StaticMeshAsset asset,
       IReadOnlyDictionary<string, int> metadataNextIds,
       GltfArtistObjectLocalIds artistObjectLocalIds,
+      GltfStaticIdentityMap identityMap,
       IReadOnlyDictionary<string, string> unknownMetadata)
     {
       var objectIds = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
-        .Select(source => source.Id.Value)
+        .Select(identityMap.GetSourceObjectId)
         .Concat(ProjectAttachments(asset, artistObjectLocalIds).Select(attachment => attachment.LocalId))
         .Concat(ProjectCannons(asset, artistObjectLocalIds).Select(cannon => cannon.LocalId))
         .Concat(ProjectStaticLights(asset, artistObjectLocalIds).Select(light => light.InstanceLocalId))
@@ -4171,8 +4210,8 @@ namespace EarthTool.GLTF.Internal
       {
         ["object"] = objectIds,
         ["mesh"] = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
-          .Select(source => source.Id.Value).OrderBy(id => id).ToArray(),
-        ["material"] = asset.StaticRenderObjectSequence.Select(record => record.LocalId)
+          .Select(identityMap.GetSourceObjectId).OrderBy(id => id).ToArray(),
+        ["material"] = asset.StaticRenderObjectSequence.Select(identityMap.GetRenderObjectId)
           .OrderBy(id => id).ToArray(),
         ["light"] = ProjectStaticLights(asset).Select(light => light.LocalId).OrderBy(id => id).ToArray()
       };
@@ -4193,15 +4232,7 @@ namespace EarthTool.GLTF.Internal
       {
         var ids = inventories[kind];
         var next = ids.Length == 0 ? 1 : checked(ids[^1] + 1);
-        if (kind == "mesh" && asset.NextSourceObjectLocalId.HasValue)
-        {
-          next = Math.Max(next, asset.NextSourceObjectLocalId.Value);
-        }
-        else if (kind == "material" && asset.NextStaticRenderObjectLocalId.HasValue)
-        {
-          next = Math.Max(next, asset.NextStaticRenderObjectLocalId.Value);
-        }
-        else if (kind == "light")
+        if (kind == "light")
         {
           next = Math.Max(next, 9);
         }
@@ -4698,11 +4729,9 @@ namespace EarthTool.GLTF.Internal
       StaticSourceObject? root = null)
     {
       var flag = GetMarkerAttachmentFlag(number);
-      var renderObjects = asset.StaticRenderObjectSequence.ToDictionary(renderObject => renderObject.Id);
       return StaticSourceObjectTraversal.Flatten(root ?? asset.RootSourceObject)
-        .Where(source => source.StaticRenderObjectIds.Any(id =>
-          renderObjects.TryGetValue(id, out var renderObject)
-          && (renderObject.KnownFlags & flag) != 0))
+        .Where(source => source.StaticRenderObjects.Any(renderObject =>
+          (renderObject.KnownFlags & flag) != 0))
         .ToArray();
     }
 
@@ -4760,11 +4789,11 @@ namespace EarthTool.GLTF.Internal
       throw new InvalidOperationException("An attachment child transform could not preserve its record.");
     }
 
-    private static IReadOnlyDictionary<SourceObjectId, Matrix4x4> CreateSourceObjectTransforms(
+    private static IReadOnlyDictionary<StaticSourceObject, Matrix4x4> CreateSourceObjectTransforms(
       StaticSourceObject root,
-      IReadOnlyDictionary<StaticRenderObjectId, PartitionLayout> layouts)
+      IReadOnlyDictionary<StaticRenderObject, PartitionLayout> layouts)
     {
-      var result = new Dictionary<SourceObjectId, Matrix4x4>();
+      var result = new Dictionary<StaticSourceObject, Matrix4x4>();
       AddSourceObjectTransforms(root, Matrix4x4.Identity, layouts, result);
       return result;
     }
@@ -4772,12 +4801,12 @@ namespace EarthTool.GLTF.Internal
     private static void AddSourceObjectTransforms(
       StaticSourceObject source,
       Matrix4x4 parentTransform,
-      IReadOnlyDictionary<StaticRenderObjectId, PartitionLayout> layouts,
-      IDictionary<SourceObjectId, Matrix4x4> result)
+      IReadOnlyDictionary<StaticRenderObject, PartitionLayout> layouts,
+      IDictionary<StaticSourceObject, Matrix4x4> result)
     {
-      var pivot = layouts[source.StaticRenderObjectIds[0]].Partition.RenderObject.Pivot;
+      var pivot = layouts[source.StaticRenderObjects[0]].Partition.RenderObject.Pivot;
       var effective = Matrix4x4.CreateTranslation(ProjectToGltf(pivot)) * parentTransform;
-      result.Add(source.Id, effective);
+      result.Add(source, effective);
       foreach (var child in source.Children)
       {
         AddSourceObjectTransforms(child, effective, layouts, result);
@@ -4982,9 +5011,7 @@ namespace EarthTool.GLTF.Internal
 
     internal static int GetFirstArtistObjectLocalId(StaticMeshAsset asset)
     {
-      var highest = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject)
-        .Max(source => source.Id.Value);
-      return Math.Max(asset.NextSourceObjectLocalId ?? checked(highest + 1), checked(highest + 1));
+      return checked(StaticSourceObjectTraversal.Flatten(asset.RootSourceObject).Count() + 1);
     }
 
     internal static int GetAttachmentArtistObjectLocalId(int firstArtistObjectId, int physicalNumber)
@@ -5987,12 +6014,13 @@ namespace EarthTool.GLTF.Internal
   {
     internal static NativeProjectionFingerprint Create(
       InterchangeBaseline baseline,
-      IReadOnlyList<GlbDocument.ProjectedPartition> partitions)
+      IReadOnlyList<GlbDocument.ProjectedPartition> partitions,
+      GltfStaticIdentityMap identityMap)
     {
       return Create(
         baseline,
         partitions.Select(partition => new GeometryPartition(
-          partition.RenderObject.LocalId,
+          identityMap.GetRenderObjectId(partition.RenderObject),
           partition.Vertices,
           partition.RenderObject.Triangles)).ToArray());
     }

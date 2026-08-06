@@ -44,7 +44,8 @@ namespace EarthTool.MSH.Internal
     internal static MshDecodeResult Decode(
       byte[] source,
       MshOperationProfile profile,
-      CancellationToken cancellationToken
+      CancellationToken cancellationToken,
+      MeshAssetOrigin origin = MeshAssetOrigin.Loaded
     )
     {
       var context = new MshDecodeContext(source, profile, cancellationToken);
@@ -159,14 +160,13 @@ namespace EarthTool.MSH.Internal
         );
       }
 
-      var assetLineageId = new MeshAssetLineageId(Guid.NewGuid());
       var framing = new MeshArchiveFraming(declaration, archiveType, creationGuid);
       if (meshKindIsDynamic)
       {
-        return DynamicMeshDecoder.Decode(context, framing, baseOffset, assetLineageId);
+        return DynamicMeshDecoder.Decode(context, framing, baseOffset, origin);
       }
 
-      return StaticMeshDecoder.Decode(context, framing, baseOffset, assetLineageId);
+      return StaticMeshDecoder.Decode(context, framing, baseOffset, origin);
     }
   }
 }

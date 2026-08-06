@@ -8,8 +8,6 @@ namespace EarthTool.MSH.Tests;
 public class DynamicEffectSemanticTests
 {
   private static readonly Guid _creationGuid = new("12345678-9abc-def0-1234-56789abcdef0");
-  private static readonly MeshAssetLineageId _lineageId = new(
-    new Guid("11111111-2222-3333-4444-555555555555"));
 
   [Fact]
   public void HelpersRequireExplicitTimePhaseScaleLightAndRandomnessInputs()
@@ -182,7 +180,7 @@ public class DynamicEffectSemanticTests
   private static DynamicEffectExtension BuildAsChild(CanonicalDynamicObject child)
   {
     var root = DynamicEffectRecipes.Group([child]);
-    var build = DynamicMeshBuilder.Create(_creationGuid, _lineageId).SetRoot(root).Build();
+    var build = DynamicMeshBuilder.Create(_creationGuid).SetRoot(root).Build();
     build.TryGetValue(out var asset).Should().BeTrue();
     return asset!.RootDynamicObject.Children.Should().ContainSingle().Subject.Extension;
   }

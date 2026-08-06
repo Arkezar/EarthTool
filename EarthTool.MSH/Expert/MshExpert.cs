@@ -13,47 +13,26 @@ namespace EarthTool.MSH.Expert
   /// <summary>Constructs exact accepted serialized state without weakening structural validation.</summary>
   public static class MshExpert
   {
-    /// <summary>Creates a static asset with generated lineage from a complete exact framed representation.</summary>
-    public static MshBuildResult<StaticMeshAsset> CreateStatic(
-      IEnumerable<byte> serializedRepresentation,
-      MshOperationProfile? profile = null
-    )
-    {
-      return Create<StaticMeshAsset>(serializedRepresentation, null, profile);
-    }
-
     /// <summary>Creates a static asset from a complete exact framed representation.</summary>
     public static MshBuildResult<StaticMeshAsset> CreateStatic(
       IEnumerable<byte> serializedRepresentation,
-      MeshAssetLineageId lineageId,
       MshOperationProfile? profile = null
     )
     {
-      return Create<StaticMeshAsset>(serializedRepresentation, lineageId, profile);
-    }
-
-    /// <summary>Creates a dynamic asset with generated lineage from a complete exact framed representation.</summary>
-    public static MshBuildResult<DynamicMeshAsset> CreateDynamic(
-      IEnumerable<byte> serializedRepresentation,
-      MshOperationProfile? profile = null
-    )
-    {
-      return Create<DynamicMeshAsset>(serializedRepresentation, null, profile);
+      return Create<StaticMeshAsset>(serializedRepresentation, profile);
     }
 
     /// <summary>Creates a dynamic asset from a complete exact framed representation.</summary>
     public static MshBuildResult<DynamicMeshAsset> CreateDynamic(
       IEnumerable<byte> serializedRepresentation,
-      MeshAssetLineageId lineageId,
       MshOperationProfile? profile = null
     )
     {
-      return Create<DynamicMeshAsset>(serializedRepresentation, lineageId, profile);
+      return Create<DynamicMeshAsset>(serializedRepresentation, profile);
     }
 
     private static MshBuildResult<T> Create<T>(
       IEnumerable<byte> serializedRepresentation,
-      MeshAssetLineageId? lineageId,
       MshOperationProfile? profile
     )
       where T : MeshAsset
@@ -86,7 +65,12 @@ namespace EarthTool.MSH.Expert
 
       try
       {
-        var decoded = MshV1Decoder.Decode(bytes, profile, CancellationToken.None);
+        var decoded = MshV1Decoder.Decode(
+          bytes,
+          profile,
+          CancellationToken.None,
+          MeshAssetOrigin.Expert
+        );
         if (decoded.Asset is not T asset)
         {
           return new MshBuildResult<T>(
@@ -105,18 +89,7 @@ namespace EarthTool.MSH.Expert
           );
         }
 
-        var targetLineageId = lineageId ?? asset.LineageId;
-        var rebound = asset.Match<MeshAsset>(
-          staticAsset =>
-            MeshAssetRebinder.RebindStatic(
-              staticAsset,
-              MeshAssetOrigin.Expert,
-              StaticMeshIdentityState.ForLineage(staticAsset, targetLineageId)
-            ),
-          dynamicAsset =>
-            MeshAssetRebinder.RebindDynamic(dynamicAsset, MeshAssetOrigin.Expert, targetLineageId)
-        );
-        return new MshBuildResult<T>(true, (T)rebound, decoded.Diagnostics);
+        return new MshBuildResult<T>(true, asset, decoded.Diagnostics);
       }
       catch (MshContentException ex)
       {

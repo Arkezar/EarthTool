@@ -14,7 +14,7 @@ namespace EarthTool.MSH.Internal
       MshDecodeContext context,
       MeshArchiveFraming framing,
       int baseOffset,
-      MeshAssetLineageId assetLineageId
+      MeshAssetOrigin origin
     )
     {
       var data = context.Data;
@@ -56,7 +56,7 @@ namespace EarthTool.MSH.Internal
         }
       }
 
-      var hierarchy = ReconstructHierarchy(decodedRecords, assetLineageId, context);
+      var hierarchy = ReconstructHierarchy(decodedRecords, context);
       var expectedTrailingUnwind = checked((uint)hierarchy.FinalDepth + 1);
       if (storedTrailingUnwind != expectedTrailingUnwind)
       {
@@ -71,8 +71,6 @@ namespace EarthTool.MSH.Internal
         .Select(
           (record, index) =>
             new StaticRenderObject(
-              new StaticRenderObjectId(assetLineageId, checked(index + 1)),
-              hierarchy.RecordSourceIds[index],
               record.RenderVertices,
               record.Triangles,
               record.VertexBlockCount,
@@ -88,12 +86,7 @@ namespace EarthTool.MSH.Internal
             )
         )
         .ToArray();
-      hierarchy.AssignRenderObjectIds(renderObjects);
-      var rootSourceObject = hierarchy.BuildRoot();
-      var nextRenderObjectId =
-        renderObjects.Length == int.MaxValue ? (int?)null : renderObjects.Length + 1;
-      var sourceObjectCount = hierarchy.SourceObjectCount;
-      var nextSourceId = sourceObjectCount == int.MaxValue ? (int?)null : sourceObjectCount + 1;
+      var rootSourceObject = hierarchy.BuildRoot(renderObjects);
       var payloadEnd = cursor;
       var trailingLength = data.Length - payloadEnd;
       if (trailingLength > profile.MaxRootTrailingBytes)
@@ -123,18 +116,15 @@ namespace EarthTool.MSH.Internal
       }
 
       var asset = new StaticMeshAsset(
-        assetLineageId,
         framing,
         commonBaseHeader,
         rootTrailingBytes,
         renderObjects,
         context.Source,
-        MeshAssetOrigin.Loaded,
+        origin,
         rootSourceObject,
         storedTrailingUnwind,
-        expectedTrailingUnwind,
-        nextRenderObjectId,
-        nextSourceId
+        expectedTrailingUnwind
       );
       return context.Complete(asset);
     }
@@ -571,7 +561,6 @@ namespace EarthTool.MSH.Internal
 
     private static StaticHierarchy ReconstructHierarchy(
       IReadOnlyList<DecodedStaticRecord> records,
-      MeshAssetLineageId lineageId,
       MshDecodeContext context
     )
     {
@@ -585,10 +574,8 @@ namespace EarthTool.MSH.Internal
         );
       }
 
-      var sourceIndex = 0;
-      var root = new StaticSourceBuilder(new SourceObjectId(lineageId, ++sourceIndex), null, 0);
+      var root = new StaticSourceBuilder(null, 0);
       var current = root;
-      var recordSources = new SourceObjectId[records.Count];
       for (var index = 0; index < records.Count; index++)
       {
         var record = records[index];
@@ -632,7 +619,6 @@ namespace EarthTool.MSH.Internal
           }
 
           var child = new StaticSourceBuilder(
-            new SourceObjectId(lineageId, ++sourceIndex),
             current,
             depth
           );
@@ -641,10 +627,9 @@ namespace EarthTool.MSH.Internal
         }
 
         current.RecordIndices.Add(index);
-        recordSources[index] = current.Id;
       }
 
-      return new StaticHierarchy(root, recordSources, current.Depth, sourceIndex);
+      return new StaticHierarchy(root, current.Depth);
     }
 
     private sealed class DecodedStaticRecord
@@ -697,24 +682,23 @@ namespace EarthTool.MSH.Internal
 
     private sealed class StaticSourceBuilder
     {
-      internal SourceObjectId Id { get; }
       internal StaticSourceBuilder? Parent { get; }
       internal int Depth { get; }
       internal List<int> RecordIndices { get; } = new List<int>();
-      internal List<StaticRenderObjectId> RenderObjectIds { get; } =
-        new List<StaticRenderObjectId>();
       internal List<StaticSourceBuilder> Children { get; } = new List<StaticSourceBuilder>();
 
-      internal StaticSourceBuilder(SourceObjectId id, StaticSourceBuilder? parent, int depth)
+      internal StaticSourceBuilder(StaticSourceBuilder? parent, int depth)
       {
-        Id = id;
         Parent = parent;
         Depth = depth;
       }
 
-      internal StaticSourceObject Build()
+      internal StaticSourceObject Build(IReadOnlyList<StaticRenderObject> renderObjects)
       {
-        return new StaticSourceObject(Id, RenderObjectIds, Children.Select(child => child.Build()));
+        return new StaticSourceObject(
+          RecordIndices.Select(index => renderObjects[index]),
+          Children.Select(child => child.Build(renderObjects))
+        );
       }
     }
 
@@ -722,45 +706,17 @@ namespace EarthTool.MSH.Internal
     {
       private readonly StaticSourceBuilder _root;
 
-      internal IReadOnlyList<SourceObjectId> RecordSourceIds { get; }
       internal int FinalDepth { get; }
-      internal int SourceObjectCount { get; }
 
-      internal StaticHierarchy(
-        StaticSourceBuilder root,
-        IReadOnlyList<SourceObjectId> recordSourceIds,
-        int finalDepth,
-        int sourceObjectCount
-      )
+      internal StaticHierarchy(StaticSourceBuilder root, int finalDepth)
       {
         _root = root;
-        RecordSourceIds = recordSourceIds;
         FinalDepth = finalDepth;
-        SourceObjectCount = sourceObjectCount;
       }
 
-      internal void AssignRenderObjectIds(IReadOnlyList<StaticRenderObject> renderObjects)
+      internal StaticSourceObject BuildRoot(IReadOnlyList<StaticRenderObject> renderObjects)
       {
-        Assign(_root, renderObjects);
-      }
-
-      internal StaticSourceObject BuildRoot()
-      {
-        return _root.Build();
-      }
-
-      private static void Assign(
-        StaticSourceBuilder source,
-        IReadOnlyList<StaticRenderObject> renderObjects
-      )
-      {
-        source.RenderObjectIds.AddRange(
-          source.RecordIndices.Select(index => renderObjects[index].Id)
-        );
-        foreach (var child in source.Children)
-        {
-          Assign(child, renderObjects);
-        }
+        return _root.Build(renderObjects);
       }
     }
   }

@@ -14,11 +14,11 @@ public sealed class EarthTool.GLTF.GltfCliReportOperation
   property System.Collections.Generic.IReadOnlyList<EarthTool.Common.Operations.OperationDiagnostic> Diagnostics { get; }
   property EarthTool.GLTF.NativeProjectionFingerprint? Fingerprint { get; }
   property System.String Input { get; }
+  property System.Guid? InterchangeAssetLineageId { get; }
   property EarthTool.GLTF.GltfCliReportOperationKind Kind { get; }
-  property System.Guid? MeshAssetLineageId { get; }
   property System.Guid? MeshCreationGuid { get; }
   property EarthTool.GLTF.GltfPackageKind PackageKind { get; }
-  property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Authoring.PreservationChange> PreservationChanges { get; }
+  property System.Collections.Generic.IReadOnlyList<EarthTool.GLTF.PreservationChange> PreservationChanges { get; }
   property System.Collections.Generic.IReadOnlyList<System.String> RestoredSerializedRepresentationPaths { get; }
   property EarthTool.Common.Operations.OperationStatus Status { get; }
   method EarthTool.GLTF.GltfCliReportOperation ForExport(System.String input, System.String destination, EarthTool.GLTF.GltfPackageKind packageKind, EarthTool.MSH.Assets.DynamicMeshAsset asset, EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfExportReceipt> result)
@@ -145,7 +145,7 @@ public struct EarthTool.GLTF.GltfMaterialHandle : System.IEquatable<EarthTool.GL
   method System.Int32 GetHashCode()
 public sealed class EarthTool.GLTF.GltfMeshCreationResult
   property EarthTool.MSH.Assets.MeshAsset Asset { get; }
-  property EarthTool.MSH.Authoring.PreservationReport Preservation { get; }
+  property EarthTool.GLTF.PreservationReport Preservation { get; }
 public sealed class EarthTool.GLTF.GltfMeshResourceLimits
   constructor GltfMeshResourceLimits(System.Int32 maxResourceBytes = 16777216, System.Int32 maxSearchRoots = 64, System.Int32 maxDirectoryEntries = 65536, System.Int32 maxResources = 256, System.Int32 maxPreviewVertices = 262144, System.Int32 maxDepth = 8)
   property EarthTool.GLTF.GltfMeshResourceLimits Default { get; }
@@ -232,3 +232,15 @@ public sealed class EarthTool.GLTF.NativeProjectionFingerprint
   property System.String Name { get; }
   property System.String Sha256 { get; }
   property System.Int32 Version { get; }
+public sealed class EarthTool.GLTF.PreservationChange
+  constructor PreservationChange(System.String fieldPath, EarthTool.GLTF.PreservationDisposition disposition, System.String reason)
+  property EarthTool.GLTF.PreservationDisposition Disposition { get; }
+  property System.String FieldPath { get; }
+  property System.String Reason { get; }
+public enum EarthTool.GLTF.PreservationDisposition : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
+  field EarthTool.GLTF.PreservationDisposition Canonicalized = 3
+  field EarthTool.GLTF.PreservationDisposition Invalidated = 2
+  field EarthTool.GLTF.PreservationDisposition Regenerated = 1
+  field EarthTool.GLTF.PreservationDisposition Retained = 0
+public sealed class EarthTool.GLTF.PreservationReport
+  property System.Collections.Generic.IReadOnlyList<EarthTool.GLTF.PreservationChange> Changes { get; }

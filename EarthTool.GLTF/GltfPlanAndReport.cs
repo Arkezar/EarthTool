@@ -1064,8 +1064,8 @@ namespace EarthTool.GLTF
     public OperationStatus Status { get; }
     /// <summary>Gets every operation diagnostic in result order.</summary>
     public IReadOnlyList<OperationDiagnostic> Diagnostics { get; }
-    /// <summary>Gets the produced or source MSH asset lineage identity.</summary>
-    public Guid? MeshAssetLineageId { get; }
+    /// <summary>Gets the produced or source glTF interchange lineage identity.</summary>
+    public Guid? InterchangeAssetLineageId { get; }
     /// <summary>Gets the produced or source MSH archive creation identity.</summary>
     public Guid? MeshCreationGuid { get; }
     /// <summary>Gets the caller-authorized edit baseline.</summary>
@@ -1112,7 +1112,11 @@ namespace EarthTool.GLTF
       PackageKind = packageKind;
       Status = result.Status;
       Diagnostics = Array.AsReadOnly(result.Diagnostics.ToArray());
-      MeshAssetLineageId = includeAssetIdentities ? meshAsset?.LineageId.Value : null;
+      InterchangeAssetLineageId = includeAssetIdentities
+        ? baseline?.AssetLineageId
+          ?? nextBaseline?.AssetLineageId
+          ?? expectedBaseline?.AssetLineageId
+        : null;
       MeshCreationGuid = includeAssetIdentities ? meshAsset?.ArchiveFraming.CreationGuid : null;
       AssetKind = meshAsset?.Kind;
       ExpectedBaseline = expectedBaseline;
@@ -1464,7 +1468,7 @@ namespace EarthTool.GLTF
       writer.WriteEndArray();
       writer.WritePropertyName("identities");
       writer.WriteStartObject();
-      WriteNullableGuid(writer, "meshAssetLineageId", operation.MeshAssetLineageId);
+      WriteNullableGuid(writer, "meshAssetLineageId", operation.InterchangeAssetLineageId);
       WriteNullableGuid(writer, "meshCreationGuid", operation.MeshCreationGuid);
       WriteNullableBaseline(writer, "expectedBaseline", operation.ExpectedBaseline);
       WriteNullableBaseline(writer, "baseline", operation.Baseline);

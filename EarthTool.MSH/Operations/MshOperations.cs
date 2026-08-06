@@ -36,8 +36,6 @@ namespace EarthTool.MSH.Operations
     public const string DiagnosticsTruncated = "ETM1010";
     /// <summary>Canonical semantic input cannot be represented safely.</summary>
     public const string InvalidAuthoringInput = "ETM1011";
-    /// <summary>A requested edit cannot produce one coherent snapshot.</summary>
-    public const string InvalidEdit = "ETM1012";
   }
 
   /// <summary>Defines finite resource limits for one MSH operation.</summary>

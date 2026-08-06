@@ -178,7 +178,6 @@ public abstract class EarthTool.MSH.Assets.MeshAsset
   property EarthTool.MSH.Assets.MeshArchiveFraming ArchiveFraming { get; }
   property EarthTool.MSH.Assets.CommonMeshBaseHeader CommonBaseHeader { get; }
   property EarthTool.MSH.Assets.MeshAssetKind Kind { get; }
-  property EarthTool.MSH.Assets.MeshAssetLineageId LineageId { get; }
   property EarthTool.MSH.Assets.MeshAssetOrigin Origin { get; }
   property System.Collections.Generic.IReadOnlyList<System.Byte> RootTrailingBytes { get; }
   method TResult? Match(System.Func<EarthTool.MSH.Assets.StaticMeshAsset, TResult?> onStatic, System.Func<EarthTool.MSH.Assets.DynamicMeshAsset, TResult?> onDynamic)
@@ -186,12 +185,6 @@ public abstract class EarthTool.MSH.Assets.MeshAsset
 public enum EarthTool.MSH.Assets.MeshAssetKind : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
   field EarthTool.MSH.Assets.MeshAssetKind Dynamic = 1
   field EarthTool.MSH.Assets.MeshAssetKind Static = 0
-public struct EarthTool.MSH.Assets.MeshAssetLineageId : System.IEquatable<EarthTool.MSH.Assets.MeshAssetLineageId>
-  constructor MeshAssetLineageId(System.Guid value)
-  property System.Guid Value { get; }
-  method System.Boolean Equals(EarthTool.MSH.Assets.MeshAssetLineageId other)
-  method System.Boolean Equals(System.Object? obj)
-  method System.Int32 GetHashCode()
 public enum EarthTool.MSH.Assets.MeshAssetOrigin : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
   field EarthTool.MSH.Assets.MeshAssetOrigin Canonical = 1
   field EarthTool.MSH.Assets.MeshAssetOrigin Expert = 2
@@ -204,13 +197,6 @@ public struct EarthTool.MSH.Assets.RenderVertex : System.IEquatable<EarthTool.MS
   property System.Single ReservedTextureComponent { get; }
   property System.Numerics.Vector2 TextureCoordinate { get; }
   method System.Boolean Equals(EarthTool.MSH.Assets.RenderVertex other)
-  method System.Boolean Equals(System.Object? obj)
-  method System.Int32 GetHashCode()
-public struct EarthTool.MSH.Assets.SourceObjectId : System.IEquatable<EarthTool.MSH.Assets.SourceObjectId>
-  constructor SourceObjectId(EarthTool.MSH.Assets.MeshAssetLineageId lineage, System.Int32 value)
-  property EarthTool.MSH.Assets.MeshAssetLineageId Lineage { get; }
-  property System.Int32 Value { get; }
-  method System.Boolean Equals(EarthTool.MSH.Assets.SourceObjectId other)
   method System.Boolean Equals(System.Object? obj)
   method System.Int32 GetHashCode()
 public enum EarthTool.MSH.Assets.StaticAnimationClass : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
@@ -226,10 +212,8 @@ public sealed class EarthTool.MSH.Assets.StaticMeshAsset : EarthTool.MSH.Assets.
   property System.UInt32 ExpectedTrailingHierarchyUnwindCount { get; }
   property EarthTool.MSH.Assets.MeshAssetKind Kind { get; }
   property EarthTool.MSH.Assets.StaticSourceObject RootSourceObject { get; }
-  property EarthTool.MSH.Assets.SourceObjectId RootSourceObjectId { get; }
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Assets.StaticRenderObject> StaticRenderObjectSequence { get; }
   property System.UInt32 StoredTrailingHierarchyUnwindCount { get; }
-  method EarthTool.MSH.Authoring.StaticMeshEditSession Edit()
   method TResult? Match(System.Func<EarthTool.MSH.Assets.StaticMeshAsset, TResult?> onStatic, System.Func<EarthTool.MSH.Assets.DynamicMeshAsset, TResult?> onDynamic)
   method System.Void Match(System.Action<EarthTool.MSH.Assets.StaticMeshAsset> onStatic, System.Action<EarthTool.MSH.Assets.DynamicMeshAsset> onDynamic)
 public sealed class EarthTool.MSH.Assets.StaticRenderObject
@@ -237,15 +221,12 @@ public sealed class EarthTool.MSH.Assets.StaticRenderObject
   property EarthTool.MSH.Assets.StaticAnimationTracks AnimationTracks { get; }
   property System.Byte BarrelMaximumAngle { get; }
   property System.Byte HierarchyUnwindCount { get; }
-  property EarthTool.MSH.Assets.StaticRenderObjectId Id { get; }
   property EarthTool.MSH.Assets.StaticAnimationClass? KnownAnimationClass { get; }
   property EarthTool.MSH.Assets.StaticRenderObjectFlags KnownFlags { get; }
-  property System.Int32 LocalId { get; }
   property System.UInt32 NextRecordMarker { get; }
   property System.UInt32 ObjectFlags { get; }
   property System.Numerics.Vector3 Pivot { get; }
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Assets.RenderVertex> RenderVertices { get; }
-  property EarthTool.MSH.Assets.SourceObjectId SourceObjectId { get; }
   property System.Collections.Generic.IReadOnlyList<System.Byte> TexturePathBytes { get; }
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Assets.StaticTriangle> Triangles { get; }
   property System.UInt16 UnclassifiedObjectFlagsHighWord { get; }
@@ -261,17 +242,8 @@ public enum EarthTool.MSH.Assets.StaticRenderObjectFlags : System.IComparable, S
   field EarthTool.MSH.Assets.StaticRenderObjectFlags None = 0
   field EarthTool.MSH.Assets.StaticRenderObjectFlags Rotor = 1024
   field EarthTool.MSH.Assets.StaticRenderObjectFlags ViewerFaced = 256
-public struct EarthTool.MSH.Assets.StaticRenderObjectId : System.IEquatable<EarthTool.MSH.Assets.StaticRenderObjectId>
-  constructor StaticRenderObjectId(EarthTool.MSH.Assets.MeshAssetLineageId lineage, System.Int32 value)
-  property EarthTool.MSH.Assets.MeshAssetLineageId Lineage { get; }
-  property System.Int32 Value { get; }
-  method System.Boolean Equals(EarthTool.MSH.Assets.StaticRenderObjectId other)
-  method System.Boolean Equals(System.Object? obj)
-  method System.Int32 GetHashCode()
 public sealed class EarthTool.MSH.Assets.StaticSourceObject
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Assets.StaticSourceObject> Children { get; }
-  property EarthTool.MSH.Assets.SourceObjectId Id { get; }
-  property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Assets.StaticRenderObjectId> StaticRenderObjectIds { get; }
   property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Assets.StaticRenderObject> StaticRenderObjects { get; }
 public struct EarthTool.MSH.Assets.StaticTriangle : System.IEquatable<EarthTool.MSH.Assets.StaticTriangle>
   constructor StaticTriangle(System.UInt16 vertex0, System.UInt16 vertex1, System.UInt16 vertex2, System.UInt16 triangleRenderPassFlags)
@@ -369,50 +341,22 @@ public sealed class EarthTool.MSH.Authoring.DynamicMeshBuilder
   method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.DynamicMeshAsset> Build(EarthTool.MSH.Operations.MshOperationProfile? profile = null)
   method EarthTool.MSH.Authoring.DynamicMeshBuilder Create()
   method EarthTool.MSH.Authoring.DynamicMeshBuilder Create(System.Guid creationGuid)
-  method EarthTool.MSH.Authoring.DynamicMeshBuilder Create(System.Guid creationGuid, EarthTool.MSH.Assets.MeshAssetLineageId lineageId)
   method EarthTool.MSH.Authoring.DynamicMeshBuilder SetRoot(EarthTool.MSH.Authoring.CanonicalDynamicObject root)
 public sealed class EarthTool.MSH.Authoring.MshBuildResult<T> where T : class
   property System.Collections.Generic.IReadOnlyList<EarthTool.Common.Operations.OperationDiagnostic> Diagnostics { get; }
   property System.Boolean IsSuccess { get; }
   method System.Boolean TryGetValue(T&? value)
-public sealed class EarthTool.MSH.Authoring.MshEditResult<T> where T : class
-  property System.Collections.Generic.IReadOnlyList<EarthTool.Common.Operations.OperationDiagnostic> Diagnostics { get; }
-  property System.Boolean IsSuccess { get; }
-  property EarthTool.MSH.Authoring.PreservationReport Preservation { get; }
-  method System.Boolean TryGetValue(T&? value)
-public sealed class EarthTool.MSH.Authoring.PreservationChange
-  constructor PreservationChange(System.String fieldPath, EarthTool.MSH.Authoring.PreservationDisposition disposition, System.String reason)
-  property EarthTool.MSH.Authoring.PreservationDisposition Disposition { get; }
-  property System.String FieldPath { get; }
-  property System.String Reason { get; }
-public enum EarthTool.MSH.Authoring.PreservationDisposition : System.IComparable, System.IConvertible, System.IFormattable, System.ISpanFormattable
-  field EarthTool.MSH.Authoring.PreservationDisposition Canonicalized = 3
-  field EarthTool.MSH.Authoring.PreservationDisposition Invalidated = 2
-  field EarthTool.MSH.Authoring.PreservationDisposition Regenerated = 1
-  field EarthTool.MSH.Authoring.PreservationDisposition Retained = 0
-public sealed class EarthTool.MSH.Authoring.PreservationReport
-  property System.Collections.Generic.IReadOnlyList<EarthTool.MSH.Authoring.PreservationChange> Changes { get; }
 public sealed class EarthTool.MSH.Authoring.StaticMeshBuilder
   method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.StaticMeshAsset> Build(EarthTool.MSH.Operations.MshOperationProfile? profile = null)
   method EarthTool.MSH.Authoring.StaticMeshBuilder Create()
   method EarthTool.MSH.Authoring.StaticMeshBuilder Create(System.Guid creationGuid)
-  method EarthTool.MSH.Authoring.StaticMeshBuilder Create(System.Guid creationGuid, EarthTool.MSH.Assets.MeshAssetLineageId lineageId)
   method EarthTool.MSH.Authoring.StaticMeshBuilder SetAnimationLengths(System.Byte a, System.Byte b, System.Byte c, System.Byte d)
   method EarthTool.MSH.Authoring.StaticMeshBuilder SetFootprint(EarthTool.MSH.Authoring.CanonicalStaticFootprint footprint)
   method EarthTool.MSH.Authoring.StaticMeshBuilder SetHorizontalExtents(EarthTool.MSH.Authoring.CanonicalHorizontalExtents horizontalExtents)
   method EarthTool.MSH.Authoring.StaticMeshBuilder SetRenderObject(System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticVertex> vertices, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalTriangle> triangles)
   method EarthTool.MSH.Authoring.StaticMeshBuilder SetRootSourceObject(EarthTool.MSH.Authoring.CanonicalStaticSourceObject rootSourceObject)
-public sealed class EarthTool.MSH.Authoring.StaticMeshEditSession
-  method EarthTool.MSH.Assets.StaticRenderObjectId AddRenderObject(EarthTool.MSH.Assets.SourceObjectId sourceObject, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticVertex> vertices, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalTriangle> triangles)
-  method EarthTool.MSH.Assets.StaticRenderObjectId AddRenderObject(System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticVertex> vertices, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalTriangle> triangles)
-  method EarthTool.MSH.Authoring.MshEditResult<EarthTool.MSH.Assets.StaticMeshAsset> Commit(EarthTool.MSH.Operations.MshOperationProfile? profile = null)
-  method EarthTool.MSH.Authoring.StaticMeshEditSession RemoveRenderObject(EarthTool.MSH.Assets.StaticRenderObjectId renderObject)
-  method EarthTool.MSH.Authoring.StaticMeshEditSession ReplaceGeometry(EarthTool.MSH.Assets.StaticRenderObjectId renderObject, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalStaticVertex> vertices, System.Collections.Generic.IEnumerable<EarthTool.MSH.Authoring.CanonicalTriangle> triangles)
-  method EarthTool.MSH.Authoring.StaticMeshEditSession SetTextureResourceBinding(EarthTool.MSH.Assets.StaticRenderObjectId renderObject, System.String? textureResourceKey)
 public static class EarthTool.MSH.Expert.MshExpert
-  method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.DynamicMeshAsset> CreateDynamic(System.Collections.Generic.IEnumerable<System.Byte> serializedRepresentation, EarthTool.MSH.Assets.MeshAssetLineageId lineageId, EarthTool.MSH.Operations.MshOperationProfile? profile = null)
   method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.DynamicMeshAsset> CreateDynamic(System.Collections.Generic.IEnumerable<System.Byte> serializedRepresentation, EarthTool.MSH.Operations.MshOperationProfile? profile = null)
-  method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.StaticMeshAsset> CreateStatic(System.Collections.Generic.IEnumerable<System.Byte> serializedRepresentation, EarthTool.MSH.Assets.MeshAssetLineageId lineageId, EarthTool.MSH.Operations.MshOperationProfile? profile = null)
   method EarthTool.MSH.Authoring.MshBuildResult<EarthTool.MSH.Assets.StaticMeshAsset> CreateStatic(System.Collections.Generic.IEnumerable<System.Byte> serializedRepresentation, EarthTool.MSH.Operations.MshOperationProfile? profile = null)
 public interface EarthTool.MSH.Operations.IMshReader
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.MSH.Assets.MeshAsset>> ReadAsync(System.IO.Stream source, EarthTool.MSH.Operations.MshOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
@@ -427,7 +371,6 @@ public static class EarthTool.MSH.Operations.MshDiagnosticCodes
   field System.String CompatibilityAnomaly = "ETM1009"
   field System.String DiagnosticsTruncated = "ETM1010"
   field System.String InvalidAuthoringInput = "ETM1011"
-  field System.String InvalidEdit = "ETM1012"
   field System.String InvalidFraming = "ETM1000"
   field System.String IoFailure = "ETM1007"
   field System.String ResourceLimitExceeded = "ETM1004"

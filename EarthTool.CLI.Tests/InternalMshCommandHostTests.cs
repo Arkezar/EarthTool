@@ -1044,8 +1044,7 @@ public sealed class InternalMshCommandHostTests
       var fixture = new CliFixture(Path.Combine(Path.GetTempPath(), $"earthtool-cli-{Guid.NewGuid():N}"));
       System.IO.Directory.CreateDirectory(fixture.Directory);
       var builder = StaticMeshBuilder.Create(
-          Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"),
-          new MeshAssetLineageId(Guid.Parse("11111111-2222-4333-8444-555555555555")));
+        Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"));
       var vertices = new[]
       {
         new CanonicalStaticVertex(Vector3.Zero, Vector3.UnitZ, Vector2.Zero),
@@ -1080,8 +1079,7 @@ public sealed class InternalMshCommandHostTests
         [new CanonicalTriangle(0, 1, 2)]);
       var markerRole = new CanonicalStaticObjectRole(StaticRenderObjectFlags.MarkerAttachment1);
       var build = StaticMeshBuilder.Create(
-          Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"),
-          new MeshAssetLineageId(Guid.Parse("11111111-2222-4333-8444-555555555555")))
+          Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"))
         .SetRootSourceObject(new CanonicalStaticSourceObject(
           [renderObject],
           [new CanonicalStaticSourceObject([renderObject], role: markerRole)],
@@ -1222,8 +1220,7 @@ public sealed class InternalMshCommandHostTests
         false,
         light);
       var build = DynamicMeshBuilder.Create(
-          Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"),
-          new MeshAssetLineageId(Guid.Parse("11111111-2222-4333-8444-555555555555")))
+          Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"))
         .SetRoot(DynamicEffectRecipes.Group(
           [track, mapped, laser, laserWall, shockwave, sphere, scalable]))
         .Build();

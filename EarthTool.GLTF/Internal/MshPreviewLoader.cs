@@ -195,7 +195,6 @@ namespace EarthTool.GLTF.Internal
           maxStaticVerticesPerObject: 65536);
         var parsed = MshExpert.CreateStatic(
           bytes,
-          new MeshAssetLineageId(Guid.NewGuid()),
           mshProfile);
         if (parsed.TryGetValue(out var staticAsset))
         {
@@ -205,7 +204,6 @@ namespace EarthTool.GLTF.Internal
         }
         var dynamic = MshExpert.CreateDynamic(
           bytes,
-          new MeshAssetLineageId(Guid.NewGuid()),
           mshProfile);
         if (!dynamic.TryGetValue(out var dynamicAsset))
         {

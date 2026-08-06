@@ -356,11 +356,7 @@ public class MetadataGraphValidationTests
         OperationStatus.Succeeded,
         string.Join("; ", accepted.Diagnostics.Select(diagnostic => diagnostic.Message))
       );
-    accepted
-      .Value!.Asset.StaticRenderObjectSequence.Should()
-      .ContainSingle()
-      .Subject.LocalId.Should()
-      .Be(1);
+    AssertSingleRootRenderObjectReference(accepted.Value!.Asset);
     accepted
       .Value.RestoredSerializedRepresentationPaths.Should()
       .NotContain("StaticRenderObjectSequence[0]");
@@ -428,11 +424,7 @@ public class MetadataGraphValidationTests
       .ContainSingle()
       .Which.Should()
       .BeSameAs(resolution);
-    result
-      .Value.Asset.StaticRenderObjectSequence.Should()
-      .ContainSingle()
-      .Subject.LocalId.Should()
-      .Be(1);
+    AssertSingleRootRenderObjectReference(result.Value.Asset);
   }
 
   [Fact]
@@ -927,11 +919,7 @@ public class MetadataGraphValidationTests
       .ContainSingle()
       .Which.Should()
       .BeSameAs(resolution);
-    result
-      .Value.Asset.StaticRenderObjectSequence.Should()
-      .ContainSingle()
-      .Subject.LocalId.Should()
-      .Be(1);
+    AssertSingleRootRenderObjectReference(result.Value.Asset);
   }
 
   [Theory]
@@ -1945,6 +1933,13 @@ public class MetadataGraphValidationTests
       );
     }
     return description;
+  }
+
+  private static void AssertSingleRootRenderObjectReference(StaticMeshAsset asset)
+  {
+    var renderObject = asset.StaticRenderObjectSequence.Should().ContainSingle().Subject;
+    asset.RootSourceObject.StaticRenderObjects.Should().ContainSingle()
+      .Subject.Should().BeSameAs(renderObject);
   }
 
   private static JsonObject ReadJson(byte[] glb)
