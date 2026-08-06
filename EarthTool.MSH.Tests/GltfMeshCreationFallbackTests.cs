@@ -119,6 +119,8 @@ public sealed class GltfMeshCreationFallbackTests
     result.Diagnostics[0].Should().Match<OperationDiagnostic>(diagnostic =>
       diagnostic.Code == GltfDiagnosticCodes.DocumentMismatch
       && diagnostic.Severity == DiagnosticSeverity.Warning);
+    result.Diagnostics[0].Message.Should().Be(
+      "EarthTool metadata is unusable and was discarded; mesh asset creation with canonical authored defaults was attempted.");
     result.Diagnostics[1].Severity.Should().Be(DiagnosticSeverity.Error);
   }
 

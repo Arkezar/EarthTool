@@ -1421,8 +1421,8 @@ namespace EarthTool.GLTF
         DiagnosticSeverity.Warning,
         diagnostic.Path,
         diagnostic.Code == GltfDiagnosticCodes.MissingManifest
-          ? "EarthTool metadata is missing; canonical static mesh asset creation was attempted."
-          : "EarthTool metadata is unusable and was discarded; canonical static mesh asset creation was attempted."
+          ? "EarthTool metadata is missing; metadata-free mesh asset creation with canonical authored defaults was attempted."
+          : "EarthTool metadata is unusable and was discarded; mesh asset creation with canonical authored defaults was attempted."
       );
     }
 

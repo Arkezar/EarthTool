@@ -81,6 +81,7 @@ public class DynamicGltfInterchangeTests
     imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
     imported.Value!.Asset.GetSerializedRepresentation().Should()
       .Equal(asset.GetSerializedRepresentation());
+    imported.Value.Asset.LineageId.Value.Should().Be(_lineageId);
     imported.Value.NextBaseline.AssetLineageId.Should().Be(_lineageId);
     imported.Value.NextBaseline.DocumentId.Should().NotBe(_documentId);
     imported.Value.RestoredSerializedRepresentationPaths.Should().Contain("RootDynamicObject");
@@ -101,7 +102,8 @@ public class DynamicGltfInterchangeTests
     var created = await interchange.CreateMeshAsync(package);
 
     created.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(created.Diagnostics));
-    created.Value!.Asset.Should().BeOfType<DynamicMeshAsset>();
+    var dynamicAsset = created.Value!.Asset.Should().BeOfType<DynamicMeshAsset>().Subject;
+    dynamicAsset.LineageId.Value.Should().NotBe(_lineageId);
     created.Value.Asset.GetSerializedRepresentation().Should()
       .Equal(asset.GetSerializedRepresentation());
     created.Value.Preservation.Changes.Should().NotBeEmpty();
@@ -765,12 +767,12 @@ public class DynamicGltfInterchangeTests
     });
     await using var editedStream = new MemoryStream(edited);
 
-    var imported = await interchange.ImportEditDynamicGlbAsync(
-      editedStream,
-      export.Value!.Baseline);
+    var created = await interchange.CreateMeshAsync(editedStream);
 
-    imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
-    var extension = imported.Value!.Asset.RootDynamicObject.Children[0].Extension;
+    created.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(created.Diagnostics));
+    var createdAsset = created.Value!.Asset.Should().BeOfType<DynamicMeshAsset>().Subject;
+    createdAsset.LineageId.Value.Should().NotBe(_lineageId);
+    var extension = createdAsset.RootDynamicObject.Children[0].Extension;
     extension.RibbonHalfWidth.Should().BeApproximately(-1, 0.0001f);
     extension.VisibleEffectColor.Should().Be(new Vector3(0.9f, 0.8f, 0.7f));
     extension.StartAlpha.Should().BeApproximately(0.6f, 0.0001f);
@@ -1105,10 +1107,12 @@ public class DynamicGltfInterchangeTests
           .GetProperty("earthtoolPlacementRoot").GetBoolean().Should().BeTrue();
       }
 
-      var imported = await interchange.ImportEditDynamicGltfFileAsync(path, export.Value!.Baseline);
+      var created = await interchange.CreateMeshFileAsync(path);
 
-      imported.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(imported.Diagnostics));
-      imported.Value!.Asset.GetSerializedRepresentation().Should()
+      created.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(created.Diagnostics));
+      var createdAsset = created.Value!.Asset.Should().BeOfType<DynamicMeshAsset>().Subject;
+      createdAsset.LineageId.Value.Should().NotBe(_lineageId);
+      createdAsset.GetSerializedRepresentation().Should()
         .Equal(asset.GetSerializedRepresentation());
 
       var gltfPath = Path.Combine(directory, "scalable.gltf");
@@ -1134,7 +1138,6 @@ public class DynamicGltfInterchangeTests
         Diagnostics(separateImport.Diagnostics));
       separateImport.Value!.Asset.GetSerializedRepresentation().Should()
         .Equal(asset.GetSerializedRepresentation());
-      imported.Value.NextExportOptions.DynamicObjectIds.Should().Equal(1, 2, 3, 4, 5);
     }
     finally
     {
