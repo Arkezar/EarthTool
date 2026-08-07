@@ -15,7 +15,7 @@ EarthTool.WD/              WD archive reading, writing, and manipulation
 EarthTool.TEX/             TEX texture decoding and preview support
 EarthTool.PAR/             PAR parameter parsing and serialization
 EarthTool.CLI/             Published command-line application
-  Commands/MSH/            Export, edit import, and new-model import commands
+  Commands/MSH/            Export and canonical import commands
 EarthTool.Common.GUI/      Shared Avalonia UI services and controls
 EarthTool.WD.GUI/          WD archive desktop application
 EarthTool.TEX.GUI/         TEX texture desktop application

@@ -20,18 +20,18 @@ export const requiredGates = Object.freeze([
   "official-corpus"
 ]);
 
-export const expectedTestCounts = Object.freeze({ msh: 532, cli: 34 });
+export const expectedTestCounts = Object.freeze({ msh: 364, cli: 40 });
 
 const requiredDynamicQualificationTests = Object.freeze({
   msh: [
     "EveryKnownDynamicEffectHasAnExplicitCanonicalRecipe",
     "SpriteEffectsExportThroughThePublicGlbSeam",
     "RibbonEffectsExportThroughThePublicGlbSeam",
-    "AttachedAndProceduralEffectsExportWithExplicitPreviewContexts",
+    "AttachedAndProceduralEffectsExportNativePreviews",
     "RibbonPreviewRetainsHalfWidthSignTextureSideAndWinding",
-    "UnsupportedEffectAndObjectLimitFailWithoutOutput",
-    "ScalableObjectUsesAReferencedStaticMeshPreviewAndRoundTripsExactly",
-    "SeparateGltfRoundTripsTheExactDynamicMsh"
+    "DynamicExportLimitsIncludeThePlacementRoot",
+    "ScalableObjectUsesAReferencedStaticMeshPreview",
+    "EquivalentGlbAndSeparateGltfProduceIdenticalPayloadOutsideCreationGuid"
   ],
   cli: ["BatchExportsAllSupportedDynamicEffectsAsSeparateGltf"]
 });
@@ -257,8 +257,7 @@ export function validateReleaseBoundary(boundary) {
   const requiredDocumentation = [
     "EarthTool.GLTF",
     "msh export",
-    "msh import edit",
-    "msh import new",
+    "msh import",
     "all 15 recognized dynamic effect"
   ];
   const unsupportedLegacyReferences = (boundary.activeDocumentation ?? "")
@@ -566,8 +565,9 @@ async function publishArtifacts(root, workDirectory) {
   const importHelp = await run(cli, ["msh", "import", "--help"], { cwd: root, stream: false });
   const combinedHelp = `${rootHelp.stdout}\n${mshHelp.stdout}\n${importHelp.stdout}`;
   if (!combinedHelp.includes("export <INPUT>")
-    || !combinedHelp.includes("edit <INPUT>")
-    || !combinedHelp.includes("new <INPUT>")
+    || !combinedHelp.includes("import <INPUT>")
+    || combinedHelp.includes("edit <INPUT>")
+    || combinedHelp.includes("new <INPUT>")
     || combinedHelp.includes("dae <InputFilePath>")) {
     fail("Published CLI command tree does not match the glTF release contract.");
   }

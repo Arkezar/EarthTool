@@ -166,11 +166,11 @@ test("release discovery requires named dynamic family, sign, limit, and batch ga
     "EveryKnownDynamicEffectHasAnExplicitCanonicalRecipe",
     "SpriteEffectsExportThroughThePublicGlbSeam",
     "RibbonEffectsExportThroughThePublicGlbSeam",
-    "AttachedAndProceduralEffectsExportWithExplicitPreviewContexts",
+    "AttachedAndProceduralEffectsExportNativePreviews",
     "RibbonPreviewRetainsHalfWidthSignTextureSideAndWinding",
-    "UnsupportedEffectAndObjectLimitFailWithoutOutput",
-    "ScalableObjectUsesAReferencedStaticMeshPreviewAndRoundTripsExactly",
-    "SeparateGltfRoundTripsTheExactDynamicMsh"
+    "DynamicExportLimitsIncludeThePlacementRoot",
+    "ScalableObjectUsesAReferencedStaticMeshPreview",
+    "EquivalentGlbAndSeparateGltfProduceIdenticalPayloadOutsideCreationGuid"
   ].join("\n");
   const cli = "BatchExportsAllSupportedDynamicEffectsAsSeparateGltf";
 
@@ -198,7 +198,7 @@ test("release boundary requires GLTF and migration links and forbids DAE", () =>
       "https://github.com/Arkezar/EarthTool/issues/133"
     ].join("\n"),
     documentationIndex: "[COLLADA to glTF migration](migration-collada-to-gltf.md)",
-    activeDocumentation: "EarthTool.GLTF msh export msh import edit msh import new all 15 recognized dynamic effect types",
+    activeDocumentation: "EarthTool.GLTF msh export msh import all 15 recognized dynamic effect types",
     paths: new Set([
       "EarthTool.GLTF/EarthTool.GLTF.csproj",
       "docs/api/gltf.md",
@@ -223,7 +223,7 @@ test("release boundary rejects active documentation that advertises DAE", () => 
       "https://github.com/Arkezar/EarthTool/issues/133"
     ].join("\n"),
     documentationIndex: "migration-collada-to-gltf.md",
-    activeDocumentation: "EarthTool.GLTF msh export msh import edit msh import new all 15 recognized dynamic effect types supports COLLADA import",
+    activeDocumentation: "EarthTool.GLTF msh export msh import all 15 recognized dynamic effect types supports COLLADA import",
     paths: new Set([
       "EarthTool.GLTF/EarthTool.GLTF.csproj",
       "docs/api/gltf.md",

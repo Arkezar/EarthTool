@@ -13,6 +13,8 @@ namespace EarthTool.MSH.Tests;
 
 public sealed class CanonicalDynamicGltfCreationTests
 {
+  private static readonly Guid _creationGuid = new("20220220-2222-4222-8222-202202202202");
+
   [Fact]
   public async Task UntouchedVisibleExportCarriesCanonicalAuthoringValuesForBothPackages()
   {
@@ -244,6 +246,69 @@ public sealed class CanonicalDynamicGltfCreationTests
       sourceAsset!.GetSerializedRepresentation(),
       actual.GetSerializedRepresentation()
     );
+  }
+
+  [Fact]
+  public async Task EquivalentGlbAndSeparateGltfProduceIdenticalBytesWithFixedGuid()
+  {
+    var source = DynamicMeshBuilder.Create()
+      .SetRoot(DynamicEffectRecipes.Group([DynamicEffectRecipes.Group()]))
+      .Build();
+    source.TryGetValue(out var sourceAsset).Should().BeTrue();
+    var interchange = new GltfInterchange();
+    await using var glbExport = new MemoryStream();
+    var glbResult = await interchange.ExportGlbAsync(sourceAsset!, glbExport);
+    glbResult.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(glbResult.Diagnostics));
+    var sourceFreeGlb = RewriteGlb(glbExport.ToArray(), RemoveSourceMetadata);
+    var directory = Path.Combine(Path.GetTempPath(), $"earthtool-canonical-dynamic-{Guid.NewGuid():N}");
+    var path = Path.Combine(directory, "effect.gltf");
+    Directory.CreateDirectory(directory);
+    try
+    {
+      var gltfResult = await interchange.ExportGltfFileAsync(sourceAsset!, path);
+      gltfResult.Status.Should().Be(
+        OperationStatus.Succeeded,
+        Diagnostics(gltfResult.Diagnostics)
+      );
+      var separateRoot = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+      RemoveSourceMetadata(separateRoot);
+      await File.WriteAllTextAsync(path, separateRoot.ToJsonString());
+      var bufferUri = separateRoot["buffers"]![0]!["uri"]!.GetValue<string>();
+      var binary = await File.ReadAllBytesAsync(Path.Combine(directory, bufferUri));
+      var options = new GltfNewModelImportOptions();
+
+      var glbCreated = CanonicalDynamicGltfImporter.ImportGlb(
+        sourceFreeGlb,
+        options,
+        GltfOperationProfile.Default,
+        CancellationToken.None,
+        _creationGuid
+      );
+      var gltfCreated = CanonicalDynamicGltfImporter.ImportSeparate(
+        System.Text.Encoding.UTF8.GetBytes(separateRoot.ToJsonString()),
+        binary,
+        options,
+        GltfOperationProfile.Default,
+        CancellationToken.None,
+        _creationGuid
+      );
+
+      glbCreated.Status.Should().Be(
+        OperationStatus.Succeeded,
+        Diagnostics(glbCreated.Diagnostics)
+      );
+      gltfCreated.Status.Should().Be(
+        OperationStatus.Succeeded,
+        Diagnostics(gltfCreated.Diagnostics)
+      );
+      gltfCreated.Value!.GetSerializedRepresentation().Should().Equal(
+        glbCreated.Value!.GetSerializedRepresentation()
+      );
+    }
+    finally
+    {
+      Directory.Delete(directory, true);
+    }
   }
 
   [Fact]

@@ -47,7 +47,8 @@ namespace EarthTool.GLTF.Internal
       byte[] glb,
       GltfNewModelImportOptions options,
       GltfOperationProfile profile,
-      CancellationToken cancellationToken
+      CancellationToken cancellationToken,
+      Guid? creationGuid = null
     )
     {
       cancellationToken.ThrowIfCancellationRequested();
@@ -60,7 +61,8 @@ namespace EarthTool.GLTF.Internal
         glb.AsMemory(binaryHeader + 8, binaryLength),
         options,
         profile,
-        cancellationToken
+        cancellationToken,
+        creationGuid
       );
     }
 
@@ -69,14 +71,15 @@ namespace EarthTool.GLTF.Internal
       byte[] binary,
       GltfNewModelImportOptions options,
       GltfOperationProfile profile,
-      CancellationToken cancellationToken
+      CancellationToken cancellationToken,
+      Guid? creationGuid = null
     )
     {
       if (json.Length + (long)binary.Length > profile.MaxInputBytes)
       {
         throw new ResourceLimitException(json.Length + (long)binary.Length, profile.MaxInputBytes);
       }
-      return Import(json, binary, options, profile, cancellationToken);
+      return Import(json, binary, options, profile, cancellationToken, creationGuid);
     }
 
     private static OperationResult<DynamicMeshAsset> Import(
@@ -84,7 +87,8 @@ namespace EarthTool.GLTF.Internal
       ReadOnlyMemory<byte> binary,
       GltfNewModelImportOptions options,
       GltfOperationProfile profile,
-      CancellationToken cancellationToken
+      CancellationToken cancellationToken,
+      Guid? creationGuid = null
     )
     {
       cancellationToken.ThrowIfCancellationRequested();
@@ -122,7 +126,9 @@ namespace EarthTool.GLTF.Internal
         profile,
         isRoot: true
       );
-      var build = DynamicMeshBuilder.Create().SetRoot(canonicalRoot).Build(CreateMshProfile(profile));
+      var build = DynamicMeshBuilder.Create(creationGuid ?? Guid.NewGuid())
+        .SetRoot(canonicalRoot)
+        .Build(CreateMshProfile(profile));
       if (!build.TryGetValue(out var asset))
       {
         return new OperationResult<DynamicMeshAsset>(

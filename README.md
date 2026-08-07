@@ -8,7 +8,7 @@ A comprehensive suite of tools for working with Earth 2150 game data files.
 
 > **Mesh artists:** Start with the
 > [Mesh Artist Quick Start and Cheat Sheet](docs/mesh-artist-quickstart.md) for
-> Blender export settings, edit/new-model workflows, animation-track setup, and
+> Blender export settings, canonical import, animation-track setup, and
 > every supported attachment identifier.
 
 ## Features
@@ -100,8 +100,10 @@ dotnet publish -c Release
 - **EarthTool.WD.GUI** - Archive manager GUI (Avalonia UI)
 - **EarthTool.PAR.GUI** - Parameter editor GUI (Avalonia UI)
 
-The current MSH CLI is `msh export`, `msh import edit`, and `msh import new`.
-Graphics artists should use the
+The current MSH CLI is `msh export` and `msh import`. Import canonically
+regenerates a new immutable MSH asset from GLB or separate glTF; it never
+restores an embedded source MSH or has an edit mode. Graphics artists should
+use the
 [Mesh Artist Quick Start and Cheat Sheet](docs/mesh-artist-quickstart.md).
 Users of the removed COLLADA workflow should read the
 [migration guide](docs/migration-collada-to-gltf.md).

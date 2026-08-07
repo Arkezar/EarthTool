@@ -724,6 +724,25 @@ public sealed class CanonicalStaticGltfCreationTests
   }
 
   [Fact]
+  public async Task PublicCreationRandomGuidIsTheOnlyPermittedDifference()
+  {
+    var glb = await ExportCanonicalGlbAsync(CreateSourceAsset(), AddCanonicalOwners);
+    await using var firstInput = new MemoryStream(glb);
+    await using var secondInput = new MemoryStream(glb);
+
+    var first = await new GltfInterchange().CreateMeshAsync(firstInput);
+    var second = await new GltfInterchange().CreateMeshAsync(secondInput);
+
+    first.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(first.Diagnostics));
+    second.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(second.Diagnostics));
+    var firstBytes = first.Value!.GetSerializedRepresentation().ToArray();
+    var secondBytes = second.Value!.GetSerializedRepresentation().ToArray();
+    firstBytes[..4].Should().Equal(secondBytes[..4]);
+    firstBytes[20..].Should().Equal(secondBytes[20..]);
+    firstBytes[4..20].Should().NotEqual(secondBytes[4..20]);
+  }
+
+  [Fact]
   public async Task RequiredDynamicOwnerFailsInStaticCreation()
   {
     var glb = await ExportCanonicalGlbAsync(CreateSourceAsset(), (root, meshNodes) =>

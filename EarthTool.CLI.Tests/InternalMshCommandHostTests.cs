@@ -832,6 +832,39 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
+  public async Task ExportLossDiagnosticsFlowThroughTheReportAndOutput()
+  {
+    using var fixture = await CliFixture.CreateSourceLossStaticAsync();
+    var reportPath = Path.Combine(fixture.Directory, "source-loss-export-report.json");
+    using var output = new StringWriter();
+
+    var exitCode = await InternalMshCommandHost.RunAsync(
+      ["msh", "export", fixture.MshPath, "--report", reportPath],
+      output);
+
+    exitCode.Should().Be(CliExitCode.Success);
+    using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+    var operation = report.RootElement.GetProperty("operations")[0];
+    operation.GetProperty("status").GetString().Should().Be("succeeded");
+    var loss = operation.GetProperty("diagnostics").EnumerateArray()
+      .Where(item => item.GetProperty("code").GetString() == GltfDiagnosticCodes.SourceRepresentationNotPreserved)
+      .ToArray();
+    loss.Should().NotBeEmpty();
+    loss.Should().OnlyContain(item =>
+      item.GetProperty("severity").GetString() == "warning"
+      && item.GetProperty("message").GetString()!.Contains("does not restore", StringComparison.Ordinal)
+    );
+    loss.Select(item => item.GetProperty("path").GetString()).Should().Contain([
+      "ArchiveFraming.CreationGuid",
+      "RootTrailingBytes",
+      "CommonBaseHeader.RotatedOccupancyDescriptors",
+      "CommonBaseHeader.CannonRenderPositions[1]"
+    ]);
+    output.ToString().Should().Contain("summary total=1 succeeded=1 failed=0 cancelled=0");
+    output.ToString().Should().Contain(GltfDiagnosticCodes.SourceRepresentationNotPreserved);
+  }
+
+  [Fact]
   public async Task StaleImportPlanFailsWithoutReplacingTheDestination()
   {
     using var fixture = await CliFixture.CreateAsync();
@@ -1098,6 +1131,18 @@ public sealed class InternalMshCommandHostTests
       build.TryGetValue(out var asset).Should().BeTrue();
       var write = await new MshWriter().WriteFileAsync(asset!, fixture.MshPath);
       write.Succeeded.Should().BeTrue();
+      return fixture;
+    }
+
+    public static async Task<CliFixture> CreateSourceLossStaticAsync()
+    {
+      var fixture = await CreateAsync();
+      var source = (await File.ReadAllBytesAsync(fixture.MshPath))
+        .Concat(new byte[] { 0xA5, 0x5A })
+        .ToArray();
+      source[0x18 + 0x1A8] ^= 0x01;
+      source[0x18 + 0x18] = 0x01;
+      await File.WriteAllBytesAsync(fixture.MshPath, source);
       return fixture;
     }
 
