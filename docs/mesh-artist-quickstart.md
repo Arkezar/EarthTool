@@ -159,9 +159,51 @@ EarthTool.CLI msh import \
   --report ./work/import-report.json
 ```
 
-The plan is bound to the exact GLB or complete separate glTF package. Generate a
-new source digest after every Blender export. There is one canonical creation
-mode; old edit-mode plans are rejected.
+### Plan Template
+
+Start from this template and edit the values that apply. The plan is bound to
+the exact GLB or complete separate glTF package, so replace `sourceSha256` with
+the package digest and regenerate it after every Blender export. There is one
+canonical creation mode; old edit-mode plans are rejected.
+
+```json
+{
+  "format": "earthtool.msh.import-plan",
+  "version": 2,
+  "mode": "newModel",
+  "package": "glb",
+  "sourceSha256": "<64 lowercase hex SHA-256 of the package bytes>",
+  "semanticOverrides": {
+    "textureResourceBindings": [
+      {
+        "material": 1,
+        "resourceKey": "Textures\\my\\hull.tex"
+      }
+    ],
+    "meshResourceBindings": [],
+    "footprint": null,
+    "horizontalExtents": null,
+    "objectRoles": [],
+    "staticLightOptions": []
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `package` | `"glb"` for a binary package, `"gltf"` for a separate manifest plus sidecars |
+| `sourceSha256` | Lowercase SHA-256 of the exact package bytes; the import fails if it does not match |
+| `textureResourceBindings` | One entry per textured material used by a mesh primitive; `material` is the one-based document-local material handle, `resourceKey` is the game TEX key |
+| `meshResourceBindings` | One entry per dynamic `ScalableObject`; `node` is the owning node handle, `resourceKey` is the game MSH key. Omit when there are none |
+| `footprint` | Replace `null` with `presenceMask`, `topElevations` (16 values), and `cornerPassageFlags` (16 values) to override the one-cell default |
+| `horizontalExtents` | Replace `null` with `positiveY`, `negativeY`, `positiveX`, `negativeX` to override geometry bounds |
+| `objectRoles` | Entries with `node`, `roles` (`"viewerFaced"`, `"barrel"`, `"rotor"`), and `barrelMaximumAngle` |
+| `staticLightOptions` | Entries with `light`, `targetDistance`, and `terrainLightAmplitude` |
+
+Every `textureResourceBindings`, `objectRoles`, and `staticLightOptions` array
+must be present; leave them empty when unused. `meshResourceBindings` may be
+omitted entirely when there are no dynamic `ScalableObject` references.
+`footprint` and `horizontalExtents` use `null` when the default applies.
 
 | Typed input | When it is needed |
 |---|---|
