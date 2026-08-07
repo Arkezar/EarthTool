@@ -56,16 +56,16 @@ identities, fingerprints, guards, inventories, and preservation data are ignored
 Do not migrate them into the new envelope.
 
 TEX and MSH resource bindings remain explicit `GltfNewModelImportOptions` or
-version-2 import-plan values. They are not envelope members and are never inferred
+version-3 import-plan values. They are not envelope members and are never inferred
 from names, URIs, image bytes, or preview geometry. Successful creation assigns a
 new creation GUID and may produce different bytes even when authored semantics
 are unchanged.
 
 ## Plans and limits
 
-Version-2 plans have one canonical creation mode and bind typed options to the
-exact GLB or complete separate glTF package. Old edit-mode plans are rejected.
-Regenerate the plan and source digest after changing the package.
+Version-3 plans carry typed options for the imported package. Old edit-mode
+plans and version-2 source bindings are rejected. Plans are no longer bound to a
+source-package SHA-256 digest.
 
 `GltfOperationProfile` now bounds canonical envelope count, bytes per envelope,
 aggregate bytes, JSON depth and elements, unknown members, and emitted warning

@@ -130,7 +130,7 @@ preview geometry, or authoring envelopes.
 - `GltfNewModelImportOptions.MeshResourceBindings` maps the owning dynamic node
   handle to the MSH key required by `ScalableObject`.
 
-The version-2 import plan serializes these bindings with the other closed typed
+The version-3 import plan serializes these bindings with the other closed typed
 creation options. Resource bindings are references only: EarthTool does not
 create, rename, convert, or package the referenced TEX or MSH resource.
 
@@ -179,19 +179,15 @@ possible.
 
 Import plans and machine reports are independent protocols:
 
-- `earthtool.msh.import-plan`, version 2
+- `earthtool.msh.import-plan`, version 3
 - `earthtool.msh.cli-report`, version 2
 
-A plan contains one unified canonical-creation mode, package kind, lowercase
-SHA-256 source binding, and `GltfNewModelImportOptions`. Supported options are
-TEX and MSH resource bindings, footprint, horizontal extents, non-marker object
-roles and barrel angle, and static-light values. Version 1 plans must be
-regenerated. Version 2 rejects removed edit mode, helper bindings,
-animation-class bindings, marker roles, raw metadata, and expert state.
-
-Use `ComputeGlbSourceSha256Async` or `ComputeGltfSourceSha256Async` to bind a plan
-to the captured package. The planned creation methods verify the same bytes
-before creating an asset.
+A plan contains `GltfNewModelImportOptions`. Supported options are TEX and MSH
+resource bindings, footprint, horizontal extents, non-marker object roles and
+barrel angle, and static-light values. Version 1 and 2 plans must be
+regenerated. Version 3 rejects removed edit mode, package kind, source bindings,
+helper bindings, animation-class bindings, marker roles, raw metadata, and
+expert state.
 
 `GltfCliReport` records export, canonical import, and validation outcomes. Each
 operation contains its input, destination, package kind, asset kind, status,

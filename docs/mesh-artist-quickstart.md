@@ -148,7 +148,7 @@ EarthTool.CLI msh import \
   --report ./work/import-report.json
 ```
 
-Use a version-2 plan when the package needs values that glTF cannot safely
+Use a version-3 plan when the package needs values that glTF cannot safely
 express:
 
 ```bash
@@ -161,18 +161,13 @@ EarthTool.CLI msh import \
 
 ### Plan Template
 
-Start from this template and edit the values that apply. The plan is bound to
-the exact GLB or complete separate glTF package, so replace `sourceSha256` with
-the package digest and regenerate it after every Blender export. There is one
-canonical creation mode; old edit-mode plans are rejected.
+Start from this template and edit the values that apply. There is one canonical
+creation mode; old edit-mode plans and removed source bindings are rejected.
 
 ```json
 {
   "format": "earthtool.msh.import-plan",
-  "version": 2,
-  "mode": "newModel",
-  "package": "glb",
-  "sourceSha256": "<64 lowercase hex SHA-256 of the package bytes>",
+  "version": 3,
   "semanticOverrides": {
     "textureResourceBindings": [
       {
@@ -191,8 +186,6 @@ canonical creation mode; old edit-mode plans are rejected.
 
 | Field | Meaning |
 |---|---|
-| `package` | `"glb"` for a binary package, `"gltf"` for a separate manifest plus sidecars |
-| `sourceSha256` | Lowercase SHA-256 of the exact package bytes; the import fails if it does not match |
 | `textureResourceBindings` | One entry per textured material used by a mesh primitive; `material` is the one-based document-local material handle, `resourceKey` is the game TEX key |
 | `meshResourceBindings` | One entry per dynamic `ScalableObject`; `node` is the owning node handle, `resourceKey` is the game MSH key. Omit when there are none |
 | `footprint` | Replace `null` with `presenceMask`, `topElevations` (16 values), and `cornerPassageFlags` (16 values) to override the one-cell default |

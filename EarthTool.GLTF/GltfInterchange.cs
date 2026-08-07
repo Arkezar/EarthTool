@@ -751,7 +751,6 @@ namespace EarthTool.GLTF
       {
         var mismatch = ValidatePlan(
           plan,
-          GltfPackageKind.Glb,
           profile
         );
         if (mismatch is not null)
@@ -760,10 +759,6 @@ namespace EarthTool.GLTF
         }
         var glb = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
           .ConfigureAwait(false);
-        if (!MatchesPlanSource(glb, plan))
-        {
-          return Failed<MeshAsset>(PlanMismatch("sourceSha256"));
-        }
         return CreateMeshCore(
           glb,
           separatePackage: null,
@@ -835,7 +830,6 @@ namespace EarthTool.GLTF
       {
         var mismatch = ValidatePlan(
           plan,
-          GltfPackageKind.Gltf,
           profile
         );
         if (mismatch is not null)
@@ -844,10 +838,6 @@ namespace EarthTool.GLTF
         }
         var package = await ReadSeparatePackageAsync(sourcePath, profile, cancellationToken)
           .ConfigureAwait(false);
-        if (!GltfImportPlanSerializer.MatchesSeparateSource(package, plan.SourceSha256))
-        {
-          return Failed<MeshAsset>(PlanMismatch("sourceSha256"));
-        }
         return CreateMeshCore(
           package.Json,
           package,
@@ -4217,41 +4207,10 @@ namespace EarthTool.GLTF
 
     private static OperationDiagnostic? ValidatePlan(
       GltfImportPlan plan,
-      GltfPackageKind packageKind,
       GltfOperationProfile profile
     )
     {
-      var limit = plan.ValidateProfile(profile);
-      if (limit is not null)
-      {
-        return limit;
-      }
-      if (plan.PackageKind != packageKind)
-      {
-        return PlanMismatch("package");
-      }
-      return null;
-    }
-
-    private static bool MatchesPlanSource(byte[] source, GltfImportPlan plan)
-    {
-      return string.Equals(
-        GltfImportPlanSerializer.Hash(source),
-        plan.SourceSha256,
-        StringComparison.Ordinal
-      );
-    }
-
-    private static OperationDiagnostic PlanMismatch(string path)
-    {
-      return new OperationDiagnostic(
-        GltfDiagnosticCodes.ImportPlanMismatch,
-        3004,
-        DiagnosticSeverity.Error,
-        path,
-        "The import plan does not match the selected import or source package.",
-        data: new Dictionary<string, string> { ["dimension"] = path }
-      );
+      return plan.ValidateProfile(profile);
     }
 
     private static OperationResult Failed(OperationDiagnostic diagnostic)

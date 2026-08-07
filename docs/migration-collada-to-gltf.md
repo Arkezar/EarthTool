@@ -72,12 +72,12 @@ SharpGLTF types are not public EarthTool contracts. Callers exchange EarthTool
 assets, options, plans, reports, operation results, streams, and paths with
 `GltfInterchange`.
 
-Import-plan protocol version 2 accepts only TEX and MSH resource bindings,
+Import-plan protocol version 3 accepts only TEX and MSH resource bindings,
 footprint, horizontal extents, non-marker object roles and barrel angle, and
-static-light-only values. It has no edit mode or conflict actions. Version 1
-plans must be regenerated. Version 2 rejects removed edit, `helperBindings`,
-`animationClasses`, and marker-role inputs; unsupported protocol versions report
-`ETG3001`.
+static-light-only values. It has no edit mode, source bindings, or conflict
+actions. Version 1 and 2 plans must be regenerated. Version 3 rejects removed
+edit, source binding, `helperBindings`, `animationClasses`, and marker-role
+inputs; unsupported protocol versions report `ETG3001`.
 
 ## Workflow migration
 

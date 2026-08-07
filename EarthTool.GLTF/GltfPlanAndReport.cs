@@ -3,14 +3,11 @@
 using EarthTool.Common.Operations;
 using EarthTool.MSH.Assets;
 using System;
-using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,7 +20,7 @@ namespace EarthTool.GLTF
     /// <summary>Gets the import-plan protocol identifier.</summary>
     public const string Identifier = "earthtool.msh.import-plan";
     /// <summary>Gets the current import-plan protocol version.</summary>
-    public const int Version = 2;
+    public const int Version = 3;
     /// <summary>Gets every import-plan version accepted by this build.</summary>
     public static IReadOnlyList<int> SupportedVersions { get; } = Array.AsReadOnly(new[] { Version });
   }
@@ -48,44 +45,27 @@ namespace EarthTool.GLTF
     Gltf = 1
   }
 
-  /// <summary>Contains one validated, immutable source-bound canonical creation plan.</summary>
+  /// <summary>Contains one validated, immutable canonical creation plan.</summary>
   public sealed class GltfImportPlan
   {
     /// <summary>Gets the independent import-plan format identifier.</summary>
     public string Format => GltfImportPlanFormat.Identifier;
     /// <summary>Gets the independent import-plan protocol version.</summary>
     public int Version => GltfImportPlanFormat.Version;
-    /// <summary>Gets the source package form.</summary>
-    public GltfPackageKind PackageKind { get; }
-    /// <summary>Gets the lowercase source-package SHA-256 binding.</summary>
-    public string SourceSha256 { get; }
     /// <summary>Gets typed canonical-creation overrides.</summary>
     public GltfNewModelImportOptions NewModelOptions { get; }
 
     private GltfImportPlan(
-      GltfPackageKind packageKind,
-      string sourceSha256,
       GltfNewModelImportOptions newModelOptions)
     {
-      if (!Enum.IsDefined(typeof(GltfPackageKind), packageKind))
-      {
-        throw new ArgumentOutOfRangeException(nameof(packageKind));
-      }
-      ValidateSha256(sourceSha256, nameof(sourceSha256));
-      PackageKind = packageKind;
-      SourceSha256 = sourceSha256;
       NewModelOptions = newModelOptions ?? throw new ArgumentNullException(nameof(newModelOptions));
     }
 
-    /// <summary>Creates one source-bound canonical creation plan from typed semantic overrides.</summary>
+    /// <summary>Creates one canonical creation plan from typed semantic overrides.</summary>
     public static GltfImportPlan CreateNewModel(
-      GltfPackageKind packageKind,
-      string sourceSha256,
       GltfNewModelImportOptions? options = null)
     {
       return new GltfImportPlan(
-        packageKind,
-        sourceSha256,
         options ?? new GltfNewModelImportOptions());
     }
 
@@ -126,19 +106,6 @@ namespace EarthTool.GLTF
           ["actual"] = actual.ToString(CultureInfo.InvariantCulture),
           ["maximum"] = maximum.ToString(CultureInfo.InvariantCulture)
         });
-    }
-
-    private static void ValidateSha256(string value, string parameterName)
-    {
-      if (value is null)
-      {
-        throw new ArgumentNullException(parameterName);
-      }
-      if (value.Length != 64 || value.Any(character =>
-        character is not (>= '0' and <= '9') and not (>= 'a' and <= 'f')))
-      {
-        throw new ArgumentException("The source digest must be lowercase SHA-256 hexadecimal.", parameterName);
-      }
     }
   }
 
@@ -249,122 +216,10 @@ namespace EarthTool.GLTF
       }
     }
 
-    /// <summary>Computes the lowercase SHA-256 source binding for exact GLB bytes.</summary>
-    public async Task<OperationResult<string>> ComputeGlbSourceSha256Async(
-      Stream source,
-      GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
-    {
-      if (source is null)
-      {
-        throw new ArgumentNullException(nameof(source));
-      }
-      profile ??= GltfOperationProfile.Default;
-      try
-      {
-        var bytes = await ReadBoundedAsync(source, profile.MaxInputBytes, cancellationToken)
-          .ConfigureAwait(false);
-        return new OperationResult<string>(OperationStatus.Succeeded, Hash(bytes));
-      }
-      catch (OperationCanceledException)
-      {
-        return new OperationResult<string>(
-          OperationStatus.Cancelled,
-          diagnostics: new[] { Diagnostic(GltfDiagnosticCodes.Cancelled, 1105, "$", "Source hashing was cancelled.") });
-      }
-      catch (ImportPlanException ex)
-      {
-        return FailedString(ex.Code, ex.EventId, ex.Path, ex.Message, ex.DiagnosticData);
-      }
-      catch (Exception ex)
-      {
-        return FailedString(GltfDiagnosticCodes.IoFailure, 1104, "$", ex.Message);
-      }
-    }
-
-    /// <summary>Computes the lowercase SHA-256 source binding for a complete separate glTF package.</summary>
-    public async Task<OperationResult<string>> ComputeGltfSourceSha256Async(
-      string sourcePath,
-      GltfOperationProfile? profile = null,
-      CancellationToken cancellationToken = default)
-    {
-      if (sourcePath is null)
-      {
-        throw new ArgumentNullException(nameof(sourcePath));
-      }
-      profile ??= GltfOperationProfile.Default;
-      try
-      {
-        var package = await GltfInterchange.ReadSeparatePackageAsync(
-          sourcePath,
-          profile,
-          cancellationToken).ConfigureAwait(false);
-        return new OperationResult<string>(OperationStatus.Succeeded, HashSeparate(package));
-      }
-      catch (OperationCanceledException)
-      {
-        return new OperationResult<string>(
-          OperationStatus.Cancelled,
-          diagnostics: new[] { Diagnostic(GltfDiagnosticCodes.Cancelled, 1105, "$", "Source hashing was cancelled.") });
-      }
-      catch (Exception ex)
-      {
-        return FailedString(GltfDiagnosticCodes.IoFailure, 1104, sourcePath, ex.Message);
-      }
-    }
-
-    internal static bool MatchesSeparateSource(
-      GltfInterchange.SeparateGltfPackage package,
-      string expectedSha256)
-    {
-      return string.Equals(HashSeparate(package), expectedSha256, StringComparison.Ordinal);
-    }
-
-    internal static string Hash(byte[] bytes)
-    {
-      using var sha256 = SHA256.Create();
-      return ToHex(sha256.ComputeHash(bytes));
-    }
-
+    /// <summary>Computes the serialized plan length for profile validation.</summary>
     internal static int GetSerializedLength(GltfImportPlan plan)
     {
       return WritePlan(plan).Length;
-    }
-
-    private static string HashSeparate(GltfInterchange.SeparateGltfPackage package)
-    {
-      using var sha256 = SHA256.Create();
-      using (var sink = new CryptoStream(Stream.Null, sha256, CryptoStreamMode.Write))
-      {
-        var prefix = Encoding.UTF8.GetBytes("earthtool.msh.import-plan:gltf:2\n");
-        sink.Write(prefix, 0, prefix.Length);
-        WriteDigestEntry(sink, "$manifest", package.Json);
-        WriteDigestEntry(sink, package.BufferUri, package.Binary);
-        foreach (var image in package.Images.OrderBy(item => item.Key, StringComparer.Ordinal))
-        {
-          WriteDigestEntry(sink, image.Key, image.Value);
-        }
-        sink.FlushFinalBlock();
-      }
-      return ToHex(sha256.Hash!);
-    }
-
-    private static void WriteDigestEntry(Stream destination, string name, byte[] content)
-    {
-      var nameBytes = Encoding.UTF8.GetBytes(name);
-      var lengths = new byte[sizeof(int) + sizeof(long)];
-      BinaryPrimitives.WriteInt32LittleEndian(lengths.AsSpan(0, sizeof(int)), nameBytes.Length);
-      BinaryPrimitives.WriteInt64LittleEndian(lengths.AsSpan(sizeof(int), sizeof(long)), content.Length);
-      destination.Write(lengths, 0, sizeof(int));
-      destination.Write(nameBytes, 0, nameBytes.Length);
-      destination.Write(lengths, sizeof(int), sizeof(long));
-      destination.Write(content, 0, content.Length);
-    }
-
-    private static string ToHex(byte[] value)
-    {
-      return string.Concat(value.Select(item =>
-        item.ToString("x2", CultureInfo.InvariantCulture)));
     }
 
     private static GltfImportPlan Parse(JsonElement root, GltfOperationProfile profile)
@@ -382,38 +237,16 @@ namespace EarthTool.GLTF
           GltfDiagnosticCodes.UnsupportedImportPlanVersion,
           3001,
           "version",
-          "The import-plan version is unsupported. Regenerate the plan with this build using protocol version 2.",
+          "The import-plan version is unsupported. Regenerate the plan with this build using protocol version 3.",
           new Dictionary<string, string>
           {
             ["actual"] = version.ToString(CultureInfo.InvariantCulture),
             ["supported"] = string.Join(",", GltfImportPlanFormat.SupportedVersions)
           });
       }
-      var mode = RequiredString(root, "mode", "mode");
-      var packageKind = RequiredString(root, "package", "package") switch
-      {
-        "glb" => GltfPackageKind.Glb,
-        "gltf" => GltfPackageKind.Gltf,
-        _ => throw Malformed("package", "The import-plan package kind is invalid.")
-      };
-      var sourceSha256 = RequiredString(root, "sourceSha256", "sourceSha256");
-
-      if (mode == "newModel")
-      {
-        EnsureProperties(root, "$", "format", "version", "mode", "package", "sourceSha256", "semanticOverrides");
-        return GltfImportPlan.CreateNewModel(
-          packageKind,
-          sourceSha256,
-          ParseOverrides(Required(root, "semanticOverrides", "semanticOverrides")));
-      }
-      if (mode == "edit")
-      {
-        throw RemovedMember(
-          "mode",
-          "The edit import-plan mode was removed. Use self-contained metadata with unified mesh creation."
-        );
-      }
-      throw Malformed("mode", "The import-plan mode is invalid.");
+      EnsureProperties(root, "$", "format", "version", "semanticOverrides");
+      return GltfImportPlan.CreateNewModel(
+        ParseOverrides(Required(root, "semanticOverrides", "semanticOverrides")));
     }
 
     private static GltfNewModelImportOptions ParseOverrides(JsonElement value)
@@ -585,9 +418,6 @@ namespace EarthTool.GLTF
         writer.WriteStartObject();
         writer.WriteString("format", GltfImportPlanFormat.Identifier);
         writer.WriteNumber("version", GltfImportPlanFormat.Version);
-        writer.WriteString("mode", "newModel");
-        writer.WriteString("package", PackageName(plan.PackageKind));
-        writer.WriteString("sourceSha256", plan.SourceSha256);
         WriteOverrides(writer, plan.NewModelOptions);
         writer.WriteEndObject();
       }
@@ -970,9 +800,6 @@ namespace EarthTool.GLTF
       string message,
       IReadOnlyDictionary<string, string>? data = null) =>
       new(code, eventId, DiagnosticSeverity.Error, path, message, data: data);
-
-    private static string PackageName(GltfPackageKind packageKind) =>
-      packageKind == GltfPackageKind.Glb ? "glb" : "gltf";
 
     private sealed class ImportPlanException : Exception
     {

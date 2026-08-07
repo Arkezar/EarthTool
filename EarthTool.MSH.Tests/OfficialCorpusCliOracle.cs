@@ -313,23 +313,9 @@ internal static class OfficialCorpusCliOracle
     string planPath)
   {
     var serializer = new GltfImportPlanSerializer();
-    OperationResult<string> digest;
-    if (packageKind == GltfPackageKind.Glb)
-    {
-      await using var source = File.OpenRead(packagePath);
-      digest = await serializer.ComputeGlbSourceSha256Async(source);
-    }
-    else
-    {
-      digest = await serializer.ComputeGltfSourceSha256Async(packagePath);
-    }
-    if (!digest.Succeeded)
-    {
-      throw new InvalidDataException("The qualification package digest could not be created.");
-    }
     await using var destination = File.Create(planPath);
     var write = await serializer.SerializeAsync(
-      GltfImportPlan.CreateNewModel(packageKind, digest.Value!, options),
+      GltfImportPlan.CreateNewModel(options),
       destination);
     if (!write.Succeeded)
     {

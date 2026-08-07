@@ -1,9 +1,6 @@
 {
   "format": "earthtool.msh.import-plan",
-  "version": 2,
-  "mode": "newModel",
-  "package": "glb",
-  "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "version": 3,
   "semanticOverrides": {
     "textureResourceBindings": [
       {

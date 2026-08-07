@@ -39,7 +39,6 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String CannonRenderPositionPreviewSubstituted = "ETG1016"
   field System.String DuplicateAuthoringOwner = "ETG4001"
   field System.String EmitterHierarchyFallback = "ETG1027"
-  field System.String ImportPlanMismatch = "ETG3004"
   field System.String ImportPlanResourceLimitExceeded = "ETG3002"
   field System.String InertDataIgnored = "ETG1019"
   field System.String InvalidGeometry = "ETG1006"
@@ -78,18 +77,14 @@ public sealed class EarthTool.GLTF.GltfExportOptions
 public sealed class EarthTool.GLTF.GltfImportPlan
   property System.String Format { get; }
   property EarthTool.GLTF.GltfNewModelImportOptions NewModelOptions { get; }
-  property EarthTool.GLTF.GltfPackageKind PackageKind { get; }
-  property System.String SourceSha256 { get; }
   property System.Int32 Version { get; }
-  method EarthTool.GLTF.GltfImportPlan CreateNewModel(EarthTool.GLTF.GltfPackageKind packageKind, System.String sourceSha256, EarthTool.GLTF.GltfNewModelImportOptions? options = null)
+  method EarthTool.GLTF.GltfImportPlan CreateNewModel(EarthTool.GLTF.GltfNewModelImportOptions? options = null)
 public static class EarthTool.GLTF.GltfImportPlanFormat
   field System.String Identifier = "earthtool.msh.import-plan"
-  field System.Int32 Version = 2
+  field System.Int32 Version = 3
   property System.Collections.Generic.IReadOnlyList<System.Int32> SupportedVersions { get; }
 public sealed class EarthTool.GLTF.GltfImportPlanSerializer
   constructor GltfImportPlanSerializer()
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<System.String>> ComputeGlbSourceSha256Async(System.IO.Stream source, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
-  method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<System.String>> ComputeGltfSourceSha256Async(System.String sourcePath, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult<EarthTool.GLTF.GltfImportPlan>> DeserializeAsync(System.IO.Stream source, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
   method System.Threading.Tasks.Task<EarthTool.Common.Operations.OperationResult> SerializeAsync(EarthTool.GLTF.GltfImportPlan plan, System.IO.Stream destination, EarthTool.GLTF.GltfOperationProfile? profile = null, System.Threading.CancellationToken cancellationToken = default)
 public sealed class EarthTool.GLTF.GltfInterchange

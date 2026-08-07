@@ -865,18 +865,25 @@ public sealed class InternalMshCommandHostTests
   }
 
   [Fact]
-  public async Task StaleImportPlanFailsWithoutReplacingTheDestination()
+  public async Task FailedPlanImportDoesNotReplaceTheDestination()
   {
     using var fixture = await CliFixture.CreateAsync();
     await fixture.CreateMetadataFreeGlbAsync();
-    var planPath = await fixture.CreateNewModelPlanAsync(new GltfNewModelImportOptions());
-    await File.AppendAllTextAsync(fixture.GlbPath, "stale");
-    var outputDirectory = Path.Combine(fixture.Directory, "stale-plan");
+    var planPath = Path.Combine(fixture.Directory, "legacy-package-plan.json");
+    await File.WriteAllTextAsync(planPath, """
+      {
+        "format": "earthtool.msh.import-plan",
+        "version": 3,
+        "package": "glb",
+        "semanticOverrides": {}
+      }
+      """);
+    var outputDirectory = Path.Combine(fixture.Directory, "mismatched-plan");
     System.IO.Directory.CreateDirectory(outputDirectory);
     var destination = Path.Combine(outputDirectory, "model.msh");
     var original = new byte[] { 9, 8, 7 };
     await File.WriteAllBytesAsync(destination, original);
-    var reportPath = Path.Combine(fixture.Directory, "stale-plan-report.json");
+    var reportPath = Path.Combine(fixture.Directory, "mismatched-plan-report.json");
 
     var exitCode = await InternalMshCommandHost.RunAsync(
     [
@@ -891,45 +898,30 @@ public sealed class InternalMshCommandHostTests
     using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
     report.RootElement.GetProperty("operations")[0].GetProperty("diagnostics")
       .EnumerateArray().Select(item => item.GetProperty("code").GetString()).Should()
-      .Contain(GltfDiagnosticCodes.ImportPlanMismatch);
+      .Contain(GltfDiagnosticCodes.MalformedImportPlan);
   }
 
   [Fact]
-  public async Task ImportRejectsEditModeAndWrongPackagePlans()
+  public async Task ImportRejectsLegacyModePlan()
   {
     using var fixture = await CliFixture.CreateAsync();
     await fixture.CreateMetadataFreeGlbAsync();
     var editPlanPath = await fixture.CreateEditPlanAsync("edit-plan.json");
-    var packagePlanPath = await fixture.CreateNewModelPlanAsync(
-      new GltfNewModelImportOptions(),
-      GltfPackageKind.Gltf,
-      "package-plan.json");
 
-    foreach (var (planPath, expectedCode, dimension) in new[]
-    {
-      (editPlanPath, GltfDiagnosticCodes.RemovedImportPlanMember, "mode"),
-      (packagePlanPath, GltfDiagnosticCodes.ImportPlanMismatch, "package")
-    })
-    {
-      var reportPath = Path.Combine(fixture.Directory, $"{dimension}-mismatch-report.json");
-      var exitCode = await InternalMshCommandHost.RunAsync(
-      [
-        "msh", "import", fixture.GlbPath,
-        "--plan", planPath,
-        "--report", reportPath
-      ], TextWriter.Null);
+    var reportPath = Path.Combine(fixture.Directory, "mode-mismatch-report.json");
+    var exitCode = await InternalMshCommandHost.RunAsync(
+    [
+      "msh", "import", fixture.GlbPath,
+      "--plan", editPlanPath,
+      "--report", reportPath
+    ], TextWriter.Null);
 
-      exitCode.Should().Be(CliExitCode.Failure);
-      using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
-      var diagnostic = report.RootElement.GetProperty("operations")[0]
-        .GetProperty("diagnostics").EnumerateArray().Should().ContainSingle().Subject;
-      diagnostic.GetProperty("code").GetString().Should().Be(expectedCode);
-      diagnostic.GetProperty("path").GetString().Should().Be(dimension);
-      if (expectedCode == GltfDiagnosticCodes.ImportPlanMismatch)
-      {
-        diagnostic.GetProperty("data").GetProperty("dimension").GetString().Should().Be(dimension);
-      }
-    }
+    exitCode.Should().Be(CliExitCode.Failure);
+    using var report = JsonDocument.Parse(await File.ReadAllBytesAsync(reportPath));
+    var diagnostic = report.RootElement.GetProperty("operations")[0]
+      .GetProperty("diagnostics").EnumerateArray().Should().ContainSingle().Subject;
+    diagnostic.GetProperty("code").GetString().Should().Be(GltfDiagnosticCodes.MalformedImportPlan);
+    diagnostic.GetProperty("path").GetString().Should().Be("$.mode");
   }
 
   [Fact]
@@ -1466,14 +1458,9 @@ public sealed class InternalMshCommandHostTests
 
     public async Task<string> CreateNewModelPlanAsync(
       GltfNewModelImportOptions options,
-      GltfPackageKind packageKind = GltfPackageKind.Glb,
       string fileName = "import-plan.json")
     {
-      var serializer = new GltfImportPlanSerializer();
-      await using var source = File.OpenRead(GlbPath);
-      var digest = await serializer.ComputeGlbSourceSha256Async(source);
-      digest.Status.Should().Be(OperationStatus.Succeeded);
-      var plan = GltfImportPlan.CreateNewModel(packageKind, digest.Value!, options);
+      var plan = GltfImportPlan.CreateNewModel(options);
       var planPath = Path.Combine(Directory, fileName);
       await WritePlanAsync(plan, planPath);
       return planPath;
@@ -1481,23 +1468,13 @@ public sealed class InternalMshCommandHostTests
 
     public async Task<string> CreateEditPlanAsync(string fileName)
     {
-      var serializer = new GltfImportPlanSerializer();
-      await using var source = File.OpenRead(GlbPath);
-      var digest = await serializer.ComputeGlbSourceSha256Async(source);
-      digest.Status.Should().Be(OperationStatus.Succeeded);
       var planPath = Path.Combine(Directory, fileName);
       await File.WriteAllTextAsync(planPath, $$"""
         {
           "format": "earthtool.msh.import-plan",
-          "version": 2,
+          "version": 3,
           "mode": "edit",
-          "package": "glb",
-          "sourceSha256": "{{digest.Value}}",
-          "expectedBaseline": {
-            "assetLineageId": "aaaaaaaa-1111-4222-8333-bbbbbbbbbbbb",
-            "documentId": "cccccccc-4444-4555-8666-dddddddddddd"
-          },
-          "conflictActions": []
+          "semanticOverrides": {}
         }
         """);
       return planPath;

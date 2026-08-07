@@ -5,7 +5,6 @@ using EarthTool.MSH.Assets;
 using EarthTool.MSH.Operations;
 using EarthTool.MSH.Services;
 using System.Buffers.Binary;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -21,8 +20,6 @@ public class GltfPlanAndReportTests
   public async Task NewModelPlanRoundTripsExplicitDynamicMeshResourceBindings()
   {
     var plan = GltfImportPlan.CreateNewModel(
-      GltfPackageKind.Glb,
-      new string('a', 64),
       new GltfNewModelImportOptions(
         meshResourceBindings: new Dictionary<GltfNodeHandle, string>
         {
@@ -49,11 +46,9 @@ public class GltfPlanAndReportTests
   }
 
   [Fact]
-  public async Task VersionTwoNewModelPlanRoundTripsEveryTypedAuthoringInput()
+  public async Task VersionThreeNewModelPlanRoundTripsEveryTypedAuthoringInput()
   {
     var plan = GltfImportPlan.CreateNewModel(
-      GltfPackageKind.Glb,
-      new string('a', 64),
       new GltfNewModelImportOptions(
         textureResourceBindings: new Dictionary<GltfMaterialHandle, string?>
         {
@@ -87,18 +82,16 @@ public class GltfPlanAndReportTests
     firstWrite.Status.Should().Be(OperationStatus.Succeeded);
     secondWrite.Status.Should().Be(OperationStatus.Succeeded);
     first.ToArray().Should().Equal(second.ToArray());
-    AssertJsonApproval("gltf-import-plan-v2", first.ToArray());
+    AssertJsonApproval("gltf-import-plan-v3", first.ToArray());
     read.Status.Should().Be(
       OperationStatus.Succeeded,
       string.Join("; ", read.Diagnostics.Select(diagnostic => $"{diagnostic.Code}:{diagnostic.Path}:{diagnostic.Message}")));
     read.Value!.Format.Should().Be(GltfImportPlanFormat.Identifier);
-    read.Value.Version.Should().Be(2);
-    read.Value.PackageKind.Should().Be(GltfPackageKind.Glb);
-    read.Value.SourceSha256.Should().Be(new string('a', 64));
+    read.Value.Version.Should().Be(3);
     read.Value.NewModelOptions.TextureResourceBindings.Should().ContainKey(new GltfMaterialHandle(1));
     read.Value.NewModelOptions.ObjectRoles[new GltfNodeHandle(2)].BarrelMaximumAngle.Should().Be(32);
     read.Value.NewModelOptions.StaticLightOptions[new GltfLightHandle(1)].TargetDistance.Should().Be(12.5f);
-    GltfImportPlanFormat.SupportedVersions.Should().Equal(2);
+    GltfImportPlanFormat.SupportedVersions.Should().Equal(3);
     GltfCliReportFormat.SupportedVersions.Should().Equal(2);
   }
 
@@ -106,14 +99,12 @@ public class GltfPlanAndReportTests
   [InlineData("helperBindings", "semanticOverrides.helperBindings", "canonical authoring identifiers")]
   [InlineData("animationClasses", "semanticOverrides.animationClasses", "EarthTool A")]
   [InlineData("markerAttachment1", "semanticOverrides.objectRoles[].roles", "ET_Emitter_1")]
-  public async Task VersionTwoPlanRejectsRemovedInputsWithMigrationDiagnostics(
+  public async Task VersionThreePlanRejectsRemovedInputsWithMigrationDiagnostics(
     string removedInput,
     string expectedPath,
     string expectedMigration)
   {
     var plan = GltfImportPlan.CreateNewModel(
-      GltfPackageKind.Glb,
-      new string('a', 64),
       new GltfNewModelImportOptions(objectRoles:
         new Dictionary<GltfNodeHandle, GltfNewModelObjectRole>
         {
@@ -123,7 +114,6 @@ public class GltfPlanAndReportTests
     (await new GltfImportPlanSerializer().SerializeAsync(plan, serialized)).Status.Should()
       .Be(OperationStatus.Succeeded);
     var root = JsonNode.Parse(serialized.ToArray())!.AsObject();
-    root["version"] = 2;
     var overrides = root["semanticOverrides"]!.AsObject();
     if (removedInput is "helperBindings" or "animationClasses")
     {
@@ -149,7 +139,7 @@ public class GltfPlanAndReportTests
   [Fact]
   public async Task VersionOnePlanIsRejectedWithAnActionableUpgradeDiagnostic()
   {
-    var plan = GltfImportPlan.CreateNewModel(GltfPackageKind.Glb, new string('a', 64));
+    var plan = GltfImportPlan.CreateNewModel();
     await using var serialized = new MemoryStream();
     (await new GltfImportPlanSerializer().SerializeAsync(plan, serialized)).Status.Should()
       .Be(OperationStatus.Succeeded);
@@ -165,38 +155,61 @@ public class GltfPlanAndReportTests
       diagnostic.Code == GltfDiagnosticCodes.UnsupportedImportPlanVersion
       && diagnostic.EventId == 3001
       && diagnostic.Path == "version"
-      && diagnostic.Message.Contains("protocol version 2", StringComparison.Ordinal)
+      && diagnostic.Message.Contains("protocol version 3", StringComparison.Ordinal)
       && diagnostic.Data["actual"] == "1"
-      && diagnostic.Data["supported"] == "2");
+      && diagnostic.Data["supported"] == "3");
   }
 
   [Fact]
-  public async Task SerializedEditModeIsRejectedAsRemoved()
+  public async Task VersionTwoPlanIsRejectedWithAnActionableUpgradeDiagnostic()
+  {
+    var plan = GltfImportPlan.CreateNewModel();
+    await using var serialized = new MemoryStream();
+    (await new GltfImportPlanSerializer().SerializeAsync(plan, serialized)).Status.Should()
+      .Be(OperationStatus.Succeeded);
+    var root = JsonNode.Parse(serialized.ToArray())!.AsObject();
+    root["version"] = 2;
+    await using var source = new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
+
+    var result = await new GltfImportPlanSerializer().DeserializeAsync(source);
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Value.Should().BeNull();
+    result.Diagnostics.Should().ContainSingle().Subject.Should().Match<OperationDiagnostic>(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.UnsupportedImportPlanVersion
+      && diagnostic.EventId == 3001
+      && diagnostic.Path == "version"
+      && diagnostic.Message.Contains("protocol version 3", StringComparison.Ordinal)
+      && diagnostic.Data["actual"] == "2"
+      && diagnostic.Data["supported"] == "3");
+  }
+
+  [Fact]
+  public async Task SerializedModeMemberIsRejectedAsUnsupported()
   {
     var serializer = new GltfImportPlanSerializer();
     await using var stream = new MemoryStream();
-    var plan = GltfImportPlan.CreateNewModel(GltfPackageKind.Gltf, new string('b', 64));
+    var plan = GltfImportPlan.CreateNewModel();
     (await serializer.SerializeAsync(plan, stream)).Status.Should().Be(OperationStatus.Succeeded);
     var root = JsonNode.Parse(stream.ToArray())!.AsObject();
     root["mode"] = "edit";
-    await using var serializedEdit = new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
+    await using var serializedMode = new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
 
-    var read = await serializer.DeserializeAsync(serializedEdit);
+    var read = await serializer.DeserializeAsync(serializedMode);
 
     read.Status.Should().Be(OperationStatus.Failed);
     read.Value.Should().BeNull();
     read.Diagnostics.Should().ContainSingle().Subject.Should().Match<OperationDiagnostic>(diagnostic =>
-      diagnostic.Code == GltfDiagnosticCodes.RemovedImportPlanMember
-      && diagnostic.EventId == 3005
-      && diagnostic.Path == "mode"
-      && diagnostic.Message.Contains("unified mesh creation", StringComparison.Ordinal));
+      diagnostic.Code == GltfDiagnosticCodes.MalformedImportPlan
+      && diagnostic.EventId == 3000
+      && diagnostic.Path == "$.mode");
   }
 
   [Theory]
   [InlineData("{", GltfDiagnosticCodes.MalformedImportPlan, 3000)]
-  [InlineData("{\"format\":\"earthtool.msh.import-plan\",\"version\":3}", GltfDiagnosticCodes.UnsupportedImportPlanVersion, 3001)]
-  [InlineData("{\"format\":\"earthtool.msh.import-plan\",\"version\":2,\"mode\":\"newModel\",\"package\":\"glb\",\"sourceSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"rawMsh\":\"AA==\",\"semanticOverrides\":{}}", GltfDiagnosticCodes.MalformedImportPlan, 3000)]
-  [InlineData("{\"format\":\"earthtool.msh.import-plan\",\"format\":\"earthtool.msh.import-plan\",\"version\":2}", GltfDiagnosticCodes.MalformedImportPlan, 3000)]
+  [InlineData("{\"format\":\"earthtool.msh.import-plan\",\"version\":4}", GltfDiagnosticCodes.UnsupportedImportPlanVersion, 3001)]
+  [InlineData("{\"format\":\"earthtool.msh.import-plan\",\"version\":3,\"package\":\"glb\",\"sourceSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"rawMsh\":\"AA==\",\"semanticOverrides\":{}}", GltfDiagnosticCodes.MalformedImportPlan, 3000)]
+  [InlineData("{\"format\":\"earthtool.msh.import-plan\",\"format\":\"earthtool.msh.import-plan\",\"version\":3}", GltfDiagnosticCodes.MalformedImportPlan, 3000)]
   public async Task InvalidPlansFailWithStableDiagnostics(string json, string code, int eventId)
   {
     await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
@@ -245,27 +258,6 @@ public class GltfPlanAndReportTests
   }
 
   [Fact]
-  public async Task NewModelPlanRejectsAMismatchedSourceBeforeImport()
-  {
-    var source = await CreateMetadataFreeGlbAsync();
-    var digest = Sha256(source);
-    var plan = GltfImportPlan.CreateNewModel(
-      GltfPackageKind.Glb,
-      (digest[0] == '0' ? "1" : "0") + digest.Substring(1),
-      new GltfNewModelImportOptions());
-    await using var stream = new MemoryStream(source);
-
-    var result = await new GltfInterchange().CreateMeshWithPlanAsync(stream, plan);
-
-    result.Status.Should().Be(OperationStatus.Failed);
-    result.Value.Should().BeNull();
-    result.Diagnostics.Should().ContainSingle().Subject.Should().Match<OperationDiagnostic>(diagnostic =>
-      diagnostic.Code == GltfDiagnosticCodes.ImportPlanMismatch
-      && diagnostic.EventId == 3004
-      && diagnostic.Path == "sourceSha256");
-  }
-
-  [Fact]
   public async Task DeserializedNewModelPlanReplaysEverySupportedTypedAuthoringInput()
   {
     var sourceAsset = await ReadAssetAsync(StaticLightMshFixture.Create(
@@ -289,8 +281,6 @@ public class GltfPlanAndReportTests
       .Be(OperationStatus.Succeeded);
     var source = RemoveMetadata(exported.ToArray());
     var plan = GltfImportPlan.CreateNewModel(
-      GltfPackageKind.Glb,
-      Sha256(source),
       new GltfNewModelImportOptions(
         textureResourceBindings: new Dictionary<GltfMaterialHandle, string?>
         {
@@ -344,8 +334,6 @@ public class GltfPlanAndReportTests
   public async Task PublicPlanCannotBypassSerializedByteLimits()
   {
     var plan = GltfImportPlan.CreateNewModel(
-      GltfPackageKind.Glb,
-      new string('a', 64),
       new GltfNewModelImportOptions(new Dictionary<GltfMaterialHandle, string?>
       {
         [new GltfMaterialHandle(1)] = "Textures\\" + new string('x', 128) + ".tex"
@@ -365,14 +353,12 @@ public class GltfPlanAndReportTests
   }
 
   [Fact]
-  public async Task SeparateGltfPlanReplaysAgainstTheCapturedPackage()
+  public async Task SeparateGltfPlanReplaysAgainstThePackage()
   {
     var fixture = await CreateMetadataFreeSeparateGltfAsync();
     try
     {
-      var plan = GltfImportPlan.CreateNewModel(
-        GltfPackageKind.Gltf,
-        fixture.SourceSha256);
+      var plan = GltfImportPlan.CreateNewModel();
 
       var result = await new GltfInterchange().CreateMeshFileWithPlanAsync(
         fixture.SourcePath,
@@ -390,44 +376,12 @@ public class GltfPlanAndReportTests
   }
 
   [Fact]
-  public async Task SeparateGltfPlanRejectsAChangedBufferSidecar()
+  public async Task UnifiedCreationReplaysSeparateGltfPlan()
   {
     var fixture = await CreateMetadataFreeSeparateGltfAsync();
     try
     {
-      var binary = await File.ReadAllBytesAsync(fixture.BufferPath);
-      binary[0] ^= 0x01;
-      await File.WriteAllBytesAsync(fixture.BufferPath, binary);
-      var plan = GltfImportPlan.CreateNewModel(
-        GltfPackageKind.Gltf,
-        fixture.SourceSha256);
-
-      var result = await new GltfInterchange().CreateMeshFileWithPlanAsync(
-        fixture.SourcePath,
-        plan);
-
-      result.Status.Should().Be(OperationStatus.Failed);
-      result.Value.Should().BeNull();
-      result.Diagnostics.Should().ContainSingle().Subject.Should().Match<OperationDiagnostic>(diagnostic =>
-        diagnostic.Code == GltfDiagnosticCodes.ImportPlanMismatch
-        && diagnostic.EventId == 3004
-        && diagnostic.Path == "sourceSha256");
-    }
-    finally
-    {
-      Directory.Delete(fixture.Directory, true);
-    }
-  }
-
-  [Fact]
-  public async Task UnifiedCreationReplaysSeparateGltfPlanAndRejectsAChangedSidecar()
-  {
-    var fixture = await CreateMetadataFreeSeparateGltfAsync();
-    try
-    {
-      var plan = GltfImportPlan.CreateNewModel(
-        GltfPackageKind.Gltf,
-        fixture.SourceSha256);
+      var plan = GltfImportPlan.CreateNewModel();
       var interchange = new GltfInterchange();
 
       var created = await interchange.CreateMeshFileWithPlanAsync(fixture.SourcePath, plan);
@@ -436,18 +390,6 @@ public class GltfPlanAndReportTests
         OperationStatus.Succeeded,
         string.Join("; ", created.Diagnostics.Select(diagnostic => diagnostic.Message)));
       created.Value.Should().BeOfType<StaticMeshAsset>();
-
-      var binary = await File.ReadAllBytesAsync(fixture.BufferPath);
-      binary[0] ^= 0x01;
-      await File.WriteAllBytesAsync(fixture.BufferPath, binary);
-
-      var changed = await interchange.CreateMeshFileWithPlanAsync(fixture.SourcePath, plan);
-
-      changed.Status.Should().Be(OperationStatus.Failed);
-      changed.Value.Should().BeNull();
-      changed.Diagnostics.Should().ContainSingle().Subject.Should().Match<OperationDiagnostic>(diagnostic =>
-        diagnostic.Code == GltfDiagnosticCodes.ImportPlanMismatch
-        && diagnostic.Path == "sourceSha256");
     }
     finally
     {
@@ -537,7 +479,7 @@ public class GltfPlanAndReportTests
     return RemoveMetadata(stream.ToArray());
   }
 
-  private static async Task<(string Directory, string SourcePath, string BufferPath, string SourceSha256)>
+  private static async Task<(string Directory, string SourcePath, string BufferPath)>
     CreateMetadataFreeSeparateGltfAsync()
   {
     var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
@@ -551,9 +493,7 @@ public class GltfPlanAndReportTests
     SetCanonicalStaticNames(root);
     await File.WriteAllTextAsync(sourcePath, root.ToJsonString());
     var bufferName = root["buffers"]![0]!["uri"]!.GetValue<string>();
-    var digest = await new GltfImportPlanSerializer().ComputeGltfSourceSha256Async(sourcePath);
-    digest.Status.Should().Be(OperationStatus.Succeeded);
-    return (directory, sourcePath, Path.Combine(directory, bufferName), digest.Value!);
+    return (directory, sourcePath, Path.Combine(directory, bufferName));
   }
 
   private static byte[] RemoveMetadata(byte[] glb)
@@ -622,11 +562,6 @@ public class GltfPlanAndReportTests
     {
       node!["name"] = $"ET_Static_{number++}";
     }
-  }
-
-  private static string Sha256(byte[] value)
-  {
-    return Convert.ToHexString(SHA256.HashData(value)).ToLowerInvariant();
   }
 
   private static void AssertJsonApproval(string name, byte[] value)

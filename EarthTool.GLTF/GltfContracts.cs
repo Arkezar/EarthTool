@@ -114,9 +114,6 @@ namespace EarthTool.GLTF
     /// <summary>The import plan exceeds its finite operation profile.</summary>
     public const string ImportPlanResourceLimitExceeded = "ETG3002";
 
-    /// <summary>The plan does not match the selected import or source package.</summary>
-    public const string ImportPlanMismatch = "ETG3004";
-
     /// <summary>The import plan contains an input removed from the current protocol.</summary>
     public const string RemovedImportPlanMember = "ETG3005";
 
