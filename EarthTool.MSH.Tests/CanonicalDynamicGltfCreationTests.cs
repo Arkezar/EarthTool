@@ -388,7 +388,7 @@ public sealed class CanonicalDynamicGltfCreationTests
     var sourceFree = RewriteGlb(exported.ToArray(), root =>
     {
       root["scenes"]![0]!.AsObject().Remove("extras");
-      root["nodes"]![1]!["extras"] = new JsonObject { ["earthtool"] = metadata };
+      root["nodes"]![1]!["extras"] = new JsonObject { ["earthtoolAuthoring"] = metadata };
     });
     var options = new GltfNewModelImportOptions(
       textureResourceBindings: new Dictionary<GltfMaterialHandle, string?>
@@ -494,7 +494,7 @@ public sealed class CanonicalDynamicGltfCreationTests
       }
       else
       {
-        root["nodes"]![1]!["extras"] = new JsonObject { ["earthtool"] = metadata };
+        root["nodes"]![1]!["extras"] = new JsonObject { ["earthtoolAuthoring"] = metadata };
       }
     });
   }

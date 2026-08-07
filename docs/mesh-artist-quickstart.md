@@ -1,22 +1,25 @@
 # Mesh Artist Quick Start And Cheat Sheet
 
-This guide is for graphics artists who want to modify an existing static Earth 2150 mesh, add geometry to an existing static mesh, or author a new static MSH in Blender. EarthTool uses glTF 2.0 as its artist interchange format and targets Blender 4.5 LTS or later. Dynamic MSH exports are effect previews with effect-specific edit rules; see the [dynamic effect-preview contract](api/gltf.md#dynamic-effect-preview-contract) instead of applying the static workflow below.
+This guide is for artists modifying or creating Earth 2150 meshes in Blender
+4.5 LTS or later. EarthTool uses glTF 2.0 as an artist interchange format. Every
+GLB and separate glTF import creates a new canonical MSH; it never restores the
+exported source MSH.
+
+Dynamic MSH files are effect previews with effect-specific rules. See the
+[dynamic effect-preview contract](api/gltf.md#dynamic-effect-preview-contract).
 
 ## Choose The Correct Workflow
 
-| Goal | Command | Important rule |
+| Goal | Workflow | Important rule |
 |---|---|---|
-| Modify an existing MSH | `msh export`, then `msh import` | Keep the self-contained EarthTool metadata |
-| Add a mesh object to an existing MSH | `msh export`, add an untagged Blender object, then `msh import` | Remove copied `earthtool` properties from the new object and mesh |
-| Create a standalone MSH | Export metadata-free glTF from Blender, then `msh import` | Review the expected missing-metadata warning |
+| Modify a static MSH projection | `msh export`, edit, then `msh import` | The result is canonical regeneration, not a byte-preserving edit |
+| Add a static source object | Add a mesh-bearing node named `ET_Static_{n}` | Names are strict, case-sensitive, positive, and unique |
+| Create a standalone static MSH | Export glTF from Blender, then `msh import` | Use canonical owner/helper names and explicit resource bindings |
+| Create or modify a dynamic MSH | Start from an EarthTool dynamic export | Keep `ET_Dynamic_{n}_{Effect}` names and supply TEX/MSH bindings explicitly |
 
 Back up the original WD archive and MSH before starting.
 
-The command examples use Bash line continuations. In PowerShell, put the same command and options on one line, replace `$(pwd)` with an absolute path, and use `New-Item -ItemType Directory -Force <path>` in place of `mkdir -p <path>`.
-
-## Modify An Existing Mesh
-
-### 1. Extract and export
+## Export An MSH
 
 ```bash
 EarthTool.CLI wd extract Data01.wd --filter "model.msh" -o ./work
@@ -29,18 +32,20 @@ EarthTool.CLI msh export \
   ./work/model.msh
 ```
 
-`--tex-root` resolves game TEX previews. `--msh-root` resolves static MSH geometry used by dynamic `ScalableObject` previews.
+`--tex-root` resolves decoded TEX previews. `--msh-root` resolves static MSH
+geometry used by dynamic `ScalableObject` previews. These are export-only preview
+roots; they do not embed game resource keys in glTF metadata.
 
-Keep `export-report.json` as an audit record. Import does not require identities
-from it because the GLB or separate glTF package carries self-contained metadata.
+Review export diagnostics before editing. `ETG1030` warns that a source-only MSH
+representation cannot be carried by glTF and will not survive later canonical
+creation.
 
-### 2. Import into Blender
+## Import Into Blender
 
-Before importing, set the Blender scene to **24 FPS** with an FPS base of `1.0`. Blender converts glTF seconds to frame numbers during import, so changing FPS afterward can retime the clips.
+Set the scene to **24 FPS** with an FPS base of `1.0` before importing. Use
+**File > Import > glTF 2.0** and select the GLB or separate glTF manifest.
 
-Use **File > Import > glTF 2.0** and select `model.glb`.
-
-Recommended import settings:
+Recommended settings:
 
 | Setting | Value |
 |---|---|
@@ -49,25 +54,38 @@ Recommended import settings:
 | Import Scene Extras | On |
 | Shading | Normals |
 
-Keep the generated `earthtool` custom properties. They identify the source objects, mesh data, materials, lights, and metadata needed for a safe edit.
+EarthTool exports typed values in the `earthtoolAuthoring` custom property on
+strict canonical named nodes. Keep that property when its MSH-only values are
+needed. It contains no source MSH, interchange identity, or resource binding.
+Legacy `earthtool` properties are ignored and can be removed.
 
-### 3. Edit or add geometry
+## Edit The Scene
 
-- Edit mesh geometry, UVs, normals, transforms, hierarchy, material assignment, animation, attachment empties, and supported lights within the constraints below.
-- Keep triangles as the final topology. Apply triangulation before export if the result must be predictable.
-- Keep vertex merging off. Equal-position vertices can carry different MSH meaning.
-- Material images, colors, and names are previews; changing them does not select another game TEX resource. Existing texture bindings remain in EarthTool metadata.
-- Keep `ET_...` helpers canonical and case-sensitive. Renumbering within the same
-  helper family is supported when the destination is free; changing families
-  requires deleting the old helper and creating a new one.
-- Attachment empties support translation and heading/yaw. Pitch, roll, shear, or a non-decomposable transform is not a supported MSH attachment pose; finite scale is ignored.
-- Do not delete custom properties from existing EarthTool objects.
-- To add an object, duplicate or create it, make its mesh data single-user, and remove the `earthtool` custom property from only the new Object and its new Mesh datablock. EarthTool will allocate fresh identities during edit import.
-- A duplicate that retains an existing `earthtool` identity is ambiguous and the import will fail instead of guessing.
+- Keep final geometry triangular, finite, and supplied with normals. Textured
+  primitives also require UVs.
+- Keep vertex merging off while working from an export. Equal-position vertices
+  can have different visible attributes.
+- Preserve exact case in `ET_Static_{n}`, `ET_Dynamic_{n}_{Effect}`, helper, and
+  light names. Ordinals are positive and have no leading zero.
+- Mesh-bearing `ET_Static_{n}` nodes define the static source-object tree. Native
+  parent/child transforms and primitive material assignment author the result.
+- Transform-only groups collapse into descendant effective poses.
+- Material images, names, and pixels are previews. They never select a TEX key.
+- Borrowed `ScalableObject` geometry is a preview. It never selects an MSH key.
+- Attachment empties support translation and horizontal heading. Unsupported
+  pitch, roll, shear, or non-decomposable transforms fail canonical creation.
+- Unknown scene objects remain scene-only or produce diagnostics. They do not
+  acquire MSH meaning from display-name similarity.
 
-### 4. Preview all animation classes
+There are no copied object, mesh, material, or scope identities to remove when
+duplicating geometry. Assign every authored MSH owner a unique canonical name and
+ensure the resulting hierarchy is unambiguous.
 
-EarthTool exports the four MSH animation classes as `EarthTool A` through `EarthTool D`. Blender activates the first imported animation and normally stores the others as muted NLA strips. Run this in Blender's **Scripting** workspace to enable every EarthTool track and attach each object's Action slot so its keys appear in the Dope Sheet's Action Editor:
+## Preview Animation Classes
+
+EarthTool exports classes as `EarthTool A` through `EarthTool D`. Blender
+normally activates the first imported animation and stores others as muted NLA
+strips. Run this in Blender's **Scripting** workspace to enable the strips:
 
 ```python
 import bpy
@@ -83,7 +101,6 @@ for obj in bpy.context.scene.objects:
     for track in animation_data.nla_tracks:
         if track.name not in animation_names:
             continue
-
         track.mute = False
         track.is_solo = False
         for strip in track.strips:
@@ -98,29 +115,30 @@ for obj in bpy.context.scene.objects:
         animation_data.action_slot = strip.action_slot
 ```
 
-Each EarthTool mesh object belongs to at most one animation class, so the script attaches its single imported Action/slot. For a standalone new model, name animation Actions exactly `EarthTool A`, `EarthTool B`, `EarthTool C`, or `EarthTool D`. Use integer frames `0..254`; each mesh object may participate in only one class.
+For authored animations, use only the four exact action names, integer frames
+`0..254`, and finite supported TRS channels. One mesh object can participate in
+at most one class.
 
-### 5. Export from Blender
+## Export From Blender
 
-Use **File > Export > glTF 2.0** and choose **glTF Binary (`.glb`)**.
-
-Required or recommended export settings:
+Use **File > Export > glTF 2.0** and choose **glTF Binary (`.glb`)** or separate
+glTF.
 
 | Setting | Value | Why |
 |---|---|---|
-| Custom Properties / Extras | On | Preserves EarthTool metadata |
-| Attributes | On | Preserves supported custom mesh attributes |
-| Lights | On | Preserves editable attachment lights |
-| Animations | On | Exports `EarthTool A..D` Actions |
+| Custom Properties / Extras | On | Carries `earthtoolAuthoring` typed values |
+| Attributes | On | Exports supported mesh attributes |
+| Lights | On | Exports canonical punctual-light artist objects |
+| Animations | On | Exports `EarthTool A` through `EarthTool D` actions |
 | Animation mode | Actions | Keeps independent class clips |
-| Always Sample Animations | On | Produces the supported dense TRS projection |
+| Always Sample Animations | On | Produces dense supported TRS channels |
 | Sampling rate | `1` | Samples every integer frame |
 | Y Up | On | Keeps the glTF coordinate contract |
-| Apply Modifiers | Off | Avoids changing identity-sensitive topology unexpectedly |
+| Apply Modifiers | Off | Avoids unexpected topology changes |
 
-Export to a new file so the original EarthTool baseline remains available for comparison and recovery.
+## Create The Canonical MSH
 
-### 6. Import the edit and install it
+Resource-free packages can be imported directly:
 
 ```bash
 mkdir -p ./work/built
@@ -130,106 +148,97 @@ EarthTool.CLI msh import \
   --report ./work/import-report.json
 ```
 
-Install the resulting MSH into a copy of the archive:
+Use a version-2 plan when the package needs values that glTF cannot safely
+express:
+
+```bash
+EarthTool.CLI msh import \
+  ./work/model-edited.glb \
+  --plan ./work/import-plan.json \
+  --output ./work/built \
+  --report ./work/import-report.json
+```
+
+The plan is bound to the exact GLB or complete separate glTF package. Generate a
+new source digest after every Blender export. There is one canonical creation
+mode; old edit-mode plans are rejected.
+
+| Typed input | When it is needed |
+|---|---|
+| TEX resource binding | Every textured material used by a mesh primitive; map its one-based document-local material handle to the game TEX key |
+| MSH resource binding | Every dynamic `ScalableObject`; map its owning node handle to the game MSH key |
+| Footprint | To replace the one-cell maximum-height default |
+| Horizontal extents | To replace effective geometry bounds |
+| Object roles and barrel angle | For `ViewerFaced`, `Barrel`, or `Rotor` semantics not expressed by native glTF |
+| Static-light values | For MSH-only target distance or terrain-light amplitude |
+
+The CLI report records operation status, paths, diagnostics, asset kind, and the
+new mesh creation GUID. It has no source-restoration, conflict-action, or
+preservation section.
+
+Install the new MSH into a copy of the archive:
 
 ```bash
 EarthTool.CLI wd add Data01.wd ./work/built/model-edited.msh -o ModdedData01.wd
 ```
 
-The archive entry name must match the resource name expected by the game. Rename the built file before adding it when replacing an existing resource.
+The archive entry name must match the resource name expected by the game.
 
-## Create A Standalone MSH
+## Static Authoring Defaults
 
-1. Start with a clean Blender file that contains no `earthtool` custom properties.
-2. Build one rooted **source object tree**. Mesh-bearing nodes become source
-   objects, their primitives become static render-object material partitions,
-   and transform-only groups collapse into their descendants' effective poses.
-   Use triangle meshes, finite positions and normals, UVs for textured materials,
-   and optional canonical helpers from the table below.
-3. Export GLB using the settings above.
-4. Import it with:
-
-```bash
-mkdir -p ./built
-EarthTool.CLI msh import model.glb --output ./built --report ./new-report.json
-```
-
-Metadata-free import creates a static MSH. Hierarchy inference is always active; the
-CLI and library use the same contract without an additional flag. A plan is only
-needed for values that glTF cannot evidence safely or when replacing a documented
-canonical authoring default:
-
-| Input | Without a plan | Plan behavior |
-|---|---|---|
-| Source object tree and material partitions | Inferred from mesh-bearing nodes, hierarchy, and primitive assignment | No replacement member exists |
-| Attachments, cannons, emitters, and static lights | Inferred from case-sensitive canonical authoring identifiers; emitter marker ownership comes from the nearest source-object ancestor | Helper and marker binding members are rejected |
-| Animation classes | Inferred from unique `EarthTool A` through `EarthTool D` clips | Animation-class binding members are rejected |
-| TEX resource binding | No key is guessed from material/image names, URI, or pixels; a referenced base-color image without a key fails with `ETG1029` | Required for each textured material used by a mesh primitive, by document-local material handle; unused bindings are rejected |
-| Footprint | One `0x8000` cell whose top is the maximum effective mesh height | Optional complete replacement |
-| Horizontal extents | Derived from effective root-local positions | Optional complete replacement |
-| Static-light target distance | Positive spot range is used; absence requires a typed value | Supplies distance only when range is absent; simultaneous authorities fail |
-| Terrain-light amplitude | Defaults to `1.0`; photometric intensity is ignored with `ETG1028` when non-default | Optional replacement |
-| Non-marker object roles and barrel maximum angle | Never guessed from display names | `ViewerFaced`, `Barrel`, `Rotor`, and angle remain typed inputs |
-
-Version 2 plans are bound to intent, package kind, and the exact source digest.
-Use the same import command with `--plan ./import-plan.json` when one of the typed
-values above is needed. Old helper bindings, animation-class bindings, and marker
-roles fail with the `ETG3005` migration diagnostic instead of becoming no-ops.
-See the [complete authority and inference matrix](api/gltf.md#static-authoring-authority-and-inference-matrix)
-for edit/new-model differences, lifecycle behavior, and conflict rules.
-
-### Read the import report
-
-The CLI summary is enough for an interactive success check. Keep `--report` for
-automation and review: each operation records diagnostics with native paths and
-full conflict messages, while `preservation.changes` records the affected MSH
-field path, disposition, and reason. `retained` means exact preservation,
-`regenerated` means visible evidence recomputed state, `invalidated` means an edit
-removed state, and `canonicalized` means EarthTool replaced a representation
-with deterministic canonical authored form.
-
-Unchanged ordinary edits remain byte-exact. Unchanged accepted compatibility
-anomalies also remain byte-exact and receive a warning, such as `ETG1027` for a
-legacy emitter marker anomaly. Consequential edits use the current strict rules
-only for affected paths. The behavior is the same for GLB and separate glTF.
+| Semantic | Without a typed option |
+|---|---|
+| Source object tree and partitions | Derived from `ET_Static_{n}` mesh nodes, hierarchy, transforms, primitives, and material assignment |
+| Attachments, cannons, emitters, and static lights | Derived from exact case-sensitive canonical identifiers |
+| Animation classes | Derived from unique `EarthTool A` through `EarthTool D` clips |
+| TEX or MSH key | No key is guessed; a required missing binding fails |
+| Footprint | One occupied cell whose top is the maximum effective mesh height |
+| Horizontal extents | Effective root-local geometry bounds |
+| Spot target distance | Positive glTF range; otherwise a typed value is required |
+| Terrain-light amplitude | `1.0`; photometric intensity is ignored |
+| Non-marker object roles | No role is guessed from display names |
 
 ## Attachment Identifier Cheat Sheet
 
-Attachments are Blender Empty nodes unless the table says **Light**. Keep them inside the model's single rooted object tree. Most are direct children of its root; emitter helpers use the marker-attachment hierarchy described below. Canonical names are case-sensitive and identify the physical MSH target. The legacy code is the name used by the original AOD converter and game research.
+Attachment helpers are Blender Empty nodes unless the table says **Light**. Keep
+them inside the single rooted source-object tree. Names are case-sensitive and
+identify physical MSH targets.
 
 | Physical records | Blender identifier(s) | Legacy ID | Purpose |
 |---:|---|---|---|
-| `1..4` | `ET_Turret_1` through `ET_Turret_4` | `BC1..4`, `SC1..4` | Combined full-precision render position, quantized weapon mount, center heading, and yaw limit. One helper is emitted per active slot; translation edits both position records, heading rotation edits only the attachment direction, finite scale is ignored, and the yaw-limit byte remains preserved. `BC` and `SC` are aliases. |
-| `5..8` | `ET_Emitter_1` through `ET_Emitter_4` | `MI1..4` | Attaches render objects by marker bit. `MI1` also anchors effects and projectiles. |
-| `9..12` | `ET_TurretMuzzle_1` through `ET_TurretMuzzle_4` | `SS1..4` | `SS1` supplies a position relative to the owner. No normal consumer for `SS2..4` is confirmed. |
-| `13..16` | `ET_SpotLight_1` through `ET_SpotLight_4` | Spot lights `1..4` | **Spot Light** objects. Position both drives the light and occupies the corresponding quantized attachment record. New-model lights need a positive custom distance/range or a plan-supplied target distance. |
-| `17..20` | `ET_OmniLight_1` through `ET_OmniLight_4` | Omni lights `1..4` | **Point Light** objects. Position both drives the light and occupies the corresponding quantized attachment record. |
-| `21..24` | `ET_UnloadPoint_1` through `ET_UnloadPoint_4` | `TR1..4` | Transport and placement matching; `TR1..3` are observed in game assets. |
-| `25..28` | `ET_HitPoint_1` through `ET_HitPoint_4` | `HT1..4` | Four optional world positions; the game can select the nearest present slot. |
-| `29..32` | `ET_SmokePoint_1` through `ET_SmokePoint_4` | `SM1..4` | Optional effect or smoke positions with nearest-slot selection. |
-| `33..36` | `ET_WT_1` through `ET_WT_4` | `WT1..4` | Preserved slots; no normal gameplay transform consumer is confirmed in the examined build. |
-| `37..38` | `ET_Chimney_1`, `ET_Chimney_2` | `CH1..2` | Paired emitter anchors used by direct setup paths. |
-| `39..40` | `ET_SmokeTrace_1`, `ET_SmokeTrace_2` | `ST1..2` | Paired state-specific emitter anchors. |
-| `41..42` | `ET_Exhaust_1`, `ET_Exhaust_2` | `SE1..2` | Paired general effect-emitter anchors. |
-| `43..44` | `ET_KeelTrace_1`, `ET_KeelTrace_2` | `SK1..2` | Paired general effect-emitter anchors using the alternate setup mode. |
-| `45` | `ET_InterfacePivot_1` | `IN0` or `IN1` | Child alignment offset subtracted from a parent `MI` anchor. Original AOD commonly uses number `0`. |
-| `46` | `ET_CenterPivot_1` | `CE0` or `CE1` | General center anchor for placement, previews, HUD, and render auxiliaries. Original AOD commonly uses number `0`. |
-| `47` | `ET_ProductionSpotStart_1` | `PR1` | Production and placement position plus heading. |
-| `48` | `ET_ProductionSpotEnd_1` | `MV1` | Movement and placement position and heading, paired with production. |
-| `49` | `ET_LandingSpot_1` | `LN1` | Landing and placement position plus heading. |
+| `1..4` | `ET_Turret_1` through `ET_Turret_4` | `BC1..4`, `SC1..4` | Weapon mount pose and yaw limit; translation authors the canonical position and heading authors direction |
+| `5..8` | `ET_Emitter_1` through `ET_Emitter_4` | `MI1..4` | Marker attachment owned by the nearest source-object ancestor |
+| `9..12` | `ET_TurretMuzzle_1` through `ET_TurretMuzzle_4` | `SS1..4` | Weapon muzzle positions |
+| `13..16` | `ET_SpotLight_1` through `ET_SpotLight_4` | Spot lights `1..4` | **Spot Light** nodes with matching definition names |
+| `17..20` | `ET_OmniLight_1` through `ET_OmniLight_4` | Omni lights `1..4` | **Point Light** nodes with matching definition names |
+| `21..24` | `ET_UnloadPoint_1` through `ET_UnloadPoint_4` | `TR1..4` | Transport and placement positions |
+| `25..28` | `ET_HitPoint_1` through `ET_HitPoint_4` | `HT1..4` | Optional hit positions |
+| `29..32` | `ET_SmokePoint_1` through `ET_SmokePoint_4` | `SM1..4` | Optional effect or smoke positions |
+| `33..36` | `ET_WT_1` through `ET_WT_4` | `WT1..4` | Reserved game slots |
+| `37..38` | `ET_Chimney_1`, `ET_Chimney_2` | `CH1..2` | Paired emitter anchors |
+| `39..40` | `ET_SmokeTrace_1`, `ET_SmokeTrace_2` | `ST1..2` | Paired state-specific emitter anchors |
+| `41..42` | `ET_Exhaust_1`, `ET_Exhaust_2` | `SE1..2` | Paired effect-emitter anchors |
+| `43..44` | `ET_KeelTrace_1`, `ET_KeelTrace_2` | `SK1..2` | Paired alternate-mode emitter anchors |
+| `45` | `ET_InterfacePivot_1` | `IN0` or `IN1` | Child alignment pivot |
+| `46` | `ET_CenterPivot_1` | `CE0` or `CE1` | General center pivot |
+| `47` | `ET_ProductionSpotStart_1` | `PR1` | Production position and heading |
+| `48` | `ET_ProductionSpotEnd_1` | `MV1` | Movement position and heading |
+| `49` | `ET_LandingSpot_1` | `LN1` | Landing position and heading |
 
-`ET_Emitter_n` belongs to its nearest source-object ancestor, including across transform-only groups. Import writes the matching `MarkerAttachment1` (`MI1`, `0x00001000`) through `MarkerAttachment4` (`MI4`, `0x00008000`) role on that owner's first material partition; moving an emitter to another source object transfers the role. One source object may own several distinct emitters. Unchanged edit imports preserve legacy zero- or multi-record marker anomalies exactly and report `ETG1027`; new or changed ownership must resolve to one visible source ancestor.
+An `ET_Emitter_n` belongs to its nearest `ET_Static_{n}` ancestor, including
+across transform-only groups. Canonical creation sets the matching
+`MarkerAttachmentN` role on that owner's first material partition. One source
+object can own several distinct emitter numbers.
 
 ### Directional Empty Presentation In Blender
 
-glTF cannot prescribe Blender viewport Empty display shapes. As a Blender-only presentation step, run this in the **Scripting** workspace after import to show directional attachment helpers as arrows:
+glTF cannot prescribe Blender Empty display shapes. This optional script shows
+directional helpers as arrows without adding glTF or MSH semantics:
 
 ```python
 import bpy
 
-directional_helpers = {
-    f"ET_Turret_{number}" for number in range(1, 5)
-}
+directional_helpers = {f"ET_Turret_{number}" for number in range(1, 5)}
 directional_helpers.update(
     f"ET_UnloadPoint_{number}" for number in range(1, 5)
 )
@@ -244,18 +253,20 @@ for obj in bpy.context.scene.objects:
         obj.empty_display_type = "SINGLE_ARROW"
 ```
 
-This changes only the Blender viewport presentation; it does not add glTF or MSH semantics. The arrow follows the helper's encoded horizontal heading.
-
 ## Fast Checks Before Import
 
-- The file is GLB or separate glTF 2.0 and has one intended scene.
-- Existing edits still contain their `earthtool` custom properties.
-- New objects have no copied EarthTool object or mesh identity.
-- Attachment helper names match the table exactly and helpers have no mesh. Place each `ET_Emitter_n` beneath the source object that should own `MarkerAttachmentN`; transform-only groups may appear between them.
-- The scene is 24 FPS; animation names and frame limits follow the animation section above.
-- Geometry is triangular, finite, and has normals; textured primitives have UVs.
-- Blender export includes Extras, Attributes, Lights, and Animations.
-- Review import diagnostics for missing or discarded metadata warnings.
+- The package is GLB or separate glTF 2.0 with one intended scene.
+- Every authored owner and helper name matches the canonical spelling exactly.
+- `earthtoolAuthoring` remains a string envelope with format
+  `earthtool.msh.authoring`, version 1.
+- Required TEX and MSH resource bindings are in a current source-bound plan.
+- Geometry is triangular and finite; textured primitives have UVs.
+- Animation names, frame limits, and 24 FPS sampling follow this guide.
+- Blender export includes Extras, Attributes, Lights, and Animations as needed.
+- Import diagnostics contain no unresolved required values or duplicate owners.
 - The original MSH and WD archive remain backed up.
 
-For binary details and deeper runtime evidence, see [MSH format: Attachments and slots](MSH_FORMAT.md#attachments-and-slots). For metadata reconciliation, topology rules, and animation behavior, see the [glTF API](api/gltf.md).
+For binary details, see
+[MSH format: Attachments and slots](MSH_FORMAT.md#attachments-and-slots). For the
+complete canonical creation and dynamic preview contracts, see the
+[glTF API](api/gltf.md).

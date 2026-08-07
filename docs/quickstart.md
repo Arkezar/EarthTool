@@ -199,7 +199,8 @@ EarthTool.CLI msh export \
 
 # The output directory is created when needed. Open the resulting .glb files in
 # Blender 4.5 LTS or later.
-# After editing, use `msh import`; the package carries its own metadata.
+# After editing, use `msh import` for source-free canonical creation. Supply a
+# version-2 plan when TEX or MSH resource bindings are required.
 ```
 
 ### Task 4: Backup Game Files

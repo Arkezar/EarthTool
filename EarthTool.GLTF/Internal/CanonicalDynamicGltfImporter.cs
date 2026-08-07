@@ -94,14 +94,15 @@ namespace EarthTool.GLTF.Internal
       );
       var root = document.RootElement;
       var graph = ReadGraph(root, profile);
+      var nodes = root.GetProperty("nodes");
       var metadata = CanonicalAuthoringMetadata.Read(
-        graph.Nodes.Select(node =>
-          new AuthoringMetadataCarrier(
-            $"nodes[{node.Index}]",
-            node.Name,
-            ReadMetadata(node.Element)
-          )
-        ),
+        nodes.EnumerateArray().Select((node, index) => new AuthoringMetadataCarrier(
+          $"nodes[{index}]",
+          node.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String
+            ? name.GetString()!
+            : string.Empty,
+          ReadMetadata(node)
+        )),
         profile
       );
       if (!metadata.Succeeded)
@@ -1136,8 +1137,7 @@ namespace EarthTool.GLTF.Internal
       if (
         !node.TryGetProperty("extras", out var extras)
         || extras.ValueKind != JsonValueKind.Object
-        || !(extras.TryGetProperty("earthtoolAuthoring", out var metadata)
-          || extras.TryGetProperty("earthtool", out metadata))
+        || !extras.TryGetProperty("earthtoolAuthoring", out var metadata)
       )
       {
         return null;

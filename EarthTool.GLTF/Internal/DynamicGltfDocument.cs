@@ -2,7 +2,6 @@
 
 using EarthTool.MSH.Assets;
 using EarthTool.MSH.Authoring;
-using EarthTool.MSH.Expert;
 using EarthTool.MSH.Internal;
 using EarthTool.MSH.Operations;
 using SharpGLTF.Schema2;
@@ -16,42 +15,11 @@ using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
 
 namespace EarthTool.GLTF.Internal
 {
-  internal sealed class DynamicGltfImport
-  {
-    internal DynamicMeshAsset Asset { get; }
-    internal NativeProjectionFingerprint Fingerprint { get; }
-    internal PreservationReport Preservation { get; }
-    internal IReadOnlyList<int> ObjectIds { get; }
-    internal bool PlacementDataIgnored { get; }
-    internal int? PlacementRootIndex { get; }
-
-    internal DynamicGltfImport(
-      DynamicMeshAsset asset,
-      NativeProjectionFingerprint fingerprint,
-      PreservationReport preservation,
-      IReadOnlyList<int> objectIds,
-      bool placementDataIgnored,
-      int? placementRootIndex
-    )
-    {
-      Asset = asset;
-      Fingerprint = fingerprint;
-      Preservation = preservation;
-      ObjectIds = objectIds;
-      PlacementDataIgnored = placementDataIgnored;
-      PlacementRootIndex = placementRootIndex;
-    }
-  }
-
   internal static class DynamicGltfDocument
   {
-    internal const string ProjectionName = "dynamic-group-explosion-preview";
-    internal const int ProjectionVersion = 1;
-    private const int MetadataVersion = 2;
     private const int PreviewTotalLifetimeTicks = 100;
     private const int PreviewRemainingLifetimeTicks = 100;
     private const float PreviewTicksPerSecond = 20;
@@ -59,7 +27,6 @@ namespace EarthTool.GLTF.Internal
     private const uint PreviewGlobalTick = 0;
     private const float PreviewTextureScale = 1;
     private const float PreviewLifetimeProgress = 0;
-    private const float _previewParentPhase = 0;
     private static readonly Vector3 _previewWaterColor = new(0.2f, 0.45f, 0.7f);
     private const uint GlbMagic = 0x46546C67;
     private const uint JsonChunkType = 0x4E4F534A;
@@ -67,125 +34,47 @@ namespace EarthTool.GLTF.Internal
 
     internal static byte[] Create(
       DynamicMeshAsset asset,
-      InterchangeBaseline baseline,
       GltfOperationProfile profile,
       IReadOnlyDictionary<int, TexPreview> previews,
       IReadOnlyDictionary<int, ReferencedMeshPreview> meshPreviews,
-      IReadOnlyList<int> objectIds,
-      string? sourceBaseName,
-      out NativeProjectionFingerprint fingerprint
+      string? sourceBaseName
     )
     {
       var package = CreatePackage(
         asset,
-        baseline,
         profile,
         false,
         previews,
         meshPreviews,
-        objectIds,
-        sourceBaseName,
-        out fingerprint
+        sourceBaseName
       );
       return Pack(package.Json, package.Binary);
     }
 
     internal static GltfPackage CreateSeparate(
       DynamicMeshAsset asset,
-      InterchangeBaseline baseline,
       GltfOperationProfile profile,
       IReadOnlyDictionary<int, TexPreview> previews,
       IReadOnlyDictionary<int, ReferencedMeshPreview> meshPreviews,
-      IReadOnlyList<int> objectIds,
-      string? sourceBaseName,
-      out NativeProjectionFingerprint fingerprint
+      string? sourceBaseName
     )
     {
       return CreatePackage(
         asset,
-        baseline,
         profile,
         true,
         previews,
         meshPreviews,
-        objectIds,
-        sourceBaseName,
-        out fingerprint
+        sourceBaseName
       );
     }
 
-    internal static DynamicGltfImport ImportGlb(
-      byte[] glb,
-      InterchangeBaseline expectedBaseline,
-      GltfOperationProfile profile,
-      CancellationToken cancellationToken
-    )
-    {
-      return ImportGlbCore(glb, expectedBaseline, profile, cancellationToken);
-    }
-
-    internal static DynamicGltfImport ImportGlb(
-      byte[] glb,
-      GltfOperationProfile profile,
-      CancellationToken cancellationToken
-    )
-    {
-      return ImportGlbCore(glb, expectedBaseline: null, profile, cancellationToken);
-    }
-
-    private static DynamicGltfImport ImportGlbCore(
-      byte[] glb,
-      InterchangeBaseline? expectedBaseline,
-      GltfOperationProfile profile,
-      CancellationToken cancellationToken
-    )
+    internal static void ValidateGlb(byte[] glb, GltfOperationProfile profile)
     {
       if (glb.Length > profile.MaxInputBytes)
       {
         throw new ResourceLimitException(glb.Length, profile.MaxInputBytes);
       }
-      ValidateGlb(glb, profile);
-      var jsonLength = checked((int)ReadUInt32(glb, 12));
-      var binaryHeader = checked(20 + jsonLength);
-      var binaryLength = checked((int)ReadUInt32(glb, binaryHeader));
-      return Import(
-        glb.AsMemory(20, jsonLength),
-        glb.AsMemory(binaryHeader + 8, binaryLength),
-        expectedBaseline,
-        profile,
-        cancellationToken
-      );
-    }
-
-    internal static DynamicGltfImport ImportSeparate(
-      byte[] json,
-      byte[] binary,
-      string bufferUri,
-      IReadOnlyDictionary<string, byte[]> images,
-      InterchangeBaseline expectedBaseline,
-      GltfOperationProfile profile,
-      CancellationToken cancellationToken
-    )
-    {
-      GlbDocument.ValidateSeparate(json, binary, bufferUri, images);
-      return Import(json, binary, expectedBaseline, profile, cancellationToken);
-    }
-
-    internal static DynamicGltfImport ImportSeparate(
-      byte[] json,
-      byte[] binary,
-      string bufferUri,
-      IReadOnlyDictionary<string, byte[]> images,
-      GltfOperationProfile profile,
-      CancellationToken cancellationToken
-    )
-    {
-      GlbDocument.ValidateSeparate(json, binary, bufferUri, images);
-      return Import(json, binary, expectedBaseline: null, profile, cancellationToken);
-    }
-
-    internal static void ValidateGlb(byte[] glb, GltfOperationProfile profile)
-    {
       if (
         glb.Length < 32
         || ReadUInt32(glb, 0) != GlbMagic
@@ -212,6 +101,7 @@ namespace EarthTool.GLTF.Internal
         new JsonDocumentOptions { MaxDepth = profile.MaxJsonDepth }
       );
       ValidateGraphBounds(json.RootElement, profile);
+      ValidateAuthoringMetadataBudgets(json.RootElement, profile);
       ModelRoot.ParseGLB(
         new ArraySegment<byte>(glb),
         new ReadSettings { Validation = ValidationMode.Strict }
@@ -226,63 +116,30 @@ namespace EarthTool.GLTF.Internal
       GltfOperationProfile profile
     )
     {
+      var inputLength = checked(json.Length + (long)binary.Length);
+      if (inputLength > profile.MaxInputBytes)
+      {
+        throw new ResourceLimitException(inputLength, profile.MaxInputBytes);
+      }
       using var document = JsonDocument.Parse(
         json,
         new JsonDocumentOptions { MaxDepth = profile.MaxJsonDepth }
       );
       ValidateGraphBounds(document.RootElement, profile);
-      if (!HasDynamicManifest(json, profile.MaxJsonDepth))
-      {
-        throw new InvalidDataException("Required dynamic manifest metadata is absent.");
-      }
+      ValidateAuthoringMetadataBudgets(document.RootElement, profile);
       GlbDocument.ValidateSeparate(json, binary, bufferUri, images);
-    }
-
-    internal static bool HasDynamicManifest(ReadOnlyMemory<byte> jsonBytes, int maximumDepth)
-    {
-      try
-      {
-        using var json = JsonDocument.Parse(
-          jsonBytes,
-          new JsonDocumentOptions { MaxDepth = maximumDepth }
-        );
-        var metadata = GetEarthToolMetadata(json.RootElement.GetProperty("scenes")[0], "scenes[0]");
-        using var envelope = JsonDocument.Parse(
-          metadata,
-          new JsonDocumentOptions { MaxDepth = maximumDepth }
-        );
-        var root = envelope.RootElement;
-        return root.TryGetProperty("version", out var version)
-          && version.GetInt32() == MetadataVersion
-          && root.TryGetProperty("payload", out var payload)
-          && payload.TryGetProperty("assetKind", out var assetKind)
-          && assetKind.GetString() == "dynamic";
-      }
-      catch (Exception ex)
-        when (ex
-            is JsonException
-              or InvalidOperationException
-              or KeyNotFoundException
-              or DynamicMetadataGraphException
-        )
-      {
-        return false;
-      }
     }
 
     private static GltfPackage CreatePackage(
       DynamicMeshAsset asset,
-      InterchangeBaseline baseline,
       GltfOperationProfile profile,
       bool separate,
       IReadOnlyDictionary<int, TexPreview> previews,
       IReadOnlyDictionary<int, ReferencedMeshPreview> meshPreviews,
-      IReadOnlyList<int> objectIds,
-      string? sourceBaseName,
-      out NativeProjectionFingerprint fingerprint
+      string? sourceBaseName
     )
     {
-      var objects = Flatten(asset.RootDynamicObject, profile, objectIds, 2);
+      var objects = Flatten(asset.RootDynamicObject, profile, 2);
       if (objects.Count >= profile.MaxNodes)
       {
         throw new ResourceLimitException(objects.Count + 1, profile.MaxNodes);
@@ -304,22 +161,13 @@ namespace EarthTool.GLTF.Internal
         binary = new byte[4];
       }
       var bufferFileName = Hash(binary) + ".bin";
-      fingerprint = CreateFingerprint(objects, effectPreviews);
-      var manifest = CreateManifestMetadata(asset, baseline, objects, fingerprint);
-      if (Encoding.UTF8.GetByteCount(manifest) > profile.MaxMetadataBytes)
-      {
-        throw new ResourceLimitException(
-          Encoding.UTF8.GetByteCount(manifest),
-          profile.MaxMetadataBytes
-        );
-      }
+      var authoringMetadata = CreateObjectAuthoringMetadata(objects, profile);
       var json = CreateJson(
-        baseline,
         objects,
         layouts,
         binary.Length,
         separate ? bufferFileName : null,
-        manifest,
+        authoringMetadata,
         previews,
         previewImages,
         previewLayouts,
@@ -341,1914 +189,6 @@ namespace EarthTool.GLTF.Internal
         separate ? bufferFileName : string.Empty,
         new Dictionary<string, byte[]>(StringComparer.Ordinal)
       );
-    }
-
-    private static DynamicGltfImport Import(
-      ReadOnlyMemory<byte> jsonBytes,
-      ReadOnlyMemory<byte> binary,
-      InterchangeBaseline? expectedBaseline,
-      GltfOperationProfile profile,
-      CancellationToken cancellationToken
-    )
-    {
-      try
-      {
-        return ImportCore(jsonBytes, binary, expectedBaseline, profile, cancellationToken);
-      }
-      catch (Exception ex)
-        when (ex
-            is KeyNotFoundException
-              or InvalidOperationException
-              or FormatException
-              or JsonException
-        )
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.MalformedMetadata,
-          2003,
-          "extras.earthtool",
-          ex.Message
-        );
-      }
-    }
-
-    private static DynamicGltfImport ImportCore(
-      ReadOnlyMemory<byte> jsonBytes,
-      ReadOnlyMemory<byte> binary,
-      InterchangeBaseline? expectedBaseline,
-      GltfOperationProfile profile,
-      CancellationToken cancellationToken
-    )
-    {
-      cancellationToken.ThrowIfCancellationRequested();
-      using var json = JsonDocument.Parse(
-        jsonBytes,
-        new JsonDocumentOptions { MaxDepth = profile.MaxJsonDepth }
-      );
-      var root = json.RootElement;
-      var layout = ValidateGraphBounds(root, profile);
-      var manifestText = GetEarthToolMetadata(root.GetProperty("scenes")[0], "scenes[0]");
-      if (Encoding.UTF8.GetByteCount(manifestText) > profile.MaxMetadataBytes)
-      {
-        throw new ResourceLimitException(
-          Encoding.UTF8.GetByteCount(manifestText),
-          profile.MaxMetadataBytes
-        );
-      }
-      ValidateMetadataBudgets(root, manifestText, profile, layout.ObjectNodeIndices);
-      using var manifest = ParseMetadata(manifestText, profile);
-      var manifestRoot = manifest.RootElement;
-      var preserveMshLineage = expectedBaseline is not null;
-      expectedBaseline = ValidateMetadataHeader(manifestRoot, "manifest", 0, expectedBaseline);
-      var payload = manifestRoot.GetProperty("payload");
-      if (payload.GetProperty("assetKind").GetString() != "dynamic")
-      {
-        throw new UnsupportedGltfDomainException("StaticMesh");
-      }
-      var sourceText =
-        payload.GetProperty("sourceMsh").GetString()
-        ?? throw MalformedManifest("Dynamic source MSH metadata is null.");
-      var sourceBytes = GlbDocument.DecodeBase64Url(sourceText, profile.MaxInputBytes).ToArray();
-      var mshProfile = CreateMshProfile(profile);
-      var source = MshExpert.CreateDynamic(sourceBytes, mshProfile);
-      if (!source.TryGetValue(out var sourceAsset))
-      {
-        throw MalformedManifest("Dynamic source MSH metadata is invalid.");
-      }
-      var objects = Flatten(
-        sourceAsset!.RootDynamicObject,
-        profile,
-        ReadObjectIds(root, profile, layout.ObjectNodeIndices)
-      );
-      ValidateSupportedEffects(objects);
-      var effectPreviews = CreateEffectPreviews(
-        objects,
-        profile,
-        new Dictionary<int, ReferencedMeshPreview>()
-      );
-      var inventory = payload
-        .GetProperty("objectInventory")
-        .EnumerateArray()
-        .Select(item => item.GetInt32())
-        .ToArray();
-      if (
-        !inventory.SequenceEqual(objects.Select(item => item.Id).OrderBy(id => id))
-        || payload.GetProperty("nextObjectId").GetInt32() <= objects.Max(item => item.Id)
-      )
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.InvalidManifestInventory,
-          2020,
-          "scenes[0].extras.earthtool",
-          "Dynamic manifest scope inventory is invalid."
-        );
-      }
-      var nativeGraph = ValidateObjectGraph(root, objects, expectedBaseline, profile, layout);
-      var fingerprintElement = payload.GetProperty("nativeProjection");
-      var fingerprint = new NativeProjectionFingerprint(
-        fingerprintElement.GetProperty("name").GetString()
-          ?? throw MalformedManifest("Dynamic projection name is null."),
-        fingerprintElement.GetProperty("version").GetInt32(),
-        fingerprintElement.GetProperty("sha256").GetString()
-          ?? throw MalformedManifest("Dynamic projection digest is null.")
-      );
-      if (fingerprint.Name != ProjectionName || fingerprint.Version != ProjectionVersion)
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.UnsupportedGuard,
-          2015,
-          "scenes[0].extras.earthtool.payload.nativeProjection",
-          "The dynamic native projection guard is unsupported."
-        );
-      }
-      var actualFingerprint = CreateFingerprint(objects, effectPreviews);
-      if (!string.Equals(fingerprint.Sha256, actualFingerprint.Sha256, StringComparison.Ordinal))
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.StaleNativeProjection,
-          2016,
-          "scenes[0].extras.earthtool",
-          "Dynamic source projection fingerprint is stale."
-        );
-      }
-      return Reconcile(
-        sourceAsset!,
-        objects,
-        nativeGraph,
-        root,
-        binary.Span,
-        fingerprint,
-        profile,
-        effectPreviews,
-        layout.PlacementDataIgnored,
-        layout.PlacementRootIndex,
-        preserveMshLineage
-      );
-    }
-
-    private static DynamicMetadataGraphException MalformedManifest(string message)
-    {
-      return new DynamicMetadataGraphException(
-        GltfDiagnosticCodes.MalformedMetadata,
-        2003,
-        "scenes[0].extras.earthtool",
-        message
-      );
-    }
-
-    private static NativeObjectGraph ValidateObjectGraph(
-      JsonElement root,
-      IReadOnlyList<DynamicObjectScope> sourceObjects,
-      InterchangeBaseline baseline,
-      GltfOperationProfile profile,
-      DynamicSceneLayout layout
-    )
-    {
-      var nodes = root.GetProperty("nodes");
-      if (layout.ObjectNodeIndices.Count != sourceObjects.Count)
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.InvalidManifestInventory,
-          2020,
-          "nodes",
-          "Dynamic metadata inventory does not match native nodes."
-        );
-      }
-      var seen = new HashSet<int>();
-      var nodeIndicesById = new Dictionary<int, int>();
-      var meshNamesById = new Dictionary<int, IReadOnlyList<byte>>();
-      foreach (var nodeIndex in layout.ObjectNodeIndices)
-      {
-        var node = nodes[nodeIndex];
-        var metadataText = GetEarthToolMetadata(node, $"nodes[{nodeIndex}]");
-        if (Encoding.UTF8.GetByteCount(metadataText) > profile.MaxMetadataBytes)
-        {
-          throw MetadataLimit(
-            $"nodes[{nodeIndex}].extras.earthtool",
-            "A dynamic metadata envelope exceeds its byte limit."
-          );
-        }
-        using var metadata = ParseMetadata(metadataText, profile);
-        var metadataRoot = metadata.RootElement;
-        var localId = metadataRoot.GetProperty("scope").GetProperty("localId").GetInt32();
-        ValidateMetadataHeader(metadataRoot, "object", localId, baseline);
-        if (localId <= 0 || localId > sourceObjects.Count || !seen.Add(localId))
-        {
-          throw new DynamicMetadataGraphException(
-            GltfDiagnosticCodes.DuplicateScopeIdentity,
-            2009,
-            $"nodes[{nodeIndex}].extras.earthtool",
-            "Dynamic object scope identity is duplicate or invalid."
-          );
-        }
-        nodeIndicesById.Add(localId, nodeIndex);
-        var source = sourceObjects.Single(item => item.Id == localId);
-        var payload = metadataRoot.GetProperty("payload");
-        meshNamesById.Add(localId, DecodeMetadataBytes(payload, "meshName", profile.MaxInputBytes));
-        if (payload.GetProperty("effectType").GetUInt32() != source.Object.Extension.EffectType)
-        {
-          throw new DynamicMetadataGraphException(
-            GltfDiagnosticCodes.UnknownRequiredSemantics,
-            2018,
-            $"nodes[{nodeIndex}].extras.earthtool",
-            "Dynamic effect declaration does not match source metadata."
-          );
-        }
-        var expectedChildren = source.ChildIds;
-        var declaredChildren = payload
-          .GetProperty("orderedChildIds")
-          .EnumerateArray()
-          .Select(item => item.GetInt32())
-          .ToArray();
-        if (!declaredChildren.SequenceEqual(expectedChildren))
-        {
-          throw new DynamicMetadataGraphException(
-            GltfDiagnosticCodes.StaleNativeProjection,
-            2016,
-            $"nodes[{nodeIndex}].extras.earthtool",
-            "Dynamic ordered-child metadata is stale."
-          );
-        }
-        ValidatePreservedObjectPayload(payload, source.Object, nodeIndex, profile);
-        if (
-          !metadataRoot.TryGetProperty("guards", out var guards)
-          || !guards.TryGetProperty("orderedChildren", out var guard)
-        )
-        {
-          throw new DynamicMetadataGraphException(
-            GltfDiagnosticCodes.MissingRequiredGuard,
-            2014,
-            $"nodes[{nodeIndex}].extras.earthtool",
-            "The dynamic ordered-child guard is missing."
-          );
-        }
-        if (
-          guard.GetProperty("projection").GetString() != "dynamic-ordered-children"
-          || guard.GetProperty("version").GetInt32() != 1
-        )
-        {
-          throw new DynamicMetadataGraphException(
-            GltfDiagnosticCodes.UnsupportedGuard,
-            2015,
-            $"nodes[{nodeIndex}].extras.earthtool",
-            "The dynamic ordered-child guard is unsupported."
-          );
-        }
-        if (guard.GetProperty("sha256").GetString() != HashIds(expectedChildren))
-        {
-          throw new DynamicMetadataGraphException(
-            GltfDiagnosticCodes.StaleNativeProjection,
-            2016,
-            $"nodes[{nodeIndex}].extras.earthtool",
-            "The dynamic ordered-child guard is stale."
-          );
-        }
-        ValidateEffectPreviewMetadata(metadataRoot, payload, source.Object.Extension, nodeIndex);
-      }
-      if (seen.Count != sourceObjects.Count)
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.MissingExpectedScope,
-          2010,
-          "nodes",
-          "Dynamic object scope inventory is incomplete."
-        );
-      }
-      if (
-        !nodeIndicesById.TryGetValue(1, out var rootNodeIndex)
-        || rootNodeIndex != layout.DynamicRootNodeIndex
-      )
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.KindCarrierMismatch,
-          2008,
-          $"nodes[{layout.DynamicRootNodeIndex}]",
-          "The dynamic root scope must own the scene root node."
-        );
-      }
-      var scopes = new Dictionary<int, NativeObjectScope>();
-      var ownedMeshes = new HashSet<int>();
-      var ownedMaterials = new HashSet<int>();
-      var ownedAccessors = new HashSet<int>();
-      var ownedViews = new HashSet<int>();
-      var ownedRanges = new List<(long Start, long End)>();
-      foreach (var pair in nodeIndicesById)
-      {
-        var node = nodes[pair.Value];
-        var childIds = node.TryGetProperty("children", out var children)
-          ? children
-            .EnumerateArray()
-            .Select(childIndex =>
-            {
-              var index = childIndex.GetInt32();
-              var match = nodeIndicesById.SingleOrDefault(item => item.Value == index);
-              return match.Key != 0
-                ? match.Key
-                : throw new InvalidDataException("Dynamic child node has no object scope.");
-            })
-            .ToArray()
-          : Array.Empty<int>();
-        var source = sourceObjects.Single(item => item.Id == pair.Key).Object.Extension;
-        if (HasNativePreview(source.KnownEffectType))
-        {
-          if (!node.TryGetProperty("mesh", out var meshElement))
-          {
-            throw AmbiguousPreview(pair.Value, "A sprite-effect scope has no native preview mesh.");
-          }
-          var meshIndex = meshElement.GetInt32();
-          var meshes = root.GetProperty("meshes");
-          if (meshIndex < 0 || meshIndex >= meshes.GetArrayLength() || !ownedMeshes.Add(meshIndex))
-          {
-            throw AmbiguousPreview(
-              pair.Value,
-              "Sprite-effect scopes must own unique native preview meshes."
-            );
-          }
-          var primitives = meshes[meshIndex].GetProperty("primitives");
-          if (
-            primitives.GetArrayLength() != 1
-            || !primitives[0].TryGetProperty("material", out var materialElement)
-            || !ownedMaterials.Add(materialElement.GetInt32())
-          )
-          {
-            throw AmbiguousPreview(
-              pair.Value,
-              "Sprite-effect scopes must own unique native preview materials."
-            );
-          }
-          var primitive = primitives[0];
-          var attributes = primitive.GetProperty("attributes");
-          var positionAccessorIndex = attributes.GetProperty("POSITION").GetInt32();
-          var positionCount = root.GetProperty("accessors")[positionAccessorIndex]
-            .GetProperty("count")
-            .GetInt32();
-          var maximumPositions =
-            source.KnownEffectType == DynamicEffectType.ScalableObject
-              ? profile.MaxMeshPreviewVertices
-              : profile.MaxActiveRenderVertices;
-          if (positionCount <= 0 || positionCount > maximumPositions)
-          {
-            throw new ResourceLimitException(positionCount, maximumPositions);
-          }
-          ValidateOwnedAccessor(
-            root,
-            pair.Value,
-            positionAccessorIndex,
-            5126,
-            "VEC3",
-            12,
-            ownedAccessors,
-            ownedViews,
-            ownedRanges
-          );
-          ValidateOwnedAccessor(
-            root,
-            pair.Value,
-            attributes.GetProperty("NORMAL").GetInt32(),
-            5126,
-            "VEC3",
-            12,
-            ownedAccessors,
-            ownedViews,
-            ownedRanges
-          );
-          ValidateOwnedAccessor(
-            root,
-            pair.Value,
-            attributes.GetProperty("TEXCOORD_0").GetInt32(),
-            5126,
-            "VEC2",
-            8,
-            ownedAccessors,
-            ownedViews,
-            ownedRanges
-          );
-          var indexAccessorIndex = primitive.GetProperty("indices").GetInt32();
-          var indexComponentType = root.GetProperty("accessors")[indexAccessorIndex]
-            .GetProperty("componentType")
-            .GetInt32();
-          if (
-            indexComponentType is not 5123 and not 5125
-            || indexComponentType == 5125
-              && source.KnownEffectType != DynamicEffectType.ScalableObject
-          )
-          {
-            throw AmbiguousPreview(
-              pair.Value,
-              "A dynamic preview index accessor has an unsupported component type."
-            );
-          }
-          ValidateOwnedAccessor(
-            root,
-            pair.Value,
-            indexAccessorIndex,
-            indexComponentType,
-            "SCALAR",
-            indexComponentType == 5125 ? 4 : 2,
-            ownedAccessors,
-            ownedViews,
-            ownedRanges
-          );
-        }
-        else if (node.TryGetProperty("mesh", out _))
-        {
-          throw AmbiguousPreview(
-            pair.Value,
-            "A metadata-only dynamic scope cannot own preview geometry."
-          );
-        }
-        var transform = ReadNodeTransform(
-          node,
-          source.KnownEffectType == DynamicEffectType.ScalableObject
-        );
-        scopes.Add(
-          pair.Key,
-          new NativeObjectScope(
-            pair.Key,
-            pair.Value,
-            Array.AsReadOnly(childIds),
-            transform.Translation,
-            transform.ModelScale,
-            meshNamesById[pair.Key]
-          )
-        );
-      }
-      return new NativeObjectGraph(scopes);
-    }
-
-    private static void ValidateOwnedAccessor(
-      JsonElement root,
-      int nodeIndex,
-      int accessorIndex,
-      int componentType,
-      string type,
-      int elementSize,
-      ISet<int> ownedAccessors,
-      ISet<int> ownedViews,
-      ICollection<(long Start, long End)> ownedRanges
-    )
-    {
-      var accessors = root.GetProperty("accessors");
-      if (
-        accessorIndex < 0
-        || accessorIndex >= accessors.GetArrayLength()
-        || !ownedAccessors.Add(accessorIndex)
-      )
-      {
-        throw AmbiguousPreview(
-          nodeIndex,
-          "Dynamic preview scopes must own unique geometry accessors."
-        );
-      }
-      var accessor = accessors[accessorIndex];
-      if (
-        accessor.GetProperty("componentType").GetInt32() != componentType
-        || accessor.GetProperty("type").GetString() != type
-      )
-      {
-        throw AmbiguousPreview(
-          nodeIndex,
-          "A dynamic preview accessor has an unsupported element representation."
-        );
-      }
-      var views = root.GetProperty("bufferViews");
-      var viewIndex = accessor.GetProperty("bufferView").GetInt32();
-      if (viewIndex < 0 || viewIndex >= views.GetArrayLength() || !ownedViews.Add(viewIndex))
-      {
-        throw AmbiguousPreview(
-          nodeIndex,
-          "Dynamic preview scopes must own unique geometry buffer views."
-        );
-      }
-      var view = views[viewIndex];
-      if (view.GetProperty("buffer").GetInt32() != 0)
-      {
-        throw AmbiguousPreview(nodeIndex, "Dynamic preview geometry must use the package buffer.");
-      }
-      var count = accessor.GetProperty("count").GetInt64();
-      var stride = view.TryGetProperty("byteStride", out var strideElement)
-        ? strideElement.GetInt64()
-        : elementSize;
-      var start =
-        (view.TryGetProperty("byteOffset", out var viewOffset) ? viewOffset.GetInt64() : 0)
-        + (
-          accessor.TryGetProperty("byteOffset", out var accessorOffset)
-            ? accessorOffset.GetInt64()
-            : 0
-        );
-      var end = checked(start + (count - 1) * stride + elementSize);
-      var bufferLength = root.GetProperty("buffers")[0].GetProperty("byteLength").GetInt64();
-      if (
-        count <= 0
-        || stride < elementSize
-        || start < 0
-        || end > bufferLength
-        || ownedRanges.Any(range => start < range.End && range.Start < end)
-      )
-      {
-        throw AmbiguousPreview(
-          nodeIndex,
-          "Dynamic preview geometry byte ranges must be bounded and non-overlapping."
-        );
-      }
-      ownedRanges.Add((start, end));
-    }
-
-    private static void ValidatePreservedObjectPayload(
-      JsonElement payload,
-      DynamicObject source,
-      int nodeIndex,
-      GltfOperationProfile profile
-    )
-    {
-      var common = DecodeMetadataBytes(
-        payload,
-        "commonBaseHeader",
-        CommonMeshBaseHeader.SerializedSize
-      );
-      var effect = DecodeMetadataBytes(payload, "effectRepresentation", 0x9C);
-      var meshName = DecodeMetadataBytes(payload, "meshName", profile.MaxInputBytes);
-      var texturePath = DecodeMetadataBytes(payload, "texturePath", profile.MaxInputBytes);
-      if (
-        !common.SequenceEqual(source.CommonBaseHeader.SerializedRepresentation)
-        || !effect.SequenceEqual(source.Extension.SerializedRepresentation)
-        || source.Extension.KnownEffectType != DynamicEffectType.ScalableObject
-          && !meshName.SequenceEqual(source.Extension.MeshNameBytes)
-        || !texturePath.SequenceEqual(source.Extension.TexturePathBytes)
-      )
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.StaleNativeProjection,
-          2016,
-          $"nodes[{nodeIndex}].extras.earthtool",
-          "Dynamic metadata-only serialized representations are stale."
-        );
-      }
-    }
-
-    private static IReadOnlyList<byte> DecodeMetadataBytes(
-      JsonElement payload,
-      string name,
-      int maximum
-    )
-    {
-      var value =
-        payload.GetProperty(name).GetString()
-        ?? throw new InvalidOperationException("Dynamic serialized metadata is null.");
-      return GlbDocument.DecodeBase64Url(value, maximum);
-    }
-
-    private static DynamicMetadataGraphException AmbiguousPreview(int nodeIndex, string message)
-    {
-      return new DynamicMetadataGraphException(
-        GltfDiagnosticCodes.AmbiguousPartitionCorrespondence,
-        2012,
-        $"nodes[{nodeIndex}]",
-        message
-      );
-    }
-
-    private static void ValidateEffectPreviewMetadata(
-      JsonElement metadata,
-      JsonElement payload,
-      DynamicEffectExtension source,
-      int nodeIndex
-    )
-    {
-      if (!HasExplicitPreviewContract(source.KnownEffectType))
-      {
-        return;
-      }
-      var expectedContext = PreviewContextName(source.KnownEffectType);
-      if (
-        payload.GetProperty("previewContext").GetString() != expectedContext
-        || payload.GetProperty("previewFrameDomain").GetString() != PreviewFrameDomain(source)
-        || payload.GetProperty("previewSourceFrame").GetInt32() != PreviewSourceFrame(source)
-        || payload.GetProperty("previewTotalLifetimeTicks").GetInt32() != PreviewTotalLifetimeTicks
-        || payload.GetProperty("previewRemainingLifetimeTicks").GetInt32()
-          != PreviewRemainingLifetimeTicks
-        || payload.GetProperty("previewGlobalTick").GetUInt32() != PreviewGlobalTick
-        || payload.GetProperty("previewTextureScale").GetSingle() != PreviewTextureScale
-        || payload.GetProperty("previewLifetimeProgress").GetSingle() != PreviewLifetimeProgress
-        || payload.GetProperty("previewParentPhase").GetSingle() != _previewParentPhase
-        || source.KnownEffectType == DynamicEffectType.ScalableObject
-          && payload.GetProperty("previewModelScalePhase").GetSingle()
-            != GetScalablePreviewPhase(source)
-      )
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.StaleNativeProjection,
-          2016,
-          $"nodes[{nodeIndex}].extras.earthtool",
-          "Dynamic effect preview inputs are stale."
-        );
-      }
-      if (!metadata.GetProperty("guards").TryGetProperty("effectPreview", out var guard))
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.MissingRequiredGuard,
-          2014,
-          $"nodes[{nodeIndex}].extras.earthtool",
-          "The dynamic effect-preview guard is missing."
-        );
-      }
-      if (
-        guard.GetProperty("projection").GetString() != "dynamic-effect-preview"
-        || guard.GetProperty("version").GetInt32() != 1
-      )
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.UnsupportedGuard,
-          2015,
-          $"nodes[{nodeIndex}].extras.earthtool",
-          "The dynamic effect-preview guard is unsupported."
-        );
-      }
-      if (guard.GetProperty("sha256").GetString() != HashPreviewContract(source))
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.StaleNativeProjection,
-          2016,
-          $"nodes[{nodeIndex}].extras.earthtool",
-          "The dynamic effect-preview guard is stale."
-        );
-      }
-    }
-
-    private static IReadOnlyList<int> ReadObjectIds(
-      JsonElement root,
-      GltfOperationProfile profile,
-      IReadOnlyList<int> objectNodeIndices
-    )
-    {
-      var nodes = root.GetProperty("nodes");
-      var childrenById = new Dictionary<int, IReadOnlyList<int>>();
-      foreach (var index in objectNodeIndices)
-      {
-        var metadataText = GetEarthToolMetadata(nodes[index], $"nodes[{index}]");
-        if (Encoding.UTF8.GetByteCount(metadataText) > profile.MaxMetadataBytes)
-        {
-          throw new ResourceLimitException(
-            Encoding.UTF8.GetByteCount(metadataText),
-            profile.MaxMetadataBytes
-          );
-        }
-        using var metadata = ParseMetadata(metadataText, profile);
-        var metadataRoot = metadata.RootElement;
-        var id = metadataRoot.GetProperty("scope").GetProperty("localId").GetInt32();
-        var children = metadataRoot
-          .GetProperty("payload")
-          .GetProperty("orderedChildIds")
-          .EnumerateArray()
-          .Select(item => item.GetInt32())
-          .ToArray();
-        if (id <= 0 || !childrenById.TryAdd(id, Array.AsReadOnly(children)))
-        {
-          throw new DynamicMetadataGraphException(
-            GltfDiagnosticCodes.DuplicateScopeIdentity,
-            2009,
-            "nodes",
-            "Dynamic object scope identity is duplicate or invalid."
-          );
-        }
-      }
-      var result = new List<int>();
-      AddDeclaredObjectIds(1, childrenById, result, new HashSet<int>());
-      if (result.Count != childrenById.Count)
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.MissingExpectedScope,
-          2010,
-          "nodes",
-          "Dynamic object scope hierarchy is incomplete."
-        );
-      }
-      return result.AsReadOnly();
-    }
-
-    private static void AddDeclaredObjectIds(
-      int id,
-      IReadOnlyDictionary<int, IReadOnlyList<int>> childrenById,
-      ICollection<int> result,
-      ISet<int> visited
-    )
-    {
-      if (!childrenById.TryGetValue(id, out var children) || !visited.Add(id))
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.DanglingMetadataReference,
-          2013,
-          "nodes",
-          "Dynamic object scope hierarchy is invalid."
-        );
-      }
-      result.Add(id);
-      foreach (var childId in children)
-      {
-        AddDeclaredObjectIds(childId, childrenById, result, visited);
-      }
-    }
-
-    private static void ValidateMetadataBudgets(
-      JsonElement root,
-      string manifest,
-      GltfOperationProfile profile,
-      IReadOnlyList<int> objectNodeIndices
-    )
-    {
-      var nodes = root.GetProperty("nodes");
-      if (objectNodeIndices.Count + 1 > profile.MaxMetadataEnvelopes)
-      {
-        throw MetadataLimit(
-          "scenes[0].extras.earthtool",
-          "Dynamic metadata has too many envelopes."
-        );
-      }
-      long totalBytes = Encoding.UTF8.GetByteCount(manifest);
-      if (totalBytes > profile.MaxTotalMetadataBytes)
-      {
-        throw MetadataLimit(
-          "scenes[0].extras.earthtool",
-          "Dynamic metadata exceeds the cumulative byte limit."
-        );
-      }
-      var elementCount = 0;
-      var unknownCount = 0;
-      ValidateEnvelopeBudget(
-        manifest,
-        "scenes[0].extras.earthtool",
-        profile,
-        ref elementCount,
-        ref unknownCount
-      );
-      foreach (var index in objectNodeIndices)
-      {
-        var path = $"nodes[{index}].extras.earthtool";
-        var metadata = GetEarthToolMetadata(nodes[index], $"nodes[{index}]");
-        var metadataBytes = Encoding.UTF8.GetByteCount(metadata);
-        if (metadataBytes > profile.MaxMetadataBytes)
-        {
-          throw MetadataLimit(path, "A dynamic metadata envelope exceeds its byte limit.");
-        }
-        totalBytes = checked(totalBytes + metadataBytes);
-        if (totalBytes > profile.MaxTotalMetadataBytes)
-        {
-          throw MetadataLimit(path, "Dynamic metadata exceeds the cumulative byte limit.");
-        }
-        ValidateEnvelopeBudget(metadata, path, profile, ref elementCount, ref unknownCount);
-      }
-    }
-
-    private static void ValidateEnvelopeBudget(
-      string metadata,
-      string path,
-      GltfOperationProfile profile,
-      ref int elementCount,
-      ref int unknownCount
-    )
-    {
-      using var envelope = ParseMetadata(metadata, profile);
-      if (
-        envelope.RootElement.TryGetProperty("guards", out var guards)
-        && guards.EnumerateObject().Take(profile.MaxMetadataGuards + 1).Count()
-          > profile.MaxMetadataGuards
-      )
-      {
-        throw MetadataLimit(path, "Dynamic metadata has too many guards.");
-      }
-      CountMetadataElements(
-        envelope.RootElement,
-        profile.MaxMetadataElements,
-        path,
-        ref elementCount
-      );
-      CountUnknownMetadataMembers(
-        envelope.RootElement,
-        profile.MaxUnknownMetadataMembers,
-        path,
-        ref unknownCount
-      );
-    }
-
-    private static void CountUnknownMetadataMembers(
-      JsonElement element,
-      int maximum,
-      string path,
-      ref int count
-    )
-    {
-      if (element.ValueKind == JsonValueKind.Object)
-      {
-        foreach (var property in element.EnumerateObject())
-        {
-          if (!IsKnownMetadataMember(property.Name))
-          {
-            count = checked(count + 1);
-            if (count > maximum)
-            {
-              throw MetadataLimit(path, "Dynamic metadata has too many unknown additive members.");
-            }
-          }
-          CountUnknownMetadataMembers(property.Value, maximum, path, ref count);
-        }
-      }
-      else if (element.ValueKind == JsonValueKind.Array)
-      {
-        foreach (var item in element.EnumerateArray())
-        {
-          CountUnknownMetadataMembers(item, maximum, path, ref count);
-        }
-      }
-    }
-
-    private static bool IsKnownMetadataMember(string name)
-    {
-      return name
-        is "format"
-          or "version"
-          or "assetLineageId"
-          or "documentId"
-          or "scope"
-          or "kind"
-          or "localId"
-          or "guards"
-          or "orderedChildren"
-          or "effectPreview"
-          or "projection"
-          or "sha256"
-          or "payload"
-          or "assetKind"
-          or "sourceMsh"
-          or "objectInventory"
-          or "nextObjectId"
-          or "nativeProjection"
-          or "name"
-          or "effectType"
-          or "previewContext"
-          or "previewFrameDomain"
-          or "previewSourceFrame"
-          or "previewTotalLifetimeTicks"
-          or "previewRemainingLifetimeTicks"
-          or "previewGlobalTick"
-          or "previewTextureScale"
-          or "previewLifetimeProgress"
-          or "previewParentPhase"
-          or "previewModelScalePhase"
-          or "orderedChildIds"
-          or "commonBaseHeader"
-          or "effectRepresentation"
-          or "meshName"
-          or "texturePath";
-    }
-
-    private static void CountMetadataElements(
-      JsonElement element,
-      int maximum,
-      string path,
-      ref int count
-    )
-    {
-      count = checked(count + 1);
-      if (count > maximum)
-      {
-        throw MetadataLimit(path, "Dynamic metadata exceeds the cumulative element limit.");
-      }
-      if (element.ValueKind == JsonValueKind.Object)
-      {
-        foreach (var property in element.EnumerateObject())
-        {
-          CountMetadataElements(property.Value, maximum, path, ref count);
-        }
-      }
-      else if (element.ValueKind == JsonValueKind.Array)
-      {
-        foreach (var item in element.EnumerateArray())
-        {
-          CountMetadataElements(item, maximum, path, ref count);
-        }
-      }
-    }
-
-    private static DynamicMetadataGraphException MetadataLimit(string path, string message)
-    {
-      return new DynamicMetadataGraphException(
-        GltfDiagnosticCodes.MetadataResourceLimitExceeded,
-        2005,
-        path,
-        message
-      );
-    }
-
-    private static DynamicGltfImport Reconcile(
-      DynamicMeshAsset sourceAsset,
-      IReadOnlyList<DynamicObjectScope> sourceObjects,
-      NativeObjectGraph nativeGraph,
-      JsonElement root,
-      ReadOnlySpan<byte> binary,
-      NativeProjectionFingerprint fingerprint,
-      GltfOperationProfile profile,
-      IReadOnlyDictionary<int, DynamicEffectPreview> effectPreviews,
-      bool placementDataIgnored,
-      int? placementRootIndex,
-      bool preserveMshLineage
-    )
-    {
-      var sourceBytes = sourceAsset.GetSerializedRepresentation();
-      var rootOffset = GetRootOffset(sourceBytes);
-      var slices = new Dictionary<int, DynamicRecordSlice>();
-      var sourceIndex = 0;
-      var payloadEnd = ReadRecordSlices(
-        sourceBytes,
-        rootOffset,
-        sourceObjects,
-        ref sourceIndex,
-        slices
-      );
-      var changes = new List<PreservationChange>();
-      var hierarchyChanged = sourceObjects.Any(scope =>
-        !scope.ChildIds.SequenceEqual(nativeGraph.Scopes[scope.Id].ChildIds)
-      );
-      if (hierarchyChanged)
-      {
-        changes.Add(
-          new PreservationChange(
-            "RootDynamicObject.Children",
-            PreservationDisposition.Regenerated,
-            "dynamic-native-hierarchy-edit"
-          )
-        );
-      }
-      using var output = new MemoryStream(sourceBytes.Length);
-      output.Write(sourceBytes, 0, rootOffset);
-      WriteReconciledRecord(
-        output,
-        1,
-        sourceObjects,
-        nativeGraph,
-        slices,
-        root,
-        binary,
-        changes,
-        effectPreviews,
-        profile
-      );
-      output.Write(sourceBytes, payloadEnd, sourceBytes.Length - payloadEnd);
-      var objectIds = GetPreorderIds(nativeGraph);
-      if (changes.Count == 0)
-      {
-        changes.Add(
-          new PreservationChange(
-            "RootDynamicObject",
-            PreservationDisposition.Retained,
-            "dynamic-source-metadata"
-          )
-        );
-        return new DynamicGltfImport(
-          sourceAsset,
-          fingerprint,
-          new PreservationReport(changes),
-          objectIds,
-          placementDataIgnored,
-          placementRootIndex
-        );
-      }
-      var serializedRepresentation = output.ToArray();
-      var mshProfile = CreateMshProfile(profile);
-      var built = MshExpert.CreateDynamic(serializedRepresentation, mshProfile);
-      if (!built.TryGetValue(out var asset))
-      {
-        throw new InvalidDataException(
-          "The dynamic native edits cannot form one valid MSH snapshot."
-        );
-      }
-      return new DynamicGltfImport(
-        asset!,
-        fingerprint,
-        new PreservationReport(changes),
-        objectIds,
-        placementDataIgnored,
-        placementRootIndex
-      );
-    }
-
-    private static IReadOnlyList<int> GetPreorderIds(NativeObjectGraph graph)
-    {
-      var result = new List<int>();
-      AddPreorderId(1, graph, result);
-      return result.AsReadOnly();
-    }
-
-    private static void AddPreorderId(int id, NativeObjectGraph graph, ICollection<int> result)
-    {
-      result.Add(id);
-      foreach (var childId in graph.Scopes[id].ChildIds)
-      {
-        AddPreorderId(childId, graph, result);
-      }
-    }
-
-    private static void WriteReconciledRecord(
-      Stream destination,
-      int id,
-      IReadOnlyList<DynamicObjectScope> sourceObjects,
-      NativeObjectGraph nativeGraph,
-      IReadOnlyDictionary<int, DynamicRecordSlice> slices,
-      JsonElement root,
-      ReadOnlySpan<byte> binary,
-      ICollection<PreservationChange> changes,
-      IReadOnlyDictionary<int, DynamicEffectPreview> effectPreviews,
-      GltfOperationProfile profile
-    )
-    {
-      var source = sourceObjects.Single(item => item.Id == id).Object.Extension;
-      var native = nativeGraph.Scopes[id];
-      var slice = slices[id];
-      var prefix = (byte[])slice.FixedPrefix.Clone();
-      if (id != 1 && native.Translation != source.ChildStartTranslation)
-      {
-        WriteMshVector(prefix, 0x3EC, native.Translation);
-        changes.Add(
-          new PreservationChange(
-            $"DynamicObjectScopes[{id}].Extension.ChildStartTranslation",
-            PreservationDisposition.Regenerated,
-            "dynamic-native-transform-edit"
-          )
-        );
-      }
-      if (
-        source.KnownEffectType == DynamicEffectType.ScalableObject
-        && !native.ModelScale.Equals(effectPreviews[id].ModelScale)
-      )
-      {
-        var startScale = SolveStartValue(
-          native.ModelScale,
-          source.EndModelScale,
-          effectPreviews[id].ModelScalePhase,
-          id,
-          "model scale"
-        );
-        WriteSingle(prefix, 0x3E8, startScale);
-        changes.Add(
-          new PreservationChange(
-            $"DynamicObjectScopes[{id}].Extension.StartModelScale",
-            PreservationDisposition.Regenerated,
-            "dynamic-scalable-transform-edit"
-          )
-        );
-      }
-      if (
-        source.KnownEffectType == DynamicEffectType.ScalableObject
-        && !native.MeshNameBytes.SequenceEqual(source.MeshNameBytes)
-      )
-      {
-        changes.Add(
-          new PreservationChange(
-            $"DynamicObjectScopes[{id}].Extension.MeshNameBytes",
-            PreservationDisposition.Regenerated,
-            "dynamic-scalable-binding-edit"
-          )
-        );
-      }
-      if (effectPreviews.TryGetValue(id, out var sourcePreview))
-      {
-        var preview = ReadDynamicPreview(
-          root,
-          binary,
-          id,
-          native.NodeIndex,
-          sourcePreview,
-          profile
-        );
-        if (sourcePreview.IsRibbon)
-        {
-          if (!preview.RibbonHalfWidth!.Value.Equals(sourcePreview.RibbonHalfWidth))
-          {
-            WriteSingle(prefix, 0x3B0, preview.RibbonHalfWidth.Value);
-            changes.Add(
-              new PreservationChange(
-                $"DynamicObjectScopes[{id}].Extension.RibbonHalfWidth",
-                PreservationDisposition.Regenerated,
-                "dynamic-ribbon-preview-edit"
-              )
-            );
-          }
-          if (preview.RibbonPathChanged)
-          {
-            changes.Add(
-              new PreservationChange(
-                $"DynamicObjectScopes[{id}].PreviewPath",
-                PreservationDisposition.Retained,
-                "dynamic-runtime-preview-input"
-              )
-            );
-          }
-        }
-        else if (sourcePreview.IsSphere)
-        {
-          if (preview.GeometryChanged)
-          {
-            changes.Add(
-              new PreservationChange(
-                $"DynamicObjectScopes[{id}].PreviewShape",
-                PreservationDisposition.Retained,
-                "dynamic-runtime-preview-input"
-              )
-            );
-          }
-        }
-        else if (!sourcePreview.IsScalable && !preview.Rectangle.Equals(sourcePreview.Rectangle))
-        {
-          var rectangle = SolveStartRectangle(
-            preview.Rectangle,
-            source.EndEffectRectangle,
-            sourcePreview.RectanglePhase,
-            id
-          );
-          WriteRectangle(prefix, 0x38C, rectangle);
-          changes.Add(
-            new PreservationChange(
-              $"DynamicObjectScopes[{id}].Extension.StartEffectRectangle",
-              PreservationDisposition.Regenerated,
-              "dynamic-sprite-preview-edit"
-            )
-          );
-        }
-        if (sourcePreview.OwnsDepth && !preview.Depth.Equals(source.EffectDepthOffset))
-        {
-          WriteSingle(prefix, 0x3AC, preview.Depth);
-          changes.Add(
-            new PreservationChange(
-              $"DynamicObjectScopes[{id}].Extension.EffectDepthOffset",
-              PreservationDisposition.Regenerated,
-              "dynamic-sprite-preview-edit"
-            )
-          );
-        }
-        if (sourcePreview.OwnsColor && preview.Color != sourcePreview.Color)
-        {
-          var color =
-            source.KnownEffectType == DynamicEffectType.Smoke
-            || IsAttachedPreview(source.KnownEffectType)
-              ? SolveModulatedColor(preview.Color, source.VisibleTerrainLightGain, id)
-              : preview.Color;
-          WriteVector(prefix, 0x3C8, color);
-          changes.Add(
-            new PreservationChange(
-              $"DynamicObjectScopes[{id}].Extension.VisibleEffectColor",
-              PreservationDisposition.Regenerated,
-              "dynamic-sprite-material-edit"
-            )
-          );
-        }
-        if (sourcePreview.OwnsAlpha && !preview.Alpha.Equals(sourcePreview.Alpha))
-        {
-          var alpha = SolveStartValue(
-            preview.Alpha,
-            source.EndAlpha,
-            sourcePreview.AlphaPhase,
-            id,
-            "alpha"
-          );
-          WriteSingle(prefix, 0x3E0, alpha);
-          changes.Add(
-            new PreservationChange(
-              $"DynamicObjectScopes[{id}].Extension.StartAlpha",
-              PreservationDisposition.Regenerated,
-              "dynamic-sprite-material-edit"
-            )
-          );
-        }
-      }
-      destination.Write(prefix, 0, prefix.Length);
-      WriteLengthPrefixed(
-        destination,
-        source.KnownEffectType == DynamicEffectType.ScalableObject
-          ? native.MeshNameBytes
-          : source.MeshNameBytes
-      );
-      WriteLengthPrefixed(destination, slice.TexturePathBytes);
-      var childCount = new byte[sizeof(uint)];
-      BinaryPrimitives.WriteUInt32LittleEndian(childCount, checked((uint)native.ChildIds.Count));
-      destination.Write(childCount, 0, childCount.Length);
-      foreach (var childId in native.ChildIds)
-      {
-        WriteReconciledRecord(
-          destination,
-          childId,
-          sourceObjects,
-          nativeGraph,
-          slices,
-          root,
-          binary,
-          changes,
-          effectPreviews,
-          profile
-        );
-      }
-    }
-
-    private static DynamicEditedPreview ReadDynamicPreview(
-      JsonElement root,
-      ReadOnlySpan<byte> binary,
-      int id,
-      int nodeIndex,
-      DynamicEffectPreview sourcePreview,
-      GltfOperationProfile profile
-    )
-    {
-      var node = root.GetProperty("nodes")[nodeIndex];
-      if (!node.TryGetProperty("mesh", out var meshIndexElement))
-      {
-        throw new InvalidDataException("A sprite-effect preview mesh is missing.");
-      }
-      var primitive = root.GetProperty("meshes")[meshIndexElement.GetInt32()]
-        .GetProperty("primitives")[0];
-      if (sourcePreview.IsScalable)
-      {
-        var scalableMaterialIndex = primitive.GetProperty("material").GetInt32();
-        var scalableBaseColorFactor = root.GetProperty("materials")[scalableMaterialIndex]
-          .GetProperty("pbrMetallicRoughness")
-          .GetProperty("baseColorFactor")
-          .EnumerateArray()
-          .Select(item => item.GetSingle())
-          .ToArray();
-        if (
-          scalableBaseColorFactor.Length != 4
-          || scalableBaseColorFactor.Any(value => !float.IsFinite(value))
-        )
-        {
-          throw new InvalidDataException(
-            "A scalable-object preview base color must contain four finite values."
-          );
-        }
-        return new DynamicEditedPreview(
-          new Vector3(
-            scalableBaseColorFactor[0],
-            scalableBaseColorFactor[1],
-            scalableBaseColorFactor[2]
-          ),
-          scalableBaseColorFactor[3],
-          false
-        );
-      }
-      var positions = ReadVector3Accessor(
-        root,
-        binary,
-        primitive.GetProperty("attributes").GetProperty("POSITION").GetInt32()
-      );
-      if (sourcePreview.IsRibbon)
-      {
-        return ReadRibbonPreview(root, binary, id, primitive, positions, sourcePreview, profile);
-      }
-      if (sourcePreview.IsSphere)
-      {
-        return ReadSpherePreview(root, binary, id, primitive, positions, sourcePreview, profile);
-      }
-      if (positions.Length != 4 || positions.Any(value => !IsFinite(value)))
-      {
-        throw new InvalidDataException(
-          "A sprite-effect preview must contain four finite vertices."
-        );
-      }
-      EffectRectangle rectangle;
-      float depth;
-      if (sourcePreview.Horizontal)
-      {
-        if (
-          positions[0].X != positions[3].X
-          || positions[1].X != positions[2].X
-          || positions[0].Z != positions[1].Z
-          || positions[2].Z != positions[3].Z
-          || positions.Any(value => value.Y != positions[0].Y)
-        )
-        {
-          throw new InvalidDataException(
-            "A terrain-plane sprite preview must remain one axis-aligned four-vertex quad."
-          );
-        }
-        rectangle = new EffectRectangle(
-          positions[0].X,
-          -positions[2].Z,
-          positions[1].X,
-          -positions[0].Z
-        );
-        depth = positions[0].Y;
-      }
-      else
-      {
-        if (
-          positions[0].X != positions[3].X
-          || positions[1].X != positions[2].X
-          || positions[0].Y != positions[1].Y
-          || positions[2].Y != positions[3].Y
-          || positions.Any(value => value.Z != positions[0].Z)
-        )
-        {
-          throw new InvalidDataException(
-            "A billboard sprite preview must remain one axis-aligned four-vertex quad."
-          );
-        }
-        rectangle = new EffectRectangle(
-          positions[0].X,
-          positions[2].Y,
-          positions[1].X,
-          positions[0].Y
-        );
-        depth = positions[0].Z;
-      }
-      var materialIndex = primitive.GetProperty("material").GetInt32();
-      var baseColorFactor = root.GetProperty("materials")[materialIndex]
-        .GetProperty("pbrMetallicRoughness")
-        .GetProperty("baseColorFactor")
-        .EnumerateArray()
-        .Select(item => item.GetSingle())
-        .ToArray();
-      if (baseColorFactor.Length != 4 || baseColorFactor.Any(value => !float.IsFinite(value)))
-      {
-        throw new InvalidDataException(
-          "A sprite-effect preview base color must contain four finite values."
-        );
-      }
-      return new DynamicEditedPreview(
-        rectangle,
-        depth,
-        new Vector3(baseColorFactor[0], baseColorFactor[1], baseColorFactor[2]),
-        baseColorFactor[3]
-      );
-    }
-
-    private static DynamicEditedPreview ReadSpherePreview(
-      JsonElement root,
-      ReadOnlySpan<byte> binary,
-      int id,
-      JsonElement primitive,
-      IReadOnlyList<Vector3> positions,
-      DynamicEffectPreview sourcePreview,
-      GltfOperationProfile profile
-    )
-    {
-      if (
-        positions.Count != sourcePreview.Positions.Count
-        || positions.Count > profile.MaxActiveRenderVertices
-        || positions.Any(value => !IsFinite(value))
-      )
-      {
-        throw SphereEditFailure(
-          id,
-          "A Sphere preview must retain its bounded finite vertex inventory."
-        );
-      }
-      var attributes = primitive.GetProperty("attributes");
-      var normals = ReadVector3Accessor(root, binary, attributes.GetProperty("NORMAL").GetInt32());
-      var textureCoordinates = ReadVector2Accessor(
-        root,
-        binary,
-        attributes.GetProperty("TEXCOORD_0").GetInt32()
-      );
-      var indices = ReadUInt16Accessor(root, binary, primitive.GetProperty("indices").GetInt32());
-      if (
-        normals.Length != positions.Count
-        || normals.Any(value => !IsFinite(value))
-        || !textureCoordinates.SequenceEqual(sourcePreview.TextureCoordinates)
-        || !indices.Select(value => (uint)value).SequenceEqual(sourcePreview.Indices)
-      )
-      {
-        throw SphereEditFailure(
-          id,
-          "A Sphere preview must retain finite normals, texture coordinates, and guarded topology."
-        );
-      }
-      var materialIndex = primitive.GetProperty("material").GetInt32();
-      var baseColorFactor = root.GetProperty("materials")[materialIndex]
-        .GetProperty("pbrMetallicRoughness")
-        .GetProperty("baseColorFactor")
-        .EnumerateArray()
-        .Select(item => item.GetSingle())
-        .ToArray();
-      if (baseColorFactor.Length != 4 || baseColorFactor.Any(value => !float.IsFinite(value)))
-      {
-        throw SphereEditFailure(id, "A Sphere preview base color must contain four finite values.");
-      }
-      return new DynamicEditedPreview(
-        new Vector3(baseColorFactor[0], baseColorFactor[1], baseColorFactor[2]),
-        baseColorFactor[3],
-        !positions.SequenceEqual(sourcePreview.Positions)
-          || !normals.SequenceEqual(sourcePreview.Normals)
-      );
-    }
-
-    private static DynamicPreviewException SphereEditFailure(int id, string message)
-    {
-      return new DynamicPreviewException($"DynamicObjectScopes[{id}].SpherePreview", message);
-    }
-
-    private static DynamicEditedPreview ReadRibbonPreview(
-      JsonElement root,
-      ReadOnlySpan<byte> binary,
-      int id,
-      JsonElement primitive,
-      IReadOnlyList<Vector3> positions,
-      DynamicEffectPreview sourcePreview,
-      GltfOperationProfile profile
-    )
-    {
-      if (
-        positions.Count != sourcePreview.Positions.Count
-        || positions.Count < 4
-        || positions.Count > profile.MaxActiveRenderVertices
-        || positions.Count % 2 != 0
-        || positions.Any(value => !IsFinite(value))
-      )
-      {
-        throw RibbonEditFailure(
-          id,
-          "A ribbon preview must retain its bounded even count of finite vertex pairs."
-        );
-      }
-      var attributes = primitive.GetProperty("attributes");
-      var normals = ReadVector3Accessor(root, binary, attributes.GetProperty("NORMAL").GetInt32());
-      var textureCoordinates = ReadVector2Accessor(
-        root,
-        binary,
-        attributes.GetProperty("TEXCOORD_0").GetInt32()
-      );
-      var indices = ReadUInt16Accessor(root, binary, primitive.GetProperty("indices").GetInt32());
-      if (
-        normals.Length != positions.Count
-        || normals
-          .Where(
-            (value, index) =>
-              !IsFinite(value)
-              || value.LengthSquared() < 0.99f
-              || Vector3.Dot(Vector3.Normalize(value), sourcePreview.Normals[index]) < 0.9999f
-          )
-          .Any()
-        || !textureCoordinates.SequenceEqual(sourcePreview.TextureCoordinates)
-        || !indices.Select(value => (uint)value).SequenceEqual(sourcePreview.Indices)
-      )
-      {
-        throw RibbonEditFailure(
-          id,
-          "A ribbon preview must retain finite normals, atlas-side UVs, and guarded winding topology."
-        );
-      }
-
-      var firstCenter = (positions[0] + positions[1]) * 0.5f;
-      var nextCenter = (positions[2] + positions[3]) * 0.5f;
-      var firstSide = (positions[0] - positions[1]) * 0.5f;
-      var ribbonHalfWidthMagnitude = firstSide.Length();
-      var sourceNormal = Vector3.Normalize(sourcePreview.Normals[0]);
-      var orientation = Vector3.Dot(
-        Vector3.Cross(nextCenter - firstCenter, firstSide),
-        sourceNormal
-      );
-      if (
-        !float.IsFinite(ribbonHalfWidthMagnitude)
-        || ribbonHalfWidthMagnitude <= 0
-        || Math.Abs(orientation) <= 0.000001f
-      )
-      {
-        throw RibbonEditFailure(id, "A ribbon preview path or ribbon half-width is degenerate.");
-      }
-      var sideDirection = Vector3.Normalize(firstSide);
-      var sourceFirstSide = (sourcePreview.Positions[0] - sourcePreview.Positions[1]) * 0.5f;
-      var sourceSideDirection = Vector3.Normalize(sourceFirstSide);
-      var pathChanged = false;
-      for (var pair = 0; pair < positions.Count / 2; pair++)
-      {
-        var left = positions[pair * 2];
-        var right = positions[pair * 2 + 1];
-        var side = (left - right) * 0.5f;
-        if (
-          Math.Abs(side.Length() - ribbonHalfWidthMagnitude)
-            > Math.Max(0.0001f, ribbonHalfWidthMagnitude * 0.0001f)
-          || Vector3.Dot(Vector3.Normalize(side), sideDirection) < 0.9999f
-        )
-        {
-          throw RibbonEditFailure(
-            id,
-            "Every ribbon preview pair must retain one consistent ribbon half-width and orientation."
-          );
-        }
-        var center = (left + right) * 0.5f;
-        var sourceCenter =
-          (sourcePreview.Positions[pair * 2] + sourcePreview.Positions[pair * 2 + 1]) * 0.5f;
-        pathChanged |= center != sourceCenter;
-        if (pair + 1 < positions.Count / 2)
-        {
-          var following = (positions[(pair + 1) * 2] + positions[(pair + 1) * 2 + 1]) * 0.5f;
-          var segmentOrientation = Vector3.Dot(
-            Vector3.Cross(following - center, side),
-            sourceNormal
-          );
-          if (
-            (following - center).LengthSquared() <= 0.000000000001f
-            || Math.Abs(segmentOrientation) <= 0.000001f
-            || Math.Sign(segmentOrientation) != Math.Sign(orientation)
-          )
-          {
-            throw RibbonEditFailure(id, "A ribbon preview contains a degenerate path segment.");
-          }
-        }
-      }
-      pathChanged |= Vector3.Dot(sideDirection, sourceSideDirection) < 0.9999f;
-      var signedRibbonHalfWidth = ribbonHalfWidthMagnitude * Math.Sign(orientation);
-      var materialIndex = primitive.GetProperty("material").GetInt32();
-      var baseColorFactor = root.GetProperty("materials")[materialIndex]
-        .GetProperty("pbrMetallicRoughness")
-        .GetProperty("baseColorFactor")
-        .EnumerateArray()
-        .Select(item => item.GetSingle())
-        .ToArray();
-      if (baseColorFactor.Length != 4 || baseColorFactor.Any(value => !float.IsFinite(value)))
-      {
-        throw RibbonEditFailure(id, "A ribbon preview base color must contain four finite values.");
-      }
-      return new DynamicEditedPreview(
-        new Vector3(baseColorFactor[0], baseColorFactor[1], baseColorFactor[2]),
-        baseColorFactor[3],
-        signedRibbonHalfWidth,
-        pathChanged
-      );
-    }
-
-    private static DynamicPreviewException RibbonEditFailure(int id, string message)
-    {
-      return new DynamicPreviewException($"DynamicObjectScopes[{id}].RibbonPreview", message);
-    }
-
-    private static Vector3[] ReadVector3Accessor(
-      JsonElement root,
-      ReadOnlySpan<byte> binary,
-      int accessorIndex
-    )
-    {
-      var accessor = root.GetProperty("accessors")[accessorIndex];
-      if (
-        accessor.GetProperty("componentType").GetInt32() != 5126
-        || accessor.GetProperty("type").GetString() != "VEC3"
-      )
-      {
-        throw new InvalidDataException(
-          "A sprite-effect POSITION accessor must use float VEC3 values."
-        );
-      }
-      var view = root.GetProperty("bufferViews")[accessor.GetProperty("bufferView").GetInt32()];
-      var count = accessor.GetProperty("count").GetInt32();
-      var stride = view.TryGetProperty("byteStride", out var strideElement)
-        ? strideElement.GetInt32()
-        : 12;
-      var offset =
-        (view.TryGetProperty("byteOffset", out var viewOffset) ? viewOffset.GetInt32() : 0)
-        + (
-          accessor.TryGetProperty("byteOffset", out var accessorOffset)
-            ? accessorOffset.GetInt32()
-            : 0
-        );
-      if (
-        count < 0
-        || stride < 12
-        || offset < 0
-        || (long)offset + (long)count * stride > binary.Length
-      )
-      {
-        throw new InvalidDataException("A sprite-effect POSITION accessor exceeds its buffer.");
-      }
-      var values = new Vector3[count];
-      for (var index = 0; index < count; index++)
-      {
-        var item = binary.Slice(offset + index * stride, 12);
-        values[index] = new Vector3(
-          ReadSingle(item),
-          ReadSingle(item.Slice(4)),
-          ReadSingle(item.Slice(8))
-        );
-      }
-      return values;
-    }
-
-    private static Vector2[] ReadVector2Accessor(
-      JsonElement root,
-      ReadOnlySpan<byte> binary,
-      int accessorIndex
-    )
-    {
-      var accessor = root.GetProperty("accessors")[accessorIndex];
-      if (
-        accessor.GetProperty("componentType").GetInt32() != 5126
-        || accessor.GetProperty("type").GetString() != "VEC2"
-      )
-      {
-        throw new InvalidDataException("A ribbon TEXCOORD_0 accessor must use float VEC2 values.");
-      }
-      var view = root.GetProperty("bufferViews")[accessor.GetProperty("bufferView").GetInt32()];
-      var count = accessor.GetProperty("count").GetInt32();
-      var stride = view.TryGetProperty("byteStride", out var strideElement)
-        ? strideElement.GetInt32()
-        : 8;
-      var offset =
-        (view.TryGetProperty("byteOffset", out var viewOffset) ? viewOffset.GetInt32() : 0)
-        + (
-          accessor.TryGetProperty("byteOffset", out var accessorOffset)
-            ? accessorOffset.GetInt32()
-            : 0
-        );
-      if (
-        count < 0
-        || stride < 8
-        || offset < 0
-        || (long)offset + (long)count * stride > binary.Length
-      )
-      {
-        throw new InvalidDataException("A ribbon TEXCOORD_0 accessor exceeds its buffer.");
-      }
-      var values = new Vector2[count];
-      for (var index = 0; index < count; index++)
-      {
-        var item = binary.Slice(offset + index * stride, 8);
-        values[index] = new Vector2(ReadSingle(item), ReadSingle(item.Slice(4)));
-      }
-      return values;
-    }
-
-    private static ushort[] ReadUInt16Accessor(
-      JsonElement root,
-      ReadOnlySpan<byte> binary,
-      int accessorIndex
-    )
-    {
-      var accessor = root.GetProperty("accessors")[accessorIndex];
-      if (
-        accessor.GetProperty("componentType").GetInt32() != 5123
-        || accessor.GetProperty("type").GetString() != "SCALAR"
-      )
-      {
-        throw new InvalidDataException("A ribbon index accessor must use unsigned-short scalars.");
-      }
-      var view = root.GetProperty("bufferViews")[accessor.GetProperty("bufferView").GetInt32()];
-      var count = accessor.GetProperty("count").GetInt32();
-      var stride = view.TryGetProperty("byteStride", out var strideElement)
-        ? strideElement.GetInt32()
-        : 2;
-      var offset =
-        (view.TryGetProperty("byteOffset", out var viewOffset) ? viewOffset.GetInt32() : 0)
-        + (
-          accessor.TryGetProperty("byteOffset", out var accessorOffset)
-            ? accessorOffset.GetInt32()
-            : 0
-        );
-      if (
-        count < 0
-        || stride < 2
-        || offset < 0
-        || (long)offset + (long)count * stride > binary.Length
-      )
-      {
-        throw new InvalidDataException("A ribbon index accessor exceeds its buffer.");
-      }
-      var values = new ushort[count];
-      for (var index = 0; index < count; index++)
-      {
-        values[index] = BinaryPrimitives.ReadUInt16LittleEndian(
-          binary.Slice(offset + index * stride, 2)
-        );
-      }
-      return values;
-    }
-
-    private static int ReadRecordSlices(
-      byte[] source,
-      int offset,
-      IReadOnlyList<DynamicObjectScope> sourceObjects,
-      ref int sourceIndex,
-      IDictionary<int, DynamicRecordSlice> result
-    )
-    {
-      var scope = sourceObjects[sourceIndex++];
-      var cursor = checked(offset + 0x404);
-      var meshLength = checked((int)ReadUInt32(source, cursor));
-      cursor = checked(cursor + sizeof(uint) + meshLength);
-      var textureLength = checked((int)ReadUInt32(source, cursor));
-      var textureOffset = checked(cursor + sizeof(uint));
-      cursor = checked(cursor + sizeof(uint) + textureLength);
-      var childCount = checked((int)ReadUInt32(source, cursor));
-      cursor += sizeof(uint);
-      if (childCount != scope.Object.Children.Count)
-      {
-        throw new InvalidDataException("Dynamic source object structure is inconsistent.");
-      }
-      result.Add(
-        scope.Id,
-        new DynamicRecordSlice(
-          source.AsSpan(offset, 0x404).ToArray(),
-          source.AsSpan(textureOffset, textureLength).ToArray()
-        )
-      );
-      foreach (var child in scope.Object.Children)
-      {
-        cursor = ReadRecordSlices(source, cursor, sourceObjects, ref sourceIndex, result);
-      }
-      return cursor;
-    }
-
-    private static void WriteLengthPrefixed(Stream destination, IReadOnlyList<byte> value)
-    {
-      var length = new byte[sizeof(uint)];
-      BinaryPrimitives.WriteUInt32LittleEndian(length, checked((uint)value.Count));
-      destination.Write(length, 0, length.Length);
-      var bytes = value as byte[] ?? value.ToArray();
-      destination.Write(bytes, 0, bytes.Length);
-    }
-
-    private static int GetRootOffset(byte[] source)
-    {
-      var declaration = ReadUInt32(source, 0);
-      return sizeof(uint)
-        + ((declaration & 0x10000000) != 0 ? sizeof(uint) : 0)
-        + ((declaration & 0x20000000) != 0 ? 16 : 0);
-    }
-
-    private static (Vector3 Translation, float ModelScale) ReadNodeTransform(
-      JsonElement node,
-      bool supportsScale
-    )
-    {
-      if (node.TryGetProperty("matrix", out _) || node.TryGetProperty("rotation", out _))
-      {
-        throw new InvalidDataException(
-          "Dynamic object nodes do not support matrix or rotation edits."
-        );
-      }
-      var result = Vector3.Zero;
-      if (node.TryGetProperty("translation", out var translation))
-      {
-        var values = translation.EnumerateArray().Select(item => item.GetSingle()).ToArray();
-        if (values.Length != 3 || values.Any(value => !float.IsFinite(value)))
-        {
-          throw new InvalidDataException(
-            "Dynamic node translation must contain three finite values."
-          );
-        }
-        result = new Vector3(values[0], -values[2], values[1]);
-      }
-      var modelScale = 1f;
-      if (node.TryGetProperty("scale", out var scale))
-      {
-        if (!supportsScale)
-        {
-          throw new InvalidDataException("Only ScalableObject nodes support scale edits.");
-        }
-        var values = scale.EnumerateArray().Select(item => item.GetSingle()).ToArray();
-        if (
-          values.Length != 3
-          || values.Any(value => !float.IsFinite(value))
-          || values[0] != values[1]
-          || values[0] != values[2]
-        )
-        {
-          throw new InvalidDataException("ScalableObject node scale must be finite and uniform.");
-        }
-        modelScale = values[0];
-      }
-      return (result, modelScale);
-    }
-
-    private static bool IsFinite(Vector3 value)
-    {
-      return float.IsFinite(value.X) && float.IsFinite(value.Y) && float.IsFinite(value.Z);
-    }
-
-    private static float ReadSingle(ReadOnlySpan<byte> source)
-    {
-      return BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(source));
-    }
-
-    private static void WriteSingle(byte[] destination, int offset, float value)
-    {
-      BinaryPrimitives.WriteInt32LittleEndian(
-        destination.AsSpan(offset, sizeof(float)),
-        BitConverter.SingleToInt32Bits(value)
-      );
-    }
-
-    private static void WriteVector(byte[] destination, int offset, Vector3 value)
-    {
-      WriteSingle(destination, offset, value.X);
-      WriteSingle(destination, offset + 4, value.Y);
-      WriteSingle(destination, offset + 8, value.Z);
-    }
-
-    private static void WriteMshVector(byte[] destination, int offset, Vector3 value)
-    {
-      WriteSingle(destination, offset, value.X);
-      WriteSingle(destination, offset + 4, -value.Y);
-      WriteSingle(destination, offset + 8, value.Z);
-    }
-
-    private static void WriteRectangle(byte[] destination, int offset, EffectRectangle value)
-    {
-      WriteSingle(destination, offset, value.X0);
-      WriteSingle(destination, offset + 4, value.Y1);
-      WriteSingle(destination, offset + 8, value.X1);
-      WriteSingle(destination, offset + 12, value.Y0);
-    }
-
-    private static JsonDocument ParseMetadata(string metadata, GltfOperationProfile profile)
-    {
-      try
-      {
-        return JsonDocument.Parse(
-          metadata,
-          new JsonDocumentOptions
-          {
-            MaxDepth = profile.MaxJsonDepth,
-            CommentHandling = JsonCommentHandling.Disallow,
-            AllowTrailingCommas = false,
-          }
-        );
-      }
-      catch (JsonException ex)
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.MalformedMetadata,
-          2003,
-          "extras.earthtool",
-          ex.Message
-        );
-      }
-    }
-
-    private static InterchangeBaseline ValidateMetadataHeader(
-      JsonElement metadata,
-      string expectedKind,
-      int expectedLocalId,
-      InterchangeBaseline? expectedBaseline
-    )
-    {
-      if (
-        metadata.GetProperty("format").GetString() != "earthtool.msh.gltf"
-        || metadata.GetProperty("version").GetInt32() != MetadataVersion
-      )
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.UnsupportedMetadataVersion,
-          2004,
-          "extras.earthtool",
-          "Dynamic metadata format or version is unsupported."
-        );
-      }
-      var lineage = metadata.GetProperty("assetLineageId").GetGuid();
-      var document = metadata.GetProperty("documentId").GetGuid();
-      var baseline = expectedBaseline ?? new InterchangeBaseline(lineage, document);
-      if (lineage != baseline.AssetLineageId)
-      {
-        throw new DynamicMetadataIdentityException(true);
-      }
-      if (document != baseline.DocumentId)
-      {
-        throw new DynamicMetadataIdentityException(false);
-      }
-      var scope = metadata.GetProperty("scope");
-      if (
-        scope.GetProperty("kind").GetString() != expectedKind
-        || scope.GetProperty("localId").GetInt32() != expectedLocalId
-      )
-      {
-        throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.KindCarrierMismatch,
-          2008,
-          "extras.earthtool",
-          "Dynamic metadata scope does not match its carrier."
-        );
-      }
-      return baseline;
-    }
-
-    private static string GetEarthToolMetadata(JsonElement carrier, string path)
-    {
-      if (
-        !carrier.TryGetProperty("extras", out var extras)
-        || extras.ValueKind != JsonValueKind.Object
-        || !extras.TryGetProperty("earthtool", out var metadata)
-        || metadata.ValueKind != JsonValueKind.String
-      )
-      {
-        throw new DynamicMetadataGraphException(
-          path.StartsWith("scenes[", StringComparison.Ordinal)
-            ? GltfDiagnosticCodes.MissingManifest
-            : GltfDiagnosticCodes.MissingExpectedScope,
-          path.StartsWith("scenes[", StringComparison.Ordinal) ? 2000 : 2010,
-          path,
-          $"Required dynamic metadata is absent at {path}."
-        );
-      }
-      return metadata.GetString()
-        ?? throw new DynamicMetadataGraphException(
-          GltfDiagnosticCodes.MalformedMetadata,
-          2003,
-          path,
-          $"Dynamic metadata is null at {path}."
-        );
     }
 
     private static byte[] CreateBinary(
@@ -2364,12 +304,11 @@ namespace EarthTool.GLTF.Internal
     }
 
     private static byte[] CreateJson(
-      InterchangeBaseline baseline,
       IReadOnlyList<DynamicObjectScope> objects,
       IReadOnlyDictionary<int, DynamicMeshLayout> layouts,
       int binaryLength,
       string? bufferUri,
-      string manifest,
+      IReadOnlyDictionary<int, string> authoringMetadata,
       IReadOnlyDictionary<int, TexPreview> previews,
       IReadOnlyList<TexPreview> previewImages,
       IReadOnlyDictionary<string, DynamicImageLayout> previewLayouts,
@@ -2402,7 +341,6 @@ namespace EarthTool.GLTF.Internal
         writer.WriteStartArray("nodes");
         writer.WriteNumberValue(0);
         writer.WriteEndArray();
-        WriteExtras(writer, manifest);
         writer.WriteEndObject();
         writer.WriteEndArray();
         writer.WriteStartArray("nodes");
@@ -2454,10 +392,7 @@ namespace EarthTool.GLTF.Internal
             writer.WriteNumberValue(nodePreview.ModelScale);
             writer.WriteEndArray();
           }
-          WriteExtras(
-            writer,
-            CreateObjectMetadata(baseline, scope),
-            CreateObjectAuthoringMetadata(scope));
+          WriteExtras(writer, authoringMetadata[scope.Id]);
           writer.WriteEndObject();
         }
         writer.WriteEndArray();
@@ -2738,115 +673,41 @@ namespace EarthTool.GLTF.Internal
       return stream.ToArray();
     }
 
-    private static string CreateManifestMetadata(
-      DynamicMeshAsset asset,
-      InterchangeBaseline baseline,
+    private static IReadOnlyDictionary<int, string> CreateObjectAuthoringMetadata(
       IReadOnlyList<DynamicObjectScope> objects,
-      NativeProjectionFingerprint fingerprint
-    )
+      GltfOperationProfile profile)
     {
-      using var stream = new MemoryStream();
-      using (var writer = new Utf8JsonWriter(stream))
+      if (objects.Count > profile.MaxMetadataEnvelopes)
       {
-        WriteMetadataStart(writer, baseline, "manifest", 0);
-        writer.WriteStartObject("payload");
-        writer.WriteString("assetKind", "dynamic");
-        writer.WriteString(
-          "sourceMsh",
-          GlbDocument.EncodeBase64Url(asset.GetSerializedRepresentation())
-        );
-        writer.WriteStartArray("objectInventory");
-        foreach (var scope in objects.OrderBy(item => item.Id))
-        {
-          writer.WriteNumberValue(scope.Id);
-        }
-        writer.WriteEndArray();
-        writer.WriteNumber("nextObjectId", objects.Max(item => item.Id) + 1);
-        writer.WriteStartObject("nativeProjection");
-        writer.WriteString("name", fingerprint.Name);
-        writer.WriteNumber("version", fingerprint.Version);
-        writer.WriteString("sha256", fingerprint.Sha256);
-        writer.WriteEndObject();
-        writer.WriteEndObject();
-        writer.WriteEndObject();
+        throw new MetadataResourceLimitException(objects.Count, profile.MaxMetadataEnvelopes);
       }
-      return Encoding.UTF8.GetString(stream.ToArray());
+
+      var result = new Dictionary<int, string>();
+      long totalBytes = 0;
+      var totalElements = 0;
+      foreach (var scope in objects)
+      {
+        var metadata = CreateObjectAuthoringMetadata(scope, profile);
+        totalBytes = checked(totalBytes + Encoding.UTF8.GetByteCount(metadata));
+        if (totalBytes > profile.MaxTotalMetadataBytes)
+        {
+          throw new MetadataResourceLimitException(totalBytes, profile.MaxTotalMetadataBytes);
+        }
+        totalElements = checked(
+          totalElements + CountAuthoringMetadataElements(metadata, profile, totalElements)
+        );
+        if (totalElements > profile.MaxMetadataElements)
+        {
+          throw new MetadataResourceLimitException(totalElements, profile.MaxMetadataElements);
+        }
+        result.Add(scope.Id, metadata);
+      }
+      return result;
     }
 
-    private static string CreateObjectMetadata(
-      InterchangeBaseline baseline,
-      DynamicObjectScope scope
-    )
-    {
-      using var stream = new MemoryStream();
-      using (var writer = new Utf8JsonWriter(stream))
-      {
-        WriteMetadataStart(writer, baseline, "object", scope.Id);
-        writer.WriteStartObject("guards");
-        WriteGuard(writer, "orderedChildren", "dynamic-ordered-children", HashIds(scope.ChildIds));
-        if (HasExplicitPreviewContract(scope.Object.Extension.KnownEffectType))
-        {
-          WriteGuard(
-            writer,
-            "effectPreview",
-            "dynamic-effect-preview",
-            HashPreviewContract(scope.Object.Extension)
-          );
-        }
-        writer.WriteEndObject();
-        writer.WriteStartObject("payload");
-        writer.WriteNumber("effectType", scope.Object.Extension.EffectType);
-        if (HasExplicitPreviewContract(scope.Object.Extension.KnownEffectType))
-        {
-          writer.WriteString(
-            "previewContext",
-            PreviewContextName(scope.Object.Extension.KnownEffectType)
-          );
-          writer.WriteString("previewFrameDomain", PreviewFrameDomain(scope.Object.Extension));
-          writer.WriteNumber("previewSourceFrame", PreviewSourceFrame(scope.Object.Extension));
-          writer.WriteNumber("previewTotalLifetimeTicks", PreviewTotalLifetimeTicks);
-          writer.WriteNumber("previewRemainingLifetimeTicks", PreviewRemainingLifetimeTicks);
-          writer.WriteNumber("previewGlobalTick", PreviewGlobalTick);
-          writer.WriteNumber("previewTextureScale", PreviewTextureScale);
-          writer.WriteNumber("previewLifetimeProgress", PreviewLifetimeProgress);
-          writer.WriteNumber("previewParentPhase", _previewParentPhase);
-          if (scope.Object.Extension.KnownEffectType == DynamicEffectType.ScalableObject)
-          {
-            writer.WriteNumber(
-              "previewModelScalePhase",
-              GetScalablePreviewPhase(scope.Object.Extension)
-            );
-          }
-        }
-        writer.WriteStartArray("orderedChildIds");
-        foreach (var childId in scope.ChildIds)
-        {
-          writer.WriteNumberValue(childId);
-        }
-        writer.WriteEndArray();
-        writer.WriteString(
-          "commonBaseHeader",
-          GlbDocument.EncodeBase64Url(scope.Object.CommonBaseHeader.SerializedRepresentation)
-        );
-        writer.WriteString(
-          "effectRepresentation",
-          GlbDocument.EncodeBase64Url(scope.Object.Extension.SerializedRepresentation)
-        );
-        writer.WriteString(
-          "meshName",
-          GlbDocument.EncodeBase64Url(scope.Object.Extension.MeshNameBytes)
-        );
-        writer.WriteString(
-          "texturePath",
-          GlbDocument.EncodeBase64Url(scope.Object.Extension.TexturePathBytes)
-        );
-        writer.WriteEndObject();
-        writer.WriteEndObject();
-      }
-      return Encoding.UTF8.GetString(stream.ToArray());
-    }
-
-    private static string CreateObjectAuthoringMetadata(DynamicObjectScope scope)
+    private static string CreateObjectAuthoringMetadata(
+      DynamicObjectScope scope,
+      GltfOperationProfile profile)
     {
       var extension = scope.Object.Extension;
       var effectType = extension.KnownEffectType
@@ -2882,52 +743,44 @@ namespace EarthTool.GLTF.Internal
       return CanonicalAuthoringMetadata.Write(
         CanonicalAuthoringOwner.Parse($"ET_Dynamic_{scope.Id}_{EffectName(extension)}"),
         values,
-        GltfOperationProfile.Default);
+        profile);
     }
 
-    private static void WriteMetadataStart(
-      Utf8JsonWriter writer,
-      InterchangeBaseline baseline,
-      string kind,
-      int localId
-    )
-    {
-      writer.WriteStartObject();
-      writer.WriteString("format", "earthtool.msh.gltf");
-      writer.WriteNumber("version", MetadataVersion);
-      writer.WriteString("assetLineageId", baseline.AssetLineageId.ToString("D"));
-      writer.WriteString("documentId", baseline.DocumentId.ToString("D"));
-      writer.WriteStartObject("scope");
-      writer.WriteString("kind", kind);
-      writer.WriteNumber("localId", localId);
-      writer.WriteEndObject();
-    }
-
-    private static void WriteGuard(
-      Utf8JsonWriter writer,
-      string name,
-      string projection,
-      string digest
-    )
-    {
-      writer.WriteStartObject(name);
-      writer.WriteString("projection", projection);
-      writer.WriteNumber("version", 1);
-      writer.WriteString("sha256", digest);
-      writer.WriteEndObject();
-    }
-
-    private static void WriteExtras(
-      Utf8JsonWriter writer,
+    private static int CountAuthoringMetadataElements(
       string metadata,
-      string? authoringMetadata = null)
+      GltfOperationProfile profile,
+      int consumedElements)
+    {
+      var reader = new Utf8JsonReader(
+        Encoding.UTF8.GetBytes(metadata),
+        new JsonReaderOptions { MaxDepth = profile.MaxJsonDepth }
+      );
+      var count = 0;
+      try
+      {
+        while (reader.Read())
+        {
+          count = checked(count + 1);
+          if (consumedElements + count > profile.MaxMetadataElements)
+          {
+            throw new MetadataResourceLimitException(
+              consumedElements + count,
+              profile.MaxMetadataElements
+            );
+          }
+        }
+      }
+      catch (JsonException)
+      {
+        return count;
+      }
+      return count;
+    }
+
+    private static void WriteExtras(Utf8JsonWriter writer, string authoringMetadata)
     {
       writer.WriteStartObject("extras");
-      writer.WriteString("earthtool", metadata);
-      if (authoringMetadata is not null)
-      {
-        writer.WriteString("earthtoolAuthoring", authoringMetadata);
-      }
+      writer.WriteString("earthtoolAuthoring", authoringMetadata);
       writer.WriteEndObject();
     }
 
@@ -2983,23 +836,11 @@ namespace EarthTool.GLTF.Internal
     private static IReadOnlyList<DynamicObjectScope> Flatten(
       DynamicObject root,
       GltfOperationProfile profile,
-      IReadOnlyList<int>? objectIds = null,
       int initialDepth = 1
     )
     {
       var objects = new List<DynamicObjectScope>();
-      Add(root, initialDepth, objects, profile, objectIds ?? Array.Empty<int>());
-      if (
-        objectIds is { Count: > 0 }
-        && (
-          objectIds.Count != objects.Count
-          || objectIds.Any(id => id <= 0)
-          || objectIds.Distinct().Count() != objectIds.Count
-        )
-      )
-      {
-        throw new InvalidDataException("Retained dynamic object identities are invalid.");
-      }
+      Add(root, initialDepth, objects, profile);
       for (var index = 0; index < objects.Count; index++)
       {
         var scope = objects[index];
@@ -3017,8 +858,7 @@ namespace EarthTool.GLTF.Internal
       DynamicObject item,
       int depth,
       ICollection<DynamicObjectScope> result,
-      GltfOperationProfile profile,
-      IReadOnlyList<int> objectIds
+      GltfOperationProfile profile
     )
     {
       if (depth > profile.MaxHierarchyDepth)
@@ -3029,13 +869,10 @@ namespace EarthTool.GLTF.Internal
       {
         throw new ResourceLimitException(result.Count + 1, profile.MaxNodes);
       }
-      var index = result.Count;
-      result.Add(
-        new DynamicObjectScope(objectIds.Count > index ? objectIds[index] : index + 1, item)
-      );
+      result.Add(new DynamicObjectScope(result.Count + 1, item));
       foreach (var child in item.Children)
       {
-        Add(child, depth + 1, result, profile, objectIds);
+        Add(child, depth + 1, result, profile);
       }
     }
 
@@ -3668,6 +1505,11 @@ namespace EarthTool.GLTF.Internal
       return IsUnitRange(value.X) && IsUnitRange(value.Y) && IsUnitRange(value.Z);
     }
 
+    private static bool IsFinite(Vector3 value)
+    {
+      return float.IsFinite(value.X) && float.IsFinite(value.Y) && float.IsFinite(value.Z);
+    }
+
     private static bool IsUnitRange(float value)
     {
       return value >= 0 && value <= 1;
@@ -3722,146 +1564,6 @@ namespace EarthTool.GLTF.Internal
           or DynamicEffectType.Keelwater;
     }
 
-    private static bool HasExplicitPreviewContract(DynamicEffectType? effectType)
-    {
-      return IsAttachedPreview(effectType)
-        || effectType is DynamicEffectType.Sphere or DynamicEffectType.ScalableObject;
-    }
-
-    private static string PreviewContextName(DynamicEffectType? effectType)
-    {
-      return IsAttachedPreview(effectType) ? "attachedParticle" : "primary";
-    }
-
-    private static string PreviewFrameDomain(DynamicEffectExtension extension)
-    {
-      return extension.KnownEffectType == DynamicEffectType.Sphere ? "builtIn16"
-        : extension.KnownEffectType == DynamicEffectType.Explosion ? "declarationStart"
-        : "serialized";
-    }
-
-    private static int PreviewSourceFrame(DynamicEffectExtension extension)
-    {
-      if (extension.KnownEffectType == DynamicEffectType.Sphere)
-      {
-        return DynamicEffectSemantics.TrySelectSphereFrame(
-          PreviewTotalLifetimeTicks,
-          PreviewRemainingLifetimeTicks,
-          out var sourceFrame,
-          out _
-        )
-          ? sourceFrame
-          : throw new InvalidOperationException("The fixed Sphere preview lifetime is invalid.");
-      }
-      if (extension.KnownEffectType == DynamicEffectType.Explosion)
-      {
-        return extension.FirstSourceFrame;
-      }
-      var context = IsAttachedPreview(extension.KnownEffectType)
-        ? DynamicEffectEvaluationContext.AttachedParticle
-        : DynamicEffectEvaluationContext.Primary;
-      return DynamicEffectSemantics.TrySelectFrame(
-        extension,
-        context,
-        PreviewTotalLifetimeTicks,
-        PreviewRemainingLifetimeTicks,
-        PreviewGlobalTick,
-        out var frame,
-        out _
-      )
-        ? frame.SourceFrame
-        : throw new InvalidOperationException("The fixed dynamic preview frame domain is invalid.");
-    }
-
-    private static float GetScalablePreviewPhase(DynamicEffectExtension extension)
-    {
-      return DynamicEffectSemantics.TrySelectFrame(
-        extension,
-        DynamicEffectEvaluationContext.Primary,
-        PreviewTotalLifetimeTicks,
-        PreviewRemainingLifetimeTicks,
-        PreviewGlobalTick,
-        out var frame,
-        out _
-      )
-        ? frame.Phase
-        : throw new InvalidOperationException(
-          "The fixed ScalableObject preview frame domain is invalid."
-        );
-    }
-
-    private static EffectRectangle SolveStartRectangle(
-      EffectRectangle value,
-      EffectRectangle end,
-      float phase,
-      int id
-    )
-    {
-      return new EffectRectangle(
-        SolveStartValue(value.X0, end.X0, phase, id, "rectangle"),
-        SolveStartValue(value.Y1, end.Y1, phase, id, "rectangle"),
-        SolveStartValue(value.X1, end.X1, phase, id, "rectangle"),
-        SolveStartValue(value.Y0, end.Y0, phase, id, "rectangle")
-      );
-    }
-
-    private static float SolveStartValue(float value, float end, float phase, int id, string field)
-    {
-      var denominator = 1 - phase;
-      var result = (value - end * phase) / denominator;
-      if (denominator == 0 || !float.IsFinite(result))
-      {
-        throw new DynamicPreviewException(
-          $"DynamicObjectScopes[{id}].Extension.{field}",
-          "The edited deterministic preview cannot be mapped back to its owned start value."
-        );
-      }
-      return result;
-    }
-
-    private static Vector3 SolveModulatedColor(Vector3 value, float gain, int id)
-    {
-      var factor = Math.Min(1, gain);
-      if (!float.IsFinite(factor) || factor == 0)
-      {
-        throw new DynamicPreviewException(
-          $"DynamicObjectScopes[{id}].Extension.VisibleEffectColor",
-          "The edited modulated color cannot be inverted through its deterministic light sample."
-        );
-      }
-      var result = value / factor;
-      if (!IsFinite(result))
-      {
-        throw new DynamicPreviewException(
-          $"DynamicObjectScopes[{id}].Extension.VisibleEffectColor",
-          "The edited modulated color produces a non-finite authoritative value."
-        );
-      }
-      return result;
-    }
-
-    private static string HashPreviewContract(DynamicEffectExtension extension)
-    {
-      using var stream = new MemoryStream();
-      using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
-      {
-        writer.Write(extension.EffectType);
-        writer.Write(PreviewContextName(extension.KnownEffectType));
-        writer.Write(PreviewFrameDomain(extension));
-        writer.Write(PreviewSourceFrame(extension));
-        writer.Write(PreviewTotalLifetimeTicks);
-        writer.Write(PreviewRemainingLifetimeTicks);
-        writer.Write(PreviewGlobalTick);
-        writer.Write(PreviewTextureScale);
-        writer.Write(PreviewLifetimeProgress);
-        writer.Write(_previewParentPhase);
-        writer.Write(_previewWaterColor.X);
-        writer.Write(_previewWaterColor.Y);
-        writer.Write(_previewWaterColor.Z);
-      }
-      return Hash(stream.ToArray());
-    }
-
     private static void ValidateSupportedEffects(IReadOnlyList<DynamicObjectScope> objects)
     {
       var unsupported = objects.FirstOrDefault(item =>
@@ -3877,10 +1579,7 @@ namespace EarthTool.GLTF.Internal
       }
     }
 
-    private static DynamicSceneLayout ValidateGraphBounds(
-      JsonElement root,
-      GltfOperationProfile profile
-    )
+    private static void ValidateGraphBounds(JsonElement root, GltfOperationProfile profile)
     {
       if (
         !root.TryGetProperty("nodes", out var nodes)
@@ -3898,37 +1597,41 @@ namespace EarthTool.GLTF.Internal
       }
       if (
         !root.TryGetProperty("scenes", out var scenes)
+        || scenes.ValueKind != JsonValueKind.Array
         || scenes.GetArrayLength() != 1
         || !root.TryGetProperty("scene", out var scene)
         || scene.GetInt32() != 0
         || !scenes[0].TryGetProperty("nodes", out var sceneNodes)
+        || sceneNodes.ValueKind != JsonValueKind.Array
         || sceneNodes.GetArrayLength() != 1
       )
       {
         throw new InvalidDataException("Dynamic glTF requires one default scene.");
       }
       var sceneRootIndex = sceneNodes[0].GetInt32();
-      int? placementRootIndex = null;
+      if (sceneRootIndex < 0 || sceneRootIndex >= nodes.GetArrayLength())
+      {
+        throw new InvalidDataException("Dynamic glTF contains an invalid scene root.");
+      }
+
+      var placementRoot = false;
       for (var index = 0; index < nodes.GetArrayLength(); index++)
       {
         if (!TryGetPlacementRootMarker(nodes[index], out var hasMarker))
         {
           continue;
         }
-        if (!hasMarker || placementRootIndex.HasValue || index != sceneRootIndex)
+        if (!hasMarker || placementRoot || index != sceneRootIndex)
         {
           throw new InvalidDataException("Dynamic glTF placement root is malformed.");
         }
-        placementRootIndex = index;
+        placementRoot = true;
       }
-      var dynamicRootIndex = sceneRootIndex;
-      var placementDataIgnored = false;
-      if (placementRootIndex.HasValue)
+      if (placementRoot)
       {
-        var placement = nodes[placementRootIndex.Value];
+        var placement = nodes[sceneRootIndex];
         if (
-          HasEarthToolMember(placement)
-          || placement.TryGetProperty("mesh", out _)
+          placement.TryGetProperty("mesh", out _)
           || placement.TryGetProperty("camera", out _)
           || placement.TryGetProperty("skin", out _)
           || placement.TryGetProperty("weights", out _)
@@ -3939,14 +1642,11 @@ namespace EarthTool.GLTF.Internal
         {
           throw new InvalidDataException("Dynamic glTF placement root is malformed.");
         }
-        dynamicRootIndex = placementChildren[0].GetInt32();
-        placementDataIgnored =
-          HasNonIdentityPlacement(placement)
-          || HasPlacementAnimation(root, placementRootIndex.Value);
-      }
-      else if (!HasEarthToolMember(nodes[sceneRootIndex]))
-      {
-        throw new InvalidDataException("Dynamic glTF has an unmarked placement root.");
+        var dynamicRootIndex = placementChildren[0].GetInt32();
+        if (dynamicRootIndex < 0 || dynamicRootIndex >= nodes.GetArrayLength())
+        {
+          throw new InvalidDataException("Dynamic glTF contains an invalid dynamic root.");
+        }
       }
       var visited = new HashSet<int>();
       ValidateDepth(nodes, sceneRootIndex, 1, profile.MaxHierarchyDepth, visited);
@@ -3954,16 +1654,6 @@ namespace EarthTool.GLTF.Internal
       {
         throw new InvalidDataException("Every dynamic glTF node must be reachable exactly once.");
       }
-      var objectNodeIndices = Enumerable
-        .Range(0, nodes.GetArrayLength())
-        .Where(index => index != placementRootIndex)
-        .ToArray();
-      return new DynamicSceneLayout(
-        placementRootIndex,
-        dynamicRootIndex,
-        Array.AsReadOnly(objectNodeIndices),
-        placementDataIgnored
-      );
     }
 
     private static bool TryGetPlacementRootMarker(JsonElement node, out bool value)
@@ -3980,60 +1670,56 @@ namespace EarthTool.GLTF.Internal
       return true;
     }
 
-    private static bool HasEarthToolMember(JsonElement node)
+    private static void ValidateAuthoringMetadataBudgets(
+      JsonElement root,
+      GltfOperationProfile profile)
     {
-      return node.TryGetProperty("extras", out var extras)
-        && extras.TryGetProperty("earthtool", out _);
-    }
-
-    private static bool HasNonIdentityPlacement(JsonElement node)
-    {
-      if (node.TryGetProperty("matrix", out var matrix))
+      if (!root.TryGetProperty("nodes", out var nodes) || nodes.ValueKind != JsonValueKind.Array)
       {
-        var identity = new[] { 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f };
-        return !matrix.EnumerateArray().Select(value => value.GetSingle()).SequenceEqual(identity);
+        return;
       }
-      return node.TryGetProperty("translation", out var translation)
-          && translation
-            .EnumerateArray()
-            .Select(value => value.GetSingle())
-            .Any(value => value != 0)
-        || node.TryGetProperty("rotation", out var rotation)
-          && !rotation
-            .EnumerateArray()
-            .Select(value => value.GetSingle())
-            .SequenceEqual(new[] { 0f, 0f, 0f, 1f })
-        || node.TryGetProperty("scale", out var scale)
-          && scale.EnumerateArray().Select(value => value.GetSingle()).Any(value => value != 1);
-    }
 
-    private static bool HasPlacementAnimation(JsonElement root, int placementRootIndex)
-    {
-      if (!root.TryGetProperty("animations", out var animations))
+      var envelopeCount = 0;
+      long totalBytes = 0;
+      var totalElements = 0;
+      foreach (var node in nodes.EnumerateArray())
       {
-        return false;
-      }
-      var found = false;
-      foreach (
-        var channel in animations
-          .EnumerateArray()
-          .SelectMany(animation => animation.GetProperty("channels").EnumerateArray())
-      )
-      {
-        var target = channel.GetProperty("target");
-        if (target.GetProperty("node").GetInt32() != placementRootIndex)
+        if (
+          !node.TryGetProperty("extras", out var extras)
+          || extras.ValueKind != JsonValueKind.Object
+          || !extras.TryGetProperty("earthtoolAuthoring", out var metadata)
+        )
         {
           continue;
         }
-        if (target.GetProperty("path").GetString() is not ("translation" or "rotation" or "scale"))
+        if (metadata.ValueKind != JsonValueKind.String || metadata.GetString() is not { } text)
         {
-          throw new InvalidDataException(
-            "Dynamic placement animation has an unsupported target path."
-          );
+          throw new InvalidDataException("Local EarthTool authoring metadata must be a string.");
         }
-        found = true;
+
+        envelopeCount = checked(envelopeCount + 1);
+        if (envelopeCount > profile.MaxMetadataEnvelopes)
+        {
+          throw new MetadataResourceLimitException(envelopeCount, profile.MaxMetadataEnvelopes);
+        }
+        var bytes = Encoding.UTF8.GetByteCount(text);
+        if (bytes > profile.MaxMetadataBytes)
+        {
+          throw new MetadataResourceLimitException(bytes, profile.MaxMetadataBytes);
+        }
+        totalBytes = checked(totalBytes + bytes);
+        if (totalBytes > profile.MaxTotalMetadataBytes)
+        {
+          throw new MetadataResourceLimitException(totalBytes, profile.MaxTotalMetadataBytes);
+        }
+        totalElements = checked(
+          totalElements + CountAuthoringMetadataElements(text, profile, totalElements)
+        );
+        if (totalElements > profile.MaxMetadataElements)
+        {
+          throw new MetadataResourceLimitException(totalElements, profile.MaxMetadataElements);
+        }
       }
-      return found;
     }
 
     private static void ValidateDepth(
@@ -4065,111 +1751,6 @@ namespace EarthTool.GLTF.Internal
       }
     }
 
-    private sealed class DynamicSceneLayout
-    {
-      internal int? PlacementRootIndex { get; }
-      internal int DynamicRootNodeIndex { get; }
-      internal IReadOnlyList<int> ObjectNodeIndices { get; }
-      internal bool PlacementDataIgnored { get; }
-
-      internal DynamicSceneLayout(
-        int? placementRootIndex,
-        int dynamicRootNodeIndex,
-        IReadOnlyList<int> objectNodeIndices,
-        bool placementDataIgnored
-      )
-      {
-        PlacementRootIndex = placementRootIndex;
-        DynamicRootNodeIndex = dynamicRootNodeIndex;
-        ObjectNodeIndices = objectNodeIndices;
-        PlacementDataIgnored = placementDataIgnored;
-      }
-    }
-
-    private static NativeProjectionFingerprint CreateFingerprint(
-      IReadOnlyList<DynamicObjectScope> objects,
-      IReadOnlyDictionary<int, DynamicEffectPreview> effectPreviews
-    )
-    {
-      using var stream = new MemoryStream();
-      using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
-      {
-        foreach (var scope in objects)
-        {
-          writer.Write(scope.Id);
-          writer.Write(scope.Object.Extension.EffectType);
-          writer.Write(scope.ChildIds.Count);
-          foreach (var childId in scope.ChildIds)
-          {
-            writer.Write(childId);
-          }
-          var extension = scope.Object.Extension;
-          writer.Write(extension.ChildStartTranslation.X);
-          writer.Write(extension.ChildStartTranslation.Y);
-          writer.Write(extension.ChildStartTranslation.Z);
-          if (effectPreviews.TryGetValue(scope.Id, out var preview))
-          {
-            if (preview.IsScalable)
-            {
-              writer.Write(preview.ModelScale);
-              writer.Write(preview.ModelScalePhase);
-              writer.Write(preview.Color.X);
-              writer.Write(preview.Color.Y);
-              writer.Write(preview.Color.Z);
-              writer.Write(preview.Alpha);
-              continue;
-            }
-            writer.Write(preview.Rectangle.X0);
-            writer.Write(preview.Rectangle.Y1);
-            writer.Write(preview.Rectangle.X1);
-            writer.Write(preview.Rectangle.Y0);
-            writer.Write(preview.Depth);
-            writer.Write(preview.Color.X);
-            writer.Write(preview.Color.Y);
-            writer.Write(preview.Color.Z);
-            writer.Write(preview.Alpha);
-            if (preview.IsRibbon || preview.IsSphere)
-            {
-              writer.Write(preview.RibbonHalfWidth);
-              foreach (var position in preview.Positions)
-              {
-                writer.Write(position.X);
-                writer.Write(position.Y);
-                writer.Write(position.Z);
-              }
-              foreach (var index in preview.Indices)
-              {
-                writer.Write(index);
-              }
-            }
-            if (extension.KnownEffectType != DynamicEffectType.Explosion)
-            {
-              foreach (var uv in preview.TextureCoordinates)
-              {
-                writer.Write(uv.X);
-                writer.Write(uv.Y);
-              }
-            }
-          }
-        }
-      }
-      return new NativeProjectionFingerprint(
-        ProjectionName,
-        ProjectionVersion,
-        Hash(stream.ToArray())
-      );
-    }
-
-    private static string HashIds(IReadOnlyList<int> ids)
-    {
-      var bytes = new byte[ids.Count * sizeof(int)];
-      for (var index = 0; index < ids.Count; index++)
-      {
-        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(index * sizeof(int)), ids[index]);
-      }
-      return Hash(bytes);
-    }
-
     private static string Hash(byte[] bytes)
     {
       using var sha256 = SHA256.Create();
@@ -4182,17 +1763,6 @@ namespace EarthTool.GLTF.Internal
     private static string EffectName(DynamicEffectExtension extension)
     {
       return extension.KnownEffectType?.ToString() ?? $"Unknown_{extension.EffectType:X8}";
-    }
-
-    private static MshOperationProfile CreateMshProfile(GltfOperationProfile profile)
-    {
-      return new MshOperationProfile(
-        maxInputBytes: profile.MaxInputBytes,
-        maxOutputBytes: profile.MaxOutputBytes,
-        maxDynamicDepth: profile.MaxHierarchyDepth,
-        maxDynamicObjects: profile.MaxNodes,
-        maxDynamicChildrenPerObject: profile.MaxNodes
-      );
     }
 
     private static byte[] Pack(byte[] json, byte[] binary)
@@ -4258,55 +1828,6 @@ namespace EarthTool.GLTF.Internal
       internal void SetChildIds(IEnumerable<int> childIds)
       {
         ChildIds = Array.AsReadOnly(childIds.ToArray());
-      }
-    }
-
-    private sealed class NativeObjectGraph
-    {
-      internal IReadOnlyDictionary<int, NativeObjectScope> Scopes { get; }
-
-      internal NativeObjectGraph(IReadOnlyDictionary<int, NativeObjectScope> scopes)
-      {
-        Scopes = scopes;
-      }
-    }
-
-    private sealed class NativeObjectScope
-    {
-      internal int Id { get; }
-      internal int NodeIndex { get; }
-      internal IReadOnlyList<int> ChildIds { get; }
-      internal Vector3 Translation { get; }
-      internal float ModelScale { get; }
-      internal IReadOnlyList<byte> MeshNameBytes { get; }
-
-      internal NativeObjectScope(
-        int id,
-        int nodeIndex,
-        IReadOnlyList<int> childIds,
-        Vector3 translation,
-        float modelScale,
-        IReadOnlyList<byte> meshNameBytes
-      )
-      {
-        Id = id;
-        NodeIndex = nodeIndex;
-        ChildIds = childIds;
-        Translation = translation;
-        ModelScale = modelScale;
-        MeshNameBytes = meshNameBytes;
-      }
-    }
-
-    private sealed class DynamicRecordSlice
-    {
-      internal byte[] FixedPrefix { get; }
-      internal byte[] TexturePathBytes { get; }
-
-      internal DynamicRecordSlice(byte[] fixedPrefix, byte[] texturePathBytes)
-      {
-        FixedPrefix = fixedPrefix;
-        TexturePathBytes = texturePathBytes;
       }
     }
 
@@ -4489,60 +2010,6 @@ namespace EarthTool.GLTF.Internal
       }
     }
 
-    private readonly struct DynamicEditedPreview
-    {
-      internal EffectRectangle Rectangle { get; }
-      internal float Depth { get; }
-      internal Vector3 Color { get; }
-      internal float Alpha { get; }
-      internal float? RibbonHalfWidth { get; }
-      internal bool RibbonPathChanged { get; }
-      internal bool GeometryChanged { get; }
-
-      internal DynamicEditedPreview(
-        EffectRectangle rectangle,
-        float depth,
-        Vector3 color,
-        float alpha
-      )
-      {
-        Rectangle = rectangle;
-        Depth = depth;
-        Color = color;
-        Alpha = alpha;
-        RibbonHalfWidth = null;
-        RibbonPathChanged = false;
-        GeometryChanged = false;
-      }
-
-      internal DynamicEditedPreview(
-        Vector3 color,
-        float alpha,
-        float ribbonHalfWidth,
-        bool ribbonPathChanged
-      )
-      {
-        Rectangle = default;
-        Depth = 0;
-        Color = color;
-        Alpha = alpha;
-        RibbonHalfWidth = ribbonHalfWidth;
-        RibbonPathChanged = ribbonPathChanged;
-        GeometryChanged = false;
-      }
-
-      internal DynamicEditedPreview(Vector3 color, float alpha, bool geometryChanged)
-      {
-        Rectangle = default;
-        Depth = 0;
-        Color = color;
-        Alpha = alpha;
-        RibbonHalfWidth = null;
-        RibbonPathChanged = false;
-        GeometryChanged = geometryChanged;
-      }
-    }
-
     private readonly struct DynamicImageLayout
     {
       internal int Offset { get; }
@@ -4608,21 +2075,6 @@ namespace EarthTool.GLTF.Internal
     }
   }
 
-  internal sealed class DynamicMetadataIdentityException : Exception
-  {
-    internal bool IsLineage { get; }
-
-    internal DynamicMetadataIdentityException(bool isLineage)
-      : base(
-        isLineage
-          ? "Dynamic asset lineage differs from the expected baseline."
-          : "Dynamic document identity differs from the expected baseline."
-      )
-    {
-      IsLineage = isLineage;
-    }
-  }
-
   internal sealed class DynamicPreviewException : Exception
   {
     internal string Path { get; }
@@ -4634,18 +2086,4 @@ namespace EarthTool.GLTF.Internal
     }
   }
 
-  internal sealed class DynamicMetadataGraphException : Exception
-  {
-    internal string Code { get; }
-    internal int EventId { get; }
-    internal string Path { get; }
-
-    internal DynamicMetadataGraphException(string code, int eventId, string path, string message)
-      : base(message)
-    {
-      Code = code;
-      EventId = eventId;
-      Path = path;
-    }
-  }
 }

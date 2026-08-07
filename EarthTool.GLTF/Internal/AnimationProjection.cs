@@ -6,8 +6,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace EarthTool.GLTF.Internal
 {
@@ -36,22 +34,18 @@ namespace EarthTool.GLTF.Internal
 
     internal int FrameCount => Objects[0].Frames.Count;
 
-    internal string Fingerprint { get; }
-
     internal ProjectedAnimationClip(
       int classIndex,
-      IReadOnlyList<ProjectedAnimationObject> objects,
-      string fingerprint)
+      IReadOnlyList<ProjectedAnimationObject> objects)
     {
       ClassIndex = classIndex;
       Objects = objects;
-      Fingerprint = fingerprint;
     }
   }
 
   internal sealed class ProjectedAnimationObject
   {
-    internal int SourceObjectLocalId { get; }
+    internal int SourceObjectOrdinal { get; }
 
     internal uint AnimationClassValue { get; }
 
@@ -67,30 +61,22 @@ namespace EarthTool.GLTF.Internal
 
     internal bool IsNative => HasSourceTracks && !FailureFrame.HasValue;
 
-    internal string? Fingerprint { get; }
-
-    internal StaticAnimationTracks SourceTracks { get; }
-
     internal ProjectedAnimationObject(
-      int sourceObjectLocalId,
+      int sourceObjectOrdinal,
       uint animationClassValue,
       int classIndex,
       byte declaredLength,
       IReadOnlyList<ProjectedAnimationFrame> frames,
       int? failureFrame,
-      string? fingerprint,
-      bool hasSourceTracks,
-      StaticAnimationTracks sourceTracks)
+      bool hasSourceTracks)
     {
-      SourceObjectLocalId = sourceObjectLocalId;
+      SourceObjectOrdinal = sourceObjectOrdinal;
       AnimationClassValue = animationClassValue;
       ClassIndex = classIndex;
       DeclaredLength = declaredLength;
       Frames = frames;
       FailureFrame = failureFrame;
-      Fingerprint = fingerprint;
       HasSourceTracks = hasSourceTracks;
-      SourceTracks = sourceTracks;
     }
   }
 
@@ -122,22 +108,13 @@ namespace EarthTool.GLTF.Internal
 
     private static readonly Matrix4x4 StoredYAxisReflection = Matrix4x4.CreateScale(1, -1, 1);
 
-    internal static AnimationProjectionSet Create(
-      StaticMeshAsset asset,
-      InterchangeBaseline baseline
-    )
-    {
-      return Create(asset, baseline, GltfStaticIdentityMap.CreateSequential(asset));
-    }
-
-    internal static AnimationProjectionSet Create(
-      StaticMeshAsset asset,
-      InterchangeBaseline baseline,
-      GltfStaticIdentityMap identityMap)
+    internal static AnimationProjectionSet Create(StaticMeshAsset asset)
     {
       var objects = new List<ProjectedAnimationObject>();
-      foreach (var source in StaticSourceObjectTraversal.Flatten(asset.RootSourceObject))
+      var sources = StaticSourceObjectTraversal.Flatten(asset.RootSourceObject).ToArray();
+      for (var sourceIndex = 0; sourceIndex < sources.Length; sourceIndex++)
       {
+        var source = sources[sourceIndex];
         var record = source.StaticRenderObjects[0];
         var tracks = record.AnimationTracks;
         var hasSourceTracks = tracks.ScaleFrames.Count > 0
@@ -159,27 +136,14 @@ namespace EarthTool.GLTF.Internal
           frames.Add(projected);
         }
 
-        var fingerprint = !hasSourceTracks || failureFrame.HasValue
-          ? null
-          : AnimationProjectionFingerprint.CreateObject(
-            baseline,
-            identityMap.GetSourceObjectId(source),
-            classIndex,
-            declaredLength,
-            frames.Select(frame => Canonicalize(
-              frame.Translation,
-              frame.Rotation,
-              frame.Scale)).ToArray());
         objects.Add(new ProjectedAnimationObject(
-          identityMap.GetSourceObjectId(source),
+          sourceIndex + 1,
           record.AnimationClassValue,
           classIndex,
           declaredLength,
           frames.AsReadOnly(),
           failureFrame,
-          fingerprint,
-          hasSourceTracks,
-          tracks));
+          hasSourceTracks));
       }
 
       var clips = objects.Where(item => item.IsNative)
@@ -187,11 +151,10 @@ namespace EarthTool.GLTF.Internal
         .OrderBy(group => group.Key)
         .Select(group =>
         {
-          var participants = group.OrderBy(item => item.SourceObjectLocalId).ToArray();
+          var participants = group.OrderBy(item => item.SourceObjectOrdinal).ToArray();
           return new ProjectedAnimationClip(
             group.Key,
-            Array.AsReadOnly(participants),
-            AnimationProjectionFingerprint.CreateClip(baseline, group.Key, participants));
+            Array.AsReadOnly(participants));
         })
         .ToArray();
       return new AnimationProjectionSet(Array.AsReadOnly(clips), objects.AsReadOnly());
@@ -239,32 +202,6 @@ namespace EarthTool.GLTF.Internal
       return candidate;
     }
 
-    internal static byte[] SerializeScaleFrames(StaticAnimationTracks tracks)
-    {
-      return SerializeVectors(tracks.ScaleFrames, false);
-    }
-
-    internal static byte[] SerializeTranslationFrames(StaticAnimationTracks tracks)
-    {
-      return SerializeVectors(tracks.TranslationFrames, true);
-    }
-
-    internal static byte[] SerializeMatrices(StaticAnimationTracks tracks)
-    {
-      using var stream = new MemoryStream();
-      using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
-      {
-        foreach (var matrix in tracks.Matrices)
-        {
-          foreach (var value in Values(matrix))
-          {
-            writer.Write(value);
-          }
-        }
-      }
-      return stream.ToArray();
-    }
-
     internal static StaticAnimationTracks CreateCanonicalTracks(
       IReadOnlyList<ProjectedAnimationFrame> frames)
     {
@@ -293,21 +230,6 @@ namespace EarthTool.GLTF.Internal
         matrices[index] = StoredYAxisReflection * logicalRotation * StoredYAxisReflection;
       }
       return new StaticAnimationTracks(scales, translations, matrices);
-    }
-
-    private static byte[] SerializeVectors(IReadOnlyList<Vector3> values, bool invertY)
-    {
-      using var stream = new MemoryStream();
-      using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
-      {
-        foreach (var value in values)
-        {
-          writer.Write(value.X);
-          writer.Write(invertY ? -value.Y : value.Y);
-          writer.Write(value.Z);
-        }
-      }
-      return stream.ToArray();
     }
 
     private static bool TryProjectFrame(
@@ -440,96 +362,4 @@ namespace EarthTool.GLTF.Internal
     }
   }
 
-  internal static class AnimationProjectionFingerprint
-  {
-    internal static string CreateObject(
-      InterchangeBaseline baseline,
-      int sourceObjectLocalId,
-      int classIndex,
-      byte declaredLength,
-      IReadOnlyList<ProjectedAnimationFrame> frames)
-    {
-      using var stream = new MemoryStream();
-      using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
-      {
-        WritePreamble(writer, baseline, "animationTrsV1");
-        writer.Write(sourceObjectLocalId);
-        writer.Write(classIndex);
-        writer.Write(declaredLength);
-        writer.Write(frames.Count);
-        foreach (var frame in frames)
-        {
-          Write(writer, frame.Translation);
-          Write(writer, frame.Rotation);
-          Write(writer, frame.Scale);
-        }
-      }
-      return Hash(stream.ToArray());
-    }
-
-    internal static string CreateClip(
-      InterchangeBaseline baseline,
-      int classIndex,
-      IReadOnlyList<ProjectedAnimationObject> objects)
-    {
-      using var stream = new MemoryStream();
-      using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
-      {
-        WritePreamble(writer, baseline, "animationClipV1");
-        writer.Write(classIndex);
-        foreach (var item in objects.OrderBy(item => item.SourceObjectLocalId))
-        {
-          writer.Write(item.SourceObjectLocalId);
-          WriteString(writer, item.Fingerprint!);
-        }
-      }
-      return Hash(stream.ToArray());
-    }
-
-    private static void WritePreamble(
-      BinaryWriter writer,
-      InterchangeBaseline baseline,
-      string projection)
-    {
-      WriteString(writer, "earthtool.msh.gltf");
-      writer.Write(1);
-      WriteString(writer, projection);
-      writer.Write(1);
-      writer.Write(baseline.AssetLineageId.ToByteArray());
-      writer.Write(baseline.DocumentId.ToByteArray());
-    }
-
-    private static void Write(BinaryWriter writer, Vector3 value)
-    {
-      Write(writer, value.X);
-      Write(writer, value.Y);
-      Write(writer, value.Z);
-    }
-
-    private static void Write(BinaryWriter writer, Quaternion value)
-    {
-      Write(writer, value.X);
-      Write(writer, value.Y);
-      Write(writer, value.Z);
-      Write(writer, value.W);
-    }
-
-    private static void Write(BinaryWriter writer, float value)
-    {
-      writer.Write(value == 0 ? 0 : value);
-    }
-
-    private static void WriteString(BinaryWriter writer, string value)
-    {
-      var bytes = Encoding.UTF8.GetBytes(value);
-      writer.Write(bytes.Length);
-      writer.Write(bytes);
-    }
-
-    private static string Hash(byte[] value)
-    {
-      using var sha256 = SHA256.Create();
-      return BitConverter.ToString(sha256.ComputeHash(value)).Replace("-", string.Empty).ToLowerInvariant();
-    }
-  }
 }

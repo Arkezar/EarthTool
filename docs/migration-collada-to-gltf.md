@@ -15,8 +15,10 @@ version only when maintaining an existing COLLADA-based pipeline:
 - [Current releases](https://github.com/Arkezar/EarthTool/releases)
 - [glTF implementation specification](https://github.com/Arkezar/EarthTool/issues/133)
 
-COLLADA files do not contain the new EarthTool metadata graph. Export the original
-MSH again with the current release before continuing an asset-editing workflow.
+COLLADA files do not contain canonical EarthTool authoring envelopes. Export the
+original MSH again with the current release when its supported typed authoring
+values are needed. Import still creates a new canonical MSH rather than restoring
+the original source representation.
 
 ## CLI migration
 
@@ -31,11 +33,12 @@ Replace the former conversion commands with the glTF asset-creation commands:
 
 Export defaults to GLB and accepts static assets plus all 15 recognized dynamic
 effect types. Export and import accept deterministic, case-insensitive input
-patterns. Import detects applicable self-contained metadata and otherwise attempts
-canonical asset creation with a warning. Use `--tex-root` repeatedly to
-supply ordered absolute TEX preview roots and `--msh-root` repeatedly for
-`ScalableObject` resource previews. Use `--plan` for a versioned typed import
-plan and `--report` for a transactional versioned machine report.
+patterns. Every import uses the same source-free canonical creation path. Use
+`--tex-root` repeatedly to supply ordered absolute TEX preview roots and
+`--msh-root` repeatedly for `ScalableObject` resource previews. These roots do
+not become resource metadata. Use `--plan` for versioned typed TEX/MSH bindings
+and other creation options, and `--report` for a transactional versioned machine
+report.
 
 The stable exit statuses are `0` for success, `1` for content or operation
 failure, `2` for usage failure, and `130` for cancellation.
@@ -69,37 +72,41 @@ SharpGLTF types are not public EarthTool contracts. Callers exchange EarthTool
 assets, options, plans, reports, operation results, streams, and paths with
 `GltfInterchange`.
 
-Import-plan protocol version 2 accepts only TEX bindings, footprint, horizontal
-extents, non-marker object roles and barrel angle, static-light-only values, and
-edit conflict actions. Version 1 plans must be regenerated. Version 2 rejects
-the removed `helperBindings`, `animationClasses`, and marker-role inputs with
-`ETG3005`; unsupported protocol versions continue to report `ETG3001`.
+Import-plan protocol version 2 accepts only TEX and MSH resource bindings,
+footprint, horizontal extents, non-marker object roles and barrel angle, and
+static-light-only values. It has no edit mode or conflict actions. Version 1
+plans must be regenerated. Version 2 rejects removed edit, `helperBindings`,
+`animationClasses`, and marker-role inputs; unsupported protocol versions report
+`ETG3001`.
 
 ## Workflow migration
 
-1. Preserve the original MSH asset as the serialized authority.
-2. Export a fresh GLB or separate glTF baseline with the current EarthTool.
-3. Edit the native glTF scene in Blender 4.5 LTS or a later supported release.
-4. Import with `msh import`; EarthTool validates the package's self-contained metadata.
-5. Review CLI or report warnings when metadata was missing or discarded.
-6. Do not strip metadata from an edited EarthTool package to bypass validation.
+1. Back up the original MSH and archive outside the conversion workflow.
+2. Export a fresh GLB or separate glTF projection with the current EarthTool.
+3. Review `ETG1030` warnings for source-only representations that canonical
+   creation will not retain.
+4. Edit the native scene in Blender 4.5 LTS or a later supported release.
+5. Keep strict canonical owner names and any needed `earthtoolAuthoring` string
+   envelopes; remove legacy `earthtool` properties if present.
+6. Generate a new version-2 plan when TEX/MSH resource bindings or other typed
+   options are required.
+7. Import with `msh import` and review the canonical creation diagnostics.
 
 ## Attachment helper name migration
 
 Attachment artist-object names are a case-sensitive contract. Existing glTF
 files using the earlier `ET_Attachment_...`, `ET_Cannon_..._Attachment_...`, or
 light names ending in `_Attachment_...` must be renamed before name-driven
-new-model import. EarthTool deliberately does not treat the former names as
-aliases. Export a fresh baseline for edit-import workflows whenever possible;
-its metadata remains authoritative for interchange scope identity and retained
-non-reconstructable values, but it cannot make a former helper name canonical.
+canonical creation. EarthTool deliberately does not treat the former names as
+aliases. Export a fresh projection whenever possible so supported typed values
+use current canonical named owners.
 
 The current identifiers are listed in the
 [attachment identifier cheat sheet](mesh-artist-quickstart.md#attachment-identifier-cheat-sheet).
 An `ET_Emitter_n` object belongs to its nearest source-object ancestor across
 transform-only groups. Reparenting it transfers the matching `MarkerAttachmentN`
-role to the new owner. Use a fresh export to obtain the correct relative transform
-and hierarchy.
+role to the new canonical owner. Use a fresh export to obtain the intended
+relative transform and hierarchy.
 
 See the [quick start](quickstart.md), [MSH API](api/msh.md), and
 [glTF API](api/gltf.md) for the current contracts.

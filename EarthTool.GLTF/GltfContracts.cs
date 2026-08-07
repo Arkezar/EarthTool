@@ -6,19 +6,9 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Text.Json;
 
 namespace EarthTool.GLTF
 {
-  internal static class GltfMetadataIdentity
-  {
-    internal static bool IsVersion4(Guid value)
-    {
-      var bytes = value.ToByteArray();
-      return value != Guid.Empty && bytes[7] >> 4 == 4 && (bytes[8] & 0xC0) == 0x80;
-    }
-  }
-
   /// <summary>Defines stable diagnostics emitted by the glTF interchange facade.</summary>
   public static class GltfDiagnosticCodes
   {
@@ -63,9 +53,6 @@ namespace EarthTool.GLTF
 
     /// <summary>A representative preview omits special TEX variant behavior.</summary>
     public const string TextureVariantsNotRepresented = "ETG1013";
-
-    /// <summary>Source animation remains exact metadata because native TRS cannot represent it.</summary>
-    public const string AnimationMetadataOnly = "ETG1014";
 
     /// <summary>An unrecognized serialized animation-class value uses modulo-four projection.</summary>
     public const string AnimationClassUnrecognized = "ETG1015";
@@ -115,68 +102,8 @@ namespace EarthTool.GLTF
     /// <summary>An accepted MSH serialized representation is not retained for later canonical creation.</summary>
     public const string SourceRepresentationNotPreserved = "ETG1030";
 
-    /// <summary>Required EarthTool manifest metadata is absent.</summary>
-    internal const string MissingManifest = "ETG2000";
-
-    /// <summary>The edit-import scene contract is invalid.</summary>
-    internal const string InvalidSceneContract = "ETG2001";
-
-    /// <summary>A reserved EarthTool metadata carrier is invalid.</summary>
-    internal const string InvalidMetadataCarrier = "ETG2002";
-
-    /// <summary>EarthTool metadata is malformed.</summary>
-    internal const string MalformedMetadata = "ETG2003";
-
-    /// <summary>EarthTool metadata version is unsupported.</summary>
-    internal const string UnsupportedMetadataVersion = "ETG2004";
-
-    /// <summary>The metadata graph exceeds its finite operation profile.</summary>
+    /// <summary>Canonical authoring metadata exceeds its finite operation profile.</summary>
     public const string MetadataResourceLimitExceeded = "ETG2005";
-
-    /// <summary>Asset lineage differs from the expected baseline.</summary>
-    internal const string AssetLineageMismatch = "ETG2006";
-
-    /// <summary>Document identity differs from the expected baseline.</summary>
-    internal const string DocumentMismatch = "ETG2007";
-
-    /// <summary>An envelope kind does not match its glTF carrier.</summary>
-    internal const string KindCarrierMismatch = "ETG2008";
-
-    /// <summary>More than one envelope claims the same scope identity.</summary>
-    internal const string DuplicateScopeIdentity = "ETG2009";
-
-    /// <summary>Expected local metadata scope is absent.</summary>
-    internal const string MissingExpectedScope = "ETG2010";
-
-    /// <summary>An envelope is not associated with a reachable native scope.</summary>
-    public const string OrphanEnvelope = "ETG2011";
-
-    /// <summary>Native geometry cannot be associated with one unique preserved partition set.</summary>
-    internal const string AmbiguousPartitionCorrespondence = "ETG2012";
-
-    /// <summary>A metadata reference has no matching scope.</summary>
-    internal const string DanglingMetadataReference = "ETG2013";
-
-    /// <summary>A required native projection guard is absent.</summary>
-    internal const string MissingRequiredGuard = "ETG2014";
-
-    /// <summary>A guard projection or version is unsupported.</summary>
-    internal const string UnsupportedGuard = "ETG2015";
-
-    /// <summary>Native projection no longer matches preservation metadata.</summary>
-    internal const string StaleNativeProjection = "ETG2016";
-
-    /// <summary>Informational provenance does not match the claimed source.</summary>
-    internal const string ProvenanceMismatch = "ETG2017";
-
-    /// <summary>The graph contains unknown semantics required for safe interpretation.</summary>
-    internal const string UnknownRequiredSemantics = "ETG2018";
-
-    /// <summary>The bounded conflict inventory was truncated.</summary>
-    internal const string TooManyMetadataConflicts = "ETG2019";
-
-    /// <summary>The manifest inventory or identity high-water marks are invalid.</summary>
-    internal const string InvalidManifestInventory = "ETG2020";
 
     /// <summary>The import plan is malformed or contains forbidden state.</summary>
     public const string MalformedImportPlan = "ETG3000";
@@ -186,9 +113,6 @@ namespace EarthTool.GLTF
 
     /// <summary>The import plan exceeds its finite operation profile.</summary>
     public const string ImportPlanResourceLimitExceeded = "ETG3002";
-
-    /// <summary>A conflict action no longer matches the current conflict inventory.</summary>
-    internal const string StaleImportPlan = "ETG3003";
 
     /// <summary>The plan does not match the selected import or source package.</summary>
     public const string ImportPlanMismatch = "ETG3004";
@@ -207,269 +131,6 @@ namespace EarthTool.GLTF
 
     /// <summary>The bounded typed-authoring warning inventory was truncated.</summary>
     public const string AuthoringDiagnosticsTruncated = "ETG4003";
-  }
-
-  /// <summary>Defines the closed version-1 metadata conflict action identifiers.</summary>
-  internal static class GltfMetadataConflictActions
-  {
-    public const string Abort = "abort";
-    public const string RetryWithMetadata = "retryWithMetadata";
-    public const string AcceptBranch = "acceptBranch";
-    public const string MapScope = "mapScope";
-    public const string AcceptDeletion = "acceptDeletion";
-    public const string AdoptAsNew = "adoptAsNew";
-    public const string ForkScope = "forkScope";
-    public const string DiscardAffectedState = "discardAffectedState";
-    public const string RegenerateDerivedState = "regenerateDerivedState";
-    public const string RepairNativeExternally = "repairNativeExternally";
-    public const string DiscardLineage = "discardLineage";
-  }
-
-  /// <summary>Exposes the complete allowed-action set for each version-1 metadata conflict.</summary>
-  internal static class GltfMetadataConflictCatalog
-  {
-    public static IReadOnlyDictionary<string, IReadOnlyList<string>> ActionsByCode { get; } =
-      new ReadOnlyDictionary<string, IReadOnlyList<string>>(
-        new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
-        {
-          [GltfDiagnosticCodes.MissingManifest] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.RetryWithMetadata,
-            GltfMetadataConflictActions.DiscardLineage
-          ),
-          [GltfDiagnosticCodes.InvalidSceneContract] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.RepairNativeExternally
-          ),
-          [GltfDiagnosticCodes.InvalidMetadataCarrier] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.RetryWithMetadata,
-            GltfMetadataConflictActions.DiscardLineage
-          ),
-          [GltfDiagnosticCodes.MalformedMetadata] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.RetryWithMetadata,
-            GltfMetadataConflictActions.DiscardAffectedState,
-            GltfMetadataConflictActions.DiscardLineage
-          ),
-          [GltfDiagnosticCodes.UnsupportedMetadataVersion] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.RetryWithMetadata,
-            GltfMetadataConflictActions.DiscardLineage
-          ),
-          [GltfDiagnosticCodes.MetadataResourceLimitExceeded] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.RetryWithMetadata
-          ),
-          [GltfDiagnosticCodes.AssetLineageMismatch] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.AdoptAsNew,
-            GltfMetadataConflictActions.DiscardLineage
-          ),
-          [GltfDiagnosticCodes.DocumentMismatch] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.RetryWithMetadata,
-            GltfMetadataConflictActions.AcceptBranch
-          ),
-          [GltfDiagnosticCodes.KindCarrierMismatch] = ScopeActions(),
-          [GltfDiagnosticCodes.DuplicateScopeIdentity] = ScopeActions(),
-          [GltfDiagnosticCodes.MissingExpectedScope] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.RetryWithMetadata,
-            GltfMetadataConflictActions.AcceptDeletion
-          ),
-          [GltfDiagnosticCodes.OrphanEnvelope] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.MapScope,
-            GltfMetadataConflictActions.ForkScope,
-            GltfMetadataConflictActions.DiscardAffectedState,
-            GltfMetadataConflictActions.DiscardLineage
-          ),
-          [GltfDiagnosticCodes.AmbiguousPartitionCorrespondence] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.MapScope,
-            GltfMetadataConflictActions.ForkScope,
-            GltfMetadataConflictActions.RepairNativeExternally
-          ),
-          [GltfDiagnosticCodes.DanglingMetadataReference] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.MapScope,
-            GltfMetadataConflictActions.DiscardAffectedState
-          ),
-          [GltfDiagnosticCodes.MissingRequiredGuard] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.RegenerateDerivedState,
-            GltfMetadataConflictActions.DiscardAffectedState,
-            GltfMetadataConflictActions.RepairNativeExternally
-          ),
-          [GltfDiagnosticCodes.UnsupportedGuard] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.RetryWithMetadata,
-            GltfMetadataConflictActions.DiscardAffectedState
-          ),
-          [GltfDiagnosticCodes.StaleNativeProjection] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.RegenerateDerivedState,
-            GltfMetadataConflictActions.DiscardAffectedState,
-            GltfMetadataConflictActions.RepairNativeExternally
-          ),
-          [GltfDiagnosticCodes.ProvenanceMismatch] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.AcceptBranch,
-            GltfMetadataConflictActions.DiscardAffectedState
-          ),
-          [GltfDiagnosticCodes.UnknownRequiredSemantics] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.RetryWithMetadata,
-            GltfMetadataConflictActions.DiscardAffectedState,
-            GltfMetadataConflictActions.DiscardLineage
-          ),
-          [GltfDiagnosticCodes.TooManyMetadataConflicts] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.RetryWithMetadata
-          ),
-          [GltfDiagnosticCodes.InvalidManifestInventory] = Actions(
-            GltfMetadataConflictActions.Abort,
-            GltfMetadataConflictActions.RetryWithMetadata,
-            GltfMetadataConflictActions.DiscardLineage
-          ),
-        }
-      );
-
-    private static IReadOnlyList<string> ScopeActions()
-    {
-      return Actions(
-        GltfMetadataConflictActions.Abort,
-        GltfMetadataConflictActions.MapScope,
-        GltfMetadataConflictActions.ForkScope,
-        GltfMetadataConflictActions.DiscardAffectedState
-      );
-    }
-
-    private static IReadOnlyList<string> Actions(params string[] actions)
-    {
-      return Array.AsReadOnly(actions);
-    }
-  }
-
-  /// <summary>Identifies how a successful edit import treated its metadata lineage.</summary>
-  internal enum GltfMetadataLineageDisposition
-  {
-    /// <summary>The expected lineage and document branch were retained.</summary>
-    Retained,
-
-    /// <summary>A different document branch of the expected lineage was explicitly accepted.</summary>
-    BranchAccepted,
-
-    /// <summary>Native content was adopted into a new lineage.</summary>
-    AdoptedAsNew,
-
-    /// <summary>The claimed metadata lineage was discarded before native content was imported.</summary>
-    Discarded,
-  }
-
-  /// <summary>Selects one allowed action for one exact metadata conflict.</summary>
-  internal sealed class GltfMetadataConflictResolution
-  {
-    /// <summary>Gets the deterministic key of the exact conflict being resolved.</summary>
-    public string ConflictKey { get; }
-
-    /// <summary>Gets the selected closed version-1 action identifier.</summary>
-    public string Action { get; }
-
-    /// <summary>Gets the optional native carrier path used by scope mapping.</summary>
-    public string? TargetNativePath { get; }
-
-    /// <summary>Initializes one exact conflict resolution.</summary>
-    public GltfMetadataConflictResolution(
-      string conflictKey,
-      string action,
-      string? targetNativePath = null
-    )
-    {
-      if (string.IsNullOrWhiteSpace(conflictKey))
-      {
-        throw new ArgumentException("A conflict key is required.", nameof(conflictKey));
-      }
-      if (
-        !GltfMetadataConflictCatalog
-          .ActionsByCode.Values.SelectMany(actions => actions)
-          .Contains(action, StringComparer.Ordinal)
-      )
-      {
-        throw new ArgumentOutOfRangeException(nameof(action));
-      }
-      if (
-        action == GltfMetadataConflictActions.MapScope
-        && string.IsNullOrWhiteSpace(targetNativePath)
-      )
-      {
-        throw new ArgumentException(
-          "Scope mapping requires a target native path.",
-          nameof(targetNativePath)
-        );
-      }
-      if (action != GltfMetadataConflictActions.MapScope && targetNativePath is not null)
-      {
-        throw new ArgumentException(
-          "Only scope mapping accepts a target native path.",
-          nameof(targetNativePath)
-        );
-      }
-
-      ConflictKey = conflictKey;
-      Action = action;
-      TargetNativePath = targetNativePath;
-    }
-  }
-
-  /// <summary>Supplies operation-scoped metadata conflict resolutions for edit import.</summary>
-  internal sealed class GltfEditImportOptions
-  {
-    /// <summary>Gets the exact conflict resolutions applied as one transaction.</summary>
-    public IReadOnlyList<GltfMetadataConflictResolution> ConflictResolutions { get; }
-
-    /// <summary>Initializes edit-import options.</summary>
-    public GltfEditImportOptions(
-      IEnumerable<GltfMetadataConflictResolution>? conflictResolutions = null
-    )
-    {
-      var resolutions =
-        conflictResolutions?.ToArray() ?? Array.Empty<GltfMetadataConflictResolution>();
-      if (resolutions.Any(resolution => resolution is null))
-      {
-        throw new ArgumentException(
-          "Conflict resolutions cannot contain null values.",
-          nameof(conflictResolutions)
-        );
-      }
-      if (
-        resolutions
-          .Select(resolution => resolution.ConflictKey)
-          .Distinct(StringComparer.Ordinal)
-          .Count() != resolutions.Length
-      )
-      {
-        throw new ArgumentException(
-          "A conflict can be resolved only once.",
-          nameof(conflictResolutions)
-        );
-      }
-      if (
-        resolutions.Count(resolution =>
-          resolution.Action == GltfMetadataConflictActions.AdoptAsNew
-          || resolution.Action == GltfMetadataConflictActions.DiscardLineage
-        ) > 1
-      )
-      {
-        throw new ArgumentException(
-          "A transaction can contain only one whole-lineage action.",
-          nameof(conflictResolutions)
-        );
-      }
-
-      ConflictResolutions = Array.AsReadOnly(resolutions);
-    }
   }
 
   /// <summary>Defines finite limits for referenced MSH preview lookup.</summary>
@@ -532,7 +193,7 @@ namespace EarthTool.GLTF
     /// <summary>Gets the maximum emitted output size in bytes.</summary>
     public int MaxOutputBytes { get; }
 
-    /// <summary>Gets the maximum metadata envelope size in bytes.</summary>
+    /// <summary>Gets the maximum size of one canonical authoring envelope in bytes.</summary>
     public int MaxMetadataBytes { get; }
 
     /// <summary>Gets the maximum accepted JSON depth.</summary>
@@ -577,21 +238,19 @@ namespace EarthTool.GLTF
     /// <summary>Gets the maximum referenced dynamic MSH traversal depth.</summary>
     public int MaxMeshResourceDepth { get; }
 
-    /// <summary>Gets the cumulative decoded metadata byte limit.</summary>
+    /// <summary>Gets the cumulative canonical authoring envelope byte limit.</summary>
     public int MaxTotalMetadataBytes { get; }
 
-    /// <summary>Gets the maximum number of metadata envelopes.</summary>
+    /// <summary>Gets the maximum number of canonical authoring envelopes.</summary>
     public int MaxMetadataEnvelopes { get; }
 
-    /// <summary>Gets the cumulative non-bulk metadata element limit.</summary>
+    /// <summary>Gets the cumulative canonical authoring envelope element limit.</summary>
     public int MaxMetadataElements { get; }
 
-    /// <summary>Gets the cumulative unknown additive member limit.</summary>
+    /// <summary>Gets the cumulative unsupported canonical authoring member limit.</summary>
     public int MaxUnknownMetadataMembers { get; }
 
-    internal int MaxMetadataGuards { get; }
-
-    internal int MaxMetadataConflicts { get; }
+    internal int MaxAuthoringDiagnostics { get; }
 
     /// <summary>Initializes finite glTF operation limits.</summary>
     public GltfOperationProfile(
@@ -636,7 +295,6 @@ namespace EarthTool.GLTF
         262144,
         4194304,
         262144,
-        64,
         1024,
         meshResourceLimits
       )
@@ -736,7 +394,6 @@ namespace EarthTool.GLTF
         maxMetadataEnvelopes,
         maxMetadataElements,
         maxUnknownMetadataMembers,
-        64,
         1024,
         GltfMeshResourceLimits.Default
       )
@@ -759,8 +416,7 @@ namespace EarthTool.GLTF
       int maxMetadataEnvelopes,
       int maxMetadataElements,
       int maxUnknownMetadataMembers,
-      int maxMetadataGuards,
-      int maxMetadataConflicts,
+      int maxAuthoringDiagnostics,
       GltfMeshResourceLimits meshResourceLimits
     )
     {
@@ -797,8 +453,10 @@ namespace EarthTool.GLTF
         maxUnknownMetadataMembers,
         nameof(maxUnknownMetadataMembers)
       );
-      MaxMetadataGuards = RequirePositive(maxMetadataGuards, nameof(maxMetadataGuards));
-      MaxMetadataConflicts = RequirePositive(maxMetadataConflicts, nameof(maxMetadataConflicts));
+      MaxAuthoringDiagnostics = RequirePositive(
+        maxAuthoringDiagnostics,
+        nameof(maxAuthoringDiagnostics)
+      );
     }
 
     private static int RequirePositive(int value, string parameterName)
@@ -807,88 +465,9 @@ namespace EarthTool.GLTF
     }
   }
 
-  /// <summary>Identifies one asset lineage and one emitted interchange baseline.</summary>
-  internal sealed class InterchangeBaseline
-  {
-    /// <summary>Gets the persistent asset-lineage identity.</summary>
-    public Guid AssetLineageId { get; }
-
-    /// <summary>Gets the identity of one emitted interchange document.</summary>
-    public Guid DocumentId { get; }
-
-    /// <summary>Initializes an interchange baseline.</summary>
-    public InterchangeBaseline(Guid assetLineageId, Guid documentId)
-    {
-      AssetLineageId = GltfMetadataIdentity.IsVersion4(assetLineageId)
-        ? assetLineageId
-        : throw new ArgumentException(
-          "Asset lineage identity must be a version-4 UUID.",
-          nameof(assetLineageId)
-        );
-      DocumentId = GltfMetadataIdentity.IsVersion4(documentId)
-        ? documentId
-        : throw new ArgumentException(
-          "Document identity must be a version-4 UUID.",
-          nameof(documentId)
-        );
-    }
-  }
-
-  /// <summary>Describes a named and versioned SHA-256 native projection fingerprint.</summary>
-  internal sealed class NativeProjectionFingerprint
-  {
-    /// <summary>Gets the projection name.</summary>
-    public string Name { get; }
-
-    /// <summary>Gets the projection version.</summary>
-    public int Version { get; }
-
-    /// <summary>Gets the lowercase SHA-256 digest.</summary>
-    public string Sha256 { get; }
-
-    internal NativeProjectionFingerprint(string name, int version, string sha256)
-    {
-      Name = name;
-      Version = version;
-      Sha256 = sha256;
-    }
-  }
-
-  internal sealed class GltfArtistObjectLocalIds
-  {
-    internal IReadOnlyDictionary<int, int> Attachments { get; }
-    internal IReadOnlyDictionary<int, int> Cannons { get; }
-    internal IReadOnlyDictionary<int, int> StaticLightInstancesByDefinitionLocalId { get; }
-
-    internal GltfArtistObjectLocalIds(
-      IReadOnlyDictionary<int, int>? attachments = null,
-      IReadOnlyDictionary<int, int>? cannons = null,
-      IReadOnlyDictionary<int, int>? staticLights = null
-    )
-    {
-      Attachments = new ReadOnlyDictionary<int, int>(
-        attachments?.ToDictionary(pair => pair.Key, pair => pair.Value)
-          ?? new Dictionary<int, int>()
-      );
-      Cannons = new ReadOnlyDictionary<int, int>(
-        cannons?.ToDictionary(pair => pair.Key, pair => pair.Value) ?? new Dictionary<int, int>()
-      );
-      StaticLightInstancesByDefinitionLocalId = new ReadOnlyDictionary<int, int>(
-        staticLights?.ToDictionary(pair => pair.Key, pair => pair.Value)
-          ?? new Dictionary<int, int>()
-      );
-    }
-  }
-
-  /// <summary>Controls identities assigned to a GLB export.</summary>
+  /// <summary>Controls resource preview lookup and artist-facing naming for glTF export.</summary>
   public sealed class GltfExportOptions
   {
-    /// <summary>Gets an optional caller-supplied asset-lineage identity.</summary>
-    internal Guid? AssetLineageId { get; }
-
-    /// <summary>Gets an optional caller-supplied document identity.</summary>
-    internal Guid? DocumentId { get; }
-
     /// <summary>Gets ordered absolute roots used only to resolve decoded TEX previews.</summary>
     public IReadOnlyList<string> TextureSearchRoots { get; }
 
@@ -898,76 +477,13 @@ namespace EarthTool.GLTF
     /// <summary>Gets the optional source-file basename used for artist-facing object names.</summary>
     public string? SourceBaseName { get; }
 
-    /// <summary>Gets exact unknown additive metadata tokens to carry into the next baseline.</summary>
-    internal IReadOnlyDictionary<string, string> PreservedUnknownMetadata { get; }
-
-    internal IReadOnlyDictionary<string, int> MetadataNextIds { get; }
-    internal GltfArtistObjectLocalIds ArtistObjectLocalIds { get; }
-    internal IReadOnlyList<int> DynamicObjectIds { get; private set; }
-    internal Internal.GltfStaticIdentityMap? StaticIdentityMap { get; private set; }
-
     /// <summary>Initializes export options for previews and artist-facing source naming.</summary>
     public GltfExportOptions(
       IEnumerable<string>? textureSearchRoots = null,
       IEnumerable<string>? meshResourceSearchRoots = null,
       string? sourceBaseName = null
     )
-      : this(null, null, textureSearchRoots, null, meshResourceSearchRoots, sourceBaseName)
-    { }
-
-    internal GltfExportOptions(
-      Guid? assetLineageId,
-      Guid? documentId,
-      IEnumerable<string>? textureSearchRoots = null,
-      IReadOnlyDictionary<string, string>? preservedUnknownMetadata = null
-    )
-      : this(assetLineageId, documentId, textureSearchRoots, preservedUnknownMetadata, null, null)
-    { }
-
-    internal GltfExportOptions(
-      Guid? assetLineageId,
-      Guid? documentId,
-      IEnumerable<string>? textureSearchRoots,
-      IReadOnlyDictionary<string, string>? preservedUnknownMetadata,
-      IEnumerable<string>? meshResourceSearchRoots
-    )
-      : this(
-        assetLineageId,
-        documentId,
-        textureSearchRoots,
-        preservedUnknownMetadata,
-        meshResourceSearchRoots,
-        null
-      )
-    { }
-
-    internal GltfExportOptions(
-      Guid? assetLineageId,
-      Guid? documentId,
-      IEnumerable<string>? textureSearchRoots,
-      IReadOnlyDictionary<string, string>? preservedUnknownMetadata,
-      IEnumerable<string>? meshResourceSearchRoots,
-      string? sourceBaseName
-    )
     {
-      if (assetLineageId.HasValue && !GltfMetadataIdentity.IsVersion4(assetLineageId.Value))
-      {
-        throw new ArgumentException(
-          "Asset lineage identity must be a version-4 UUID.",
-          nameof(assetLineageId)
-        );
-      }
-
-      if (documentId.HasValue && !GltfMetadataIdentity.IsVersion4(documentId.Value))
-      {
-        throw new ArgumentException(
-          "Document identity must be a version-4 UUID.",
-          nameof(documentId)
-        );
-      }
-
-      AssetLineageId = assetLineageId;
-      DocumentId = documentId;
       var roots = (textureSearchRoots ?? Array.Empty<string>()).ToArray();
       if (
         roots.Any(root =>
@@ -1004,105 +520,6 @@ namespace EarthTool.GLTF
         );
       }
       SourceBaseName = sourceBaseName;
-      var unknownMetadata =
-        preservedUnknownMetadata?.ToDictionary(
-          pair => pair.Key,
-          pair => pair.Value,
-          StringComparer.Ordinal
-        ) ?? new Dictionary<string, string>(StringComparer.Ordinal);
-      foreach (var member in unknownMetadata)
-      {
-        ValidateUnknownMetadata(member.Key, member.Value, nameof(preservedUnknownMetadata));
-      }
-      PreservedUnknownMetadata = new ReadOnlyDictionary<string, string>(unknownMetadata);
-      MetadataNextIds = new ReadOnlyDictionary<string, int>(new Dictionary<string, int>());
-      ArtistObjectLocalIds = new GltfArtistObjectLocalIds();
-      DynamicObjectIds = Array.Empty<int>();
-      StaticIdentityMap = null;
-    }
-
-    internal GltfExportOptions(
-      Guid assetLineageId,
-      Guid documentId,
-      IReadOnlyDictionary<string, string> preservedUnknownMetadata,
-      IReadOnlyDictionary<string, int> metadataNextIds,
-      GltfArtistObjectLocalIds? artistObjectLocalIds = null,
-      Internal.GltfStaticIdentityMap? staticIdentityMap = null
-    )
-      : this(assetLineageId, documentId, preservedUnknownMetadata: preservedUnknownMetadata)
-    {
-      MetadataNextIds = new ReadOnlyDictionary<string, int>(
-        metadataNextIds.ToDictionary(pair => pair.Key, pair => pair.Value)
-      );
-      ArtistObjectLocalIds = artistObjectLocalIds ?? new GltfArtistObjectLocalIds();
-      StaticIdentityMap = staticIdentityMap;
-    }
-
-    internal GltfExportOptions(
-      Guid assetLineageId,
-      Guid documentId,
-      IReadOnlyList<int> dynamicObjectIds
-    )
-      : this(assetLineageId, documentId)
-    {
-      DynamicObjectIds = Array.AsReadOnly(dynamicObjectIds.ToArray());
-    }
-
-    private static void ValidateUnknownMetadata(string key, string value, string parameterName)
-    {
-      var firstSeparator = key.IndexOf(':');
-      var secondSeparator = firstSeparator < 0 ? -1 : key.IndexOf(':', firstSeparator + 1);
-      if (
-        firstSeparator <= 0
-        || secondSeparator <= firstSeparator + 1
-        || !int.TryParse(
-          key.Substring(firstSeparator + 1, secondSeparator - firstSeparator - 1),
-          System.Globalization.NumberStyles.None,
-          System.Globalization.CultureInfo.InvariantCulture,
-          out var localId
-        )
-      )
-      {
-        throw new ArgumentException(
-          "Unknown metadata keys must contain a scope kind, local ID, and JSON Pointer.",
-          parameterName
-        );
-      }
-      var scopeKind = key.Substring(0, firstSeparator);
-      var localIdText = key.Substring(firstSeparator + 1, secondSeparator - firstSeparator - 1);
-      var path = key.Substring(secondSeparator + 1);
-      if (
-        scopeKind is not ("manifest" or "object" or "mesh" or "material" or "light")
-        || localIdText != localId.ToString(System.Globalization.CultureInfo.InvariantCulture)
-        || (scopeKind == "manifest" ? localId != 0 : localId <= 0)
-        || !Internal.GlbDocument.IsSupportedUnknownMetadataPath(scopeKind, path)
-      )
-      {
-        throw new ArgumentException(
-          "Unknown metadata key does not identify an additive version-1 member.",
-          parameterName
-        );
-      }
-      try
-      {
-        using var _ = JsonDocument.Parse(
-          value,
-          new JsonDocumentOptions
-          {
-            MaxDepth = int.MaxValue,
-            CommentHandling = JsonCommentHandling.Disallow,
-            AllowTrailingCommas = false,
-          }
-        );
-      }
-      catch (Exception ex) when (ex is JsonException || ex is ArgumentException)
-      {
-        throw new ArgumentException(
-          "Unknown metadata values must contain one valid JSON token.",
-          parameterName,
-          ex
-        );
-      }
     }
   }
 
@@ -1418,213 +835,4 @@ namespace EarthTool.GLTF
     }
   }
 
-  /// <summary>Reports the baseline and native projection emitted by an export.</summary>
-  internal sealed class GltfExportReceipt
-  {
-    /// <summary>Gets the emitted interchange baseline.</summary>
-    internal InterchangeBaseline Baseline { get; }
-
-    /// <summary>Gets the emitted native projection fingerprint.</summary>
-    public NativeProjectionFingerprint Fingerprint { get; }
-
-    internal GltfExportReceipt(
-      InterchangeBaseline baseline,
-      NativeProjectionFingerprint fingerprint
-    )
-    {
-      Baseline = baseline;
-      Fingerprint = fingerprint;
-    }
-  }
-
-  /// <summary>Reports a successful reconciled edit import.</summary>
-  internal sealed class GltfEditImportResult
-  {
-    /// <summary>Gets the restored immutable static mesh asset.</summary>
-    public StaticMeshAsset Asset { get; }
-
-    /// <summary>Gets the retained lineage and rotated document baseline.</summary>
-    public InterchangeBaseline NextBaseline { get; }
-
-    /// <summary>Gets the fingerprint that proved metadata applicability, or null after lineage discard.</summary>
-    public NativeProjectionFingerprint? AppliedFingerprint { get; }
-
-    /// <summary>Gets the serialized representation paths restored from applicable metadata.</summary>
-    public IReadOnlyList<string> RestoredSerializedRepresentationPaths { get; }
-
-    /// <summary>Gets exact retained, regenerated, invalidated, and canonicalized MSH paths.</summary>
-    public PreservationReport Preservation { get; }
-
-    /// <summary>Gets exact raw JSON tokens for unknown additive version-1 members.</summary>
-    public IReadOnlyDictionary<string, string> PreservedUnknownMetadata { get; }
-
-    /// <summary>Gets export options that retain the next baseline and unknown additive tokens.</summary>
-    public GltfExportOptions NextExportOptions { get; }
-
-    /// <summary>Gets how the successful transaction treated metadata lineage.</summary>
-    public GltfMetadataLineageDisposition LineageDisposition { get; }
-
-    /// <summary>Gets the exact conflict resolutions applied by the successful transaction.</summary>
-    public IReadOnlyList<GltfMetadataConflictResolution> AppliedConflictResolutions { get; }
-
-    internal PreservationReport CreationPreservation { get; }
-
-    internal GltfEditImportResult(
-      StaticMeshAsset asset,
-      InterchangeBaseline nextBaseline,
-      NativeProjectionFingerprint? appliedFingerprint,
-      PreservationReport preservation,
-      IEnumerable<string> restoredSerializedRepresentationPaths,
-      IReadOnlyDictionary<string, string>? preservedUnknownMetadata = null,
-      IReadOnlyDictionary<string, int>? metadataNextIds = null,
-      GltfArtistObjectLocalIds? artistObjectLocalIds = null,
-      GltfMetadataLineageDisposition lineageDisposition = GltfMetadataLineageDisposition.Retained,
-      IEnumerable<GltfMetadataConflictResolution>? appliedConflictResolutions = null,
-      PreservationReport? creationPreservation = null,
-      Internal.GltfStaticIdentityMap? staticIdentityMap = null
-    )
-    {
-      Asset = asset;
-      NextBaseline = nextBaseline;
-      AppliedFingerprint = appliedFingerprint;
-      Preservation = preservation;
-      RestoredSerializedRepresentationPaths = Array.AsReadOnly(
-        new List<string>(restoredSerializedRepresentationPaths).ToArray()
-      );
-      PreservedUnknownMetadata = new ReadOnlyDictionary<string, string>(
-        preservedUnknownMetadata?.ToDictionary(pair => pair.Key, pair => pair.Value)
-          ?? new Dictionary<string, string>()
-      );
-      NextExportOptions = new GltfExportOptions(
-        nextBaseline.AssetLineageId,
-        nextBaseline.DocumentId,
-        PreservedUnknownMetadata,
-        metadataNextIds ?? new Dictionary<string, int>(),
-        artistObjectLocalIds,
-        staticIdentityMap
-      );
-      LineageDisposition = lineageDisposition;
-      AppliedConflictResolutions = Array.AsReadOnly(
-        appliedConflictResolutions?.ToArray() ?? Array.Empty<GltfMetadataConflictResolution>()
-      );
-      CreationPreservation = creationPreservation ?? preservation;
-    }
-  }
-
-  /// <summary>Reports a successful reconciled dynamic edit import.</summary>
-  internal sealed class GltfDynamicEditImportResult
-  {
-    /// <summary>Gets the restored immutable dynamic mesh asset.</summary>
-    public DynamicMeshAsset Asset { get; }
-
-    /// <summary>Gets the retained lineage and rotated document baseline.</summary>
-    public InterchangeBaseline NextBaseline { get; }
-
-    /// <summary>Gets the fingerprint that proved metadata applicability.</summary>
-    public NativeProjectionFingerprint AppliedFingerprint { get; }
-
-    /// <summary>Gets exact retained and regenerated MSH paths.</summary>
-    public PreservationReport Preservation { get; }
-
-    /// <summary>Gets the serialized representation paths restored from metadata.</summary>
-    public IReadOnlyList<string> RestoredSerializedRepresentationPaths { get; }
-
-    /// <summary>Gets export options that retain the next baseline.</summary>
-    public GltfExportOptions NextExportOptions { get; }
-
-    internal GltfDynamicEditImportResult(
-      DynamicMeshAsset asset,
-      InterchangeBaseline nextBaseline,
-      NativeProjectionFingerprint appliedFingerprint,
-      PreservationReport preservation,
-      IEnumerable<string> restoredSerializedRepresentationPaths,
-      IReadOnlyList<int> dynamicObjectIds
-    )
-    {
-      Asset = asset;
-      NextBaseline = nextBaseline;
-      AppliedFingerprint = appliedFingerprint;
-      Preservation = preservation;
-      RestoredSerializedRepresentationPaths = Array.AsReadOnly(
-        restoredSerializedRepresentationPaths.ToArray()
-      );
-      NextExportOptions = new GltfExportOptions(
-        nextBaseline.AssetLineageId,
-        nextBaseline.DocumentId,
-        dynamicObjectIds
-      );
-    }
-  }
-
-  /// <summary>Reports a successful edit import without weakening kind-specific APIs.</summary>
-  internal sealed class GltfMeshEditImportResult
-  {
-    /// <summary>Gets the restored immutable static or dynamic mesh asset.</summary>
-    public MeshAsset Asset { get; }
-
-    /// <summary>Gets the retained lineage and rotated document baseline.</summary>
-    public InterchangeBaseline NextBaseline { get; }
-
-    /// <summary>Gets the fingerprint that proved metadata applicability.</summary>
-    public NativeProjectionFingerprint? AppliedFingerprint { get; }
-
-    /// <summary>Gets exact retained and regenerated MSH paths.</summary>
-    public PreservationReport Preservation { get; }
-
-    /// <summary>Gets serialized representation paths restored from metadata.</summary>
-    public IReadOnlyList<string> RestoredSerializedRepresentationPaths { get; }
-
-    /// <summary>Gets how the successful transaction treated metadata lineage.</summary>
-    public GltfMetadataLineageDisposition LineageDisposition { get; }
-
-    /// <summary>Gets conflict resolutions applied by the successful transaction.</summary>
-    public IReadOnlyList<GltfMetadataConflictResolution> AppliedConflictResolutions { get; }
-
-    internal GltfMeshEditImportResult(
-      MeshAsset asset,
-      InterchangeBaseline nextBaseline,
-      NativeProjectionFingerprint? appliedFingerprint,
-      PreservationReport preservation,
-      IEnumerable<string> restoredSerializedRepresentationPaths,
-      GltfMetadataLineageDisposition lineageDisposition,
-      IEnumerable<GltfMetadataConflictResolution>? appliedConflictResolutions = null
-    )
-    {
-      Asset = asset;
-      NextBaseline = nextBaseline;
-      AppliedFingerprint = appliedFingerprint;
-      Preservation = preservation;
-      RestoredSerializedRepresentationPaths = Array.AsReadOnly(
-        restoredSerializedRepresentationPaths.ToArray()
-      );
-      LineageDisposition = lineageDisposition;
-      AppliedConflictResolutions = Array.AsReadOnly(
-        appliedConflictResolutions?.ToArray() ?? Array.Empty<GltfMetadataConflictResolution>()
-      );
-    }
-  }
-
-  /// <summary>Reports a successful new-model import and its first interchange baseline.</summary>
-  internal sealed class GltfNewModelImportResult
-  {
-    /// <summary>Gets the immutable canonical authored static mesh asset.</summary>
-    public StaticMeshAsset Asset { get; }
-
-    /// <summary>Gets the initial lineage and document identity for the authored asset.</summary>
-    public InterchangeBaseline Baseline { get; }
-
-    /// <summary>Gets the serialized representation paths canonicalized during authoring.</summary>
-    public PreservationReport Preservation { get; }
-
-    internal GltfNewModelImportResult(
-      StaticMeshAsset asset,
-      InterchangeBaseline baseline,
-      PreservationReport preservation
-    )
-    {
-      Asset = asset;
-      Baseline = baseline;
-      Preservation = preservation;
-    }
-  }
 }

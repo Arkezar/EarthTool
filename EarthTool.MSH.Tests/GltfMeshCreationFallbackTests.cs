@@ -22,15 +22,11 @@ public sealed class GltfMeshCreationFallbackTests
     export.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(export.Diagnostics));
     var sourceFree = RewriteJson(exported.ToArray(), root =>
     {
-      var manifest = JsonNode.Parse(
-        root["scenes"]![0]!["extras"]!["earthtool"]!.GetValue<string>()
-      )!.AsObject();
-      manifest["payload"]!["sourceMsh"] = "AA";
-      root["scenes"]![0]!["extras"]!["earthtool"] = manifest.ToJsonString();
-      foreach (var node in root["nodes"]!.AsArray().Skip(1))
+      root["scenes"]![0]!["extras"] = new JsonObject
       {
-        node!.AsObject().Remove("extras");
-      }
+        ["earthtool"] = "{\"format\":\"earthtool.msh.gltf\",\"version\":2,"
+          + "\"payload\":{\"sourceMsh\":\"AA\"}}",
+      };
     });
     await using var input = new MemoryStream(sourceFree);
 

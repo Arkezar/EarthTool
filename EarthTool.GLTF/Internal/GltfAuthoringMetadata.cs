@@ -452,12 +452,38 @@ namespace EarthTool.GLTF.Internal
       {
         throw new ArgumentException("Metadata carriers cannot contain null values.", nameof(carriers));
       }
-      if (input.Length > Math.Min(profile.MaxMetadataEnvelopes, profile.MaxNodes))
+      if (input.Count(carrier => carrier.Metadata is not null) > profile.MaxMetadataEnvelopes)
       {
         return Failed<CanonicalAuthoringMetadataDocument>(MetadataLimit("metadata"));
       }
 
-      var warnings = new WarningCollector(profile.MaxMetadataConflicts);
+      long totalBytes = 0;
+      var totalElements = 0;
+      foreach (var carrier in input.Where(carrier => carrier.Metadata is not null))
+      {
+        var byteCount = Encoding.UTF8.GetByteCount(carrier.Metadata!);
+        totalBytes = checked(totalBytes + byteCount);
+        if (byteCount > profile.MaxMetadataBytes || totalBytes > profile.MaxTotalMetadataBytes)
+        {
+          return Failed<CanonicalAuthoringMetadataDocument>(MetadataLimit(carrier.Path));
+        }
+        try
+        {
+          totalElements = checked(
+            totalElements + CountJsonElements(
+              carrier.Metadata!,
+              profile,
+              profile.MaxMetadataElements - totalElements
+            )
+          );
+        }
+        catch (MetadataElementLimitException)
+        {
+          return Failed<CanonicalAuthoringMetadataDocument>(MetadataLimit(carrier.Path));
+        }
+      }
+
+      var warnings = new WarningCollector(profile.MaxAuthoringDiagnostics);
       var parsed = new List<(AuthoringMetadataCarrier Carrier, CanonicalAuthoringOwner Owner)>();
       foreach (var carrier in input)
       {
@@ -495,21 +521,6 @@ namespace EarthTool.GLTF.Internal
             paths[0],
             "A canonical authoring identifier is declared more than once.",
             data: new Dictionary<string, string> { ["paths"] = string.Join(',', paths) }));
-      }
-
-      long totalBytes = 0;
-      foreach (var item in parsed)
-      {
-        if (item.Carrier.Metadata is null)
-        {
-          continue;
-        }
-        var byteCount = Encoding.UTF8.GetByteCount(item.Carrier.Metadata);
-        totalBytes = checked(totalBytes + byteCount);
-        if (byteCount > profile.MaxMetadataBytes || totalBytes > profile.MaxTotalMetadataBytes)
-        {
-          return Failed<CanonicalAuthoringMetadataDocument>(MetadataLimit(item.Carrier.Path));
-        }
       }
 
       var values = new Dictionary<CanonicalAuthoringOwner, AuthoringMetadataValues>();
@@ -607,7 +618,7 @@ namespace EarthTool.GLTF.Internal
       JsonDocument document;
       try
       {
-        ValidateJsonBounds(item.Carrier.Metadata, profile);
+        ValidateJsonBounds(item.Carrier.Metadata, profile, profile.MaxMetadataElements);
         document = JsonDocument.Parse(
           item.Carrier.Metadata,
           new JsonDocumentOptions { MaxDepth = profile.MaxJsonDepth });
@@ -1421,7 +1432,10 @@ namespace EarthTool.GLTF.Internal
       }
     }
 
-    private static void ValidateJsonBounds(string json, GltfOperationProfile profile)
+    private static int ValidateJsonBounds(
+      string json,
+      GltfOperationProfile profile,
+      int maximumElements)
     {
       var reader = new Utf8JsonReader(
         Encoding.UTF8.GetBytes(json),
@@ -1431,9 +1445,9 @@ namespace EarthTool.GLTF.Internal
       while (reader.Read())
       {
         elements = checked(elements + 1);
-        if (elements > profile.MaxMetadataElements)
+        if (elements > maximumElements)
         {
-          throw new InvalidDataException("The metadata element limit was exceeded.");
+          throw new MetadataElementLimitException();
         }
         if (reader.TokenType == JsonTokenType.StartObject)
         {
@@ -1449,7 +1463,37 @@ namespace EarthTool.GLTF.Internal
           throw new InvalidDataException("A metadata object contains a duplicate member.");
         }
       }
+      return elements;
     }
+
+    private static int CountJsonElements(
+      string json,
+      GltfOperationProfile profile,
+      int maximumElements)
+    {
+      var reader = new Utf8JsonReader(
+        Encoding.UTF8.GetBytes(json),
+        new JsonReaderOptions { MaxDepth = profile.MaxJsonDepth });
+      var elements = 0;
+      try
+      {
+        while (reader.Read())
+        {
+          elements = checked(elements + 1);
+          if (elements > maximumElements)
+          {
+            throw new MetadataElementLimitException();
+          }
+        }
+      }
+      catch (JsonException)
+      {
+        return elements;
+      }
+      return elements;
+    }
+
+    private sealed class MetadataElementLimitException : Exception { }
 
     private static bool TryReadFrames(JsonElement value, out CanonicalDynamicFrameSequence frames)
     {

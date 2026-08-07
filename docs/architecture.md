@@ -17,7 +17,7 @@ EarthTool.CLI
 |---|---|
 | `EarthTool.Common` | Shared operation results, diagnostics, file types, and format infrastructure |
 | `EarthTool.MSH` | Immutable framed MSH assets, bounded binary operations, canonical authoring, and expert exact construction |
-| `EarthTool.GLTF` | GLB and separate glTF projection, metadata reconciliation, validation, plans, and reports |
+| `EarthTool.GLTF` | GLB and separate glTF projection, source-free canonical creation, validation, plans, and reports |
 | `EarthTool.WD` | WD archive operations |
 | `EarthTool.TEX` | TEX resource decoding and previews |
 | `EarthTool.PAR` | PAR parameter operations |
@@ -45,20 +45,22 @@ serialized-construction boundary.
 sprite-effect, ribbon-effect, attached-particle, procedural, and resource-backed
 `ScalableObject` assets to GLB or separate glTF. Referenced static MSH geometry is
 borrowed preview data and never becomes dynamic asset authority. EarthTool
-metadata envelopes
-retain MSH-only state only while native projection fingerprints prove that state
-remains applicable. Native glTF owns only the deliberately documented artist
-projection; runtime-only dynamic behavior remains metadata authority.
+emits only `extras.earthtoolAuthoring` string envelopes with format
+`earthtool.msh.authoring`, version 1. These envelopes contain typed authoring
+values and are read only on strict case-sensitive canonical named node owners.
 
-Mesh asset creation validates self-contained metadata when present and otherwise
-attempts canonical authoring with a warning. Callers provide neither MSH identities
-nor an import mode; both stream and file paths are bounded and transactional.
+Every static or dynamic GLB and separate glTF creation path regenerates a new
+canonical MSH from current native state, canonical names, typed authoring values,
+and explicit creation options. Legacy metadata, embedded source assets,
+serialized representations, interchange identities, fingerprints, guards,
+conflict actions, and preservation data have no authority. TEX and MSH resource
+bindings are explicit import-plan or creation options rather than metadata.
+Both stream and file paths are bounded and transactional.
 
 Release qualification applies the same GLB and separate-glTF export, strict
-validation, unchanged-import, and canonical-baseline oracles to every accepted
-static and dynamic corpus asset. A packaged CLI byte-parity oracle and the
-single-invocation `Export All Meshes` batch prevent a static-only rollout from
-passing release gates.
+validation, canonical-creation, and explicit-binding oracles to every accepted
+static and dynamic corpus asset. The single-invocation `Export All Meshes` batch
+prevents a static-only rollout from passing release gates.
 
 ## CLI boundary
 
@@ -76,7 +78,8 @@ not suppress later inputs.
 
 ## Verification
 
-Public MSH and glTF APIs, metadata, import plans, reports, and command behavior
-have approval or behavioral gates. Linux and Windows CI run the public MSH/glTF
-contract tests and the CLI process acceptance tests. Generated packages are also
-qualified through SharpGLTF strict validation and the pinned Khronos validator.
+Public MSH and glTF APIs, canonical authoring envelopes, import plans, reports,
+and command behavior have approval or behavioral gates. Linux and Windows CI run
+the public MSH/glTF contract tests and CLI process acceptance tests. Generated
+packages are also qualified through SharpGLTF strict validation and the pinned
+Khronos validator.

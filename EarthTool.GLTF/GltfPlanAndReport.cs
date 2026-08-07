@@ -2,7 +2,6 @@
 
 using EarthTool.Common.Operations;
 using EarthTool.MSH.Assets;
-using EarthTool.MSH.Authoring;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -49,105 +48,50 @@ namespace EarthTool.GLTF
     Gltf = 1
   }
 
-  /// <summary>Names the closed import intents represented by a version-2 plan.</summary>
-  internal enum GltfImportPlanKind
-  {
-    /// <summary>Canonical admission of metadata-free native content.</summary>
-    NewModel = 0,
-    /// <summary>Reconciliation against an expected interchange baseline.</summary>
-    Edit = 1
-  }
-
-  /// <summary>Contains one validated, immutable import plan.</summary>
+  /// <summary>Contains one validated, immutable source-bound canonical creation plan.</summary>
   public sealed class GltfImportPlan
   {
     /// <summary>Gets the independent import-plan format identifier.</summary>
     public string Format => GltfImportPlanFormat.Identifier;
     /// <summary>Gets the independent import-plan protocol version.</summary>
     public int Version => GltfImportPlanFormat.Version;
-    /// <summary>Gets the import intent.</summary>
-    internal GltfImportPlanKind Kind { get; }
     /// <summary>Gets the source package form.</summary>
     public GltfPackageKind PackageKind { get; }
     /// <summary>Gets the lowercase source-package SHA-256 binding.</summary>
     public string SourceSha256 { get; }
-    /// <summary>Gets the required edit baseline, or null for new-model import.</summary>
-    internal InterchangeBaseline? ExpectedBaseline { get; }
-    /// <summary>Gets typed new-model overrides, or null for edit import.</summary>
-    public GltfNewModelImportOptions? NewModelOptions { get; }
-    /// <summary>Gets exact conflict actions, or null for new-model import.</summary>
-    internal GltfEditImportOptions? EditOptions { get; }
+    /// <summary>Gets typed canonical-creation overrides.</summary>
+    public GltfNewModelImportOptions NewModelOptions { get; }
 
     private GltfImportPlan(
-      GltfImportPlanKind kind,
       GltfPackageKind packageKind,
       string sourceSha256,
-      InterchangeBaseline? expectedBaseline,
-      GltfNewModelImportOptions? newModelOptions,
-      GltfEditImportOptions? editOptions)
+      GltfNewModelImportOptions newModelOptions)
     {
       if (!Enum.IsDefined(typeof(GltfPackageKind), packageKind))
       {
         throw new ArgumentOutOfRangeException(nameof(packageKind));
       }
       ValidateSha256(sourceSha256, nameof(sourceSha256));
-      Kind = kind;
       PackageKind = packageKind;
       SourceSha256 = sourceSha256;
-      ExpectedBaseline = expectedBaseline;
-      NewModelOptions = newModelOptions;
-      EditOptions = editOptions;
+      NewModelOptions = newModelOptions ?? throw new ArgumentNullException(nameof(newModelOptions));
     }
 
-    /// <summary>Creates one source-bound new-model plan from typed semantic overrides.</summary>
+    /// <summary>Creates one source-bound canonical creation plan from typed semantic overrides.</summary>
     public static GltfImportPlan CreateNewModel(
       GltfPackageKind packageKind,
       string sourceSha256,
       GltfNewModelImportOptions? options = null)
     {
       return new GltfImportPlan(
-        GltfImportPlanKind.NewModel,
         packageKind,
         sourceSha256,
-        null,
-        options ?? new GltfNewModelImportOptions(),
-        null);
-    }
-
-    /// <summary>Creates one source- and baseline-bound edit plan from exact conflict actions.</summary>
-    internal static GltfImportPlan CreateEdit(
-      GltfPackageKind packageKind,
-      string sourceSha256,
-      InterchangeBaseline expectedBaseline,
-      GltfEditImportOptions? options = null)
-    {
-      var editOptions = options ?? new GltfEditImportOptions();
-      if (editOptions.ConflictResolutions.Any(resolution =>
-        !GltfImportPlanSerializer.IsConflictKey(resolution.ConflictKey)))
-      {
-        throw new ArgumentException("Every conflict action must use a canonical version-1 conflict key.", nameof(options));
-      }
-      return new GltfImportPlan(
-        GltfImportPlanKind.Edit,
-        packageKind,
-        sourceSha256,
-        expectedBaseline ?? throw new ArgumentNullException(nameof(expectedBaseline)),
-        null,
-        editOptions);
+        options ?? new GltfNewModelImportOptions());
     }
 
     internal OperationDiagnostic? ValidateProfile(GltfOperationProfile profile)
     {
-      if (EditOptions?.ConflictResolutions.Count > profile.MaxMetadataConflicts)
-      {
-        return Limit(
-          "conflictActions",
-          EditOptions.ConflictResolutions.Count,
-          profile.MaxMetadataConflicts);
-      }
-      var elementCount = Kind == GltfImportPlanKind.Edit
-        ? EditOptions!.ConflictResolutions.Count * 3L
-        : CountSemanticOverrideElements(NewModelOptions!);
+      var elementCount = CountSemanticOverrideElements(NewModelOptions);
       if (elementCount > profile.MaxMetadataElements)
       {
         return Limit("$", elementCount, profile.MaxMetadataElements);
@@ -641,36 +585,10 @@ namespace EarthTool.GLTF
         writer.WriteStartObject();
         writer.WriteString("format", GltfImportPlanFormat.Identifier);
         writer.WriteNumber("version", GltfImportPlanFormat.Version);
-        writer.WriteString("mode", plan.Kind == GltfImportPlanKind.NewModel ? "newModel" : "edit");
+        writer.WriteString("mode", "newModel");
         writer.WriteString("package", PackageName(plan.PackageKind));
         writer.WriteString("sourceSha256", plan.SourceSha256);
-        if (plan.Kind == GltfImportPlanKind.NewModel)
-        {
-          WriteOverrides(writer, plan.NewModelOptions!);
-        }
-        else
-        {
-          writer.WritePropertyName("expectedBaseline");
-          WriteBaseline(writer, plan.ExpectedBaseline!);
-          writer.WritePropertyName("conflictActions");
-          writer.WriteStartArray();
-          foreach (var resolution in plan.EditOptions!.ConflictResolutions)
-          {
-            writer.WriteStartObject();
-            writer.WriteString("conflictKey", resolution.ConflictKey);
-            writer.WriteString("action", resolution.Action);
-            if (resolution.TargetNativePath is null)
-            {
-              writer.WriteNull("targetNativePath");
-            }
-            else
-            {
-              writer.WriteString("targetNativePath", resolution.TargetNativePath);
-            }
-            writer.WriteEndObject();
-          }
-          writer.WriteEndArray();
-        }
+        WriteOverrides(writer, plan.NewModelOptions);
         writer.WriteEndObject();
       }
       stream.WriteByte((byte)'\n');
@@ -988,13 +906,6 @@ namespace EarthTool.GLTF
       }
     }
 
-    internal static bool IsConflictKey(string value)
-    {
-      return value.Length == 46
-        && value.StartsWith("v1:", StringComparison.Ordinal)
-        && value.Skip(3).All(character => char.IsLetterOrDigit(character) || character is '-' or '_');
-    }
-
     private static ImportPlanException Malformed(string path, string message) =>
       new(GltfDiagnosticCodes.MalformedImportPlan, 3000, path, message);
 
@@ -1062,14 +973,6 @@ namespace EarthTool.GLTF
 
     private static string PackageName(GltfPackageKind packageKind) =>
       packageKind == GltfPackageKind.Glb ? "glb" : "gltf";
-
-    private static void WriteBaseline(Utf8JsonWriter writer, InterchangeBaseline baseline)
-    {
-      writer.WriteStartObject();
-      writer.WriteString("assetLineageId", baseline.AssetLineageId.ToString("D"));
-      writer.WriteString("documentId", baseline.DocumentId.ToString("D"));
-      writer.WriteEndObject();
-    }
 
     private sealed class ImportPlanException : Exception
     {

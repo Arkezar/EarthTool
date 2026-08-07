@@ -235,7 +235,7 @@ public sealed class CanonicalStaticGltfCreationTests
       );
       separateCannonRecord["extras"] = new JsonObject
       {
-        ["earthtool"] = CanonicalAuthoringMetadata.Write(
+        ["earthtoolAuthoring"] = CanonicalAuthoringMetadata.Write(
           CanonicalAuthoringOwner.Parse("ET_Turret_3"),
           new CannonAuthoringValues(0x77),
           GltfOperationProfile.Default
@@ -377,7 +377,7 @@ public sealed class CanonicalStaticGltfCreationTests
       );
       cannon["extras"] = new JsonObject
       {
-        ["earthtool"] = "{\"format\":\"earthtool.msh.authoring\",\"version\":1,"
+        ["earthtoolAuthoring"] = "{\"format\":\"earthtool.msh.authoring\",\"version\":1,"
           + "\"values\":{\"cannonYawHalfRange\":999}}",
       };
     });
@@ -462,7 +462,7 @@ public sealed class CanonicalStaticGltfCreationTests
       );
       cannon["extras"] = new JsonObject
       {
-        ["earthtool"] = "{\"values\":{\"cannonYawHalfRange\":49},"
+        ["earthtoolAuthoring"] = "{\"values\":{\"cannonYawHalfRange\":49},"
           + "\"version\":1,\"format\":\"earthtool.msh.authoring\"}",
       };
       AddArtistObject(root, source, "ET_HitPoint_1", new Vector3(1, 2, 3), 16);
@@ -684,7 +684,7 @@ public sealed class CanonicalStaticGltfCreationTests
       meshNodes[0]["name"] = "ET_Static_1";
       meshNodes[0]["extras"] = new JsonObject
       {
-        ["earthtool"] = "{\"format\":\"earthtool.msh.authoring\",\"version\":1,"
+        ["earthtoolAuthoring"] = "{\"format\":\"earthtool.msh.authoring\",\"version\":1,"
           + "\"values\":{\"role\":{\"viewerFaced\":true}}}",
       };
       SetStaticOwner(meshNodes[1], 2, new StaticSourceAuthoringValues());
@@ -749,7 +749,7 @@ public sealed class CanonicalStaticGltfCreationTests
   }
 
   [Fact]
-  public async Task TypedMetadataOutsideNamedNodesIsRejected()
+  public async Task LegacyMetadataOutsideNamedNodesIsIgnored()
   {
     var glb = await ExportCanonicalGlbAsync(CreateSourceAsset(), AddCanonicalOwners);
     glb = RewriteGlb(glb, root =>
@@ -767,11 +767,8 @@ public sealed class CanonicalStaticGltfCreationTests
       CancellationToken.None
     );
 
-    result.Status.Should().Be(OperationStatus.Failed);
-    result.Value.Should().BeNull();
-    result.Diagnostics.Should().ContainSingle(item =>
-      item.Code == GltfDiagnosticCodes.OrphanEnvelope
-    );
+    result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
+    result.Value.Should().NotBeNull();
   }
 
   [Fact]
@@ -987,7 +984,7 @@ public sealed class CanonicalStaticGltfCreationTests
     node["name"] = name;
     node["extras"] = new JsonObject
     {
-      ["earthtool"] = CanonicalAuthoringMetadata.Write(
+      ["earthtoolAuthoring"] = CanonicalAuthoringMetadata.Write(
         CanonicalAuthoringOwner.Parse(name),
         values,
         GltfOperationProfile.Default
@@ -1007,7 +1004,7 @@ public sealed class CanonicalStaticGltfCreationTests
       .Single(item => item["name"]?.GetValue<string>() == owner.CanonicalName);
     node["extras"] = new JsonObject
     {
-      ["earthtool"] = CanonicalAuthoringMetadata.Write(
+      ["earthtoolAuthoring"] = CanonicalAuthoringMetadata.Write(
         owner,
         values,
         GltfOperationProfile.Default
@@ -1035,7 +1032,7 @@ public sealed class CanonicalStaticGltfCreationTests
     {
       node["extras"] = new JsonObject
       {
-        ["earthtool"] = CanonicalAuthoringMetadata.Write(
+        ["earthtoolAuthoring"] = CanonicalAuthoringMetadata.Write(
           CanonicalAuthoringOwner.Parse(name),
           values,
           GltfOperationProfile.Default

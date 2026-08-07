@@ -33,7 +33,6 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String AmbiguousMeshResource = "ETG1021"
   field System.String AmbiguousTextureResource = "ETG1008"
   field System.String AnimationClassUnrecognized = "ETG1015"
-  field System.String AnimationMetadataOnly = "ETG1014"
   field System.String AuthoringDiagnosticsTruncated = "ETG4003"
   field System.String AuthoringValueDefaulted = "ETG4000"
   field System.String Cancelled = "ETG1005"
@@ -54,7 +53,6 @@ public static class EarthTool.GLTF.GltfDiagnosticCodes
   field System.String MeshResourceShadowed = "ETG1023"
   field System.String MetadataResourceLimitExceeded = "ETG2005"
   field System.String NewModelPhotometricIntensityIgnored = "ETG1028"
-  field System.String OrphanEnvelope = "ETG2011"
   field System.String RemovedImportPlanMember = "ETG3005"
   field System.String RequiredAuthoringValueMissing = "ETG4002"
   field System.String ResourceLimitExceeded = "ETG1001"
@@ -79,7 +77,7 @@ public sealed class EarthTool.GLTF.GltfExportOptions
   property System.Collections.Generic.IReadOnlyList<System.String> TextureSearchRoots { get; }
 public sealed class EarthTool.GLTF.GltfImportPlan
   property System.String Format { get; }
-  property EarthTool.GLTF.GltfNewModelImportOptions? NewModelOptions { get; }
+  property EarthTool.GLTF.GltfNewModelImportOptions NewModelOptions { get; }
   property EarthTool.GLTF.GltfPackageKind PackageKind { get; }
   property System.String SourceSha256 { get; }
   property System.Int32 Version { get; }

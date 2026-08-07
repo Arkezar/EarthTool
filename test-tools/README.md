@@ -14,8 +14,8 @@ package, repository, CLI, documentation, migration, and artifact boundary.
 
 Installations, validator failures, missing corpus data, failed tests, incomplete
 test discovery, unapproved snapshots, missing artifacts, and omitted Blender or
-corpus evidence are failures. The version-1 aggregate evidence file is written
-only after every required gate passes:
+corpus qualification results are failures. The version-1 aggregate evidence file
+is written only after every required gate passes:
 
 ```bash
 EARTHTOOL_OFFICIAL_MSH_CORPUS=/absolute/private/corpus \
@@ -29,9 +29,9 @@ only. It does not access the private corpus or run corpus qualification.
 
 Use `--blender-cache /absolute/cache` to control where the exact official
 Blender archives and installations are retained. The report records the commit,
-host, tools, operation profiles, complete gate inventory, Blender evidence, and
-privacy-safe aggregate corpus evidence. It never records the corpus root, asset
-names, relative paths, or TEX resource keys.
+host, tools, operation profiles, complete gate inventory, Blender results, and
+privacy-safe aggregate corpus results. It never records the corpus root, asset
+names, relative paths, or TEX/MSH resource keys.
 
 ## Blender matrix
 
@@ -42,12 +42,11 @@ once when multiple requested lanes resolve to the same checksum.
 
 The qualification is fail-closed: an unavailable archive, checksum mismatch,
 missing executable, version mismatch, missing validator, failed or unexecuted
-test, incomplete ownership inventory, unexpected preservation effect, or
-unsupported host fails the command. Every lane runs the stock-Blender ownership
-contract while the ordinary Linux and Windows jobs run the remaining public
-glTF facade contract. The stock-Blender round trips additionally apply
-SharpGLTF strict validation and the pinned Khronos validator to each Blender
-output before the ownership-aware import oracle accepts it.
+test, incomplete canonical-creation inventory, or unsupported host fails the
+command. Every lane checks strict canonical owner names and version-1
+`earthtool.msh.authoring` envelopes. Stock-Blender round trips also apply
+SharpGLTF strict validation and the pinned Khronos validator before the
+source-free canonical creation oracle accepts output.
 
 Resolve the current Linux matrix without downloading Blender:
 
@@ -69,25 +68,26 @@ node test-tools/blender-qualification.mjs \
 The version-1 evidence records requested and deduplicated lanes, official source
 and checksum URLs, archive checksums, exact Blender versions and build hashes,
 the stock `io_scene_gltf2` version, host OS, EarthTool commit, validator
-policies, import/export options, ownership domains, test counts, and outcomes.
+policies, import/export options, canonical-creation scenarios, test counts, and
+outcomes.
 
 ## Official MSH corpus
 
 The official corpus gate discovers `.msh` assets case-insensitively beneath a
 private extraction directory outside the checkout and
 emits only versioned aggregate evidence. The corpus, temporary glTF packages,
-TRX output, operation messages, paths, names, and TEX resource keys are never
+TRX output, operation messages, paths, names, and TEX/MSH resource keys are never
 uploaded or copied into the repository.
 
 The checked-in `official-corpus-profile.v2.json` defines the expected corpus
 counts, dynamic effect/domain coverage, `Export All Meshes` batch inventory, and
 exact aggregate operation-diagnostic histogram. The profile has no
 per-asset exceptions: a read, validation, write, semantic-equivalence,
-idempotence, package, unchanged-import, or canonical-baseline failure blocks
-the entire gate. Every accepted static and dynamic asset receives the public API
-and packaged CLI GLB and separate-glTF stages. CLI-assigned identities are
-replayed in-process so package manifests, sidecars, fingerprints, and reports
-must agree byte-for-byte. Diagnostic drift also blocks the gate. Khronos errors and
+idempotence, package, or canonical-creation failure blocks the entire gate. Every
+accepted static and dynamic asset receives public API and packaged CLI GLB and
+separate-glTF stages. The gate checks canonical named-owner envelopes, explicit
+TEX/MSH binding coverage, package manifests, sidecars, reports, and `ETG1030`
+source-loss warnings. Diagnostic drift also blocks the gate. Khronos errors and
 warnings fail; informational and hint findings are retained in the evidence
 histogram.
 

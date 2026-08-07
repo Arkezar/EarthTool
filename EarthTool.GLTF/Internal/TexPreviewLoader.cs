@@ -166,9 +166,7 @@ namespace EarthTool.GLTF.Internal
       for (var index = 0; index < objects.Count; index++)
       {
         var extension = objects[index].Extension;
-        var localId = options.DynamicObjectIds.Count == objects.Count
-          ? options.DynamicObjectIds[index]
-          : index + 1;
+        var localId = index + 1;
         cancellationToken.ThrowIfCancellationRequested();
         if (!DynamicGltfDocument.HasNativePreview(extension.KnownEffectType))
         {

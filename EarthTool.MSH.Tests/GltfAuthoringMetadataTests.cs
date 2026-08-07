@@ -37,6 +37,7 @@ public sealed class GltfAuthoringMetadataTests
   [InlineData("ET_Dynamic_1_Unknown_0000000F")]
   [InlineData("ET_Dynamic_1_smoke")]
   [InlineData("ET_Turret_5")]
+  [InlineData("ET_Garbage")]
   public void ReservedNamesAreNotHeuristicallyCorrected(string name)
   {
     CanonicalAuthoringOwner.TryParse(name, out _).Should().BeFalse();
@@ -322,9 +323,64 @@ public sealed class GltfAuthoringMetadataTests
   }
 
   [Fact]
+  public void ContractsExposeOnlyCanonicalAuthoringMetadataConcepts()
+  {
+    var assemblyTypes = typeof(GltfExportOptions).Assembly.GetTypes()
+      .Select(type => type.Name)
+      .ToArray();
+
+    assemblyTypes.Should().NotContain([
+      "GltfMetadataIdentity",
+      "GltfMetadataConflictActions",
+      "GltfMetadataConflictCatalog",
+      "GltfMetadataConflictResolution",
+      "GltfMetadataLineageDisposition",
+      "GltfEditImportOptions",
+      "InterchangeBaseline",
+      "NativeProjectionFingerprint",
+      "GltfArtistObjectLocalIds",
+      "GltfExportReceipt",
+      "GltfEditImportResult",
+      "GltfDynamicEditImportResult",
+      "GltfMeshCreationResult",
+      "GltfMeshEditImportResult",
+      "GltfNewModelImportResult",
+      "PreservationDisposition",
+      "PreservationChange",
+      "PreservationReport",
+    ]);
+    typeof(GltfExportOptions).GetProperties()
+      .Select(property => property.Name)
+      .OrderBy(name => name, StringComparer.Ordinal)
+      .Should().Equal("MeshResourceSearchRoots", "SourceBaseName", "TextureSearchRoots");
+
+    var profilePropertyNames = typeof(GltfOperationProfile).GetProperties(
+        System.Reflection.BindingFlags.Instance
+          | System.Reflection.BindingFlags.Public
+          | System.Reflection.BindingFlags.NonPublic)
+      .Select(property => property.Name)
+      .ToArray();
+    profilePropertyNames.Should().Contain("MaxAuthoringDiagnostics");
+    profilePropertyNames.Should().NotContain(["MaxMetadataGuards", "MaxMetadataConflicts"]);
+
+    var metadataDiagnosticCodes = typeof(GltfDiagnosticCodes).GetFields(
+        System.Reflection.BindingFlags.Static
+          | System.Reflection.BindingFlags.Public
+          | System.Reflection.BindingFlags.NonPublic)
+      .Where(field => field.IsLiteral)
+      .Select(field => (Name: field.Name, Value: field.GetRawConstantValue() as string))
+      .Where(field => field.Value?.StartsWith("ETG2", StringComparison.Ordinal) == true)
+      .ToArray();
+    metadataDiagnosticCodes.Should().ContainSingle();
+    metadataDiagnosticCodes[0].Name.Should().Be(
+      nameof(GltfDiagnosticCodes.MetadataResourceLimitExceeded));
+    metadataDiagnosticCodes[0].Value.Should().Be("ETG2005");
+  }
+
+  [Fact]
   public void WarningsAndEnvelopeBytesAreBoundedByTheOperationProfile()
   {
-    var profile = CreateProfile(maxMetadataBytes: 180, maxMetadataConflicts: 2);
+    var profile = CreateProfile(maxMetadataBytes: 180, maxAuthoringDiagnostics: 2);
     var owner = CanonicalAuthoringOwner.Parse("ET_SpotLight_1");
     var oversized = "{\"format\":\"earthtool.msh.authoring\",\"version\":1,\"values\":{\"x\":\""
       + new string('x', 200)
@@ -355,9 +411,87 @@ public sealed class GltfAuthoringMetadataTests
       GltfAuthoringMetadataDiagnosticCodes.DiagnosticsTruncated);
   }
 
+  [Fact]
+  public void EnvelopeLimitCountsMetadataRatherThanMetadataFreeOwners()
+  {
+    var metadata = CanonicalAuthoringMetadata.Write(
+      CanonicalAuthoringOwner.Parse("ET_Turret_1"),
+      new CannonAuthoringValues(),
+      GltfOperationProfile.Default);
+    var profile = CreateProfile(maxMetadataEnvelopes: 1);
+
+    var result = CanonicalAuthoringMetadata.Read(
+      new[]
+      {
+        new AuthoringMetadataCarrier("nodes[0]", "ET_Static_1", null),
+        new AuthoringMetadataCarrier("nodes[1]", "ArtistObject", null),
+        new AuthoringMetadataCarrier("nodes[2]", "ET_Turret_1", metadata),
+      },
+      profile);
+
+    result.Status.Should().Be(OperationStatus.Succeeded);
+  }
+
+  [Fact]
+  public void AggregateMetadataElementLimitFailsAcrossCanonicalEnvelopes()
+  {
+    const string metadata =
+      "{\"format\":\"earthtool.msh.authoring\",\"version\":1,\"values\":{}}";
+    var profile = CreateProfile(maxMetadataElements: 12);
+
+    var result = CanonicalAuthoringMetadata.Read(
+      new[]
+      {
+        new AuthoringMetadataCarrier("nodes[0]", "ET_Static_1", metadata),
+        new AuthoringMetadataCarrier("nodes[1]", "ET_Turret_1", metadata),
+      },
+      profile);
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Diagnostics.Should().ContainSingle(item =>
+      item.Code == GltfDiagnosticCodes.MetadataResourceLimitExceeded);
+  }
+
+  [Fact]
+  public void NoncanonicalAndMalformedEnvelopesStillConsumeMetadataBudgets()
+  {
+    var profile = CreateProfile(maxMetadataElements: 8);
+    const string malformed = "{\"one\":1,\"two\":2,\"three\":3,\"four\":4,";
+
+    var result = CanonicalAuthoringMetadata.Read(
+      new[] { new AuthoringMetadataCarrier("nodes[0]", "ArtistObject", malformed) },
+      profile);
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Diagnostics.Should().ContainSingle(item =>
+      item.Code == GltfDiagnosticCodes.MetadataResourceLimitExceeded);
+  }
+
+  [Fact]
+  public async Task DynamicMetadataBudgetFailuresUseTheMetadataDiagnostic()
+  {
+    var build = DynamicMeshBuilder.Create()
+      .SetRoot(DynamicEffectRecipes.Group([DynamicEffectRecipes.Group()]))
+      .Build();
+    build.TryGetValue(out var asset).Should().BeTrue();
+    await using var destination = new MemoryStream();
+
+    var result = await new GltfInterchange().ExportGlbAsync(
+      asset!,
+      destination,
+      profile: CreateProfile(maxMetadataEnvelopes: 1));
+
+    result.Status.Should().Be(OperationStatus.Failed);
+    result.Diagnostics.Should().ContainSingle(item =>
+      item.Code == GltfDiagnosticCodes.MetadataResourceLimitExceeded);
+    destination.Length.Should().Be(0);
+  }
+
   private static GltfOperationProfile CreateProfile(
-    int maxMetadataBytes,
-    int maxMetadataConflicts)
+    int maxMetadataBytes = 1024,
+    int maxAuthoringDiagnostics = 16,
+    int maxMetadataEnvelopes = 16,
+    int maxMetadataElements = 128)
   {
     return new GltfOperationProfile(
       maxInputBytes: 1024,
@@ -372,11 +506,10 @@ public sealed class GltfAuthoringMetadataTests
       maxTextureSearchRoots: 4,
       maxTextureDirectoryEntries: 16,
       maxTotalMetadataBytes: 1024,
-      maxMetadataEnvelopes: 16,
-      maxMetadataElements: 128,
+      maxMetadataEnvelopes: maxMetadataEnvelopes,
+      maxMetadataElements: maxMetadataElements,
       maxUnknownMetadataMembers: 16,
-      maxMetadataGuards: 4,
-      maxMetadataConflicts: maxMetadataConflicts,
+      maxAuthoringDiagnostics: maxAuthoringDiagnostics,
       meshResourceLimits: GltfMeshResourceLimits.Default);
   }
 

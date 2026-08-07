@@ -1,8 +1,8 @@
 ﻿# Migrating to canonical glTF creation
 
-Public glTF creation now regenerates static and dynamic MSH assets from the
-current GLB or separate glTF package. It no longer restores or falls back to an
-embedded source MSH.
+Every public glTF creation route now regenerates a static or dynamic canonical
+MSH from the current GLB or separate glTF package. It never restores or falls
+back to an embedded source MSH.
 
 ## Creation results
 
@@ -20,9 +20,10 @@ Use `CreateMeshFileAsync` for a separate `.gltf` package. Planned callers use
 `CreateMeshWithPlanAsync` or `CreateMeshFileWithPlanAsync` and receive the same
 result shape.
 
-Remove code that supplies a source asset, expected baseline, lineage or document
-identity, scope mapping, restoration policy, or preservation conflict action.
-There are no forwarding overloads for those contracts.
+Remove code that supplies a source asset, expected baseline, lineage, document or
+scope identity, projection fingerprint, guard, restoration policy, preservation
+policy, conflict inventory, or conflict action. There are no forwarding
+overloads or compatibility interpretation for those contracts.
 
 ## Export results
 
@@ -30,20 +31,42 @@ Export methods now return `OperationResult`. Read `Status`, `Succeeded`, and
 `Diagnostics`; do not expect an export receipt, baseline, projection fingerprint,
 or preservation report.
 
+Export can succeed with `ETG1030` warnings. Each warning identifies a source-only
+serialized representation that the glTF projection cannot carry and later
+canonical creation will not retain.
+
 ## CLI reports
 
-The `earthtool.msh.cli-report` schema is version 2. Export, import, and validation
-operations contain status and diagnostics. Successful import operations also
-contain `assetKind` and `identities.meshCreationGuid`. Version 1 lineage,
-fingerprint, conflict-action, restoration-path, and preservation fields were
-removed.
+The `earthtool.msh.cli-report` schema is version 2. Export, canonical import, and
+validation operations contain status and diagnostics. Successful import
+operations also contain `assetKind` and `identities.meshCreationGuid`. Reports
+have no edit mode, lineage, fingerprint, conflict-action, restoration-path,
+preservation, or receipt fields.
 
 ## Package authoring
 
-EarthTool exports canonical owner names (`ET_Static_{n}` and
-`ET_Dynamic_{n}_{effect}`) and canonical authoring envelopes for typed values.
-Third-party packages must use the canonical owner and helper naming contracts.
-Values that have no portable glTF representation, including game resource keys,
-still require `GltfNewModelImportOptions` or a typed plan. Successful creation
-assigns a new creation GUID and may produce different bytes even when the
-authored semantics are unchanged.
+EarthTool exports only `extras.earthtoolAuthoring` string envelopes with format
+`earthtool.msh.authoring`, version 1. Envelopes contain typed authoring values and
+are read only from strict case-sensitive canonical named owners such as
+`ET_Static_{n}`, `ET_Turret_{n}`, canonical static-light names, and
+`ET_Dynamic_{n}_{Effect}`.
+
+Legacy `extras.earthtool`, source MSH payloads, serialized representations,
+identities, fingerprints, guards, inventories, and preservation data are ignored.
+Do not migrate them into the new envelope.
+
+TEX and MSH resource bindings remain explicit `GltfNewModelImportOptions` or
+version-2 import-plan values. They are not envelope members and are never inferred
+from names, URIs, image bytes, or preview geometry. Successful creation assigns a
+new creation GUID and may produce different bytes even when authored semantics
+are unchanged.
+
+## Plans and limits
+
+Version-2 plans have one canonical creation mode and bind typed options to the
+exact GLB or complete separate glTF package. Old edit-mode plans are rejected.
+Regenerate the plan and source digest after changing the package.
+
+`GltfOperationProfile` now bounds canonical envelope count, bytes per envelope,
+aggregate bytes, JSON depth and elements, unknown members, and emitted warning
+diagnostics. Metadata limit failures report `ETG2005`.

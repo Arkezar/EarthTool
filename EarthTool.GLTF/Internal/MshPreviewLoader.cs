@@ -78,9 +78,7 @@ namespace EarthTool.GLTF.Internal
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var localId = options.DynamicObjectIds.Count == objects.Count
-          ? options.DynamicObjectIds[index]
-          : index + 1;
+        var localId = index + 1;
         var key = TryGetResourceKey(extension.MeshNameBytes);
         if (key is null)
         {

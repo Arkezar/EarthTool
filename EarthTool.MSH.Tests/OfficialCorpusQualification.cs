@@ -698,7 +698,6 @@ internal static class OfficialCorpusQualification
         await QualifyInterchangeAsync(
           asset,
           canonicalBytes,
-          sourceDigest,
           index,
           temporaryRoot,
           worker,
@@ -710,7 +709,6 @@ internal static class OfficialCorpusQualification
     private async Task QualifyInterchangeAsync(
       MeshAsset asset,
       byte[] canonicalBytes,
-      byte[] sourceDigest,
       int index,
       string temporaryRoot,
       WorkerContext worker,
@@ -723,12 +721,7 @@ internal static class OfficialCorpusQualification
       }
       try
       {
-        var options = new GltfExportOptions(
-          CreateVersion4Guid(sourceDigest, "lineage"),
-          CreateVersion4Guid(sourceDigest, "document"),
-          [_corpusRoot],
-          null,
-          [_corpusRoot]);
+        var options = new GltfExportOptions([_corpusRoot], [_corpusRoot]);
         var khronos = await worker.GetKhronosAsync();
         await QualifyGlbAsync(asset, options, directory, worker, khronos, result);
         await QualifySeparateGltfAsync(asset, options, directory, worker, khronos, result);
@@ -780,12 +773,12 @@ internal static class OfficialCorpusQualification
       result.Begin("glb.export");
       var stream = new MemoryStream();
       var export = await asset.Match(
-        onStatic: staticAsset => worker.Interchange.ExportGlbWithReceiptAsync(
+        onStatic: staticAsset => worker.Interchange.ExportGlbAsync(
           staticAsset,
           stream,
           options,
           _gltfProfile),
-        onDynamic: dynamicAsset => worker.Interchange.ExportGlbWithReceiptAsync(
+        onDynamic: dynamicAsset => worker.Interchange.ExportGlbAsync(
           dynamicAsset,
           stream,
           options,
@@ -819,9 +812,7 @@ internal static class OfficialCorpusQualification
       await ValidateKhronosAsync("glb.khronos-validate", packagePath, khronos, result);
 
       result.Begin("glb.unchanged-import");
-      var importOptions = await OfficialCorpusCliOracle.CreateImportOptionsAsync(
-        packagePath,
-        GltfPackageKind.Glb);
+      var importOptions = OfficialCorpusCliOracle.CreateImportOptions(asset);
       await using var canonicalPackage = File.OpenRead(packagePath);
       var import = await worker.Interchange.CreateMeshAsync(
         canonicalPackage,
@@ -855,12 +846,12 @@ internal static class OfficialCorpusQualification
       var packagePath = Path.Combine(packageDirectory, "package.gltf");
       result.Begin("gltf.export");
       var export = await asset.Match(
-        onStatic: staticAsset => worker.Interchange.ExportGltfFileWithReceiptAsync(
+        onStatic: staticAsset => worker.Interchange.ExportGltfFileAsync(
           staticAsset,
           packagePath,
           options,
           _gltfProfile),
-        onDynamic: dynamicAsset => worker.Interchange.ExportGltfFileWithReceiptAsync(
+        onDynamic: dynamicAsset => worker.Interchange.ExportGltfFileAsync(
           dynamicAsset,
           packagePath,
           options,
@@ -892,9 +883,7 @@ internal static class OfficialCorpusQualification
       await ValidateKhronosAsync("gltf.khronos-validate", packagePath, khronos, result);
 
       result.Begin("gltf.unchanged-import");
-      var importOptions = await OfficialCorpusCliOracle.CreateImportOptionsAsync(
-        packagePath,
-        GltfPackageKind.Gltf);
+      var importOptions = OfficialCorpusCliOracle.CreateImportOptions(asset);
       var import = await worker.Interchange.CreateMeshFileAsync(
         packagePath,
         importOptions,
@@ -1049,18 +1038,6 @@ internal static class OfficialCorpusQualification
       return cli.PackagePath is not null
         && File.Exists(cli.PackagePath)
         && cli.AssetKind == expectedAssetKind;
-    }
-
-    private static Guid CreateVersion4Guid(byte[] sourceDigest, string purpose)
-    {
-      var purposeBytes = Encoding.ASCII.GetBytes(purpose);
-      var preimage = new byte[sourceDigest.Length + purposeBytes.Length];
-      sourceDigest.CopyTo(preimage, 0);
-      purposeBytes.CopyTo(preimage, sourceDigest.Length);
-      var bytes = SHA256.HashData(preimage).AsSpan(0, 16).ToArray();
-      bytes[7] = (byte)((bytes[7] & 0x0F) | 0x40);
-      bytes[8] = (byte)((bytes[8] & 0x3F) | 0x80);
-      return new Guid(bytes);
     }
 
     private static bool IsFramedVersionOne(string file)
@@ -1903,9 +1880,7 @@ internal static class OfficialCorpusQualification
       profile.MaxTotalMetadataBytes,
       profile.MaxMetadataEnvelopes,
       profile.MaxMetadataElements,
-      profile.MaxUnknownMetadataMembers,
-      profile.MaxMetadataGuards,
-      profile.MaxMetadataConflicts
+      profile.MaxUnknownMetadataMembers
     };
   }
 }

@@ -9,8 +9,8 @@ data.
 |---|---|
 | WD | Read, create, extract, add, remove, and inspect archives |
 | TEX | Read textures and produce standard image previews |
-| MSH | Read, validate, write, canonically author, and safely edit framed version-1 assets |
-| GLB/glTF | Export static MSH and supported Group, sprite, ribbon, attached-particle, and procedural dynamic MSH; reconcile artist edits; author new static MSH models |
+| MSH | Read, validate, write, and canonically author framed version-1 assets |
+| GLB/glTF | Export static and supported dynamic MSH assets; canonically regenerate static or dynamic MSH from GLB or separate glTF |
 | PAR | Read, edit, and serialize parameter data |
 
 The MSH API supports both static and dynamic mesh assets. Artist interchange
@@ -27,15 +27,20 @@ previews with owned dynamic scale and binding edits.
 EarthTool targets Blender 4.5 LTS and later supported releases through standard
 glTF 2.0. Export defaults to one GLB. Separate glTF is available when sidecars
 are preferable. Native hierarchy, geometry, animation, materials, attachment
-artist objects, and punctual lights remain editable while versioned EarthTool
-metadata retains applicable MSH-only serialized representations.
+artist objects, and punctual lights are the editable projection. Strict canonical
+node owners can carry version-1 `earthtool.msh.authoring` envelopes containing
+typed MSH-only authoring values.
 
-Use one import command for metadata-backed edits and metadata-free authoring:
+Use one import command for all source-free canonical creation:
 
 ```text
 EarthTool.CLI msh export model.msh
 EarthTool.CLI msh import model.glb
 ```
+
+Import never restores an embedded source MSH and has no edit mode. TEX and MSH
+resource keys must be supplied through explicit creation options or a version-2
+import plan; they are not inferred from glTF metadata or preview content.
 
 See the [quick start](quickstart.md), [MSH API](api/msh.md), and
 [glTF API](api/gltf.md).
@@ -44,8 +49,10 @@ See the [quick start](quickstart.md), [MSH API](api/msh.md), and
 
 Operations use finite profiles, operation-scoped diagnostics, explicit
 cancellation, and transactional destination writes. Structural hazards,
-metadata conflicts, validation failures, cancellation, and I/O failures produce
-no partial mesh asset and do not replace an existing destination.
+invalid canonical authoring values, validation failures, cancellation, and I/O
+failures produce no partial mesh asset and do not replace an existing
+destination. Metadata budgets bound envelope count, per-envelope and aggregate
+bytes, JSON depth and elements, unknown members, and warning diagnostics.
 
 ## Breaking release
 

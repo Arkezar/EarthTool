@@ -1,8 +1,8 @@
 ﻿using EarthTool.Common.Operations;
 using EarthTool.GLTF;
+using EarthTool.GLTF.Internal;
 using EarthTool.MSH.Assets;
 using EarthTool.MSH.Services;
-using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -73,7 +73,13 @@ internal static class OfficialCorpusCliOracle
       temporaryIoDuration += Stopwatch.GetElapsedTime(ioStarted);
       var importStarted = Stopwatch.GetTimestamp();
       var outputPath = Path.Combine(importDirectory, "source.msh");
-      var importOptions = await CreateImportOptionsAsync(packagePath, packageKind);
+      await using var canonicalSource = new MemoryStream(canonicalMsh, writable: false);
+      var canonicalAsset = await new MshReader().ReadAsync(canonicalSource);
+      if (!canonicalAsset.Succeeded)
+      {
+        throw new InvalidDataException("The canonical qualification MSH could not be read.");
+      }
+      var importOptions = CreateImportOptions(canonicalAsset.Value!);
       var planPath = Path.Combine(directory, "import-plan.json");
       await WritePlanAsync(packagePath, packageKind, importOptions, planPath);
       var import = await RunProcessAsync(root, [
@@ -244,48 +250,60 @@ internal static class OfficialCorpusCliOracle
     return new CliProcessResult(process.ExitCode);
   }
 
-  internal static async Task<GltfNewModelImportOptions> CreateImportOptionsAsync(
-    string packagePath,
-    GltfPackageKind packageKind)
+  internal static GltfNewModelImportOptions CreateImportOptions(MeshAsset asset)
   {
-    using var document = await ReadPackageJsonAsync(packagePath, packageKind);
-    var root = document.RootElement;
     var textureBindings = new Dictionary<GltfMaterialHandle, string?>();
-    if (root.TryGetProperty("materials", out var materials))
+    var meshBindings = new Dictionary<GltfNodeHandle, string>();
+    if (asset is StaticMeshAsset staticAsset)
     {
-      for (var index = 0; index < materials.GetArrayLength(); index++)
+      for (var index = 0; index < staticAsset.StaticRenderObjectSequence.Count; index++)
       {
-        var binding = ReadLegacyPayloadBytes(materials[index], "textureBinding");
-        if (binding is { Length: > 0 })
+        var binding = staticAsset.StaticRenderObjectSequence[index].TexturePathBytes;
+        if (binding.Count != 0)
         {
-          textureBindings[new GltfMaterialHandle(index + 1)] = Encoding.ASCII.GetString(binding);
+          textureBindings[new GltfMaterialHandle(index + 1)] = Encoding.ASCII.GetString(
+            binding.ToArray());
         }
       }
     }
-
-    var meshBindings = new Dictionary<GltfNodeHandle, string>();
-    var nodes = root.GetProperty("nodes");
-    for (var index = 0; index < nodes.GetArrayLength(); index++)
+    else if (asset is DynamicMeshAsset dynamicAsset)
     {
-      var node = nodes[index];
-      var texture = ReadLegacyPayloadBytes(node, "texturePath");
-      if (texture is { Length: > 0 } && node.TryGetProperty("mesh", out var mesh))
+      var objects = Flatten(dynamicAsset.RootDynamicObject).ToArray();
+      var material = 1;
+      for (var index = 0; index < objects.Length; index++)
       {
-        var materialIndex = root.GetProperty("meshes")[mesh.GetInt32()]
-          .GetProperty("primitives")[0]
-          .GetProperty("material")
-          .GetInt32();
-        textureBindings[new GltfMaterialHandle(materialIndex + 1)] = Encoding.ASCII.GetString(texture);
-      }
-      var meshName = ReadLegacyPayloadBytes(node, "meshName");
-      if (meshName is { Length: > 0 })
-      {
-        meshBindings[new GltfNodeHandle(index + 1)] = Encoding.ASCII.GetString(meshName);
+        var extension = objects[index].Extension;
+        if (DynamicGltfDocument.HasNativePreview(extension.KnownEffectType))
+        {
+          if (extension.TexturePathBytes.Count != 0)
+          {
+            textureBindings[new GltfMaterialHandle(material)] = Encoding.ASCII.GetString(
+              extension.TexturePathBytes.ToArray());
+          }
+          material++;
+        }
+        if (extension.MeshNameBytes.Count != 0)
+        {
+          meshBindings[new GltfNodeHandle(index + 2)] = Encoding.ASCII.GetString(
+            extension.MeshNameBytes.ToArray());
+        }
       }
     }
     return new GltfNewModelImportOptions(
       textureResourceBindings: textureBindings,
       meshResourceBindings: meshBindings);
+  }
+
+  private static IEnumerable<DynamicObject> Flatten(DynamicObject root)
+  {
+    yield return root;
+    foreach (var child in root.Children)
+    {
+      foreach (var descendant in Flatten(child))
+      {
+        yield return descendant;
+      }
+    }
   }
 
   private static async Task WritePlanAsync(
@@ -317,40 +335,6 @@ internal static class OfficialCorpusCliOracle
     {
       throw new InvalidDataException("The qualification import plan could not be written.");
     }
-  }
-
-  private static async Task<JsonDocument> ReadPackageJsonAsync(
-    string packagePath,
-    GltfPackageKind packageKind)
-  {
-    if (packageKind == GltfPackageKind.Gltf)
-    {
-      return JsonDocument.Parse(await File.ReadAllBytesAsync(packagePath));
-    }
-    var glb = await File.ReadAllBytesAsync(packagePath);
-    var jsonLength = BinaryPrimitives.ReadInt32LittleEndian(glb.AsSpan(12));
-    return JsonDocument.Parse(glb.AsMemory(20, jsonLength));
-  }
-
-  private static byte[]? ReadLegacyPayloadBytes(JsonElement owner, string propertyName)
-  {
-    if (!owner.TryGetProperty("extras", out var extras)
-      || !extras.TryGetProperty("earthtool", out var metadata)
-      || metadata.ValueKind != JsonValueKind.String)
-    {
-      return null;
-    }
-    using var document = JsonDocument.Parse(metadata.GetString()!);
-    if (!document.RootElement.TryGetProperty("payload", out var payload)
-      || !payload.TryGetProperty(propertyName, out var value)
-      || value.ValueKind != JsonValueKind.String)
-    {
-      return null;
-    }
-    var encoded = value.GetString()!;
-    var padded = encoded.Replace('-', '+').Replace('_', '/');
-    padded = padded.PadRight((padded.Length + 3) / 4 * 4, '=');
-    return Convert.FromBase64String(padded);
   }
 
   private static string ResolveExecutable(string root)
