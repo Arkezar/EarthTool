@@ -283,6 +283,8 @@ namespace EarthTool.GLTF.Internal
 
     internal bool Additive { get; }
 
+    internal string? MeshResourceKey { get; }
+
     internal DynamicAuthoringValues(
       EffectRectangle? endEffectRectangle = null,
       CanonicalDynamicTerrainLight? terrainLight = null,
@@ -347,7 +349,8 @@ namespace EarthTool.GLTF.Internal
       float visibleTerrainLightGain,
       DynamicAlphaTiming alphaTiming,
       float endAlpha,
-      bool additive)
+      bool additive,
+      string? meshResourceKey = null)
     {
       Frames = frames;
       SpriteSheet = spriteSheet;
@@ -358,6 +361,7 @@ namespace EarthTool.GLTF.Internal
       AlphaTiming = alphaTiming;
       EndAlpha = endAlpha;
       Additive = additive;
+      MeshResourceKey = meshResourceKey;
     }
 
     internal static DynamicAuthoringValues Defaults { get; } = new DynamicAuthoringValues(
@@ -378,7 +382,8 @@ namespace EarthTool.GLTF.Internal
       float visibleTerrainLightGain,
       DynamicAlphaTiming alphaTiming,
       float endAlpha,
-      bool additive)
+      bool additive,
+      string? meshResourceKey = null)
     {
       return new DynamicAuthoringValues(
         frames,
@@ -388,7 +393,8 @@ namespace EarthTool.GLTF.Internal
         visibleTerrainLightGain,
         alphaTiming,
         endAlpha,
-        additive);
+        additive,
+        meshResourceKey);
     }
 
     private static EffectRectangle DefaultRectangle => new(-0.25f, 0.25f, 0.25f, -0.25f);
@@ -427,12 +433,69 @@ namespace EarthTool.GLTF.Internal
     internal const string Format = "earthtool.msh.authoring";
     internal const int Version = 1;
 
+    internal const string MaterialFormat = "earthtool.msh.material-authoring";
+    internal const int MaterialVersion = 1;
+
     private static readonly HashSet<string> _rootProperties = new(StringComparer.Ordinal)
     {
       "format",
       "version",
       "values"
     };
+
+    /// <summary>Writes a minimal material envelope carrying a canonical TEX resource key.</summary>
+    internal static string WriteMaterial(string textureResourceKey, GltfOperationProfile profile)
+    {
+      if (textureResourceKey is null)
+      {
+        throw new ArgumentNullException(nameof(textureResourceKey));
+      }
+      using var stream = new MemoryStream();
+      using (var writer = new Utf8JsonWriter(stream))
+      {
+        writer.WriteStartObject();
+        writer.WriteString("format", MaterialFormat);
+        writer.WriteNumber("version", MaterialVersion);
+        writer.WriteString("textureResourceKey", textureResourceKey);
+        writer.WriteEndObject();
+      }
+      if (stream.Length > profile.MaxMetadataBytes)
+      {
+        throw new InvalidDataException("The material authoring metadata envelope exceeds its byte limit.");
+      }
+      return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    /// <summary>Reads the canonical TEX resource key from a material envelope, when present.</summary>
+    internal static string? ReadMaterialTextureResourceKey(string? metadata)
+    {
+      if (string.IsNullOrEmpty(metadata))
+      {
+        return null;
+      }
+      try
+      {
+        using var document = JsonDocument.Parse(metadata, new JsonDocumentOptions
+        {
+          MaxDepth = GltfOperationProfile.Default.MaxJsonDepth
+        });
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object
+          || !TryString(root, "format", out var format)
+          || !string.Equals(format, MaterialFormat, StringComparison.Ordinal)
+          || !TryInt32(root, "version", out var version)
+          || version != MaterialVersion
+          || !TryString(root, "textureResourceKey", out var resourceKey))
+        {
+          return null;
+        }
+        return resourceKey;
+      }
+      catch (JsonException)
+      {
+        return null;
+      }
+    }
 
     internal static OperationResult<CanonicalAuthoringMetadataDocument> Read(
       IEnumerable<AuthoringMetadataCarrier> carriers,
@@ -836,7 +899,8 @@ namespace EarthTool.GLTF.Internal
         "visibleTerrainLightGain",
         "alphaTiming",
         "endAlpha",
-        "additive"
+        "additive",
+        "meshResourceKey"
       };
       AddUnknownWarnings(values, known, path, warnings, ref unknownMembers);
       AddNestedUnknownWarnings(
@@ -946,6 +1010,19 @@ namespace EarthTool.GLTF.Internal
           alphaTiming = DynamicAlphaTiming.FramePhase;
         }
       }
+      string? meshResourceKey = null;
+      if (values.TryGetProperty("meshResourceKey", out var meshResource))
+      {
+        if (meshResource.ValueKind == JsonValueKind.String
+          && !string.IsNullOrEmpty(meshResource.GetString()))
+        {
+          meshResourceKey = meshResource.GetString();
+        }
+        else
+        {
+          warnings.Add(Defaulted(path + ".values.meshResourceKey", "The mesh resource key is invalid; its required-value validation will apply."));
+        }
+      }
 
       var result = DynamicAuthoringValues.Create(
         frames,
@@ -955,7 +1032,8 @@ namespace EarthTool.GLTF.Internal
         visibleGain,
         alphaTiming,
         endAlpha,
-        additive);
+        additive,
+        meshResourceKey);
       return ApplyDynamicApplicability(effectType, result, values, path, warnings);
     }
 
@@ -1044,7 +1122,12 @@ namespace EarthTool.GLTF.Internal
           effectType,
           DynamicRepresentationUse.AdditiveFlag)
             ? values.Additive
-            : DynamicAuthoringValues.Defaults.Additive);
+            : DynamicAuthoringValues.Defaults.Additive,
+        DynamicEffectBehavior.ConsumesRepresentation(
+          effectType,
+          DynamicRepresentationUse.MeshResourceKey)
+            ? values.MeshResourceKey
+            : null);
     }
 
     private static EmptyAuthoringValues ReadEmpty(
@@ -1282,6 +1365,11 @@ namespace EarthTool.GLTF.Internal
       if (DynamicEffectBehavior.ConsumesRepresentation(effectType, DynamicRepresentationUse.AdditiveFlag))
       {
         writer.WriteBoolean("additive", values.Additive);
+      }
+      if (DynamicEffectBehavior.ConsumesRepresentation(effectType, DynamicRepresentationUse.MeshResourceKey)
+        && values.MeshResourceKey is not null)
+      {
+        writer.WriteString("meshResourceKey", values.MeshResourceKey);
       }
     }
 

@@ -1162,7 +1162,7 @@ namespace EarthTool.GLTF
         OperationStatus.Succeeded,
         new CanonicalStaticGltfSemanticOptions(
           new GltfNewModelImportOptions(
-            options.ImportOptions.TextureResourceBindings,
+            MergeTextureResourceBindings(parsed, options.ImportOptions.TextureResourceBindings),
             footprint,
             extents,
             roles,
@@ -1171,6 +1171,36 @@ namespace EarthTool.GLTF
           cannonValues
         )
       );
+    }
+
+    private static IReadOnlyDictionary<GltfMaterialHandle, string?> MergeTextureResourceBindings(
+      ParsedGlb parsed,
+      IReadOnlyDictionary<GltfMaterialHandle, string?> planned)
+    {
+      var merged = new Dictionary<GltfMaterialHandle, string?>();
+      var usedOrder = GetMaterialOrder(parsed);
+      for (var index = 0; index < parsed.Materials.Count; index++)
+      {
+        if (!usedOrder.Contains(index))
+        {
+          continue;
+        }
+        var embedded = parsed.Materials[index].TextureResourceKey;
+        if (embedded is null)
+        {
+          continue;
+        }
+        var handle = GetMaterialHandle(parsed, index);
+        if (!planned.ContainsKey(handle))
+        {
+          merged.Add(handle, embedded);
+        }
+      }
+      foreach (var binding in planned)
+      {
+        merged[binding.Key] = binding.Value;
+      }
+      return merged;
     }
 
     private static bool HasSameContent(string path, byte[] expected)

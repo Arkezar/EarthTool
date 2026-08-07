@@ -677,6 +677,71 @@ public sealed class CanonicalStaticGltfCreationTests
   }
 
   [Fact]
+  public async Task EmbeddedMaterialTextureResourceKeyRegeneratesWithoutABinding()
+  {
+    const string sourceKey = "Textures\\source-name.tex";
+    var source = CreateSourceAsset(sourceKey);
+    await using var exported = new MemoryStream();
+    var export = await new GltfInterchange().ExportGlbAsync(source, exported);
+    export.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(export.Diagnostics));
+    var glb = RewriteGlb(exported.ToArray(), root =>
+    {
+      var meshNodes = MeshNodes(root);
+      SetStaticOwner(meshNodes[0], 1, new StaticSourceAuthoringValues());
+      SetStaticOwner(meshNodes[1], 2, new StaticSourceAuthoringValues());
+      RemoveNodeAndSceneEarthToolMetadata(root);
+    });
+
+    var result = GltfInterchange.ImportCanonicalStaticGlb(
+      glb,
+      new CanonicalStaticGltfCreationOptions(_creationGuid),
+      GltfOperationProfile.Default,
+      CancellationToken.None
+    );
+
+    result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
+    Encoding.ASCII.GetString(
+      result.Value!.StaticRenderObjectSequence[0].TexturePathBytes.ToArray()
+    ).Should().Be(sourceKey);
+  }
+
+  [Fact]
+  public async Task ExplicitBindingOverridesAnEmbeddedMaterialTextureResourceKey()
+  {
+    const string sourceKey = "Textures\\source-name.tex";
+    const string explicitKey = "Textures\\explicit-binding.tex";
+    var source = CreateSourceAsset(sourceKey);
+    await using var exported = new MemoryStream();
+    var export = await new GltfInterchange().ExportGlbAsync(source, exported);
+    export.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(export.Diagnostics));
+    var glb = RewriteGlb(exported.ToArray(), root =>
+    {
+      var meshNodes = MeshNodes(root);
+      SetStaticOwner(meshNodes[0], 1, new StaticSourceAuthoringValues());
+      SetStaticOwner(meshNodes[1], 2, new StaticSourceAuthoringValues());
+      RemoveNodeAndSceneEarthToolMetadata(root);
+    });
+
+    var result = GltfInterchange.ImportCanonicalStaticGlb(
+      glb,
+      new CanonicalStaticGltfCreationOptions(
+        _creationGuid,
+        new Dictionary<GltfMaterialHandle, string?>
+        {
+          [new GltfMaterialHandle(1)] = explicitKey,
+        }
+      ),
+      GltfOperationProfile.Default,
+      CancellationToken.None
+    );
+
+    result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
+    Encoding.ASCII.GetString(
+      result.Value!.StaticRenderObjectSequence[0].TexturePathBytes.ToArray()
+    ).Should().Be(explicitKey);
+  }
+
+  [Fact]
   public async Task InvalidOptionalTypedValuesDefaultWithWarnings()
   {
     var glb = await ExportCanonicalGlbAsync(CreateSourceAsset(), (root, meshNodes) =>
@@ -1147,6 +1212,15 @@ public sealed class CanonicalStaticGltfCreationTests
           RemoveEarthToolMetadata(child);
         }
       }
+    }
+  }
+
+  private static void RemoveNodeAndSceneEarthToolMetadata(JsonObject root)
+  {
+    root["scenes"]![0]!.AsObject().Remove("extras");
+    foreach (var node in root["nodes"]!.AsArray())
+    {
+      node!.AsObject().Remove("extras");
     }
   }
 

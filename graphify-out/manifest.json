@@ -1480,13 +1480,13 @@
     "semantic_hash": ""
   },
   "EarthTool.GLTF/GltfInterchange.cs": {
-    "mtime": 1786127094.6055624,
-    "ast_hash": "69743094233e0ecbb1a459a189c1eeb4",
+    "mtime": 1786128333.476345,
+    "ast_hash": "71b3cc6cae569da21cb471bec648a713",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/GlbDocument.cs": {
-    "mtime": 1786042382.36216,
-    "ast_hash": "e0f6733ab13cd24fd501bc7504999cc5",
+    "mtime": 1786128149.0010114,
+    "ast_hash": "a7c92fc6a55520609f9eb9a75f971445",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/TransactionalFileSystem.cs": {
@@ -1575,8 +1575,8 @@
     "semantic_hash": ""
   },
   "docs/api/gltf.md": {
-    "mtime": 1786127206.964093,
-    "ast_hash": "25d3ca3efef3abeb73735da7c2b876b2",
+    "mtime": 1786128881.0569673,
+    "ast_hash": "25b02a9cad478a2436fe829f8ae4b8f6",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/FramedMshBaseHeaderTests.cs": {
@@ -1740,8 +1740,8 @@
     "semantic_hash": ""
   },
   "docs/migration-collada-to-gltf.md": {
-    "mtime": 1786126804.965866,
-    "ast_hash": "066ca2f937dd819a31a3f74b001c5e62",
+    "mtime": 1786128963.5712466,
+    "ast_hash": "78907ac1eac7af2bb027ab0ceef54cdc",
     "semantic_hash": ""
   },
   "test-tools/blender-matrix.v1.json": {
@@ -1820,8 +1820,8 @@
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/DynamicGltfDocument.cs": {
-    "mtime": 1786119670.4004714,
-    "ast_hash": "5d40d74fdc4b6e015c29c602c1dd8ff4",
+    "mtime": 1786128990.3213103,
+    "ast_hash": "69189e20b2a854fc97902b1dfc0cf71c",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/DynamicGltfInterchangeTests.cs": {
@@ -1850,8 +1850,8 @@
     "semantic_hash": ""
   },
   "docs/mesh-artist-quickstart.md": {
-    "mtime": 1786127211.5172765,
-    "ast_hash": "be3b1423029fdb7ac00ae1405be5f0cd",
+    "mtime": 1786128937.071193,
+    "ast_hash": "8302517e087415ef66dfb99ba0768de7",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/DynamicEffectBehaviorTests.cs": {
@@ -1930,8 +1930,8 @@
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/GltfAuthoringMetadata.cs": {
-    "mtime": 1786119125.7786376,
-    "ast_hash": "cf9eb05702def08b183869018061dcf6",
+    "mtime": 1786128251.9721525,
+    "ast_hash": "382f0567bd5920a0e3dd5c1a30fe469c",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/GltfAuthoringMetadataTests.cs": {
@@ -1950,13 +1950,13 @@
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/CanonicalDynamicGltfImporter.cs": {
-    "mtime": 1786122799.3820376,
-    "ast_hash": "0af1bb2bbc7842d99b4cd3b5dde7f29a",
+    "mtime": 1786128419.467718,
+    "ast_hash": "fbec6e743d123b8d05d41dc9f3cdd6a7",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/CanonicalDynamicGltfCreationTests.cs": {
-    "mtime": 1786122824.3020287,
-    "ast_hash": "ea9253d827c6b6c586e18a8904ab75b3",
+    "mtime": 1786128700.220795,
+    "ast_hash": "ab8ff551410d97d82ae6513a10a7de6c",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/CanonicalStaticGltfCreationOptions.cs": {
@@ -1965,8 +1965,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/CanonicalStaticGltfCreationTests.cs": {
-    "mtime": 1786122846.7889235,
-    "ast_hash": "cd0a981cf47d7e88ed5069f2a24053ea",
+    "mtime": 1786128809.2441163,
+    "ast_hash": "9f5c14c3e3bd5e9003cc44bfe9c64d27",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/GltfSourceLossDiagnosticsTests.cs": {
@@ -1980,8 +1980,8 @@
     "semantic_hash": ""
   },
   "docs/migration-gltf-canonical-creation.md": {
-    "mtime": 1786126927.1218028,
-    "ast_hash": "7ead936f763d54b8e3c6fbb6d6f989e7",
+    "mtime": 1786128951.1517527,
+    "ast_hash": "cd2ee41ff361cbc3d80529be709922bb",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/CanonicalGltfMetadataContractTests.cs": {

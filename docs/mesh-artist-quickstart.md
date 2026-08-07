@@ -14,8 +14,8 @@ Dynamic MSH files are effect previews with effect-specific rules. See the
 |---|---|---|
 | Modify a static MSH projection | `msh export`, edit, then `msh import` | The result is canonical regeneration, not a byte-preserving edit |
 | Add a static source object | Add a mesh-bearing node named `ET_Static_{n}` | Names are strict, case-sensitive, positive, and unique |
-| Create a standalone static MSH | Export glTF from Blender, then `msh import` | Use canonical owner/helper names and explicit resource bindings |
-| Create or modify a dynamic MSH | Start from an EarthTool dynamic export | Keep `ET_Dynamic_{n}_{Effect}` names and supply TEX/MSH bindings explicitly |
+| Create a standalone static MSH | Export glTF from Blender, then `msh import` | Use canonical owner/helper names; supply resource bindings when the package has none |
+| Create or modify a dynamic MSH | Start from an EarthTool dynamic export | Keep `ET_Dynamic_{n}_{Effect}` names; TEX/MSH keys are embedded on export |
 
 Back up the original WD archive and MSH before starting.
 
@@ -34,7 +34,8 @@ EarthTool.CLI msh export \
 
 `--tex-root` resolves decoded TEX previews. `--msh-root` resolves static MSH
 geometry used by dynamic `ScalableObject` previews. These are export-only preview
-roots; they do not embed game resource keys in glTF metadata.
+roots; the canonical TEX and MSH resource keys are embedded as custom properties
+so a returning import needs no plan.
 
 Review export diagnostics before editing. `ETG1030` warns that a source-only MSH
 representation cannot be carried by glTF and will not survive later canonical
@@ -138,7 +139,10 @@ glTF.
 
 ## Create The Canonical MSH
 
-Resource-free packages can be imported directly:
+Most packages can be imported directly with no plan. EarthTool export embeds
+the canonical TEX keys into material custom properties and the `ScalableObject`
+MSH key into the dynamic node envelope, so a returning import consumes them as
+defaults:
 
 ```bash
 mkdir -p ./work/built
@@ -148,8 +152,8 @@ EarthTool.CLI msh import \
   --report ./work/import-report.json
 ```
 
-Use a version-3 plan when the package needs values that glTF cannot safely
-express:
+Use a version-3 plan only to override embedded values that glTF cannot safely
+express or that you want to change:
 
 ```bash
 EarthTool.CLI msh import \
@@ -197,11 +201,13 @@ Every `textureResourceBindings`, `objectRoles`, and `staticLightOptions` array
 must be present; leave them empty when unused. `meshResourceBindings` may be
 omitted entirely when there are no dynamic `ScalableObject` references.
 `footprint` and `horizontalExtents` use `null` when the default applies.
+Plan bindings override the keys EarthTool embedded at export; leave them empty
+to keep the embedded keys.
 
 | Typed input | When it is needed |
 |---|---|
-| TEX resource binding | Every textured material used by a mesh primitive; map its one-based document-local material handle to the game TEX key |
-| MSH resource binding | Every dynamic `ScalableObject`; map its owning node handle to the game MSH key |
+| TEX resource binding | To override the embedded material key, or to supply one for an artist-authored package that has none |
+| MSH resource binding | To override the embedded `ScalableObject` key, or to supply one for an artist-authored package that has none |
 | Footprint | To replace the one-cell maximum-height default |
 | Horizontal extents | To replace effective geometry bounds |
 | Object roles and barrel angle | For `ViewerFaced`, `Barrel`, or `Rotor` semantics not expressed by native glTF |
@@ -226,7 +232,7 @@ The archive entry name must match the resource name expected by the game.
 | Source object tree and partitions | Derived from `ET_Static_{n}` mesh nodes, hierarchy, transforms, primitives, and material assignment |
 | Attachments, cannons, emitters, and static lights | Derived from exact case-sensitive canonical identifiers |
 | Animation classes | Derived from unique `EarthTool A` through `EarthTool D` clips |
-| TEX or MSH key | No key is guessed; a required missing binding fails |
+| TEX or MSH key | Embedded export key, or a plan override; no key is guessed and a required missing key fails |
 | Footprint | One occupied cell whose top is the maximum effective mesh height |
 | Horizontal extents | Effective root-local geometry bounds |
 | Spot target distance | Positive glTF range; otherwise a typed value is required |
@@ -294,7 +300,8 @@ for obj in bpy.context.scene.objects:
 - Every authored owner and helper name matches the canonical spelling exactly.
 - `earthtoolAuthoring` remains a string envelope with format
   `earthtool.msh.authoring`, version 1.
-- Required TEX and MSH resource bindings are in a current source-bound plan.
+- A returning import carries embedded TEX and MSH resource keys; a plan is only
+  needed to override them or to supply keys for an artist-authored package.
 - Geometry is triangular and finite; textured primitives have UVs.
 - Animation names, frame limits, and 24 FPS sampling follow this guide.
 - Blender export includes Extras, Attributes, Lights, and Animations as needed.

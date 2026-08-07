@@ -88,9 +88,9 @@ inputs; unsupported protocol versions report `ETG3001`.
 4. Edit the native scene in Blender 4.5 LTS or a later supported release.
 5. Keep strict canonical owner names and any needed `earthtoolAuthoring` string
    envelopes; remove legacy `earthtool` properties if present.
-6. Generate a new version-2 plan when TEX/MSH resource bindings or other typed
-   options are required.
-7. Import with `msh import` and review the canonical creation diagnostics.
+6. Import with `msh import` directly when the export embedded the TEX/MSH keys,
+   or generate a version-3 plan to override or supply the bindings.
+7. Review the canonical creation diagnostics.
 
 ## Attachment helper name migration
 

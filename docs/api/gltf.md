@@ -77,8 +77,9 @@ duplicated owner is not an alias.
 
 Unknown or inapplicable members are ignored with bounded warnings. Missing or
 invalid optional values use canonical defaults. Missing required dynamic frame
-or sprite-sheet values fail creation. Resource keys are never authoring-envelope
-members.
+or sprite-sheet values fail creation. TEX and MSH resource keys are carried by
+the export as material and dynamic-node custom properties; they are not members
+of the node authoring envelope itself.
 
 ## Static authoring contract
 
@@ -97,7 +98,7 @@ package with an earlier export.
 | Animations | Unique `EarthTool A` through `EarthTool D` clips with supported finite TRS channels on integer 24 FPS frames `0..254` |
 | Horizontal extents | Root envelope, explicit option, or effective root-local geometry bounds |
 | Footprint | Root envelope, explicit option, or one occupied cell whose top is the maximum effective mesh height |
-| TEX resource binding | Explicit `TextureResourceBindings` option or import-plan entry only |
+| TEX resource binding | Embedded material `extras` key, or explicit `TextureResourceBindings` option/plan entry that overrides it |
 
 Canonical helper identifiers are case-sensitive. Unknown or malformed
 reserved-looking helpers are ignored with diagnostics; duplicate or contradictory
@@ -119,16 +120,32 @@ action. [F3D](https://f3d.app/) can preview all actions together:
 f3d --animation-indices=-1 --animation-autoplay=true model.glb
 ```
 
-## Explicit TEX and MSH bindings
+## Embedded and explicit TEX and MSH bindings
 
-Game resource identities are not inferred from glTF names, URIs, image bytes,
-preview geometry, or authoring envelopes.
+Game resource identities are not inferred from glTF names, URIs, image bytes, or
+preview geometry.
+
+EarthTool export embeds the canonical resource keys as custom properties so a
+returning import needs no plan:
+
+- A static export writes each render object's TEX key into the matching
+  material's `extras.earthtoolAuthoring` envelope
+  (`earthtool.msh.material-authoring`, version 1). A static import reads those
+  keys as the default `TextureResourceBindings`.
+- A dynamic export writes each `ScalableObject`'s MSH key into the dynamic
+  node's `earthtoolAuthoring` envelope (`meshResourceKey`). A dynamic import
+  reads that key as the default `MeshResourceBindings`.
+
+Explicit options override embedded values:
 
 - `GltfNewModelImportOptions.TextureResourceBindings` maps a one-based
-  document-local material handle to a canonical TEX key. Every textured material
-  used by a mesh primitive requires one; otherwise creation fails with `ETG1029`.
+  document-local material handle to a canonical TEX key. A plan entry replaces
+  the embedded material key; otherwise the embedded key is used. Every textured
+  material used by a mesh primitive still requires a key, so creation fails with
+  `ETG1029` only when neither an embedded nor an explicit binding is present.
 - `GltfNewModelImportOptions.MeshResourceBindings` maps the owning dynamic node
-  handle to the MSH key required by `ScalableObject`.
+  handle to the MSH key required by `ScalableObject`. A plan entry replaces the
+  embedded `meshResourceKey`; otherwise the embedded key is used.
 
 The version-3 import plan serializes these bindings with the other closed typed
 creation options. Resource bindings are references only: EarthTool does not
@@ -156,7 +173,7 @@ explicit resource bindings.
 | `ElectricalCannon`, `Lightning` | Deterministic jagged ribbon snapshots | Runtime endpoints and randomness are preview-only |
 | `Shockwave`, `Line`, `Keelwater` | Attached-particle billboard snapshots | The billboard demonstrates the attached route; it does not infer a game attachment |
 | `Sphere` | Deterministic generated unit sphere | Generated shape edits are preview-only; applicable typed values remain authoritative |
-| `ScalableObject` | Flattened referenced static geometry with dynamic scale | Borrowed geometry is preview-only; the MSH key must be supplied explicitly at creation |
+| `ScalableObject` | Flattened referenced static geometry with dynamic scale | Borrowed geometry is preview-only; the MSH key comes from the owner-envelope `meshResourceKey` or an explicit binding |
 
 The deterministic preview uses a 100-tick, five-second interval at the normal
 20-update scheduler rate. Lifetime-driven child translation and scalable-object

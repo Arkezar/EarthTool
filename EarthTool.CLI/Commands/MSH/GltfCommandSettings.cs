@@ -44,6 +44,6 @@ internal sealed class ImportGltfSettings : GltfCommandSettings
   public string[] Inputs { get; init; } = [];
 
   [CommandOption("--plan <FILE>")]
-  [Description("Optional version-2 typed import plan.")]
+  [Description("Optional version-3 typed import plan that overrides embedded metadata.")]
   public string? PlanPath { get; init; }
 }

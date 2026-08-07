@@ -214,9 +214,12 @@ namespace EarthTool.GLTF.Internal
   {
     internal bool HasBaseColorTexture { get; }
 
-    internal ParsedGltfMaterial(bool hasBaseColorTexture)
+    internal string? TextureResourceKey { get; }
+
+    internal ParsedGltfMaterial(bool hasBaseColorTexture, string? textureResourceKey = null)
     {
       HasBaseColorTexture = hasBaseColorTexture;
+      TextureResourceKey = textureResourceKey;
     }
   }
 
@@ -796,7 +799,8 @@ namespace EarthTool.GLTF.Internal
         ? materialArray.EnumerateArray()
           .Select(material => new ParsedGltfMaterial(
             material.TryGetProperty("pbrMetallicRoughness", out var pbr)
-              && pbr.TryGetProperty("baseColorTexture", out _)))
+              && pbr.TryGetProperty("baseColorTexture", out _),
+            ReadMaterialTextureResourceKey(material)))
           .ToArray()
         : Array.Empty<ParsedGltfMaterial>();
       var animations = ReadAnimations(root, binary, placementRootIndex);
@@ -1448,6 +1452,12 @@ namespace EarthTool.GLTF.Internal
           writer.WriteStartObject("KHR_materials_unlit");
           writer.WriteEndObject();
           writer.WriteEndObject();
+          if (TryCreateMaterialAuthoringMetadata(renderObject, out var materialMetadata))
+          {
+            writer.WriteStartObject("extras");
+            writer.WriteString("earthtoolAuthoring", materialMetadata);
+            writer.WriteEndObject();
+          }
           writer.WriteEndObject();
         }
         writer.WriteEndArray();
@@ -1668,6 +1678,26 @@ namespace EarthTool.GLTF.Internal
     private static float ReadExtent(byte[] bytes, int offset)
     {
       return BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset, sizeof(ushort))) / 256f;
+    }
+
+    private static bool TryCreateMaterialAuthoringMetadata(
+      StaticRenderObject renderObject,
+      out string authoringMetadata)
+    {
+      var bytes = renderObject.TexturePathBytes;
+      if (bytes.Count == 0 || bytes.Any(value => value is 0 or > 0x7F))
+      {
+        authoringMetadata = string.Empty;
+        return false;
+      }
+      var resourceKey = System.Text.Encoding.ASCII.GetString(bytes.ToArray());
+      if (!EarthTool.MSH.Authoring.AuthoringValidation.IsCanonicalTextureResourceKey(resourceKey))
+      {
+        authoringMetadata = string.Empty;
+        return false;
+      }
+      authoringMetadata = CanonicalAuthoringMetadata.WriteMaterial(resourceKey, GltfOperationProfile.Default);
+      return true;
     }
 
     private static string CreateStaticLightAuthoringMetadata(ProjectedStaticLight light)
@@ -2896,6 +2926,18 @@ namespace EarthTool.GLTF.Internal
       }
       return metadata.GetString()
         ?? throw new InvalidDataException("EarthTool authoring metadata cannot be null.");
+    }
+
+    private static string? ReadMaterialTextureResourceKey(JsonElement material)
+    {
+      if (!material.TryGetProperty("extras", out var extras)
+        || extras.ValueKind != JsonValueKind.Object
+        || !extras.TryGetProperty("earthtoolAuthoring", out var metadata)
+        || metadata.ValueKind != JsonValueKind.String)
+      {
+        return null;
+      }
+      return CanonicalAuthoringMetadata.ReadMaterialTextureResourceKey(metadata.GetString());
     }
 
     private static Matrix4x4 ReadNodeTransform(JsonElement node)

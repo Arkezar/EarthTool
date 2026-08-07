@@ -217,6 +217,10 @@ namespace EarthTool.GLTF.Internal
         || textureResourceKey is null
       )
       {
+        textureResourceKey = ReadEmbeddedMaterialTextureResourceKey(root, preview.MaterialIndex);
+      }
+      if (string.IsNullOrEmpty(textureResourceKey))
+      {
         throw new RequiredTextureResourceBindingException(
           preview.MaterialIndex,
           materialHandle
@@ -292,7 +296,7 @@ namespace EarthTool.GLTF.Internal
         ),
         DynamicEffectType.ScalableObject => DynamicEffectRecipes.ScalableObject(
           values.Frames!.Value,
-          GetMeshResourceKey(node, options),
+          GetMeshResourceKey(node, values, options),
           textureResourceKey,
           SolveStartValue(
             preview.ModelScale,
@@ -421,16 +425,21 @@ namespace EarthTool.GLTF.Internal
 
     private static string GetMeshResourceKey(
       CanonicalDynamicNode node,
+      DynamicAuthoringValues values,
       GltfNewModelImportOptions options
     )
     {
       var handle = new GltfNodeHandle(node.Index + 1);
-      if (!options.MeshResourceBindings.TryGetValue(handle, out var value)
-        || string.IsNullOrEmpty(value))
+      if (options.MeshResourceBindings.TryGetValue(handle, out var overrideValue)
+        && !string.IsNullOrEmpty(overrideValue))
       {
-        throw new UnsupportedGltfDomainException("MeshResourceBinding");
+        return overrideValue;
       }
-      return value;
+      if (!string.IsNullOrEmpty(values.MeshResourceKey))
+      {
+        return values.MeshResourceKey;
+      }
+      throw new UnsupportedGltfDomainException("MeshResourceBinding");
     }
 
     private static float ReadAnimatedScaleEnd(
@@ -819,6 +828,24 @@ namespace EarthTool.GLTF.Internal
           $"nodes[{node.Index}] root translation must be authored on the placement root."
         );
       }
+    }
+
+    private static string? ReadEmbeddedMaterialTextureResourceKey(
+      JsonElement root,
+      int materialIndex)
+    {
+      if (
+        !root.TryGetProperty("materials", out var materials)
+        || materialIndex < 0
+        || materialIndex >= materials.GetArrayLength()
+        || !materials[materialIndex].TryGetProperty("extras", out var extras)
+        || extras.ValueKind != JsonValueKind.Object
+        || !extras.TryGetProperty("earthtoolAuthoring", out var metadata)
+        || metadata.ValueKind != JsonValueKind.String)
+      {
+        return null;
+      }
+      return CanonicalAuthoringMetadata.ReadMaterialTextureResourceKey(metadata.GetString());
     }
 
     private static float[] ReadMaterialColor(JsonElement root, int materialIndex)

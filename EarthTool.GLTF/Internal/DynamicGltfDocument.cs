@@ -495,6 +495,12 @@ namespace EarthTool.GLTF.Internal
             writer.WriteStartObject("KHR_materials_unlit");
             writer.WriteEndObject();
             writer.WriteEndObject();
+            if (TryCreateMaterialAuthoringMetadata(extension, out var materialMetadata))
+            {
+              writer.WriteStartObject("extras");
+              writer.WriteString("earthtoolAuthoring", materialMetadata);
+              writer.WriteEndObject();
+            }
             writer.WriteEndObject();
           }
           writer.WriteEndArray();
@@ -739,11 +745,43 @@ namespace EarthTool.GLTF.Internal
         extension.VisibleTerrainLightGain,
         extension.KnownAlphaTiming ?? DynamicAlphaTiming.FramePhase,
         extension.EndAlpha,
-        extension.UsesAdditiveBlending);
+        extension.UsesAdditiveBlending,
+        MeshResourceKey(extension));
       return CanonicalAuthoringMetadata.Write(
         CanonicalAuthoringOwner.Parse($"ET_Dynamic_{scope.Id}_{EffectName(extension)}"),
         values,
         profile);
+    }
+
+    private static string? MeshResourceKey(DynamicEffectExtension extension)
+    {
+      if (extension.KnownEffectType != DynamicEffectType.ScalableObject
+        || extension.MeshNameBytes.Count == 0
+        || extension.MeshNameBytes.Any(value => value is 0 or > 0x7F))
+      {
+        return null;
+      }
+      return Encoding.ASCII.GetString(extension.MeshNameBytes.ToArray());
+    }
+
+    private static bool TryCreateMaterialAuthoringMetadata(
+      DynamicEffectExtension extension,
+      out string authoringMetadata)
+    {
+      var bytes = extension.TexturePathBytes;
+      if (bytes.Count == 0 || bytes.Any(value => value is 0 or > 0x7F))
+      {
+        authoringMetadata = string.Empty;
+        return false;
+      }
+      var resourceKey = Encoding.ASCII.GetString(bytes.ToArray());
+      if (!AuthoringValidation.IsCanonicalTextureResourceKey(resourceKey))
+      {
+        authoringMetadata = string.Empty;
+        return false;
+      }
+      authoringMetadata = CanonicalAuthoringMetadata.WriteMaterial(resourceKey, GltfOperationProfile.Default);
+      return true;
     }
 
     private static int CountAuthoringMetadataElements(

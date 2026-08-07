@@ -186,6 +186,13 @@ public sealed class CanonicalDynamicGltfCreationTests
       GltfOperationProfile.Default
     );
     var sourceFree = await CreateSourceFreeGlbAsync(sourceAsset!, metadata);
+    sourceFree = RewriteGlb(sourceFree, root =>
+    {
+      foreach (var material in root["materials"]!.AsArray())
+      {
+        material!.AsObject().Remove("extras");
+      }
+    });
     await using var input = new MemoryStream(sourceFree);
 
     var result = await new GltfInterchange().CreateMeshAsync(input);
@@ -246,6 +253,70 @@ public sealed class CanonicalDynamicGltfCreationTests
       sourceAsset!.GetSerializedRepresentation(),
       actual.GetSerializedRepresentation()
     );
+  }
+
+  [Fact]
+  public async Task EmbeddedMaterialAndMeshResourceKeysRegenerateWithoutAPlan()
+  {
+    var authored = CreateEffect(DynamicEffectType.ScalableObject);
+    var source = DynamicMeshBuilder.Create().SetRoot(authored.Object).Build();
+    source.TryGetValue(out var sourceAsset).Should().BeTrue();
+    var owner = CanonicalAuthoringOwner.Parse("ET_Dynamic_1_ScalableObject");
+    var values = DynamicAuthoringValues.Create(
+      authored.Values.Frames,
+      authored.Values.SpriteSheet,
+      authored.Values.EndEffectRectangle,
+      authored.Values.TerrainLight,
+      authored.Values.VisibleTerrainLightGain,
+      authored.Values.AlphaTiming,
+      authored.Values.EndAlpha,
+      authored.Values.Additive,
+      authored.MeshKey
+    );
+    var metadata = CanonicalAuthoringMetadata.Write(owner, values, GltfOperationProfile.Default);
+    var sourceFree = await CreateSourceFreeGlbAsync(sourceAsset!, metadata);
+    await using var input = new MemoryStream(sourceFree);
+
+    var result = await new GltfInterchange().CreateMeshAsync(input);
+
+    result.Status.Should().Be(OperationStatus.Succeeded,
+      string.Join("; ", result.Diagnostics.Select(d => $"{d.Code}:{d.Message}")));
+    var actual = result.Value!.Should().BeOfType<DynamicMeshAsset>().Subject;
+    AssertEqualExceptCreationGuid(
+      sourceAsset!.GetSerializedRepresentation(),
+      actual.GetSerializedRepresentation()
+    );
+  }
+
+  [Fact]
+  public async Task EmbeddedMaterialResourceKeyReplacesAnExplicitPlanBinding()
+  {
+    var authored = CreateEffect(DynamicEffectType.Sphere);
+    var source = DynamicMeshBuilder.Create().SetRoot(authored.Object).Build();
+    source.TryGetValue(out var sourceAsset).Should().BeTrue();
+    var owner = CanonicalAuthoringOwner.Parse("ET_Dynamic_1_Sphere");
+    var metadata = CanonicalAuthoringMetadata.Write(
+      owner,
+      authored.Values,
+      GltfOperationProfile.Default
+    );
+    var sourceFree = await CreateSourceFreeGlbAsync(sourceAsset!, metadata);
+    const string overriddenKey = "Textures\\effects\\overridden.tex";
+    var options = new GltfNewModelImportOptions(
+      textureResourceBindings: new Dictionary<GltfMaterialHandle, string?>
+      {
+        [new GltfMaterialHandle(1)] = overriddenKey,
+      }
+    );
+    await using var input = new MemoryStream(sourceFree);
+
+    var result = await new GltfInterchange().CreateMeshAsync(input, options);
+
+    result.Status.Should().Be(OperationStatus.Succeeded, Diagnostics(result.Diagnostics));
+    var actual = result.Value!.Should().BeOfType<DynamicMeshAsset>().Subject;
+    var extension = actual.RootDynamicObject.Extension;
+    System.Text.Encoding.ASCII.GetString(extension.TexturePathBytes.ToArray())
+      .Should().Be(overriddenKey);
   }
 
   [Fact]

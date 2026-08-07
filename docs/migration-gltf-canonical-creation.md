@@ -55,11 +55,12 @@ Legacy `extras.earthtool`, source MSH payloads, serialized representations,
 identities, fingerprints, guards, inventories, and preservation data are ignored.
 Do not migrate them into the new envelope.
 
-TEX and MSH resource bindings remain explicit `GltfNewModelImportOptions` or
-version-3 import-plan values. They are not envelope members and are never inferred
-from names, URIs, image bytes, or preview geometry. Successful creation assigns a
-new creation GUID and may produce different bytes even when authored semantics
-are unchanged.
+TEX and MSH resource bindings are embedded by export as material and
+dynamic-node custom properties and consumed by a returning import as defaults.
+Explicit `GltfNewModelImportOptions` or version-3 import-plan values override
+the embedded keys. Identities are never inferred from names, URIs, image bytes,
+or preview geometry. Successful creation assigns a new creation GUID and may
+produce different bytes even when authored semantics are unchanged.
 
 ## Plans and limits
 

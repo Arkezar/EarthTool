@@ -40,4 +40,5 @@ OPTIONS:
     -o, --output <DIRECTORY>    Destination directory. Defaults to the input
                                 directory
         --report <FILE>         Optional versioned machine report path
-        --plan <FILE>           Optional version-2 typed import plan
+        --plan <FILE>           Optional version-3 typed import plan that
+                                overrides embedded metadata
