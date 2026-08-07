@@ -1425,8 +1425,8 @@
     "semantic_hash": ""
   },
   "docs/quickstart.md": {
-    "mtime": 1786042052.7598975,
-    "ast_hash": "58da34c8f56cfcd7d3e41298f71e164b",
+    "mtime": 1786129086.367133,
+    "ast_hash": "30e982d193b8911b01fbdf33d8fc0d09",
     "semantic_hash": ""
   },
   "docs/MSH_DYNAMIC.bytefield.svg": {
@@ -1485,8 +1485,8 @@
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/GlbDocument.cs": {
-    "mtime": 1786128149.0010114,
-    "ast_hash": "a7c92fc6a55520609f9eb9a75f971445",
+    "mtime": 1786130290.6612315,
+    "ast_hash": "0c2c617fff89339e214afa033ce463a8",
     "semantic_hash": ""
   },
   "EarthTool.GLTF/Internal/TransactionalFileSystem.cs": {
@@ -1500,8 +1500,8 @@
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/GltfWalkingSkeletonTests.cs": {
-    "mtime": 1786119332.2259078,
-    "ast_hash": "ee1816bdc20e4bbdca332e2fb32af78f",
+    "mtime": 1786130424.790623,
+    "ast_hash": "e1504667802b8c7cd9e48ae2ff8aa566",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/OneTriangleMshFixture.cs": {
@@ -1700,8 +1700,8 @@
     "semantic_hash": ""
   },
   "EarthTool.CLI/Commands/MSH/GltfCommandSettings.cs": {
-    "mtime": 1785992470.4312212,
-    "ast_hash": "b97c8f45b50284e84f6f701710a08138",
+    "mtime": 1786129095.0454783,
+    "ast_hash": "65d71a068d44ce7690f168d0ee68023d",
     "semantic_hash": ""
   },
   "EarthTool.CLI/Commands/MSH/GltfCommands.cs": {
@@ -1735,8 +1735,8 @@
     "semantic_hash": ""
   },
   "EarthTool.CLI.Tests/Approvals/msh-cli-help.approved.txt": {
-    "mtime": 1785992615.1188836,
-    "ast_hash": "b18d38ec5c1843ee94fd8ccdb6b76cb0",
+    "mtime": 1786129173.4386013,
+    "ast_hash": "02cfecfecddb89d67e5429facd9e3416",
     "semantic_hash": ""
   },
   "docs/migration-collada-to-gltf.md": {

@@ -2252,10 +2252,17 @@ namespace EarthTool.GLTF.Internal
       {
         var texture = textures[index];
         if (texture.ValueKind != JsonValueKind.Object
-          || texture.EnumerateObject().Any(property => property.Name is not ("source" or "name"))
+          || texture.EnumerateObject().Any(property =>
+            property.Name is not ("source" or "name" or "sampler"))
           || !texture.TryGetProperty("source", out var source)
           || source.GetInt32() < 0
-          || source.GetInt32() >= images.GetArrayLength())
+          || source.GetInt32() >= images.GetArrayLength()
+          || texture.TryGetProperty("sampler", out var sampler)
+            && (sampler.ValueKind != JsonValueKind.Number
+              || sampler.GetInt32() < 0
+              || root.TryGetProperty("samplers", out var textureSamplers)
+                && (textureSamplers.ValueKind != JsonValueKind.Array
+                  || sampler.GetInt32() >= textureSamplers.GetArrayLength())))
         {
           throw new UnsupportedGltfDomainException("TexturePreviews");
         }

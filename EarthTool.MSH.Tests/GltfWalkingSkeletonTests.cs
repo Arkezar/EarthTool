@@ -3027,6 +3027,62 @@ public class GltfWalkingSkeletonTests
       .Equal("nodes[0].camera", "samplers");
   }
 
+  [Fact]
+  public async Task NewModelImportAcceptsBlenderRoundTripTextureSamplerReferences()
+  {
+    var sourceAsset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var interchange = new GltfInterchange();
+    await using var exported = new MemoryStream();
+    await interchange.ExportGlbAsync(sourceAsset, exported);
+    var sourceBytes = RewriteJson(
+      exported.ToArray(),
+      root =>
+      {
+        root["samplers"] = new JsonArray(
+          new JsonObject { ["magFilter"] = 9729, ["minFilter"] = 9987 }
+        );
+        foreach (var texture in root["textures"]!.AsArray())
+        {
+          texture!["sampler"] = 0;
+        }
+      }
+    );
+    await using var source = new MemoryStream(sourceBytes);
+
+    var imported = await interchange.CreateMeshAsync(source);
+
+    imported.Status.Should().Be(OperationStatus.Succeeded,
+      string.Join("; ", imported.Diagnostics.Select(d => $"{d.Code}:{d.Message}")));
+  }
+
+  [Fact]
+  public async Task NewModelImportRejectsOutOfRangeTextureSamplerReference()
+  {
+    var sourceAsset = await ReadAssetAsync(StaticMeshSequenceFixture.CreateInterleaved().Data);
+    var interchange = new GltfInterchange();
+    await using var exported = new MemoryStream();
+    await interchange.ExportGlbAsync(sourceAsset, exported);
+    var sourceBytes = RewriteJson(
+      exported.ToArray(),
+      root =>
+      {
+        RemoveEarthToolMetadata(root);
+        root["samplers"] = new JsonArray(
+          new JsonObject { ["magFilter"] = 9729, ["minFilter"] = 9987 }
+        );
+        root["textures"]![0]!["sampler"] = 5;
+      }
+    );
+    await using var source = new MemoryStream(sourceBytes);
+
+    var imported = await interchange.CreateMeshAsync(source);
+
+    imported.Status.Should().Be(OperationStatus.Failed);
+    imported.Diagnostics.Should().ContainSingle(diagnostic =>
+      diagnostic.Code == GltfDiagnosticCodes.UnsupportedDomain
+      && diagnostic.Data["domain"] == "TexturePreviews");
+  }
+
   [Theory]
   [InlineData("ambiguous-root")]
   [InlineData("singular-transform")]
