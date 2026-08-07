@@ -7,15 +7,15 @@ MSH/glTF contract tests.
 
 The maintainer must run this local Linux x64 gate before pushing a release tag.
 It must start from a clean Git worktree and requires the private official MSH
-corpus. It resolves and runs every Blender lane, runs the complete reproducible
-test and approval contract, packs and consumes the public libraries, publishes
-all Linux release applications, and checks the GLTF-present and DAE-absent
-package, repository, CLI, documentation, migration, and artifact boundary.
+corpus. It runs the complete reproducible test and approval contract, packs and
+consumes the public libraries, publishes all Linux release applications, and
+checks the GLTF-present and DAE-absent package, repository, CLI, documentation,
+migration, and artifact boundary.
 
 Installations, validator failures, missing corpus data, failed tests, incomplete
-test discovery, unapproved snapshots, missing artifacts, and omitted Blender or
-corpus qualification results are failures. The version-1 aggregate evidence file
-is written only after every required gate passes:
+test discovery, unapproved snapshots, missing artifacts, and omitted corpus
+qualification results are failures. The version-1 aggregate evidence file is
+written only after every required gate passes:
 
 ```bash
 EARTHTOOL_OFFICIAL_MSH_CORPUS=/absolute/private/corpus \
@@ -27,49 +27,9 @@ EARTHTOOL_OFFICIAL_MSH_CORPUS=/absolute/private/corpus \
 The tag-triggered GitHub release workflow handles public builds and publishing
 only. It does not access the private corpus or run corpus qualification.
 
-Use `--blender-cache /absolute/cache` to control where the exact official
-Blender archives and installations are retained. The report records the commit,
-host, tools, operation profiles, complete gate inventory, Blender results, and
-privacy-safe aggregate corpus results. It never records the corpus root, asset
-names, relative paths, or TEX/MSH resource keys.
-
-## Blender matrix
-
-`blender-matrix.v1.json` names the required compatibility lanes and their
-release series. `blender-qualification.mjs` resolves the highest official patch
-in each series, reads the official SHA-256 manifest, and runs an archive only
-once when multiple requested lanes resolve to the same checksum.
-
-The qualification is fail-closed: an unavailable archive, checksum mismatch,
-missing executable, version mismatch, missing validator, failed or unexecuted
-test, incomplete canonical-creation inventory, or unsupported host fails the
-command. Every lane checks strict canonical owner names and version-1
-`earthtool.msh.authoring` envelopes. Stock-Blender round trips also apply
-SharpGLTF strict validation and the pinned Khronos validator before the
-source-free canonical creation oracle accepts output.
-
-Resolve the current Linux matrix without downloading Blender:
-
-```bash
-node test-tools/blender-qualification.mjs --resolve-only true --platform linux-x64
-```
-
-Run the gate after building `EarthTool.MSH.Tests` and installing the pinned Node
-dependencies:
-
-```bash
-npm ci --prefix test-tools
-dotnet build EarthTool.MSH.Tests/EarthTool.MSH.Tests.csproj --configuration Release
-node test-tools/blender-qualification.mjs \
-  --platform linux-x64 \
-  --evidence artifacts/blender-qualification-linux-x64.json
-```
-
-The version-1 evidence records requested and deduplicated lanes, official source
-and checksum URLs, archive checksums, exact Blender versions and build hashes,
-the stock `io_scene_gltf2` version, host OS, EarthTool commit, validator
-policies, import/export options, canonical-creation scenarios, test counts, and
-outcomes.
+The report records the commit, host, tools, operation profiles, complete gate
+inventory, and privacy-safe aggregate corpus results. It never records the
+corpus root, asset names, relative paths, or TEX/MSH resource keys.
 
 ## Official MSH corpus
 

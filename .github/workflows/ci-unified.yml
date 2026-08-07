@@ -24,7 +24,6 @@ on:
       - "EarthTool.sln"
       - "GitVersion.yml"
       - ".github/workflows/ci-unified.yml"
-      - ".github/workflows/blender-qualification.yml"
   pull_request:
     branches: [main, master, dev]
     paths:
@@ -48,7 +47,6 @@ on:
       - "EarthTool.sln"
       - "GitVersion.yml"
       - ".github/workflows/ci-unified.yml"
-      - ".github/workflows/blender-qualification.yml"
   workflow_dispatch:
 
 env:
@@ -134,7 +132,6 @@ jobs:
               - 'EarthTool.sln'
               - 'GitVersion.yml'
               - '.github/workflows/ci-unified.yml'
-              - '.github/workflows/blender-qualification.yml'
 
   msh-gltf-contract:
     name: MSH/glTF contract (${{ matrix.os }})
@@ -180,7 +177,7 @@ jobs:
           test "$CLI_TESTS" -eq "$EXPECTED_CLI_TESTS"
 
       - name: Run MSH/glTF contract tests
-        run: dotnet test EarthTool.MSH.Tests/EarthTool.MSH.Tests.csproj --configuration Release --no-restore --filter "Category!=BlenderQualification"
+        run: dotnet test EarthTool.MSH.Tests/EarthTool.MSH.Tests.csproj --configuration Release --no-restore
         env:
           EARTHTOOL_RUN_KHRONOS_VALIDATOR: "1"
 
@@ -194,11 +191,6 @@ jobs:
             find EarthTool.MSH.Tests EarthTool.CLI.Tests -name '*.received.*' -print
             exit 1
           fi
-
-  blender-qualification:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.libraries == 'true' || github.event_name == 'workflow_dispatch'
-    uses: ./.github/workflows/blender-qualification.yml
 
   build-cli:
     name: Build CLI (${{ matrix.os }})
@@ -291,7 +283,7 @@ jobs:
         run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore -p:Version=${{ steps.gitversion.outputs.semVer }} -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
 
       - name: Run tests
-        run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --filter "Category!=BlenderQualification" --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
+        run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
         continue-on-error: false
 
       - name: Test Report
@@ -430,7 +422,7 @@ jobs:
         run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore -p:Version=${{ steps.gitversion.outputs.semVer }} -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
 
       - name: Run tests
-        run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --filter "Category!=BlenderQualification" --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
+        run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
         continue-on-error: false
 
       - name: Test Report
@@ -569,7 +561,7 @@ jobs:
         run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore -p:Version=${{ steps.gitversion.outputs.semVer }} -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
 
       - name: Run tests
-        run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --filter "Category!=BlenderQualification" --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
+        run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
         continue-on-error: false
 
       - name: Test Report
@@ -708,7 +700,7 @@ jobs:
         run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore -p:Version=${{ steps.gitversion.outputs.semVer }} -p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} -p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }} -p:InformationalVersion=${{ steps.gitversion.outputs.informationalVersion }}
 
       - name: Run tests
-        run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --filter "Category!=BlenderQualification" --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
+        run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-${{ matrix.runtime }}.trx"
         continue-on-error: false
 
       - name: Test Report

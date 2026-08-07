@@ -16,11 +16,10 @@ export const requiredGates = Object.freeze([
   "approved-snapshots",
   "release-boundary",
   "linux-artifacts",
-  "blender-matrix",
   "official-corpus"
 ]);
 
-export const expectedTestCounts = Object.freeze({ msh: 364, cli: 40 });
+export const expectedTestCounts = Object.freeze({ msh: 369, cli: 40 });
 
 const requiredDynamicQualificationTests = Object.freeze({
   msh: [
@@ -97,39 +96,6 @@ export function validateDynamicQualificationTests(mshTests, cliTests) {
   }
 }
 
-function validateBlenderEvidence(blender, commit, platform) {
-  const requestedLanes = blender?.requestedLanes?.map(lane => lane.name) ?? [];
-  const requestedByName = new Map(
-    (blender?.requestedLanes ?? []).map(lane => [lane.name, lane]));
-  const completedLanes = blender?.builds?.flatMap(build => build.requestedLanes ?? []) ?? [];
-  if (blender?.format !== "earthtool.blender-qualification-evidence"
-    || blender.version !== 1
-    || blender.outcome !== "passed"
-    || blender.platform !== platform
-    || blender.earthToolCommit !== commit
-    || !Array.isArray(blender.requestedLanes)
-    || blender.requestedLanes.length === 0
-    || requestedLanes.some(name => !name)
-    || new Set(requestedLanes).size !== requestedLanes.length
-    || !Array.isArray(blender.builds)
-    || blender.builds.length === 0
-    || blender.builds.some(build => build.outcome !== "passed"
-      || !build.version
-      || !build.buildHash
-      || !build.addonVersion
-      || !Array.isArray(build.requestedLanes)
-      || build.requestedLanes.length === 0
-      || build.requestedLanes.some(name => {
-        const request = requestedByName.get(name);
-        return !request || !build.version.startsWith(`${request.series}.`);
-      }))
-    || completedLanes.length !== requestedLanes.length
-    || new Set(completedLanes).size !== completedLanes.length
-    || requestedLanes.some(name => !completedLanes.includes(name))) {
-    fail("Blender qualification evidence is incomplete or does not match this release.");
-  }
-}
-
 function validateCorpusEvidence(corpus, commit, platform) {
   const assetCount = corpus?.corpus?.assets;
   const operations = new Map((corpus?.operations ?? []).map(operation => [operation.stage, operation]));
@@ -175,14 +141,13 @@ function validateCorpusEvidence(corpus, commit, platform) {
   }
 }
 
-function validateSubordinateEvidence(blender, corpus, commit, platform) {
-  validateBlenderEvidence(blender, commit, platform);
+function validateSubordinateEvidence(corpus, commit, platform) {
   validateCorpusEvidence(corpus, commit, platform);
 }
 
-export function buildEvidence({ commit, platform, os, tools, gates, blender, corpus }) {
+export function buildEvidence({ commit, platform, os, tools, gates, corpus }) {
   validateGateResults(gates, commit);
-  validateSubordinateEvidence(blender, corpus, commit, platform);
+  validateSubordinateEvidence(corpus, commit, platform);
   for (const name of ["node", "npm", "dotnet", "git"]) {
     if (!tools?.[name]) {
       fail(`Tool provenance is missing: ${name}.`);
@@ -198,23 +163,16 @@ export function buildEvidence({ commit, platform, os, tools, gates, blender, cor
     tools: {
       ...tools,
       sharpGltf: corpus.tools?.sharpGltf ?? null,
-      khronosValidator: corpus.tools?.khronosValidator ?? null,
-      blender: blender.builds.map(build => ({
-        version: build.version,
-        buildHash: build.buildHash,
-        addonVersion: build.addonVersion ?? null
-      }))
+      khronosValidator: corpus.tools?.khronosValidator ?? null
     },
     profiles: {
       platforms: [platform],
-      blender: blender.requestedLanes,
       corpus: corpus.profile,
       msh: corpus.profiles?.msh ?? null,
       gltf: corpus.profiles?.gltf ?? null
     },
     gates,
     results: {
-      blender,
       officialCorpus: corpus
     }
   };
@@ -586,7 +544,6 @@ async function main() {
   const evidencePath = path.resolve(options.evidence
     ?? path.join(root, "artifacts", "release-qualification-v1.json"));
   const workDirectory = path.join(root, "artifacts", "release-qualification");
-  const blenderEvidencePath = path.join(workDirectory, "blender-qualification-linux-x64.json");
   const corpusEvidencePath = path.join(workDirectory, "official-msh-corpus-qualification.json");
   await rm(evidencePath, { force: true });
   if (hostPlatform() !== "linux" || process.arch !== "x64") {
@@ -610,7 +567,6 @@ async function main() {
 
   let tools;
   let commit;
-  let blenderEvidence;
   let corpusEvidence;
   let publishedCli;
   await gate("tooling", async () => {
@@ -677,7 +633,7 @@ async function main() {
       "test", "EarthTool.sln",
       "--configuration", "Release",
       "--no-build",
-      "--filter", "Category!=BlenderQualification&Category!=OfficialCorpusQualification"
+      "--filter", "Category!=OfficialCorpusQualification"
     ], {
       cwd: root,
       env: { ...process.env, EARTHTOOL_RUN_KHRONOS_VALIDATOR: "1" }
@@ -707,27 +663,6 @@ async function main() {
     publishedCli = published.cli;
     return { artifacts: published.artifacts };
   });
-  await gate("blender-matrix", async () => {
-    const arguments_ = [
-      "test-tools/blender-qualification.mjs",
-      "--platform", "linux-x64",
-      "--evidence", blenderEvidencePath
-    ];
-    if (options["blender-cache"]) {
-      arguments_.push("--cache", path.resolve(options["blender-cache"]));
-    }
-    await run(process.execPath, arguments_, { cwd: root });
-    blenderEvidence = await readJson(blenderEvidencePath);
-    validateBlenderEvidence(blenderEvidence, commit, "linux-x64");
-    return {
-      requestedLanes: blenderEvidence.requestedLanes,
-      builds: blenderEvidence.builds.map(build => ({
-        version: build.version,
-        buildHash: build.buildHash,
-        outcome: build.outcome
-      }))
-    };
-  });
   await gate("official-corpus", async () => {
     const arguments_ = [
       "test-tools/official-corpus-qualification.mjs",
@@ -740,7 +675,7 @@ async function main() {
     }
     await run(process.execPath, arguments_, { cwd: root });
     corpusEvidence = await readJson(corpusEvidencePath);
-    validateSubordinateEvidence(blenderEvidence, corpusEvidence, commit, "linux-x64");
+    validateSubordinateEvidence(corpusEvidence, commit, "linux-x64");
     return {
       corpus: corpusEvidence.corpus,
       passFail: corpusEvidence.passFail,
@@ -754,7 +689,6 @@ async function main() {
     os: `${hostPlatform()} ${osRelease()}`,
     tools,
     gates,
-    blender: blenderEvidence,
     corpus: corpusEvidence
   });
   await mkdir(path.dirname(evidencePath), { recursive: true });

@@ -21,34 +21,6 @@ function passingGates() {
 
 test("aggregate evidence names every completed gate, tool, profile, and result", () => {
   const gates = passingGates();
-  const blender = {
-    format: "earthtool.blender-qualification-evidence",
-    version: 1,
-    outcome: "passed",
-    platform: "linux-x64",
-    earthToolCommit: commit,
-    requestedLanes: [
-      { name: "latest-4.5-lts", series: "4.5" },
-      { name: "latest-stable", series: "5.2" },
-      { name: "latest-lts", series: "5.2" }
-    ],
-    builds: [
-      {
-        version: "4.5.12",
-        buildHash: "abcdef0",
-        addonVersion: "4.5.12",
-        requestedLanes: ["latest-4.5-lts"],
-        outcome: "passed"
-      },
-      {
-        version: "5.2.0",
-        buildHash: "abcdef1",
-        addonVersion: "5.2.17",
-        requestedLanes: ["latest-stable", "latest-lts"],
-        outcome: "passed"
-      }
-    ]
-  };
   const corpus = {
     format: "earthtool.official-msh-qualification-evidence",
     version: 2,
@@ -91,7 +63,6 @@ test("aggregate evidence names every completed gate, tool, profile, and result",
     os: "Linux 6.8",
     tools: { node: "v24.0.0", npm: "11.0.0", dotnet: "8.0.407", git: "2.45.0" },
     gates,
-    blender,
     corpus
   });
 
@@ -99,23 +70,10 @@ test("aggregate evidence names every completed gate, tool, profile, and result",
   assert.equal(evidence.version, 1);
   assert.equal(evidence.outcome, "passed");
   assert.deepEqual(evidence.gates.map(gate => gate.name), requiredGates);
-  assert.deepEqual(evidence.profiles.blender, blender.requestedLanes);
   assert.deepEqual(evidence.profiles.corpus, corpus.profile);
-  assert.equal(evidence.results.blender, blender);
   assert.equal(evidence.results.officialCorpus, corpus);
   assert.ok(!JSON.stringify(evidence).includes("corpusRoot"));
-
-  const incompleteBlender = structuredClone(blender);
-  incompleteBlender.builds.pop();
-  assert.throws(() => buildEvidence({
-    commit,
-    platform: "linux-x64",
-    os: "Linux 6.8",
-    tools: { node: "v24.0.0", npm: "11.0.0", dotnet: "8.0.407", git: "2.45.0" },
-    gates,
-    blender: incompleteBlender,
-    corpus
-  }), /Blender qualification evidence/i);
+  assert.ok(!JSON.stringify(evidence).includes("blender"));
 
   const missingCorpusPlatform = structuredClone(corpus);
   delete missingCorpusPlatform.platform;
@@ -125,7 +83,6 @@ test("aggregate evidence names every completed gate, tool, profile, and result",
     os: "Linux 6.8",
     tools: { node: "v24.0.0", npm: "11.0.0", dotnet: "8.0.407", git: "2.45.0" },
     gates,
-    blender,
     corpus: missingCorpusPlatform
   }), /corpus evidence/i);
 
@@ -141,7 +98,6 @@ test("aggregate evidence names every completed gate, tool, profile, and result",
     os: "Linux 6.8",
     tools: { node: "v24.0.0", npm: "11.0.0", dotnet: "8.0.407", git: "2.45.0" },
     gates,
-    blender,
     corpus: staticOnlyCorpus
   }), /corpus evidence/i);
 });
