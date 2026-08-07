@@ -81,6 +81,44 @@ or sprite-sheet values fail creation. TEX and MSH resource keys are carried by
 the export as material and dynamic-node custom properties; they are not members
 of the node authoring envelope itself.
 
+### Material envelopes
+
+A textured material is exported with its own minimal envelope at
+`extras.earthtoolAuthoring`, format `earthtool.msh.material-authoring`,
+version 1:
+
+```json
+{
+  "format": "earthtool.msh.material-authoring",
+  "version": 1,
+  "textureResourceKey": "Textures\\authoring\\hull.tex"
+}
+```
+
+The `textureResourceKey` is the canonical TEX key for the material's render
+object. Import reads it as the default binding; an explicit
+`TextureResourceBindings` option or plan entry overrides it. A material with no
+canonical key carries no envelope.
+
+### Dynamic `ScalableObject` mesh key
+
+A dynamic `ScalableObject` owner envelope additionally carries the canonical
+MSH key as `values.meshResourceKey`:
+
+```json
+{
+  "format": "earthtool.msh.authoring",
+  "version": 1,
+  "values": {
+    "frames": { "first": 0, "count": 4, "periodTicks": 50000000 },
+    "meshResourceKey": "Objects\\effects\\scalable.msh"
+  }
+}
+```
+
+Import reads it as the default `MeshResourceBindings` entry; an explicit option
+or plan entry overrides it.
+
 ## Static authoring contract
 
 Canonical static creation combines native glTF state, local typed envelopes,
@@ -153,9 +191,11 @@ create, rename, convert, or package the referenced TEX or MSH resource.
 
 `GltfExportOptions.TextureSearchRoots` and `MeshResourceSearchRoots` are separate
 export-preview settings. They locate decoded TEX previews and referenced static
-MSH preview geometry; they do not embed game resource keys. Lookup is bounded,
-component-wise, rejects unsafe paths and linked escapes, and reports missing,
-ambiguous, shadowed, or unsupported resources.
+MSH preview geometry; the preview images and borrowed geometry do not select
+resource keys. The canonical keys are embedded separately in the material and
+dynamic-node custom properties. Lookup is bounded, component-wise, rejects unsafe
+paths and linked escapes, and reports missing, ambiguous, shadowed, or
+unsupported resources.
 
 ## Dynamic effect-preview contract
 

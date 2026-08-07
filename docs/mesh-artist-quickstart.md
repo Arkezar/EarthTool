@@ -57,8 +57,8 @@ Recommended settings:
 
 EarthTool exports typed values in the `earthtoolAuthoring` custom property on
 strict canonical named nodes. Keep that property when its MSH-only values are
-needed. It contains no source MSH, interchange identity, or resource binding.
-Legacy `earthtool` properties are ignored and can be removed.
+needed. The node envelope contains no source MSH, interchange identity, or
+resource binding. Legacy `earthtool` properties are ignored and can be removed.
 
 ## Edit The Scene
 
@@ -72,7 +72,13 @@ Legacy `earthtool` properties are ignored and can be removed.
   parent/child transforms and primitive material assignment author the result.
 - Transform-only groups collapse into descendant effective poses.
 - Material images, names, and pixels are previews. They never select a TEX key.
+  On an EarthTool export, the TEX key travels in each material's
+  `earthtoolAuthoring` custom property, so keep that property when re-exporting.
 - Borrowed `ScalableObject` geometry is a preview. It never selects an MSH key.
+  On an EarthTool export, the MSH key travels in the dynamic node's
+  `earthtoolAuthoring` envelope (`meshResourceKey`), so keep that property too.
+- Importing the GLB into Blender with **Custom Properties / Extras on** preserves
+  these embedded keys so the returning import needs no plan.
 - Attachment empties support translation and horizontal heading. Unsupported
   pitch, roll, shear, or non-decomposable transforms fail canonical creation.
 - Unknown scene objects remain scene-only or produce diagnostics. They do not
@@ -151,6 +157,11 @@ EarthTool.CLI msh import \
   --output ./work/built \
   --report ./work/import-report.json
 ```
+
+> **No embedded keys?** A package you built from scratch in Blender (rather than
+> editing an EarthTool export) carries no embedded TEX/MSH keys. If it has
+> textured materials or a `ScalableObject`, the import fails with `ETG1029` /
+> `ETG1002` until you supply those keys in a plan.
 
 Use a version-3 plan only to override embedded values that glTF cannot safely
 express or that you want to change:

@@ -1575,8 +1575,8 @@
     "semantic_hash": ""
   },
   "docs/api/gltf.md": {
-    "mtime": 1786128881.0569673,
-    "ast_hash": "25b02a9cad478a2436fe829f8ae4b8f6",
+    "mtime": 1786130717.7103875,
+    "ast_hash": "5d86f2664576966f074a7c5a0a23a145",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/FramedMshBaseHeaderTests.cs": {
@@ -1850,8 +1850,8 @@
     "semantic_hash": ""
   },
   "docs/mesh-artist-quickstart.md": {
-    "mtime": 1786128937.071193,
-    "ast_hash": "8302517e087415ef66dfb99ba0768de7",
+    "mtime": 1786130690.3092875,
+    "ast_hash": "d520c7496947bf07018a5da0ec813625",
     "semantic_hash": ""
   },
   "EarthTool.MSH.Tests/DynamicEffectBehaviorTests.cs": {
