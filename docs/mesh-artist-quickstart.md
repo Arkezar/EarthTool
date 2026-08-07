@@ -236,6 +236,156 @@ EarthTool.CLI wd add Data01.wd ./work/built/model-edited.msh -o ModdedData01.wd
 
 The archive entry name must match the resource name expected by the game.
 
+## Metadata Envelope Reference
+
+EarthTool stores typed values as JSON strings in the `earthtoolAuthoring`
+custom property. In Blender, edit these through the object's or material's
+**Custom Properties** panel (use **Type: String** and paste the JSON string),
+then export glTF with **Custom Properties / Extras: On**. In raw glTF, the
+envelope is the value of `nodes[].extras.earthtoolAuthoring` or
+`materials[].extras.earthtoolAuthoring`.
+
+All node envelopes use `earthtool.msh.authoring`, version 1. The material
+envelope uses `earthtool.msh.material-authoring`, version 1.
+
+### Static Source Object — `ET_Static_{n}` mesh node
+
+Blender: mesh object named `ET_Static_{n}`. glTF: a mesh-bearing node. The root
+owner (`ET_Static_1`) also carries footprint and horizontal extents; child
+owners only carry the role.
+
+```json
+{
+  "format": "earthtool.msh.authoring",
+  "version": 1,
+  "values": {
+    "footprint": {
+      "presenceMask": 3,
+      "topElevations": [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5],
+      "cornerPassageFlags": [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3]
+    },
+    "horizontalExtents": {
+      "positiveY": 2,
+      "negativeY": 3,
+      "positiveX": 4,
+      "negativeX": 5
+    },
+    "role": {
+      "viewerFaced": true,
+      "barrel": false,
+      "rotor": false,
+      "barrelMaximumAngle": 0
+    }
+  }
+}
+```
+
+- `presenceMask` is a 16-bit bitmask of occupied footprint cells.
+- `topElevations` and `cornerPassageFlags` each have exactly 16 values.
+- `barrelMaximumAngle` (degrees) applies only when `barrel` is `true`.
+
+### Turret / Cannon — `ET_Turret_{n}` empty
+
+Blender: empty object named `ET_Turret_{n}`. glTF: an empty node.
+
+```json
+{
+  "format": "earthtool.msh.authoring",
+  "version": 1,
+  "values": {
+    "cannonYawHalfRange": 128
+  }
+}
+```
+
+`cannonYawHalfRange` is the yaw half-range in degrees (`0x80` = 128 is the
+default).
+
+### Static Light — `ET_SpotLight_{n}` or `ET_OmniLight_{n}` light
+
+Blender: spot light named `ET_SpotLight_{n}` or point light named
+`ET_OmniLight_{n}`. glTF: a node with a `KHR_lights_punctual` light definition.
+
+```json
+{
+  "format": "earthtool.msh.authoring",
+  "version": 1,
+  "values": {
+    "targetDistance": 12.5,
+    "terrainLightAmplitude": 0.4
+  }
+}
+```
+
+`targetDistance` applies only to spot lights and must be positive. Omit it to
+fall back to the positive glTF `range`.
+
+### Dynamic Effect — `ET_Dynamic_{n}_{Effect}` node
+
+Blender: object named `ET_Dynamic_{n}_{Effect}`. glTF: a node. Only the fields
+applicable to the effect are used; unsupported members are ignored with
+warnings.
+
+```json
+{
+  "format": "earthtool.msh.authoring",
+  "version": 1,
+  "values": {
+    "frames": {
+      "first": 0,
+      "count": 8,
+      "periodTicks": 50000000
+    },
+    "spriteSheet": {
+      "columns": 4,
+      "rows": 2
+    },
+    "endEffectRectangle": {
+      "x0": -0.25,
+      "y1": 0.5,
+      "x1": 0.75,
+      "y0": -1
+    },
+    "terrainLight": {
+      "mode": "Pyramid",
+      "red": 0.1,
+      "green": 0.2,
+      "blue": 0.3
+    },
+    "visibleTerrainLightGain": 1,
+    "alphaTiming": "FramePhase",
+    "endAlpha": 0.25,
+    "additive": true,
+    "meshResourceKey": "Objects\\effects\\scalable.msh"
+  }
+}
+```
+
+- `frames` is required by framed effects (`first` source frame, `count`, and
+  `periodTicks` in 100-nanosecond units).
+- `spriteSheet` is required by sprite effects (`columns` and `rows`).
+- `alphaTiming` is `"FramePhase"` or `"LifetimeProgress"`.
+- `terrainLight.mode` is `"Constant"`, `"Pyramid"`, `"Trapezium"`, or
+  `"Random"`.
+- `meshResourceKey` applies only to `ScalableObject`; it is the game MSH key for
+  the borrowed static geometry.
+
+### Textured Material
+
+Blender: a material's **Custom Properties**. glTF: a material object. EarthTool
+export writes this envelope; on re-import it supplies the default TEX key.
+
+```json
+{
+  "format": "earthtool.msh.material-authoring",
+  "version": 1,
+  "textureResourceKey": "Textures\\authoring\\hull.tex"
+}
+```
+
+The `textureResourceKey` must start with `Textures\`, end with `.tex`, and
+contain no `/`, `:`, `?`, or `#`.
+
 ## Static Authoring Defaults
 
 | Semantic | Without a typed option |
