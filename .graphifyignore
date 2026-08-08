@@ -1,0 +1,23 @@
+# Generated and local state
+graphify-out/
+artifacts/
+prototypes/
+test_files/
+**/bin/
+**/obj/
+**/node_modules/
+
+# Tests and validation tooling
+*.Tests/
+test-tools/
+
+# Repository automation and agent metadata
+.github/
+.idea/
+.opencode/
+.pi-subagents/
+.slopwatch/
+AGENTS.md
+CONTEXT.md
+pi-session-*.html
+*.orig

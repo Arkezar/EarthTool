@@ -9,17 +9,11 @@
 # Custom
 *.orig
 
-# Graphify local state
-graphify-out/.graphify_python
-graphify-out/.graphify_root
-graphify-out/.graphify_labels.json.sig
-graphify-out/.graphify_learning.json
-graphify-out/.needs_update
-graphify-out/.vocab.txt
-graphify-out/20??-??-??/
-graphify-out/cache/
-graphify-out/memory/
-graphify-out/reflections/
+# Graphify outputs (commit only the queryable graph, report, and labels)
+graphify-out/*
+!graphify-out/graph.json
+!graphify-out/GRAPH_REPORT.md
+!graphify-out/.graphify_labels.json
 
 # Local agent session exports
 pi-session-*.html
